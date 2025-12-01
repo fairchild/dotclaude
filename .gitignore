@@ -18,9 +18,6 @@ statsig/
 # Project-specific data
 projects/
 
-# Hooks (may contain personal scripts)
-hooks/
-
 # Scripts (may contain personal/sensitive content)
 scripts/
 
