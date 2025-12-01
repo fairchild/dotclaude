@@ -7,9 +7,9 @@ Warp Agent Mode configuration.
 - `.mcp.json` - MCP server configurations
 - `settings.json` - Permissions, hooks, and environment settings
 - `CLAUDE.md` - Context and development preferences
-- `AGENTS.md` - Workflow guidelines (worktree usage)
 - `agents/` - Specialized agent definitions
 - `commands/` - Reusable commands (bootstrap, etc.)
+- `hooks/` - Session lifecycle hooks
 - `statusline.sh` - Status line display script
 - `.gitignore` - Excludes personal and generated data
 
@@ -20,7 +20,7 @@ Warp Agent Mode configuration.
 - Plans and todos
 - Debug logs and shell snapshots
 - Project-specific data
-- Personal scripts and hooks
+- Personal scripts
 - Session titles
 - Analytics data
 
@@ -41,8 +41,8 @@ Warp reads `.claude/` directories in projects.
 Copy files as needed:
 
 ```bash
-mkdir -p .claude
-cp ~/.claude/AGENTS.md .claude/
+mkdir -p .claude/commands
+cp ~/.claude/CLAUDE.md .claude/
 cp ~/.claude/commands/bootstrap.md .claude/commands/
 ```
 
