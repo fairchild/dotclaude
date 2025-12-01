@@ -1,0 +1,44 @@
+# History and personal data
+history.jsonl
+file-history/
+plans/
+todos/
+session-titles/
+
+# Debug and logs
+debug/
+shell-snapshots/
+
+# Session state
+session-env/
+
+# Analytics and tracking
+statsig/
+
+# Project-specific data
+projects/
+
+# Hooks (may contain personal scripts)
+hooks/
+
+# Scripts (may contain personal/sensitive content)
+scripts/
+
+# IDE state
+ide/
+
+# Plugins (downloaded/installed)
+plugins/
+
+# Config state files
+config/notification_states.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.cache
+*.swp
+*~

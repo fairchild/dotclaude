@@ -1,0 +1,92 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__container-use__environment_checkpoint",
+      "mcp__container-use__environment_create",
+      "mcp__container-use__environment_add_service",
+      "mcp__container-use__environment_file_delete",
+      "mcp__container-use__environment_file_list",
+      "mcp__container-use__environment_file_read",
+      "mcp__container-use__environment_file_write",
+      "mcp__container-use__environment_open",
+      "mcp__container-use__environment_run_cmd",
+      "mcp__container-use__environment_update",
+      "Bash(bun test:*)",
+      "Bash(bun add:*)",
+      "Bash(git add:*)",
+      "Bash(git checkout:*)",
+      "Bash(git log:*)",
+      "Bash(git status)",
+      "Bash(git branch:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr ready:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(gh issue comment:*)",
+      "Bash(gh issue edit:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh label:*)",
+      "Bash(gh search:*)",
+      "Bash(gh status:*)",
+      "Bash(ls:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(pwd)",
+      "Bash(which:*)",
+      "Bash(echo:*)",
+      "Bash(wc:*)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(git reset:*)",
+      "Bash(git rebase:*)",
+      "Bash(git force:*)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(secrets/**)",
+      "Read(**/*secret*)",
+      "Read(**/*credential*)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.config/**/credentials*)",
+      "Write(.env*)",
+      "Write(secrets/**)",
+      "Write(**/*.pem)",
+      "Write(**/*.key)",
+      "Write(~/.ssh/**)",
+      "Write(~/.aws/**)",
+      "Write(~/.config/**/credentials*)",
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/stop.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh"
+  },
+  "alwaysThinkingEnabled": false,
+  "env": {
+    "NODE_ENV": "development"
+  }
+}
