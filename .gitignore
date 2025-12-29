@@ -20,10 +20,11 @@ telemetry/
 # Project-specific data
 projects/
 
-# Scripts (personal content excluded, shared scripts explicitly tracked)
-scripts/*
-!scripts/generate-session-title.ts
-!scripts/get-session-tokens.sh
+# Scripts - track shared utilities, ignore node_modules and personal scripts
+scripts/node_modules/
+scripts/.gitignore
+scripts/bun.lock
+scripts/tsconfig.json
 
 # IDE state
 ide/
