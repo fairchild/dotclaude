@@ -1,4 +1,7 @@
 {
+  "env": {
+    "NODE_ENV": "development"
+  },
   "permissions": {
     "allow": [
       "mcp__container-use__environment_checkpoint",
@@ -61,14 +64,14 @@
       "Bash(mv:*)",
       "Bash(cp:*)",
       "Bash(curl:*)",
-      "Bash(tsc:*)"
-    ],
-    "ask": [
-      "Bash(git push:*)",
-      "Bash(git reset:*)",
-      "Bash(git rebase:*)",
-      "Bash(git push --force:*)",
-      "Bash(rm -rf:*)"
+      "Bash(tsc:*)",
+      "Bash(bd:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh release list:*)",
+      "Bash(gh release view:*)"
     ],
     "deny": [
       "Read(.env)",
@@ -90,9 +93,39 @@
       "Write(~/.ssh/**)",
       "Write(~/.aws/**)",
       "Write(~/.config/**/credentials*)"
-    ]
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(git reset:*)",
+      "Bash(git rebase:*)",
+      "Bash(git push --force:*)",
+      "Bash(rm -rf:*)"
+    ],
+    "defaultMode": "default"
   },
   "hooks": {
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bd prime"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bd prime"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -108,8 +141,6 @@
     "type": "command",
     "command": "~/.claude/statusline.sh"
   },
-  "alwaysThinkingEnabled": false,
-  "env": {
-    "NODE_ENV": "development"
-  }
+  "alwaysThinkingEnabled": true,
+  "model": "opus"
 }

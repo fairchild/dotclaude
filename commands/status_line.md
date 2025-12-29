@@ -110,3 +110,33 @@ Provide 2-3 bullet points about:
 > **Session Summary:** 25 turns, $2.96 spent, 96% of input from cache.
 > This is an efficient exploratory session with moderate context.
 > Cache savings: ~$9 vs uncached pricing.
+
+## Tips for Cache-Efficient Coding
+
+**How caching works under the hood:**
+- Anthropic stores KV attention states for prompt prefixes
+- Cache hits require *exact* prefix match (same tokens, same order)
+- Cache write costs 25% more than uncached ($6.25 vs $5.00/MTok)
+- Cache read saves 90% ($0.50 vs $5.00/MTok)
+- Breakeven: reuse a prefix ~2x to recoup the write premium
+
+**Structure your workflow for cache hits:**
+1. **Front-load stable context** — System prompt, tools, CLAUDE.md, and project context stay at the prefix and cache well
+2. **Keep variable content at the end** — Your messages and tool results come after the cached prefix
+3. **Avoid mid-conversation changes** — Editing system instructions or tools invalidates the cache
+4. **Batch related work** — Exploring one area deeply reuses the same context; jumping topics may bust the cache
+
+**Session hygiene:**
+- Use `/clear` when switching to unrelated topics (fresh cache is cheaper than stale misses)
+- Long sessions accumulate context that re-caches each turn—watch the cw metric
+- The 5-10 min TTL means pausing too long can drop your cache
+
+**What NOT to worry about:**
+- Reading files is cheap—the content caches on subsequent turns
+- Tool definitions cache automatically (they're part of the stable prefix)
+- Conversation history caches as it grows—that's why cr >> cw in healthy sessions
+
+**Signs of poor cache efficiency:**
+- High `cw` with low `cr` = context keeps changing, nothing reuses
+- `in` growing faster than `cr` = prefix instability
+- Cost dominated by cache writes = too many short sessions or topic switches
