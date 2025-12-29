@@ -13,22 +13,34 @@ Manage worktrees for concurrent development without clobbering changes across te
 
 ## Workflow
 
-**Always present a plan before executing.** Show the user:
-- Worktree path to be created
-- Branch name (new or existing)
-- Detected setup command
-
-Wait for confirmation before proceeding.
+1. Run `create-worktree.sh --plan <branch>` to get JSON plan
+2. Present plan to user in readable format
+3. After confirmation, run `create-worktree.sh <branch>` to execute
 
 ## Commands
 
 ### Create Worktree
 
 ```bash
-scripts/create-worktree.sh <branch> [base-branch]
+scripts/create-worktree.sh [options] <branch> [base-branch]
 ```
 
-Creates worktree at `~/.worktrees/<repo>/<branch>`. If branch doesn't exist, creates it from base-branch (default: main).
+**Options:**
+- `--plan` - Output JSON plan without executing
+- `--skip-setup` - Skip running setup command
+- `--pr <number>` - Create worktree for existing PR
+
+**Plan output:**
+```json
+{
+  "path": "~/.worktrees/repo/branch",
+  "branch": "feature-x",
+  "branch_status": "new|local|remote",
+  "base_branch": "main",
+  "setup_command": "bun install",
+  "skip_setup": false
+}
+```
 
 **Setup detection priority:**
 1. `.cursor/environment.json` → `install` field
@@ -41,28 +53,24 @@ Creates worktree at `~/.worktrees/<repo>/<branch>`. If branch doesn't exist, cre
 scripts/list-worktrees.sh [repo-name]
 ```
 
-Lists all worktrees in `~/.worktrees/`. Optional repo filter.
-
 ### Remove Worktree
 
 ```bash
 scripts/remove-worktree.sh <branch-or-path>
 ```
 
-Removes worktree and prunes. Accepts branch name (uses current repo) or full path.
-
 ## Example Interaction
 
 User: "create a worktree for feature-auth"
 
-Present plan:
-```
-Plan:
-- Create worktree at ~/.worktrees/my-app/feature-auth
-- Branch: feature-auth (new, based on main)
-- Setup: bun install (detected from bun.lockb)
+1. Run: `scripts/create-worktree.sh --plan feature-auth`
+2. Parse JSON, present to user:
+   ```
+   Plan:
+   - Path: ~/.worktrees/bread-builder/feature-auth
+   - Branch: feature-auth (new, from main)
+   - Setup: bun install
 
-Proceed? [Y/n]
-```
-
-After confirmation, run `create-worktree.sh feature-auth` and report the path.
+   Proceed?
+   ```
+3. After confirmation: `scripts/create-worktree.sh feature-auth`

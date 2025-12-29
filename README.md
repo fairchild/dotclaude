@@ -139,6 +139,12 @@ Source: [Claude Models Overview](https://platform.claude.com/docs/en/about-claud
 
 ---
 
+## Credits
+
+Several skills adapted from [anthropics/skills](https://github.com/anthropics/skills) (Apache 2.0).
+
+---
+
 ## Sources
 
 - [Claude Models Overview](https://platform.claude.com/docs/en/about-claude/models/overview)
