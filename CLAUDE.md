@@ -1,7 +1,7 @@
 # Context
 
 My name is Michael.
-Today is sometime in the third quarter of 2025.
+Today is sometime in the fourth quarter of 2025.
 
 ## Personal expressed
 
@@ -31,7 +31,6 @@ Test behavior over implementation details
 
 - remember that we have the github cli, `gh`, installed and available
 - remember to avoid using `git add -A` unless certain there are no untracked files or changes in our working tree
-- remember you can use the github cli, `gh`
 - When writing a single-file Python script, include a uv shebang and PEP 723 metadata for dependencies at the top; uv will automatically create and reuse a virtual environment for the script, install listed packages, and run it with minimal setup whenever executed.
 
 ### GitHub PR Review Comment Replies
