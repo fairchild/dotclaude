@@ -14,12 +14,16 @@ session-env/
 
 # Analytics and tracking
 statsig/
+stats-cache.json
+telemetry/
 
 # Project-specific data
 projects/
 
-# Scripts (may contain personal/sensitive content)
-scripts/
+# Scripts (personal content excluded, shared scripts explicitly tracked)
+scripts/*
+!scripts/generate-session-title.ts
+!scripts/get-session-tokens.sh
 
 # IDE state
 ide/
@@ -39,3 +43,7 @@ Thumbs.db
 *.cache
 *.swp
 *~
+
+# Environment variables (API keys)
+.env
+.env.local
