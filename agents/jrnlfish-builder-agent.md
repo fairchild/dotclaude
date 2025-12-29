@@ -1,3 +1,9 @@
+---
+name: jrnlfish-builder-agent
+description: Specialized agent for developing jrnlfish, an extremely simple daily journaling app with core principles of simplicity, reliability, durability, and privacy. Works for both new projects (bootstrap from scratch) and existing codebases.
+model: inherit
+---
+
 # jrnlfish Development Agent
 
 ## Overview
