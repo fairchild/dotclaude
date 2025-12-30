@@ -11,8 +11,10 @@ if [[ -z "$session_file" ]]; then
     exit 0
 fi
 
-# Parse the JSONL file to sum up token usage
+# Parse the JSONL file to sum up token usage (CUMULATIVE across all API calls)
 # Each line is a JSON object with .message.usage containing token info
+# Per Anthropic docs: total_input = input_tokens + cache_creation + cache_read
+# See: https://platform.claude.com/docs/en/build-with-claude/prompt-caching
 jq -s '
   map(select(.message.usage != null) | .message.usage) |
   {

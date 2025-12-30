@@ -33,10 +33,15 @@ For each element, show:
 Token metrics to explain:
 | Metric | Symbol | Current | Description | Price (Opus 4.5) |
 |--------|--------|---------|-------------|------------------|
-| Input | in | _value_ | Uncached input tokens | $5.00/MTok |
+| Input | in | _value_ | Tokens after cache breakpoint (variable suffix) | $5.00/MTok |
 | Cache Write | cw | _value_ | Tokens written to cache | $6.25/MTok |
 | Cache Read | cr | _value_ | Tokens read from cache | $0.50/MTok |
 | Output | out | _value_ | Response tokens | $25.00/MTok |
+
+**Important:** These are **cumulative values** summed across all API calls in the session:
+- `cw` ≈ unique input tokens (best approximation for "how much content sent")
+- `cr` = same cached content re-read on each turn (grows rapidly, but cheap)
+- Formula: `total_billed_input = in + cw + cr`
 
 ### 3. ASCII Diagram
 
@@ -90,6 +95,74 @@ Provide 2-3 bullet points about:
 - Any recommendations (e.g., "session getting heavy, consider /clear for new topics")
 
 ## Key Concepts to Explain
+
+**Status Line vs /context:**
+- `/context` shows **current turn snapshot** (what Claude sees NOW): ~116K tokens
+- Status line shows **cumulative billing** (summed across ALL turns): millions of tokens
+- If you replayed the conversation as 1 API call: input ≈ `/context`, output ≈ status line `out`
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  /context (CURRENT TURN)              │  Status Line (CUMULATIVE SESSION)   │
+│  What Claude sees RIGHT NOW           │  Billing totals across ALL turns    │
+├───────────────────────────────────────┼─────────────────────────────────────┤
+│                                       │                                     │
+│   ⛁ System prompt      3.1K ─────────┐│                                     │
+│   ⛁ System tools      18.5K ─────────┤│   These form the CACHED PREFIX     │
+│   ⛁ MCP tools         20.7K ─────────┼──► that gets re-read each turn      │
+│   ⛁ Custom agents      1.5K ─────────┤│                                     │
+│   ⛁ Memory files       0.9K ─────────┘│   On Turn 1: written to cache (cw)  │
+│   ⛁ Messages          25.9K ──────────│── Grows each turn, cached prefix    │
+│   ⛶ Free space          84K          │                                     │
+│   ⛝ Autocompact buffer  45K          │   On Turn N: read from cache (cr)   │
+│   ─────────────────────────          │                                     │
+│   TOTAL: ~116K this turn             │                                     │
+│                                       │                                     │
+├───────────────────────────────────────┼─────────────────────────────────────┤
+│                                       │                                     │
+│  YOUR LAST MESSAGE ──────────────────►│   in (input_tokens)                 │
+│  (tokens after cache breakpoint)      │   Small suffix, not cached          │
+│                                       │                                     │
+├───────────────────────────────────────┼─────────────────────────────────────┤
+│                                       │                                     │
+│  CLAUDE'S RESPONSE ──────────────────►│   out (output_tokens)               │
+│  (this turn's output)                 │   Cumulative: all responses         │
+│                                       │                                     │
+└───────────────────────────────────────┴─────────────────────────────────────┘
+
+EXAMPLE: 20-turn session with ~100K stable context
+
+  /context shows:     ~116K tokens (current snapshot)
+
+  Status line shows:  (2K + 120K + 1.9M) : 15K   [1:135]
+                       │     │      │       │
+                       │     │      │       └─ Total output across 20 turns
+                       │     │      │
+                       │     │      └─ 100K context × ~19 cache hits = 1.9M
+                       │     │         (same tokens re-read each turn)
+                       │     │
+                       │     └─ ~120K unique input written to cache
+                       │        (system + tools + growing messages)
+                       │
+                       └─ ~2K variable suffix tokens (after breakpoint)
+
+  If replayed as SINGLE API call:
+    Input:  ~116K (from /context)
+    Output: ~15K  (from status line 'out')
+```
+
+**How the numbers grow (turn by turn):**
+
+```
+Turn │ /context │  Status Line: (in + cw + cr) : out
+─────┼──────────┼─────────────────────────────────────────
+  1  │   50K    │  (0 + 50K + 0) : 1K      ← First turn: all cache WRITE
+  2  │   55K    │  (0 + 55K + 50K) : 2K    ← Turn 2: previous 50K is cache READ
+  3  │   60K    │  (0 + 60K + 105K) : 3K   ← cr accumulates: 50K + 55K
+  4  │   65K    │  (0 + 65K + 165K) : 4K   ← cr keeps growing
+  ...│   ...    │  ...
+ 20  │  116K    │  (2K + 120K + 1.9M) : 15K ← cr >> cw (healthy session)
+```
 
 **Context Window vs Cache Accumulation:**
 - Context window = 200K max per turn (what Claude sees at once)

@@ -179,13 +179,19 @@ describe("evolveTitle", () => {
 describe("integration", () => {
   const SESSION_ID = "test-session-123";
   const PROJECT_DIR = join(TEST_DIR, "session-titles", "test-project");
+  let savedApiKey: string | undefined;
 
   beforeEach(() => {
     mkdirSync(PROJECT_DIR, { recursive: true });
+    // Disable API key to test fallback behavior
+    savedApiKey = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
   });
 
   afterEach(() => {
     rmSync(TEST_DIR, { recursive: true, force: true });
+    // Restore API key
+    if (savedApiKey) process.env.ANTHROPIC_API_KEY = savedApiKey;
   });
 
   test("creates title file", async () => {
