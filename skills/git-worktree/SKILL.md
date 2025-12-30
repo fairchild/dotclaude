@@ -38,9 +38,12 @@ scripts/create-worktree.sh [options] <branch> [base-branch]
   "branch_status": "new|local|remote",
   "base_branch": "main",
   "setup_command": "bun install",
+  "env_files": [".env", ".dev.vars"],
   "skip_setup": false
 }
 ```
+
+**Env files copied:** `.env`, `.env.local`, `.dev.vars` (if present in main repo)
 
 **Setup detection priority:**
 1. `.cursor/environment.json` → `install` field

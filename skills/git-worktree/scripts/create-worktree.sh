@@ -159,6 +159,39 @@ detect_setup_command_from_main() {
     detect_setup_command "$(git rev-parse --show-toplevel)"
 }
 
+# Environment files to copy from main repo
+ENV_FILES=(".env" ".env.local" ".dev.vars")
+
+# Detect which env files exist in main repo
+detect_env_files() {
+    local main_repo="$1"
+    local found=()
+    for f in "${ENV_FILES[@]}"; do
+        if [[ -f "$main_repo/$f" ]]; then
+            found+=("$f")
+        fi
+    done
+    echo "${found[*]}"
+}
+
+# Copy env files from main repo to worktree
+copy_env_files() {
+    local main_repo="$1"
+    local worktree_path="$2"
+    local copied=()
+
+    for f in "${ENV_FILES[@]}"; do
+        if [[ -f "$main_repo/$f" ]]; then
+            cp "$main_repo/$f" "$worktree_path/$f"
+            copied+=("$f")
+        fi
+    done
+
+    if [[ ${#copied[@]} -gt 0 ]]; then
+        echo "Copied env files: ${copied[*]}"
+    fi
+}
+
 # Handle PR checkout
 if [[ -n "$PR_NUMBER" ]]; then
     check_jq
@@ -188,8 +221,10 @@ elif git show-ref --verify --quiet "refs/remotes/origin/$BRANCH" 2>/dev/null; th
     BRANCH_SOURCE="origin/$BRANCH"
 fi
 
-# Detect setup command from main repo
+# Detect setup command and env files from main repo
+MAIN_REPO=$(git rev-parse --show-toplevel)
 SETUP_CMD=$(detect_setup_command_from_main)
+ENV_FILES_FOUND=$(detect_env_files "$MAIN_REPO")
 
 # Plan mode - output JSON and exit
 if [[ "$PLAN_ONLY" == true ]]; then
@@ -200,6 +235,7 @@ if [[ "$PLAN_ONLY" == true ]]; then
         --arg status "$BRANCH_STATUS" \
         --arg base "$BASE_BRANCH" \
         --arg setup "$SETUP_CMD" \
+        --arg env_files "$ENV_FILES_FOUND" \
         --argjson skip_setup "$SKIP_SETUP" \
         '{
             path: $path,
@@ -207,6 +243,7 @@ if [[ "$PLAN_ONLY" == true ]]; then
             branch_status: $status,
             base_branch: $base,
             setup_command: (if $setup == "" then null else $setup end),
+            env_files: (if $env_files == "" then null else ($env_files | split(" ")) end),
             skip_setup: $skip_setup
         }'
     exit 0
@@ -239,6 +276,9 @@ esac
 
 echo ""
 echo "Worktree created at: $WORKTREE_PATH"
+
+# Copy env files from main repo
+copy_env_files "$MAIN_REPO" "$WORKTREE_PATH"
 
 # Run setup unless skipped
 if [[ "$SKIP_SETUP" == false ]] && [[ -n "$SETUP_CMD" ]]; then
