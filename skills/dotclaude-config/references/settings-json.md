@@ -44,7 +44,7 @@ Controls which tools run automatically, require confirmation, or are blocked.
 
 - `ToolName` - matches all uses of that tool
 - `ToolName(glob)` - matches tool with argument matching glob pattern
-- For Bash commands, the glob matches the command string: `Bash(git log:*)` matches any command starting with `git log:`. The `:` and `*` are literal glob characters, not special syntax
+- For Bash, use `:*` suffix for prefix matching: `Bash(git push:*)` matches `git push`, `git push origin main`, etc. The colon is a delimiter (not literal), and `*` means "any arguments"
 
 ### Examples
 
