@@ -100,6 +100,52 @@ git grep -E 'https?://[^/]*(internal|private|staging|dev|local|corp|intra)[^/]*\
 git grep -E 'github\.com/[^/]+/[^/]+' -- ':!*.md' ':!*.lock' | grep -v 'github.com/\(actions\|anthropics\|nodejs\|microsoft\|google\)' | head -10
 ```
 
+### 8. External Security Scanners
+
+Run dedicated secret-scanning tools for deeper analysis. Check if installed and run:
+
+```bash
+# gitleaks - comprehensive secret scanner (recommended)
+# Install: brew install gitleaks
+if command -v gitleaks &>/dev/null; then
+  echo "=== Running gitleaks ==="
+  gitleaks detect --source . --verbose 2>&1 | head -50
+else
+  echo "⚠ gitleaks not installed (brew install gitleaks)"
+fi
+
+# trufflehog - scans git history for high-entropy strings
+# Install: brew install trufflehog
+if command -v trufflehog &>/dev/null; then
+  echo "=== Running trufflehog ==="
+  trufflehog git file://. --only-verified 2>&1 | head -50
+else
+  echo "⚠ trufflehog not installed (brew install trufflehog)"
+fi
+
+# git-secrets - AWS-focused secret prevention
+# Install: brew install git-secrets
+if command -v git-secrets &>/dev/null; then
+  echo "=== Running git-secrets ==="
+  git secrets --scan 2>&1 | head -30
+else
+  echo "⚠ git-secrets not installed (brew install git-secrets)"
+fi
+```
+
+**Tool comparison:**
+
+| Tool | Strengths | Install |
+|------|-----------|---------|
+| **gitleaks** | Fast, configurable rules, CI-friendly | `brew install gitleaks` |
+| **trufflehog** | Deep history scan, entropy detection | `brew install trufflehog` |
+| **git-secrets** | AWS-focused, commit hooks | `brew install git-secrets` |
+| **detect-secrets** | Baseline tracking, plugin system | `pip install detect-secrets` |
+
+**GitHub native scanning:**
+Once public, GitHub automatically scans for known secret patterns and alerts.
+Enable in Settings → Code security → Secret scanning.
+
 ## Output Format
 
 Present findings as:

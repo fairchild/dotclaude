@@ -47,5 +47,23 @@ Thumbs.db
 
 # Environment variables (API keys)
 .env
+.env.*
 .env.local
+
+# Secrets and credentials (defensive patterns for forks)
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+*credential*
+*secret*
+.aws/
+.ssh/
+.gnupg/
+secrets/
+credentials/
+
+# Cached/generated
 image-cache/
