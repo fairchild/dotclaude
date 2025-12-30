@@ -63,9 +63,22 @@ This creates a threaded reply that appears directly under the original review co
 
 ## Languages & Runtimes
 
-- **Python**: primary language for scripting and backend work
+- **Python**: uv for dependencies and scripts
 - **TypeScript**: bun for runtime and package management
 - Prefer single-file scripts over adding MCP servers for extending capabilities
+
+### Package Manager Detection
+
+Detect package manager from lockfiles (check in order):
+- `bun.lock` → `bun`
+- `pnpm-lock.yaml` → `pnpm`
+- `package-lock.json` → `npm`
+- `uv.lock` or `pyproject.toml` → `uv`
+
+Use the detected manager for all commands:
+- Install: `bun install`, `pnpm install`, `npm install`, `uv sync`
+- Run scripts: `bun run`, `pnpm run`, `npm run`, `uv run`
+- Add deps: `bun add`, `pnpm add`, `npm install`, `uv add`
 
 ## Dependencies
 
