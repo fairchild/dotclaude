@@ -43,8 +43,8 @@ Controls which tools run automatically, require confirmation, or are blocked.
 ### Pattern Format
 
 - `ToolName` - matches all uses of that tool
-- `ToolName(glob)` - matches tool with argument matching glob
-- `ToolName:*` - wildcard suffix (for Bash commands)
+- `ToolName(glob)` - matches tool with argument matching glob pattern
+- For Bash commands, the glob matches the command string: `Bash(git log:*)` matches any command starting with `git log:`. The `:` and `*` are literal glob characters, not special syntax
 
 ### Examples
 
@@ -152,8 +152,10 @@ Execute scripts at lifecycle events.
 ### Environment Variables
 
 Hooks receive context via environment variables:
-- `$CLAUDE_FILE_PATHS` - affected file paths
-- `$ARGUMENTS` - tool arguments as JSON
+- `$CLAUDE_FILE_PATHS` - space-separated list of affected file paths. Quote when using in shell to handle paths with spaces: `"$CLAUDE_FILE_PATHS"`
+- `$ARGUMENTS` - tool arguments as JSON string. Quote to preserve: `"$ARGUMENTS"`
+
+Standard OS variables (`PATH`, `HOME`, etc.) and any variables from the `env` section in settings.json are also available.
 
 ### Return Values (Prompt Hooks)
 
@@ -175,6 +177,10 @@ Hooks receive context via environment variables:
   "additionalContext": "info for Claude"
 }
 ```
+
+- `"block"` prevents Claude from seeing the tool output (useful for filtering sensitive data)
+- Omitting `decision` or returning nothing allows normal processing (implicit approve)
+- Changes from the tool are NOT reverted - blocking only affects what Claude sees
 
 ### Example Hooks
 

@@ -155,7 +155,7 @@ claude --mcp-debug
 | `user` | `~/.claude.json` | All projects |
 | `project` | `.mcp.json` | This project only |
 
-Servers from all applicable scopes are available. Project-scope servers can override user-scope with same name.
+Servers from all applicable scopes are available. When a project-scope server has the same name as a user-scope server, the project version completely replaces the global one (no merging of fields).
 
 ## Verifying Connections
 
