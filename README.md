@@ -13,15 +13,13 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 ├── CLAUDE.md          # Personal context (name, preferences, tool choices)
 ├── settings.json      # Permissions, hooks, model selection
 ├── .mcp.json          # MCP server configs
-│
+└── statusline.sh      # Custom status bar
 ├── commands/          # Slash commands (/bootstrap, /status_line)
 ├── skills/            # Extended capabilities with references
 ├── agents/            # Specialized autonomous agents
 ├── hooks/             # Session lifecycle scripts
 ├── scripts/           # Helper utilities
-│
 ├── [generated]        # Gitignored: history, todos, plans, debug, etc.
-└── statusline.sh      # Custom status bar
 ```
 
 ## Quick Reference
