@@ -11,8 +11,10 @@ Create diagrams using the Excalidraw canvas server and verify output with screen
 
 1. **Canvas server running** at http://localhost:3000
    ```bash
-   cd /path/to/mcp_excalidraw && npm run canvas
+   cd ${MCP_EXCALIDRAW_PATH:-~/code/mcp_excalidraw} && npm run canvas
    ```
+   
+   Set `MCP_EXCALIDRAW_PATH` in your global mise config (`~/.config/mise/config.toml`) if the path differs.
 
 2. **MCP server configured** in project `.mcp.json` (for MCP tool access)
 
