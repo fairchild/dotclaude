@@ -1,0 +1,125 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'settings.json'
+      - '.mcp.json'
+      - 'agents/*.md'
+      - 'skills/**'
+      - '.github/schemas/**'
+      - '.github/scripts/validate-config.py'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install jsonschema pyyaml
+
+      - name: Run validation
+        id: validate
+        run: python .github/scripts/validate-config.py
+        continue-on-error: true
+
+      - name: Get changed files
+        id: changed
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            settings.json
+            .mcp.json
+            agents/*.md
+            skills/**
+
+      - name: Generate summary
+        id: summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const changedFiles = `${{ steps.changed.outputs.all_changed_files }}`.split(' ').filter(f => f);
+            const hasErrors = `${{ steps.validate.outcome }}` === 'failure';
+
+            // Categorize changes
+            const settings = changedFiles.filter(f => f === 'settings.json' || f === '.mcp.json');
+            const agents = changedFiles.filter(f => f.startsWith('agents/'));
+            const skills = changedFiles.filter(f => f.startsWith('skills/'));
+
+            let body = '## PR Validation Report\n\n';
+
+            // Status badge
+            if (hasErrors) {
+              body += '> **Status**: :x: Validation failed\n\n';
+            } else {
+              body += '> **Status**: :white_check_mark: All checks passed\n\n';
+            }
+
+            // Changed files summary
+            body += '### Changed Files\n\n';
+
+            if (settings.length > 0) {
+              body += '**Configuration**\n';
+              settings.forEach(f => body += `- \`${f}\`\n`);
+              body += '\n';
+            }
+
+            if (agents.length > 0) {
+              body += '**Agents**\n';
+              agents.forEach(f => body += `- \`${f}\`\n`);
+              body += '\n';
+            }
+
+            if (skills.length > 0) {
+              body += '**Skills**\n';
+              const skillDirs = [...new Set(skills.map(f => f.split('/').slice(0, 2).join('/')))];
+              skillDirs.forEach(s => body += `- \`${s}\`\n`);
+              body += '\n';
+            }
+
+            // Validation details
+            body += '### Validation Checks\n\n';
+            body += '| Check | Status |\n';
+            body += '|-------|--------|\n';
+            body += `| JSON Schema (settings.json) | ${settings.includes('settings.json') ? (hasErrors ? ':x:' : ':white_check_mark:') : ':white_circle: N/A'} |\n`;
+            body += `| JSON Schema (.mcp.json) | ${settings.includes('.mcp.json') ? (hasErrors ? ':x:' : ':white_check_mark:') : ':white_circle: N/A'} |\n`;
+            body += `| Agent Frontmatter | ${agents.length > 0 ? (hasErrors ? ':x:' : ':white_check_mark:') : ':white_circle: N/A'} |\n`;
+            body += `| Skill Frontmatter | ${skills.length > 0 ? (hasErrors ? ':x:' : ':white_check_mark:') : ':white_circle: N/A'} |\n`;
+            body += `| Skill Integrity | ${skills.length > 0 ? (hasErrors ? ':x:' : ':white_check_mark:') : ':white_circle: N/A'} |\n`;
+
+            body += '\n---\n*Automated validation by [pr-validation.yml](.github/workflows/pr-validation.yml)*';
+
+            core.setOutput('body', body);
+            core.setOutput('has_errors', hasErrors);
+
+      - name: Find existing comment
+        id: find-comment
+        uses: peter-evans/find-comment@v3
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: PR Validation Report
+
+      - name: Post or update comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: ${{ steps.summary.outputs.body }}
+          edit-mode: replace
+
+      - name: Fail if validation errors
+        if: steps.validate.outcome == 'failure'
+        run: exit 1

@@ -1,0 +1,114 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/fairchild/dotclaude/schemas/settings.schema.json",
+  "title": "Claude Code Settings",
+  "description": "Schema for Claude Code settings.json configuration file",
+  "type": "object",
+  "properties": {
+    "env": {
+      "type": "object",
+      "description": "Environment variables to set",
+      "additionalProperties": { "type": "string" }
+    },
+    "permissions": {
+      "type": "object",
+      "description": "Tool and command access permissions",
+      "properties": {
+        "allow": {
+          "type": "array",
+          "description": "Patterns to always allow",
+          "items": { "type": "string" }
+        },
+        "deny": {
+          "type": "array",
+          "description": "Patterns to always deny",
+          "items": { "type": "string" }
+        },
+        "ask": {
+          "type": "array",
+          "description": "Patterns requiring user confirmation",
+          "items": { "type": "string" }
+        },
+        "defaultMode": {
+          "type": "string",
+          "enum": ["default", "ask", "deny"],
+          "description": "Default permission mode"
+        }
+      },
+      "additionalProperties": false
+    },
+    "hooks": {
+      "type": "object",
+      "description": "Lifecycle hooks",
+      "properties": {
+        "PreCompact": { "$ref": "#/definitions/hookArray" },
+        "SessionStart": { "$ref": "#/definitions/hookArray" },
+        "Stop": { "$ref": "#/definitions/hookArray" },
+        "PreToolUse": { "$ref": "#/definitions/hookArray" },
+        "PostToolUse": { "$ref": "#/definitions/hookArray" }
+      },
+      "additionalProperties": { "$ref": "#/definitions/hookArray" }
+    },
+    "statusLine": {
+      "type": "object",
+      "description": "Custom status line configuration",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["command"],
+          "description": "Status line type"
+        },
+        "command": {
+          "type": "string",
+          "description": "Command to execute for status line"
+        }
+      },
+      "required": ["type", "command"],
+      "additionalProperties": false
+    },
+    "alwaysThinkingEnabled": {
+      "type": "boolean",
+      "description": "Enable always-thinking mode"
+    },
+    "model": {
+      "type": "string",
+      "description": "Default model to use",
+      "enum": ["opus", "sonnet", "haiku"]
+    }
+  },
+  "definitions": {
+    "hookArray": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "matcher": {
+            "type": "string",
+            "description": "Pattern to match for hook activation"
+          },
+          "hooks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["command"],
+                  "description": "Hook type"
+                },
+                "command": {
+                  "type": "string",
+                  "description": "Command to execute"
+                }
+              },
+              "required": ["type", "command"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": true
+}
