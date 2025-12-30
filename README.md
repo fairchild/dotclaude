@@ -102,6 +102,53 @@ cp ~/.claude/commands/bootstrap.md .claude/commands/
 
 ---
 
+## MCP Servers
+
+Claude Code loads MCP servers from multiple locations, merged together:
+
+| Location | Scope | Added via |
+|----------|-------|-----------|
+| `~/.claude.json` → `mcpServers` | User (global) | `claude mcp add <name>` |
+| `~/.claude/.mcp.json` | User (global) | This repo |
+| `.mcp.json` in project root | Project (shareable) | `claude mcp add -s project` |
+| `~/.claude.json` → `projects.*.mcpServers` | Per-project | `claude mcp add` in project dir |
+
+### This Repo's MCP Config
+
+The `.mcp.json` in this repo defines shareable servers with env var references:
+
+```json
+{
+  "mcpServers": {
+    "alcova-perplexity-mcp": {
+      "command": "perplexity-mcp",
+      "env": { "PERPLEXITY_API_KEY": "${PERPLEXITY_API_KEY}" }
+    }
+  }
+}
+```
+
+### Adding More Servers
+
+```bash
+# User scope (stored in ~/.claude.json, available everywhere)
+claude mcp add langfuse-docs --type http --url https://langfuse.com/api/mcp
+
+# Project scope (stored in .mcp.json, shareable via git)
+claude mcp add my-server -s project --type http --url https://example.com/mcp
+
+# List active servers
+claude mcp list
+```
+
+### Docs
+
+- [Claude Code MCP Guide](https://docs.anthropic.com/en/docs/claude-code/mcp)
+- [MCP Protocol](https://modelcontextprotocol.io/)
+- [MCP Servers Registry](https://github.com/modelcontextprotocol/servers)
+
+---
+
 ## Status Line
 
 Custom status bar: `project branch (uncommitted) Model $cost +add -del (tokens) [ratio]`
