@@ -12,12 +12,12 @@
 #   - cost.total_cost_usd    : cumulative session cost
 #   - cost.total_lines_added/removed : lines changed by Claude
 #
-# Token formula (in+cw+cr):out shows:
-#   in  = input tokens (uncached, full price)
-#   cw  = cache_write tokens (written to cache, 1.25x price)
-#   cr  = cache_read tokens (from cache, 0.1x price) [cyan]
+# Token formula (in+cw+cr):out shows CUMULATIVE values across all turns:
+#   in  = tokens after cache breakpoint (variable suffix, full price)
+#   cw  = cache_write tokens (written to cache, 1.25x price) ≈ unique input
+#   cr  = cache_read tokens (from cache, 0.1x price) [cyan] - grows fastest
 #   out = output tokens (Claude's responses)
-#   [1:N] = input:output ratio
+#   [1:N] = cumulative input:output ratio
 #
 # Dependencies: jq, bc, git
 # See README.md for full documentation
