@@ -67,7 +67,7 @@ claude mcp add
 # JSON config (preferred for scripting)
 claude mcp add-json --scope=user my-server '{"command":"uvx","args":["mcp-server-name"]}'
 
-# Scopes: local (session), user (global), project (.mcp.json)
+# Scopes: local, user (global), project
 ```
 
 ### List servers
@@ -152,7 +152,7 @@ claude --mcp-debug
 | Scope | Storage | Visibility |
 |-------|---------|------------|
 | `local` | Session memory | Current session only |
-| `user` | `~/.claude.json` | All projects |
+| `user` (global) | `~/.claude.json` | All projects |
 | `project` | `.mcp.json` | This project only |
 
 Servers from all applicable scopes are available. When a project-scope server has the same name as a user-scope server, the project version completely replaces the global one (no merging of fields).

@@ -124,7 +124,8 @@ Execute scripts at lifecycle events.
 
 ### Matcher Patterns
 
-- Empty `""` - matches all
+The `matcher` field is optional. If omitted or set to empty string `""`, the hook matches all tools for that event.
+
 - `"Write"` - matches Write tool
 - `"Write|Edit"` - matches Write or Edit
 - Tool-specific matchers may include file patterns
@@ -194,7 +195,7 @@ Auto-format after writes:
   "matcher": "Write|Edit",
   "hooks": [{
     "type": "command",
-    "command": "prettier --write $CLAUDE_FILE_PATHS"
+    "command": "prettier --write \"$CLAUDE_FILE_PATHS\""
   }]
 }]
 ```
