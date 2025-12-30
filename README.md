@@ -61,6 +61,14 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | **ai-sdk-agent-architect** | Vercel AI SDK implementations |
 | **playwright-test-analyzer** | Visual test analysis |
 
+### MCP Servers
+
+Configured in [`.mcp.json`](https://code.claude.com/docs/en/mcp) (merges with project-level configs):
+
+| Server | Purpose |
+|--------|---------|
+| [**perplexity-mcp**](https://github.com/Alcova-AI/perplexity-mcp) | Web search and reasoning via Perplexity API |
+
 ## Permissions Model
 
 Defined in `settings.json`:
