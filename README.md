@@ -73,11 +73,11 @@ Configured in [`.mcp.json`](https://code.claude.com/docs/en/mcp) (merges with pr
 
 Defined in `settings.json`:
 
-| Category | Examples | Behavior |
-|----------|----------|----------|
-| **allow** | git status, ls, npm run | No confirmation |
-| **ask** | git push, git reset, rm -rf | Requires approval |
-| **deny** | Read .env, Read *.pem | Blocked |
+| Category | Scope | Behavior |
+|----------|-------|----------|
+| **allow** | Git (non-destructive), GitHub CLI, file ops, package managers, curl | Auto-approved |
+| **ask** | `git push`, `git reset`, `git rebase`, `rm -rf` | Requires approval |
+| **deny** | `.env*`, `*.pem`, `*.key`, `~/.ssh/`, `~/.aws/`, `*secret*`, `*credential*` | Blocked |
 
 ## Installation
 
