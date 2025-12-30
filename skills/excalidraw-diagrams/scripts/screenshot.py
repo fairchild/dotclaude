@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+#
 # /// script
 # requires-python = ">=3.11"
 # dependencies = ["playwright"]
@@ -16,10 +17,15 @@ Options:
 """
 
 import argparse
+
 from playwright.sync_api import sync_playwright
 
 
-def screenshot(output: str = "/tmp/diagram.png", url: str = "http://localhost:3000", wait_time: int = 3000) -> str:
+def screenshot(
+    output: str = "/tmp/diagram.png",
+    url: str = "http://localhost:3000",
+    wait_time: int = 3000,
+) -> str:
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
@@ -33,9 +39,15 @@ def screenshot(output: str = "/tmp/diagram.png", url: str = "http://localhost:30
 
 def main():
     parser = argparse.ArgumentParser(description="Screenshot Excalidraw canvas")
-    parser.add_argument("-o", "--output", default="/tmp/diagram.png", help="Output path")
-    parser.add_argument("-u", "--url", default="http://localhost:3000", help="Canvas URL")
-    parser.add_argument("-w", "--wait-time", type=int, default=3000, help="Wait time in ms after load")
+    parser.add_argument(
+        "-o", "--output", default="/tmp/diagram.png", help="Output path"
+    )
+    parser.add_argument(
+        "-u", "--url", default="http://localhost:3000", help="Canvas URL"
+    )
+    parser.add_argument(
+        "-w", "--wait-time", type=int, default=3000, help="Wait time in ms after load"
+    )
     args = parser.parse_args()
 
     path = screenshot(args.output, args.url, args.wait_time)

@@ -27,8 +27,14 @@ Expected response:
 ### 2. GitHub Actions Status
 
 ```bash
-# Check latest workflow run
-gh run list --workflow=deploy.yml --limit=1
+# List recent runs (auto-detects workflows)
+gh run list --limit=5
+
+# Find deployment-related workflows
+ls .github/workflows/ | grep -iE '(deploy|release|publish|ci)'
+
+# Check latest run for a specific workflow
+gh run list --workflow=<workflow-file> --limit=1
 
 # Watch a specific run
 gh run watch <run-id>
@@ -36,6 +42,11 @@ gh run watch <run-id>
 # Check if deployment succeeded
 gh run view --json conclusion -q '.conclusion' <run-id>
 ```
+
+**Workflow detection priority:**
+1. Look in `.github/workflows/` for files matching: `deploy*`, `release*`, `publish*`, `cd*`
+2. Fall back to `ci.yml` or `main.yml` if no deploy-specific workflow exists
+3. Use `gh run list --limit=5` to see recent runs across all workflows
 
 ### 3. Smoke Tests
 
@@ -82,20 +93,20 @@ grep -A5 '"production"' wrangler.jsonc | grep 'name'
 
 ```bash
 # Via wrangler (requires auth)
-npx wrangler deployments list
+bunx wrangler deployments list
 
 # Check recent deployment
-npx wrangler deployments view
+bunx wrangler deployments view
 ```
 
 ### Tail Logs
 
 ```bash
 # Production logs
-npx wrangler tail --env production
+bunx wrangler tail --env production
 
 # Filter errors
-npx wrangler tail --env production --status error
+bunx wrangler tail --env production --status error
 ```
 
 ## Common Issues
@@ -112,8 +123,11 @@ npx wrangler tail --env production --status error
 Before starting new work:
 
 ```bash
-# 1. Confirm last deploy succeeded
-gh run list --workflow=deploy.yml --limit=1
+# 1. Confirm last deploy succeeded (check recent runs across all workflows)
+gh run list --limit=3
+
+# Or target a specific workflow if known
+gh run list --workflow=<workflow-file> --limit=1
 
 # 2. Hit health endpoint
 curl -sf https://app.example.com/healthz

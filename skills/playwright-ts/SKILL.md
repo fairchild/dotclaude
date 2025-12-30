@@ -17,9 +17,9 @@ grep -E '"test"|"test:e2e"|"test:playwright"' package.json
 
 **Common patterns across projects:**
 - `npm test` / `pnpm test` / `bun test` — run default tests
-- `npm run test:e2e` — E2E specific tests
-- `npm run test:playwright` — Playwright runner directly
-- `npm run test:headed` — visible browser for debugging
+- `bun run test:e2e` — E2E specific tests
+- `bun run test:playwright` — Playwright runner directly
+- `bun run test:headed` — visible browser for debugging
 
 **Note:** Detect package manager from lockfiles (see CLAUDE.md) and use the appropriate command.
 
@@ -29,17 +29,17 @@ Most projects require the dev server running before tests:
 
 ```bash
 # Terminal 1: Start dev server
-npm run dev  # or pnpm dev, bun dev (detect from lockfiles)
+bun run dev  # or pnpm dev, bun dev (detect from lockfiles)
 
 # Terminal 2: Run tests
-npm test  # use detected package manager
+bun test  # use detected package manager
 ```
 
 Some projects have combined scripts:
 ```bash
 # Starts server and runs tests
-npm run e2e:server  # server only
-npm test            # assumes server running
+bun run e2e:server  # server only
+bun test            # assumes server running
 ```
 
 ## Test Structure
@@ -84,13 +84,13 @@ if (process.env.SCREENSHOTS === 'true') {
 }
 ```
 
-Run with: `SCREENSHOTS=true npm test` (use detected package manager)
+Run with: `SCREENSHOTS=true bun test` (use detected package manager)
 
 ## Debugging Patterns
 
 **Headed mode:**
 ```bash
-npm run test:headed
+bun run test:headed
 # or
 npx playwright test --headed
 ```
