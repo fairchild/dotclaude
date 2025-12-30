@@ -63,7 +63,7 @@ This creates a threaded reply that appears directly under the original review co
 
 ## Languages & Runtimes
 
-- **Python**: uv for dependencies and scripts
+- **Python**: primary language for scripting and backend work
 - **TypeScript**: bun for runtime and package management
 - Prefer single-file scripts over adding MCP servers for extending capabilities
 
