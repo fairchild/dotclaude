@@ -60,3 +60,22 @@ gh api /repos/owner/repo/pulls/PR_NUMBER/comments \
 - GraphQL mutations - unreliable for review comment threads
 
 This creates a threaded reply that appears directly under the original review comment, exactly like manual replies in the GitHub UI.
+
+## Languages & Runtimes
+
+- **Python**: primary language for scripting and backend work
+- **TypeScript**: bun for runtime and package management
+- Prefer single-file scripts over adding MCP servers for extending capabilities
+
+## Dependencies
+
+- Minimal, stdlib-preferred
+- Reach for external packages only when they provide clear value
+- Clone dependencies to explore source when docs are insufficient
+  - Third-party repos: `~/code/github/*`
+  - Feel free to clone repos to troubleshoot or understand behavior
+
+## Git
+
+- Conventional commits (`feat:`, `fix:`, `chore:`, etc.)
+- Shell: zsh
