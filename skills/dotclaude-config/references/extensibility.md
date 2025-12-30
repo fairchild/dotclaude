@@ -238,7 +238,7 @@ assets/
 | Commands | `~/.claude/commands/` | `.claude/commands/` | Both available |
 | Skills | `~/.claude/skills/` | `.claude/skills/` | Both available |
 
-When an agent, command, or skill with the same name exists at both levels, the project version completely shadows the global one - Claude only sees the project version.
+When an agent, command, or skill with the same name exists at both levels, the project version likely shadows the global one (consistent with standard CLI conventions, though not explicitly documented).
 
 ## Creating Effective Descriptions
 

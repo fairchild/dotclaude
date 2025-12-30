@@ -152,10 +152,14 @@ Execute scripts at lifecycle events.
 ### Environment Variables
 
 Hooks receive context via environment variables:
-- `$CLAUDE_FILE_PATHS` - space-separated list of affected file paths. Quote when using in shell to handle paths with spaces: `"$CLAUDE_FILE_PATHS"`
-- `$ARGUMENTS` - tool arguments as JSON string. Quote to preserve: `"$ARGUMENTS"`
+- `$CLAUDE_FILE_PATHS` - space-separated list of affected file paths. Quote in shell: `"$CLAUDE_FILE_PATHS"`
+- `$CLAUDE_TOOL_INPUT` - tool parameters as JSON object
+- `$CLAUDE_TOOL_NAME` - name of the tool being executed
+- `$CLAUDE_PROJECT_DIR` - current project directory
+- `$CLAUDE_WORKING_DIR` - current working directory
+- `$CLAUDE_SESSION_ID` - session identifier
 
-Standard OS variables (`PATH`, `HOME`, etc.) and any variables from the `env` section in settings.json are also available.
+Standard OS variables and any variables from the `env` section in settings.json are also available.
 
 ### Return Values (Prompt Hooks)
 
@@ -178,9 +182,9 @@ Standard OS variables (`PATH`, `HOME`, etc.) and any variables from the `env` se
 }
 ```
 
-- `"block"` prevents Claude from seeing the tool output (useful for filtering sensitive data)
-- Omitting `decision` or returning nothing allows normal processing (implicit approve)
-- Changes from the tool are NOT reverted - blocking only affects what Claude sees
+- `"block"` prompts Claude with the `reason` as feedback after tool execution (for guiding next steps)
+- Omitting `decision` or returning nothing means no additional feedback to Claude
+- Changes from the tool are NOT reverted - PostToolUse provides feedback, not prevention
 
 ### Example Hooks
 
