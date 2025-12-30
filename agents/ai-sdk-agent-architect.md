@@ -1,6 +1,26 @@
 ---
 name: ai-sdk-agent-architect
-description: Use this agent when you need to implement Vercel AI SDK 5 agents with streaming capabilities, tool orchestration, and reasoning visibility. This includes creating agents with personality-driven system prompts, implementing search-first patterns with clarification questions, setting up streaming reasoning with UI integration, and ensuring proper control flow with stopWhen conditions. <example>\nContext: The user needs to create a librarian-style AI agent using Vercel AI SDK 5.\nuser: "I need to implement a search agent with the new AI SDK that can ask clarifying questions"\nassistant: "I'll use the ai-sdk-agent-architect to create a proper AI SDK 5 agent implementation with search tools and clarification patterns"\n<commentary>\nSince the user needs to implement an AI SDK 5 agent with specific patterns, use the ai-sdk-agent-architect to handle the complex SDK-specific implementation.\n</commentary>\n</example>\n<example>\nContext: The user is building a streaming AI interface with tool calls.\nuser: "Set up a streaming agent that shows its reasoning process while using tools"\nassistant: "Let me invoke the ai-sdk-agent-architect to implement the streaming reasoning pattern with proper tool visibility"\n<commentary>\nThe request involves streaming reasoning and tool orchestration, which are core specialties of the ai-sdk-agent-architect.\n</commentary>\n</example>
+description: >
+  Use this agent when you need to implement Vercel AI SDK 5 agents with streaming
+  capabilities, tool orchestration, and reasoning visibility. This includes creating
+  agents with personality-driven system prompts, implementing search-first patterns
+  with clarification questions, setting up streaming reasoning with UI integration,
+  and ensuring proper control flow with stopWhen conditions. <example>
+  Context - The user needs to create a librarian-style AI agent using Vercel AI SDK 5.
+  user - "I need to implement a search agent with the new AI SDK that can ask clarifying questions"
+  assistant - "I'll use the ai-sdk-agent-architect to create a proper AI SDK 5 agent implementation with search tools and clarification patterns"
+  <commentary>
+  Since the user needs to implement an AI SDK 5 agent with specific patterns, use the ai-sdk-agent-architect to handle the complex SDK-specific implementation.
+  </commentary>
+  </example>
+  <example>
+  Context - The user is building a streaming AI interface with tool calls.
+  user - "Set up a streaming agent that shows its reasoning process while using tools"
+  assistant - "Let me invoke the ai-sdk-agent-architect to implement the streaming reasoning pattern with proper tool visibility"
+  <commentary>
+  The request involves streaming reasoning and tool orchestration, which are core specialties of the ai-sdk-agent-architect.
+  </commentary>
+  </example>
 model: opus
 color: purple
 ---
