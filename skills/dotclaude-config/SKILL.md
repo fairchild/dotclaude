@@ -1,11 +1,96 @@
 ---
 name: dotclaude-config
-description: Work with Claude Code configuration in ~/.claude directories. Use when editing settings.json (permissions, hooks, statusline, model), managing MCP servers (.mcp.json), or creating/editing agents, commands, and skills. Also use when questions arise about global vs project config merging.
+description: Work with Claude Code configuration at global (~/.claude) or project (.claude/) level. Use when editing settings.json (permissions, hooks, statusline, model), managing MCP servers, or creating agents/commands/skills. Determines context automatically and provides guidance on global vs project placement to avoid duplication.
 ---
 
 # Claude Code Configuration
 
-This skill helps work with Claude Code configuration directories (~/.claude and project .claude/).
+Work with Claude Code configuration at any level - global (`~/.claude/`) or project (`.claude/`).
+
+## First: Determine Context
+
+Before making changes, identify where you're working and what already exists:
+
+```bash
+# Where are we?
+pwd
+
+# In a project repo or in ~/.claude itself?
+[[ "$(pwd)" == "$HOME/.claude"* ]] && echo "GLOBAL" || echo "PROJECT"
+
+# What config exists at each level?
+ls -la ~/.claude/settings.json ~/.claude.json 2>/dev/null
+ls -la .claude/settings.json .mcp.json 2>/dev/null
+```
+
+**Context determines approach:**
+
+| Context | You're configuring... | Primary concern |
+|---------|----------------------|-----------------|
+| **Global** (`~/.claude`) | Personal defaults for all projects | Reusable patterns |
+| **Project** (`.claude/`) | Project-specific behavior | Avoid duplicating global |
+
+## Working in Project Context
+
+When configuring a project's `.claude/` directory, always follow this workflow:
+
+### 1. Audit Global Config First
+
+Before adding anything to project config, examine what's already defined globally:
+
+```bash
+# Check global settings
+cat ~/.claude/settings.json 2>/dev/null | jq .
+
+# Check global MCP servers
+cat ~/.claude.json 2>/dev/null | jq .mcpServers
+
+# List global agents, commands, skills
+ls ~/.claude/agents/ ~/.claude/commands/ ~/.claude/skills/ 2>/dev/null
+```
+
+### 2. Apply the Reuse Principle
+
+**Only add to project config what is:**
+- Unique to this project (project-specific MCP servers, custom workflows)
+- Overriding global behavior intentionally (stricter permissions, different model)
+- Sharable with the team via version control
+
+**Do NOT duplicate:**
+- Permissions already in global config
+- MCP servers you use across all projects
+- Personal agents/skills that aren't project-specific
+
+### 3. Explain Your Reasoning
+
+When making recommendations, always explain WHY:
+
+```markdown
+**Recommendation:** Add this permission to `.claude/settings.json`
+
+**Reasoning:** This permission is project-specific because:
+- It references paths unique to this project (`./src/api/**`)
+- The global config doesn't cover this use case
+- Team members will need this when they clone the repo
+
+**Not adding to global because:** This pattern only makes sense for this project's structure.
+```
+
+## Placement Decision Guide
+
+Use this to decide where configuration belongs:
+
+| Configuration | Global (`~/.claude`) | Project (`.claude/`) |
+|--------------|---------------------|---------------------|
+| **Permissions** | Personal security rules (deny secrets, keys) | Project-specific paths, team-agreed rules |
+| **Hooks** | Personal workflows (formatters, linters) | Project build/test hooks, CI-related |
+| **StatusLine** | Personal preference | Never (statusline is personal) |
+| **Model** | Personal default | Team agreement on model for project |
+| **MCP Servers** | Personal tools (perplexity, notion) | Project-specific APIs, databases |
+| **Agents** | Personal productivity agents | Project-specific workflows |
+| **Skills** | General-purpose skills | Project/domain-specific skills |
+| **Commands** | Personal shortcuts | Project-specific operations |
+| **CLAUDE.md** | Personal preferences, style | Project context, architecture, conventions |
 
 ## Configuration Hierarchy
 
@@ -25,43 +110,30 @@ For instructions:
 
 ## Using Built-in Subagents
 
-This skill's references provide a working snapshot of Claude Code configuration. For current official documentation or features not covered here, use built-in subagents:
-
 ### claude-code-guide
 
-Use `Task(subagent_type="claude-code-guide")` to query official Claude Code documentation:
+Query official Claude Code documentation:
 
 ```
-Task(subagent_type="claude-code-guide", prompt="How do I configure hooks in settings.json?")
-Task(subagent_type="claude-code-guide", prompt="What MCP server options are available?")
-Task(subagent_type="claude-code-guide", prompt="How do I create a custom slash command?")
+Task(subagent_type="claude-code-guide", prompt="How do hooks work in settings.json?")
 ```
 
-**When to use:**
-- Questions about latest Claude Code features
-- Clarification on undocumented behavior
-- Verification of syntax or options
-- Claude Agent SDK questions
+**When to use:** Latest features, undocumented behavior, syntax verification.
 
 ### Explore
 
-Use `Task(subagent_type="Explore")` to examine the user's actual configuration:
+Examine actual configuration across levels:
 
 ```
-Task(subagent_type="Explore", prompt="What hooks are configured in ~/.claude/settings.json?")
-Task(subagent_type="Explore", prompt="List all MCP servers in this project")
+Task(subagent_type="Explore", prompt="Compare global and project permissions")
+Task(subagent_type="Explore", prompt="What MCP servers are configured at each level?")
 ```
 
-**When to use:**
-- Understanding current configuration state
-- Finding existing agents, skills, or commands
-- Debugging configuration issues
+**When to use:** Understanding current state, finding conflicts, debugging.
 
 ## Quick Reference
 
 ### Permissions
-
-Control tool access with `allow`, `deny`, `ask` arrays:
 
 ```json
 "permissions": {
@@ -71,39 +143,18 @@ Control tool access with `allow`, `deny`, `ask` arrays:
 }
 ```
 
-Pattern format: `ToolName(glob-pattern)` or `ToolName` for all uses.
-
 ### Hooks
-
-Execute scripts at lifecycle events:
 
 ```json
 "hooks": {
-  "PreToolUse": [{"matcher": "Write", "hooks": [{"type": "command", "command": "..."}]}],
-  "PostToolUse": [...],
-  "Stop": [...],
-  "SessionStart": [...],
-  "PreCompact": [...]
+  "PostToolUse": [{"matcher": "Write|Edit", "hooks": [{"type": "command", "command": "..."}]}]
 }
 ```
-
-### StatusLine
-
-Custom status bar script:
-
-```json
-"statusLine": {
-  "type": "command",
-  "command": "~/.claude/statusline.sh"
-}
-```
-
-Script receives JSON via stdin with workspace, model, cost, token data.
 
 ### Model
 
 ```json
-"model": "opus"  // or "sonnet", "haiku", full model ID
+"model": "opus"  // or "sonnet", "haiku"
 ```
 
 ## Detailed Documentation
@@ -112,76 +163,71 @@ Script receives JSON via stdin with workspace, model, cost, token data.
 - **MCP configuration**: See [references/mcp-config.md](references/mcp-config.md)
 - **Extensibility (agents/commands/skills)**: See [references/extensibility.md](references/extensibility.md)
 
+## Example: Project Config Audit
+
+When asked to configure a project, produce an audit like this:
+
+```markdown
+## Configuration Audit
+
+### Global Config (already have)
+- **Permissions**: deny secrets/keys, allow git commands
+- **MCP**: perplexity-mcp (personal)
+- **Hooks**: PostToolUse formatter, Stop session-title
+- **Model**: opus
+
+### Project Needs
+- Custom permission for `./packages/**` paths
+- MCP server for project's Supabase instance
+- Agent for project's deployment workflow
+
+### Recommendations
+
+1. **Add to `.claude/settings.json`:**
+   ```json
+   {"permissions": {"allow": ["Read(./packages/**)"]}}
+   ```
+   *Reasoning: Project-specific path not in global config*
+
+2. **Add to `.mcp.json`:**
+   ```json
+   {"mcpServers": {"supabase": {...}}}
+   ```
+   *Reasoning: Project database, needs team access via git*
+
+3. **Skip adding:**
+   - General git permissions (already global)
+   - Perplexity MCP (personal, not project-specific)
+   - Formatter hooks (already in global PostToolUse)
+```
+
 ## Common Tasks
 
-### Add a permission
+### Add a project-specific permission
 
+First check global: `cat ~/.claude/settings.json | jq .permissions`
+
+If not covered, add to `.claude/settings.json`:
 ```json
-// Allow specific tool pattern
-"allow": ["Bash(npm test:*)"]
-
-// Deny sensitive file access
-"deny": ["Read(**/*secret*)"]
-
-// Prompt before destructive operations
-"ask": ["Bash(rm -rf:*)"]
+"permissions": {"allow": ["Bash(npm run build:*)"]}
 ```
 
-### Add an MCP server
+### Add a project MCP server
 
-In `.mcp.json` or via CLI:
-
-```bash
-claude mcp add-json --scope=user my-server '{"command":"uvx","args":["mcp-server-name"]}'
-```
-
-### Create a hook
-
+Add to `.mcp.json` (not `~/.claude.json`) so team gets it:
 ```json
-"hooks": {
-  "PostToolUse": [{
-    "matcher": "Write|Edit",
-    "hooks": [{"type": "command", "command": "prettier --write $CLAUDE_FILE_PATHS"}]
-  }]
-}
+{"mcpServers": {"project-db": {"command": "...", "env": {"DB_URL": "${PROJECT_DB_URL}"}}}}
 ```
 
-### Create an agent
+### Create a project-specific agent
 
-Create `agents/my-agent.md` with frontmatter:
+Create `.claude/agents/deploy.md` for project workflows.
+Keep personal agents in `~/.claude/agents/`.
 
-```markdown
----
-name: my-agent
-description: What the agent does and when to use it
----
+### Override global settings
 
-# Agent instructions here
-```
-
-### Create a skill
-
-Create `skills/my-skill/SKILL.md` with frontmatter:
-
-```markdown
----
-name: my-skill
-description: What the skill does and triggers for when to use it
----
-
-# Skill instructions
-```
-
-Add `references/` for detailed docs, `scripts/` for executables, `assets/` for templates.
-
-### Create a command
-
-Create `commands/my-command.md`:
-
-```markdown
----
-description: What /my-command does
----
-
-Prompt that executes when user runs /my-command
+Project settings merge with (and can override) global:
+```json
+// .claude/settings.json - stricter for this project
+{"permissions": {"deny": ["Write(./contracts/**)"]}}
 ```
