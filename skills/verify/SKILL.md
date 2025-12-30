@@ -42,7 +42,7 @@ gh run view --json conclusion -q '.conclusion' <run-id>
 Check `package.json` for smoke test scripts:
 
 ```bash
-# Common patterns
+# Common patterns (use detected package manager from lockfiles - see CLAUDE.md)
 npm run test:smoke
 npm run test:prod
 BASE_URL=https://app.example.com npm test -- --grep=@smoke
@@ -118,7 +118,7 @@ gh run list --workflow=deploy.yml --limit=1
 # 2. Hit health endpoint
 curl -sf https://app.example.com/healthz
 
-# 3. Run quick smoke test
+# 3. Run quick smoke test (use detected package manager)
 npm run test:smoke
 
 # All green? → Continue development
@@ -135,7 +135,7 @@ URL="${1:-https://app.example.com}"
 echo "Checking $URL..."
 
 # Health check
-if curl -sf "$URL/healthz" > /dev/null; then
+if curl -f "$URL/healthz" > /dev/null; then
   echo "✅ Health check passed"
 else
   echo "❌ Health check failed"
@@ -145,6 +145,7 @@ fi
 # Smoke tests (if available)
 if grep -q '"test:smoke"' package.json 2>/dev/null; then
   echo "Running smoke tests..."
+  # Detect package manager from lockfiles (see CLAUDE.md)
   BASE_URL="$URL" npm run test:smoke
 fi
 

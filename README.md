@@ -47,6 +47,9 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | **cloudflare-workers-deploy** | Workers deployment setup |
 | **git-worktree** | Parallel branch development |
 | **web-artifacts-builder** | Complex claude.ai artifacts |
+| **playwright-ts** | TypeScript-based Playwright workflows |
+| **verify** | Deployment verification and health checks |
+| **excalidraw-diagrams** | Creating diagrams via Excalidraw |
 
 ### Agents (background tasks)
 

@@ -21,16 +21,18 @@ grep -E '"test"|"test:e2e"|"test:playwright"' package.json
 - `npm run test:playwright` — Playwright runner directly
 - `npm run test:headed` — visible browser for debugging
 
+**Note:** Detect package manager from lockfiles (see CLAUDE.md) and use the appropriate command.
+
 ## Cloudflare Workers Dev Server
 
 Most projects require the dev server running before tests:
 
 ```bash
 # Terminal 1: Start dev server
-npm run dev  # or pnpm dev, bun dev
+npm run dev  # or pnpm dev, bun dev (detect from lockfiles)
 
 # Terminal 2: Run tests
-npm test
+npm test  # use detected package manager
 ```
 
 Some projects have combined scripts:
@@ -82,7 +84,7 @@ if (process.env.SCREENSHOTS === 'true') {
 }
 ```
 
-Run with: `SCREENSHOTS=true npm test`
+Run with: `SCREENSHOTS=true npm test` (use detected package manager)
 
 ## Debugging Patterns
 

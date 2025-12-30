@@ -73,7 +73,7 @@ Detect package manager from lockfiles (check in order):
 - `bun.lock` → `bun`
 - `pnpm-lock.yaml` → `pnpm`
 - `package-lock.json` → `npm`
-- `uv.lock` or `pyproject.toml` → `uv`
+- `uv.lock` → `uv`
 
 Use the detected manager for all commands:
 - Install: `bun install`, `pnpm install`, `npm install`, `uv sync`
