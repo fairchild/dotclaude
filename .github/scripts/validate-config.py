@@ -322,20 +322,22 @@ def generate_github_output(results: list[ValidationResult]):
         f.write(f"has_errors={'true' if errors else 'false'}\n")
 
         # Write summary for PR comment
-        summary = []
+        summary_lines = []
         if errors:
-            summary.append("### Errors\n")
-            summary.extend(f"- {e}\n" for e in errors)
+            summary_lines.append("### Errors")
+            summary_lines.extend(f"- {e}" for e in errors)
         if warnings:
-            summary.append("\n### Warnings\n")
-            summary.extend(f"- {w}\n" for w in warnings)
+            summary_lines.append("")
+            summary_lines.append("### Warnings")
+            summary_lines.extend(f"- {w}" for w in warnings)
         if not errors and not warnings:
-            summary.append("All configuration files are valid!")
+            summary_lines.append("All configuration files are valid!")
 
         # Use delimiter for multiline output
+        # EOF must be on its own line with nothing after it
         f.write("summary<<EOF\n")
-        f.writelines(summary)
-        f.write("EOF\n")
+        f.write("\n".join(summary_lines))
+        f.write("\nEOF\n")
 
 
 if __name__ == "__main__":
