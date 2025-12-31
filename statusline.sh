@@ -159,5 +159,13 @@ fi
 # Session title (if set)
 title_file=~/.claude/session-titles/$project_name/$session_id.txt
 if [[ -f "$title_file" ]]; then
-    printf " ${DIM}|${RESET} ${MAGENTA}%s${RESET}" "$(cat "$title_file")"
+    title=$(cat "$title_file")
+    # Highlight shift indicator (N) in yellow if present
+    if [[ $title =~ ^\(([0-9]+)\)\ (.*)$ ]]; then
+        shift_count="${BASH_REMATCH[1]}"
+        title_text="${BASH_REMATCH[2]}"
+        printf " ${DIM}|${RESET} ${YELLOW}(%s)${RESET} ${MAGENTA}%s${RESET}" "$shift_count" "$title_text"
+    else
+        printf " ${DIM}|${RESET} ${MAGENTA}%s${RESET}" "$title"
+    fi
 fi
