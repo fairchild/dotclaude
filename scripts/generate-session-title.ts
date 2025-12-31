@@ -27,7 +27,8 @@ async function main() {
 
   const currentTitle = existsSync(titleFile) ? readFileSync(titleFile, "utf-8").trim() : null;
 
-  await writeTitle(dir, session_id, currentTitle, transcript_path);
+  // Pass projectName for richer context extraction
+  await writeTitle(dir, session_id, currentTitle, transcript_path, projectName);
 }
 
 main();

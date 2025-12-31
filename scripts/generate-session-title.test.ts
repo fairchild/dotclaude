@@ -134,12 +134,13 @@ describe("getProjectName", () => {
 // --- Unit Tests for evolveTitle ---
 
 describe("evolveTitle", () => {
-  test("returns timestamp when no messages", async () => {
+  test("returns project session fallback when no messages", async () => {
     const { evolveTitle } = await import("./generate-session-title-testable.ts");
 
     const title = await evolveTitle(null, null, null);
 
-    expect(title).toMatch(/^Session \d{2}:\d{2} [AP]M$/);
+    // Legacy wrapper uses "unknown" as project name
+    expect(title).toBe("unknown session");
   });
 
   test("seeds with first message when no current title", async () => {
@@ -174,6 +175,162 @@ describe("evolveTitle", () => {
   });
 });
 
+// --- Unit Tests for extractSessionContext ---
+
+describe("extractSessionContext", () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  test("extracts git branch from user message metadata", async () => {
+    const transcript = `
+{"type":"user","message":{"role":"user","content":"Fix the auth bug"},"gitBranch":"feat/add-oauth"}
+`.trim();
+    const path = createTranscript(transcript);
+    const { extractSessionContext } = await import("./generate-session-title-testable.ts");
+
+    const ctx = extractSessionContext(path, "test-project");
+
+    expect(ctx.gitBranch).toBe("feat/add-oauth");
+    expect(ctx.firstMessage).toBe("Fix the auth bug");
+  });
+
+  test("extracts explicit summary from transcript", async () => {
+    const transcript = `
+{"type":"summary","summary":"PR #95 Phase 1 Refactoring: Structural Decomposition"}
+{"type":"user","message":{"role":"user","content":"Continue the refactor"},"gitBranch":"main"}
+`.trim();
+    const path = createTranscript(transcript);
+    const { extractSessionContext } = await import("./generate-session-title-testable.ts");
+
+    const ctx = extractSessionContext(path, "test-project");
+
+    expect(ctx.explicitSummary).toBe("PR #95 Phase 1 Refactoring: Structural Decomposition");
+  });
+
+  test("extracts modified files from tool calls", async () => {
+    const transcript = `
+{"type":"user","message":{"role":"user","content":"Update the auth module"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Edit","input":{"file_path":"/src/auth.ts"}},{"type":"tool_use","name":"Write","input":{"file_path":"/src/utils.ts"}}]}}
+`.trim();
+    const path = createTranscript(transcript);
+    const { extractSessionContext } = await import("./generate-session-title-testable.ts");
+
+    const ctx = extractSessionContext(path, "test-project");
+
+    expect(ctx.modifiedFiles).toContain("auth.ts");
+    expect(ctx.modifiedFiles).toContain("utils.ts");
+  });
+
+  test("counts user messages", async () => {
+    const path = createTranscript(SAMPLE_TRANSCRIPT);
+    const { extractSessionContext } = await import("./generate-session-title-testable.ts");
+
+    const ctx = extractSessionContext(path, "test-project");
+
+    expect(ctx.messageCount).toBe(2); // Two valid user messages
+  });
+
+  test("returns empty context for missing file", async () => {
+    const { extractSessionContext } = await import("./generate-session-title-testable.ts");
+
+    const ctx = extractSessionContext("/nonexistent/path.jsonl", "test-project");
+
+    expect(ctx.firstMessage).toBeNull();
+    expect(ctx.gitBranch).toBeNull();
+    expect(ctx.modifiedFiles).toEqual([]);
+  });
+});
+
+// --- Unit Tests for formatTitleWithShift ---
+
+describe("formatTitleWithShift", () => {
+  test("returns plain title when shiftCount is 0", async () => {
+    const { formatTitleWithShift } = await import("./generate-session-title-testable.ts");
+
+    expect(formatTitleWithShift("Fix auth bug", 0)).toBe("Fix auth bug");
+  });
+
+  test("adds numeric prefix when shiftCount > 0", async () => {
+    const { formatTitleWithShift } = await import("./generate-session-title-testable.ts");
+
+    expect(formatTitleWithShift("Debug CI tests", 1)).toBe("(1) Debug CI tests");
+    expect(formatTitleWithShift("Refactor auth", 3)).toBe("(3) Refactor auth");
+  });
+
+  test("handles negative shiftCount", async () => {
+    const { formatTitleWithShift } = await import("./generate-session-title-testable.ts");
+
+    expect(formatTitleWithShift("Some title", -1)).toBe("Some title");
+  });
+});
+
+// --- Unit Tests for fallback behavior ---
+
+describe("fallback chain", () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  test("uses branch name as fallback when available", async () => {
+    const transcript = `
+{"type":"user","message":{"role":"user","content":"short"},"gitBranch":"feat/add-oauth-flow"}
+`.trim();
+    const path = createTranscript(transcript);
+    const { extractSessionContext, evolveTitleWithContext } = await import("./generate-session-title-testable.ts");
+
+    const ctx = extractSessionContext(path, "test-project");
+    // "short" is < 10 chars so it's skipped, branch is used
+    const result = await evolveTitleWithContext(null, ctx, null);
+
+    expect(result.title).toBe("add oauth flow");
+  });
+
+  test("uses first message when branch is main", async () => {
+    const transcript = `
+{"type":"user","message":{"role":"user","content":"Help me fix the login bug"},"gitBranch":"main"}
+`.trim();
+    const path = createTranscript(transcript);
+    const { extractSessionContext, evolveTitleWithContext } = await import("./generate-session-title-testable.ts");
+
+    const ctx = extractSessionContext(path, "test-project");
+    const result = await evolveTitleWithContext(null, ctx, null);
+
+    expect(result.title).toBe("Help me fix the login bug");
+  });
+
+  test("uses project name session when no other context", async () => {
+    const { extractSessionContext, evolveTitleWithContext } = await import("./generate-session-title-testable.ts");
+
+    const ctx = extractSessionContext(undefined, "my-project");
+    const result = await evolveTitleWithContext(null, ctx, null);
+
+    expect(result.title).toBe("my-project session");
+  });
+
+  test("prefers explicit summary over other fallbacks", async () => {
+    const transcript = `
+{"type":"summary","summary":"Important feature work"}
+{"type":"user","message":{"role":"user","content":"short"},"gitBranch":"feat/something"}
+`.trim();
+    const path = createTranscript(transcript);
+    const { extractSessionContext, evolveTitleWithContext } = await import("./generate-session-title-testable.ts");
+
+    const ctx = extractSessionContext(path, "test-project");
+    const result = await evolveTitleWithContext(null, ctx, null);
+
+    expect(result.title).toBe("Important feature work");
+  });
+});
+
 // --- Integration Tests ---
 
 describe("integration", () => {
@@ -194,16 +351,23 @@ describe("integration", () => {
     if (savedApiKey) process.env.ANTHROPIC_API_KEY = savedApiKey;
   });
 
-  test("creates title file", async () => {
+  test("creates title and metadata files", async () => {
     const transcriptPath = createTranscript(SAMPLE_TRANSCRIPT);
     const titleFile = join(PROJECT_DIR, `${SESSION_ID}.txt`);
+    const metaFile = join(PROJECT_DIR, `${SESSION_ID}.meta`);
 
     const { writeTitle } = await import("./generate-session-title-testable.ts");
-    await writeTitle(PROJECT_DIR, SESSION_ID, null, transcriptPath);
+    await writeTitle(PROJECT_DIR, SESSION_ID, null, transcriptPath, "test-project");
 
     expect(existsSync(titleFile)).toBe(true);
+    expect(existsSync(metaFile)).toBe(true);
+
     const content = readFileSync(titleFile, "utf-8");
     expect(content).toBe("Help me fix the login bug");
+
+    const meta = JSON.parse(readFileSync(metaFile, "utf-8"));
+    expect(meta.title).toBe("Help me fix the login bug");
+    expect(meta.shiftCount).toBe(0);
   });
 
   test("creates log file on title change", async () => {
@@ -211,7 +375,7 @@ describe("integration", () => {
     const logFile = join(PROJECT_DIR, `${SESSION_ID}.log`);
 
     const { writeTitle } = await import("./generate-session-title-testable.ts");
-    await writeTitle(PROJECT_DIR, SESSION_ID, null, transcriptPath);
+    await writeTitle(PROJECT_DIR, SESSION_ID, null, transcriptPath, "test-project");
 
     expect(existsSync(logFile)).toBe(true);
     const content = readFileSync(logFile, "utf-8");
@@ -219,18 +383,54 @@ describe("integration", () => {
     expect(content).toMatch(/^\d{4}-\d{2}-\d{2}T/); // ISO timestamp
   });
 
-  test("does not append to log when title unchanged", async () => {
+  test("does not append to log when context unchanged", async () => {
     const transcriptPath = createTranscript(SAMPLE_TRANSCRIPT);
     const titleFile = join(PROJECT_DIR, `${SESSION_ID}.txt`);
+    const metaFile = join(PROJECT_DIR, `${SESSION_ID}.meta`);
     const logFile = join(PROJECT_DIR, `${SESSION_ID}.log`);
 
-    // Pre-set the title to match what would be generated
+    // Pre-set the title and metadata to match what would be generated
     writeFileSync(titleFile, "Help me fix the login bug");
+    const lastMessage = "Actually, let's refactor the auth module instead";
+    // Compute hash the same way as the module
+    let hash = 0;
+    for (let i = 0; i < lastMessage.length; i++) {
+      hash = ((hash << 5) - hash) + lastMessage.charCodeAt(i);
+      hash |= 0;
+    }
+    writeFileSync(metaFile, JSON.stringify({
+      title: "Help me fix the login bug",
+      shiftCount: 0,
+      lastMessageHash: hash.toString(36),
+      lastMessage: lastMessage
+    }));
 
     const { writeTitle } = await import("./generate-session-title-testable.ts");
-    await writeTitle(PROJECT_DIR, SESSION_ID, "Help me fix the login bug", transcriptPath);
+    await writeTitle(PROJECT_DIR, SESSION_ID, "Help me fix the login bug", transcriptPath, "test-project");
 
-    // Log should not exist since title didn't change
+    // Log should not exist since context didn't change
     expect(existsSync(logFile)).toBe(false);
+  });
+
+  test("tracks shift count in metadata", async () => {
+    const metaFile = join(PROJECT_DIR, `${SESSION_ID}.meta`);
+
+    // Set up initial metadata with shift count
+    writeFileSync(metaFile, JSON.stringify({
+      title: "Initial task",
+      shiftCount: 2,
+      lastMessageHash: "old-hash",
+      lastMessage: "old message"
+    }));
+
+    const transcriptPath = createTranscript(SAMPLE_TRANSCRIPT);
+    const { writeTitle } = await import("./generate-session-title-testable.ts");
+
+    // This should update since message changed, but without API it keeps current title
+    await writeTitle(PROJECT_DIR, SESSION_ID, "Initial task", transcriptPath, "test-project");
+
+    const meta = JSON.parse(readFileSync(metaFile, "utf-8"));
+    // Without API, should keep existing shift count
+    expect(meta.shiftCount).toBe(2);
   });
 });
