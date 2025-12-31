@@ -39,6 +39,11 @@ Basic daily journaling application builder focused on extreme simplicity and rel
 - **Usage**: Build straightforward journaling apps
 - **Features**: One entry per day, bulletproof execution, minimal interface
 
+### 📺 YouTube Content (`youtube-content.md`)
+Extracts transcripts and metadata from YouTube videos for AI-assisted analysis.
+- **Usage**: "Summarize this video https://youtu.be/abc123"
+- **Features**: Transcript extraction, metadata fetching, multiple analysis modes (summary, wisdom, Q&A, quotes)
+
 ## Usage Patterns
 
 ### Getting Started
