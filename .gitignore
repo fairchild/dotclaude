@@ -67,3 +67,6 @@ credentials/
 
 # Cached/generated
 image-cache/
+
+# Knowledge base (synced separately)
+knowledge/
