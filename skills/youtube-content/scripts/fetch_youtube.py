@@ -7,7 +7,7 @@
 Fetch YouTube video transcript and metadata.
 
 Usage:
-    uv run fetch_youtube.py URL [--transcript-only] [--metadata-only]
+    uv run fetch_youtube.py URL [--transcript-only] [--metadata-only] [--with-segments]
 
 Output:
     JSON to stdout with structure:
@@ -117,7 +117,9 @@ def fetch_metadata(video_id: str) -> tuple[Metadata | None, str | None]:
         return None, f"Failed to extract video info: {e}"
 
 
-def fetch_transcript(video_id: str) -> tuple[Transcript | None, str | None]:
+def fetch_transcript(
+    video_id: str, with_segments: bool = False
+) -> tuple[Transcript | None, str | None]:
     """Fetch video transcript via youtube-transcript-api."""
     try:
         api = YouTubeTranscriptApi()
@@ -126,14 +128,18 @@ def fetch_transcript(video_id: str) -> tuple[Transcript | None, str | None]:
         snippets = list(result.snippets)
         full_text = " ".join(s.text for s in snippets)
 
-        return {
+        transcript: Transcript = {
             "text": full_text,
-            "segments": [
+            "language": result.language_code,
+        }
+
+        if with_segments:
+            transcript["segments"] = [
                 {"start": s.start, "duration": s.duration, "text": s.text}
                 for s in snippets
-            ],
-            "language": result.language_code,
-        }, None
+            ]
+
+        return transcript, None
 
     except TranscriptsDisabled:
         return None, "Transcripts are disabled for this video"
@@ -158,6 +164,11 @@ def main():
         action="store_true",
         help="Only fetch metadata, skip transcript",
     )
+    parser.add_argument(
+        "--with-segments",
+        action="store_true",
+        help="Include timestamped segments (increases output size)",
+    )
     args = parser.parse_args()
 
     video_id = extract_video_id(args.url)
@@ -175,7 +186,7 @@ def main():
             result["errors"].append(error)
 
     if not args.metadata_only:
-        transcript, error = fetch_transcript(video_id)
+        transcript, error = fetch_transcript(video_id, with_segments=args.with_segments)
         if transcript:
             result["transcript"] = transcript
         if error:

@@ -20,13 +20,17 @@ Extract transcripts and metadata from YouTube videos for analysis.
 Run the fetch script with the YouTube URL:
 
 ```bash
+# Default (most analysis modes - saves ~70% tokens)
 uv run ~/.claude/skills/youtube-content/scripts/fetch_youtube.py "VIDEO_URL"
+
+# For quote extraction with timestamps
+uv run ~/.claude/skills/youtube-content/scripts/fetch_youtube.py "VIDEO_URL" --with-segments
 ```
 
 The script outputs JSON with:
 - `video_id`: The YouTube video ID
 - `metadata`: Title, channel, description, duration, view count, upload date, tags
-- `transcript`: Full text and timestamped segments
+- `transcript`: Full text and language (add `--with-segments` for timestamped segments)
 - `errors`: Any issues encountered
 
 ### Step 2: Present Metadata Summary
@@ -46,7 +50,7 @@ Based on user request:
 | "summarize", "TLDR", "overview" | Provide concise summary with main points |
 | "extract wisdom", "key insights" | Key ideas, actionable insights, memorable quotes |
 | "questions", "Q&A", "discussion" | Clarifying, discussion, and follow-up questions |
-| "quotes", "notable statements" | Notable quotes with context and timestamps |
+| "quotes", "notable statements" | Notable quotes with context and timestamps (use `--with-segments`) |
 | Other | Apply user's specific instructions |
 
 ### Step 4: Return Analysis

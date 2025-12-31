@@ -111,8 +111,8 @@ def test_metadata_fields():
 
 
 def test_transcript_structure():
-    """Verify transcript contains expected structure."""
-    print("Testing transcript structure...")
+    """Verify transcript contains text but not segments by default."""
+    print("Testing transcript structure (default, no segments)...")
     data, err = run_fetch([TEST_VIDEO_ID, "--transcript-only"])
 
     if err:
@@ -125,12 +125,45 @@ def test_transcript_structure():
         print("  FAIL: Missing 'text' field")
         return False
 
-    if "segments" not in transcript:
-        print("  FAIL: Missing 'segments' field")
+    if "segments" in transcript:
+        print("  FAIL: 'segments' should not be present by default")
         return False
 
     if len(transcript.get("text", "")) < 100:
         print("  FAIL: Transcript text too short")
+        return False
+
+    print("  PASS")
+    return True
+
+
+def test_with_segments_flag():
+    """Verify --with-segments includes segments in output."""
+    print("Testing --with-segments flag...")
+    data, err = run_fetch([TEST_VIDEO_ID, "--transcript-only", "--with-segments"])
+
+    if err:
+        print(f"  FAIL: {err}")
+        return False
+
+    transcript = data.get("transcript", {})
+
+    if "text" not in transcript:
+        print("  FAIL: Missing 'text' field")
+        return False
+
+    if "segments" not in transcript:
+        print("  FAIL: Missing 'segments' field with --with-segments")
+        return False
+
+    segments = transcript.get("segments", [])
+    if len(segments) < 10:
+        print(f"  FAIL: Too few segments: {len(segments)}")
+        return False
+
+    segment = segments[0]
+    if "start" not in segment or "text" not in segment:
+        print("  FAIL: Segment missing required fields")
         return False
 
     print("  PASS")
@@ -162,6 +195,7 @@ def main():
         test_url_formats,
         test_metadata_fields,
         test_transcript_structure,
+        test_with_segments_flag,
         test_invalid_url,
     ]
 

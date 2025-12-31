@@ -78,6 +78,11 @@ uv run scripts/fetch_youtube.py "https://youtube.com/watch?v=dQw4w9WgXcQ" --meta
 
 # Transcript only
 uv run scripts/fetch_youtube.py "https://youtube.com/watch?v=dQw4w9WgXcQ" --transcript-only
+
+# Include timestamped segments (for quote extraction)
+uv run scripts/fetch_youtube.py "https://youtube.com/watch?v=dQw4w9WgXcQ" --with-segments
 ```
 
 Output is JSON with `video_id`, `metadata`, `transcript`, and `errors` fields.
+
+By default, the transcript only includes concatenated text (saves ~70% tokens). Use `--with-segments` when you need timestamps for quote attribution.

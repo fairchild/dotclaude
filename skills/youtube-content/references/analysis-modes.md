@@ -60,6 +60,8 @@ Generate questions for discussion or follow-up.
 
 Extract notable statements from the transcript.
 
+**Note**: Use `--with-segments` flag to include timestamps for quote attribution.
+
 ### Output Format
 
 For each quote:

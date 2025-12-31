@@ -25,8 +25,11 @@ uv run ~/.claude/skills/youtube-content/scripts/fetch_youtube.py "https://youtub
 Options:
 - `--metadata-only` - Skip transcript extraction
 - `--transcript-only` - Skip metadata extraction
+- `--with-segments` - Include timestamped segments (for quote extraction)
 
 Output: JSON with `{video_id, metadata, transcript, errors}`
+
+By default, transcript contains only `text` and `language`. Use `--with-segments` when timestamps are needed (e.g., Quotes mode).
 
 ## Supported URL Formats
 
@@ -45,7 +48,7 @@ Select based on user request:
 | "extract wisdom", "key insights" | Wisdom | See [analysis-modes.md](references/analysis-modes.md#wisdom) |
 | "summarize", "TLDR", "overview" | Summary | See [analysis-modes.md](references/analysis-modes.md#summary) |
 | "questions", "Q&A", "discussion" | Q&A | See [analysis-modes.md](references/analysis-modes.md#qa) |
-| "quotes", "notable statements" | Quotes | See [analysis-modes.md](references/analysis-modes.md#quotes) |
+| "quotes", "notable statements" | Quotes | Use `--with-segments`, see [analysis-modes.md](references/analysis-modes.md#quotes) |
 | Other specific requests | Custom | Apply user's instructions directly |
 
 ## Error Handling
