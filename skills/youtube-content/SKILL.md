@@ -13,6 +13,7 @@ Extract transcripts and metadata from YouTube videos for analysis.
 2. Run fetch script from skill directory
 3. Present metadata summary to user
 4. Apply requested analysis mode to transcript
+5. Save analysis to knowledge base (auto, use `--no-save` to skip)
 
 ## Fetch Script
 
@@ -61,3 +62,35 @@ The script returns partial results when possible:
 - **Rate limiting**: Retry after 30-60 seconds
 
 Check the `errors` array in output for any issues.
+
+## Knowledge Persistence
+
+Analyses are automatically saved to a knowledge base for future reference.
+
+### Configuration
+
+Set `CLAUDE_KNOWLEDGE_DIR` to customize storage location (default: `~/.claude/knowledge`).
+
+### Save Analysis
+
+```bash
+echo '{"video_id": "...", "metadata": {...}, "analysis": "..."}' | \
+  uv run scripts/save_analysis.py --mode wisdom --tags "ai,coding"
+```
+
+### Search Knowledge
+
+```bash
+uv run scripts/search_knowledge.py --list          # List recent
+uv run scripts/search_knowledge.py "react"         # Search keyword
+uv run scripts/search_knowledge.py --tag ai        # Filter by tag
+```
+
+### File Structure
+
+```
+$CLAUDE_KNOWLEDGE_DIR/youtube/
+├── index.md                    # Quick reference
+└── analyses/
+    └── 2025-12-30_VIDEO_ID.md  # Individual analyses
+```

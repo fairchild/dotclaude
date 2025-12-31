@@ -57,6 +57,37 @@ Based on user request:
 
 Format output as markdown with clear sections based on the analysis mode.
 
+### Step 5: Save to Knowledge Base
+
+After presenting the analysis, save it to the knowledge base (unless `--no-save` was requested):
+
+```bash
+# Pipe the analysis to save_analysis.py
+echo '{"video_id": "...", "metadata": {...}, "analysis": "..."}' | \
+  uv run ~/.claude/skills/youtube-content/scripts/save_analysis.py --mode wisdom --tags "topic1,topic2"
+```
+
+The script saves:
+- Markdown file with YAML frontmatter to `$CLAUDE_KNOWLEDGE_DIR/youtube/analyses/`
+- Updates the index at `$CLAUDE_KNOWLEDGE_DIR/youtube/index.md`
+
+Tell the user: "Saved to knowledge base: {filepath}"
+
+## Searching Knowledge
+
+To find past analyses:
+
+```bash
+# List recent analyses
+uv run ~/.claude/skills/youtube-content/scripts/search_knowledge.py --list
+
+# Search by keyword
+uv run ~/.claude/skills/youtube-content/scripts/search_knowledge.py "react hooks"
+
+# Filter by tag
+uv run ~/.claude/skills/youtube-content/scripts/search_knowledge.py --tag ai
+```
+
 ## Error Handling
 
 - **No transcript**: Return metadata summary, explain transcript unavailable
@@ -79,3 +110,4 @@ Agent:
 2. Display metadata (title, channel, duration)
 3. Analyze transcript for main points
 4. Return summary with key takeaways
+5. Save to knowledge base, confirm path to user
