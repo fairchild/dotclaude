@@ -70,3 +70,5 @@ image-cache/
 
 # Knowledge base (synced separately)
 knowledge/
+
+tmp/
