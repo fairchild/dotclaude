@@ -97,7 +97,7 @@ function extractSessionContext(path: string, projectName: string): SessionContex
 }
 
 function getProjectNameFromPath(projectPath: string): string {
-  // Project dirs are named like: -Users-fairchild-code-myproject
+  // Project dirs are named like: -Users-username-code-myproject
   const dirName = basename(projectPath);
   const parts = dirName.split("-").filter(Boolean);
   return parts[parts.length - 1] || dirName;

@@ -2,7 +2,7 @@
  * Feedback storage utilities.
  * Manages pending.jsonl and scored.jsonl files.
  */
-import { appendFileSync, readFileSync, writeFileSync, existsSync } from "fs";
+import { appendFileSync, readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import type { TitleFeedback } from "./schema.ts";
 
 const FEEDBACK_DIR = `${process.env.HOME}/.claude/title-feedback`;
@@ -10,9 +10,17 @@ const PENDING_FILE = `${FEEDBACK_DIR}/pending.jsonl`;
 const SCORED_FILE = `${FEEDBACK_DIR}/scored.jsonl`;
 
 /**
+ * Ensure feedback directory exists.
+ */
+function ensureDir(): void {
+  mkdirSync(FEEDBACK_DIR, { recursive: true });
+}
+
+/**
  * Save a new feedback entry (pending human scoring).
  */
 export function savePendingFeedback(entry: TitleFeedback): void {
+  ensureDir();
   const line = JSON.stringify(entry) + "\n";
   appendFileSync(PENDING_FILE, line);
 }
