@@ -80,8 +80,29 @@ Adjust any of these, or confirm to curate?
 
 ### Then Invoke the Curator Agent
 
-Use the Task tool to spawn the chronicle-curator agent:
+The curator can be **resumed** within a session to maintain memory continuity.
 
+**Flow:**
+
+1. **Check** if `$CHRONICLE_CURATOR_ID` is set (run `echo $CHRONICLE_CURATOR_ID`)
+
+2. **If set** - Resume the existing curator:
+```
+Task(
+  resume: "{CHRONICLE_CURATOR_ID}",
+  prompt: "Continue curating with new context:
+    Project: {project}
+    Branch: {branch}
+    Goal: {user's goal}
+    Challenges: {user's challenges}
+    Next Steps: {user's next steps}
+
+    Review and update blocks as needed.
+    Report what you changed."
+)
+```
+
+3. **If not set** - Spawn fresh curator:
 ```
 Task(
   subagent_type: "chronicle-curator",
@@ -97,6 +118,13 @@ Task(
     Report what you changed."
 )
 ```
+
+4. **After Task returns** - Capture the agentId and set for future use:
+```bash
+export CHRONICLE_CURATOR_ID={returned agentId}
+```
+
+This allows the curator to accumulate context across multiple `/chronicle curate` calls within the same session.
 
 The curator will:
 1. Read all existing memory blocks

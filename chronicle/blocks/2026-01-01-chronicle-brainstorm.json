@@ -13,7 +13,8 @@
     "Built /chronicle skill with quick capture and curate modes",
     "Created chronicle-curator subagent for intelligent memory curation",
     "Committed design doc (1127 lines) to skills/chronicle/docs/",
-    "Created first memory block - Chronicle is bootstrapping itself"
+    "Created first memory block - Chronicle is bootstrapping itself",
+    "Added curator persistence via CHRONICLE_CURATOR_ID env var (resume within session)"
   ],
   "pending": [
     "Test /chronicle in new session (skill/agent discovery requires restart)",
@@ -28,5 +29,5 @@
     "Use /chronicle curate daily to build intuition",
     "Merge feat/chronicle-brainstorm to main once validated"
   ],
-  "notes": "First Chronicle block, updated by manual curator run. The /chronicle pending command is now part of the skill spec - marking as done. The system is learning to track itself!"
+  "notes": "First Chronicle block, updated across sessions. Added curator persistence (env var approach) after context continuation. Ready to test in fresh session."
 }
