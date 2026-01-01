@@ -1,30 +1,80 @@
 # Adaptive Session Title Generation System
 
-## BLUF (Bottom Line Up Front)
+## Roadmap Summary
 
-**Decision point**: Two paths forward, both valid:
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  PHASE 1 ✅ COMPLETE        PHASE 2 (Next)           PHASE 3 (Later)        │
+│  ─────────────────────      ──────────────           ──────────────         │
+│  • primaryRequest           • LanceDB vectors        • DSPy optimization    │
+│    extraction               • Dynamic few-shot       • Automated audits     │
+│  • Confirmation filtering   • Embedding strategy     • A/B prompt testing   │
+│  • Static examples          • Status line feedback   • Judge calibration    │
+│  • Feedback schema          • Similar session        • Journalist agent     │
+│  • /rate-title skill          retrieval                                     │
+│                                                                              │
+│  Outcome: Titles work      Outcome: Titles learn    Outcome: System        │
+│  TODAY                     from YOUR history        evolves autonomously   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-| Path | Approach | Best for |
-|------|----------|----------|
-| **A: Fix & Learn** | Fix extraction now, add learning later | Quick wins, simplicity first |
-| **B: Journalist** | Stateful agent follows along | Long sessions, nuanced tracking |
+### Core Feedback Loop: `/rate-title`
 
-**Recommendation**: Start with **Path A (Fix & Learn)**, but design for journalist compatibility.
+The key to learning is **calibrated feedback**. When you run `/rate-title`:
 
-### Path A: Three-Phase Implementation
+1. **AI Judge assesses first**: Score (1-5), reasoning, proposed better title
+2. **Human confirms or corrects**: Agree? Different score? Better suggestion?
+3. **Both perspectives saved**: Enables training judge to match human preferences
 
-1. **Phase 1** (Now): Fix context extraction, better filtering, static examples
-2. **Phase 2** (Next): LanceDB vector memory, feedback collection, dynamic few-shot
-3. **Phase 3** (Later): Sonnet quality audits, DSPy prompt optimization
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DUAL-PERSPECTIVE FEEDBACK                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   Generated Title: "Fix OAuth redirect loop"                                │
+│                           │                                                 │
+│                           ▼                                                 │
+│   ┌─────────────────────────────────────────┐                              │
+│   │  AI JUDGE (current session model)       │                              │
+│   │  Score: 4/5                             │                              │
+│   │  Reasoning: Good but could mention      │                              │
+│   │    "callback" since that's the fix      │                              │
+│   │  Proposed: "Fix OAuth callback loop"    │                              │
+│   └─────────────────────────────────────────┘                              │
+│                           │                                                 │
+│                           ▼                                                 │
+│   ┌─────────────────────────────────────────┐                              │
+│   │  HUMAN CALIBRATION                      │                              │
+│   │  Agree? [y/n/score]                     │                              │
+│   │  Your score: 5                          │                              │
+│   │  Reasoning: "callback" is implied       │                              │
+│   │  Better title: (none needed)            │                              │
+│   └─────────────────────────────────────────┘                              │
+│                           │                                                 │
+│                           ▼                                                 │
+│   scored.jsonl: { judgeAssessment, humanAssessment, agreedWithJudge }      │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-### Path B: Journalist Agent (Alternative)
+### DSPy Training Targets
 
-Inspired by [Letta's memory blocks](https://www.letta.com/blog/memory-blocks):
-- Agent maintains 2 memory blocks: `situation` (stable) + `recent_actions` (sliding)
-- Updates incrementally as session progresses
-- Title always reflects current state, not just initial request
+The feedback dataset trains **two separate prompts**:
 
-**Key insight**: Don't just generate titles—build a system that *learns* what good titles look like for YOUR workflow.
+| Prompt | What it does | Training signal |
+|--------|--------------|-----------------|
+| **Journalist** | Generates session titles | Human scores on generated titles |
+| **Judge** | Rates title quality | Human agreement/disagreement with judge |
+
+Disagreements are gold: they reveal where the AI's intuition differs from yours.
+
+### Alternative Path: Journalist Agent
+
+For long sessions with topic drift, consider a stateful agent that maintains:
+- `situation` block: stable, high-level goal
+- `recent_actions` block: sliding window of latest work
+
+This produces titles reflecting *current* focus, not just *initial* request.
 
 ---
 
