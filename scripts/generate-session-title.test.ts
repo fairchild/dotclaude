@@ -331,6 +331,131 @@ describe("fallback chain", () => {
   });
 });
 
+// --- Unit Tests for extractUserText ---
+
+describe("extractUserText", () => {
+  test("strips system instruction wrappers", async () => {
+    const { extractUserText } = await import("./generate-session-title-testable.ts");
+
+    const content = "<system_instruction>Do stuff</system_instruction>Help me fix the login bug";
+    expect(extractUserText(content)).toBe("Help me fix the login bug");
+  });
+
+  test("returns null for confirmation patterns", async () => {
+    const { extractUserText } = await import("./generate-session-title-testable.ts");
+
+    expect(extractUserText("yes")).toBeNull();
+    expect(extractUserText("yes please")).toBeNull();
+    expect(extractUserText("ok")).toBeNull();
+    expect(extractUserText("sounds good")).toBeNull();
+    expect(extractUserText("thanks")).toBeNull();
+    expect(extractUserText("sure, go ahead")).toBeNull();
+    expect(extractUserText("LGTM")).toBeNull();
+    expect(extractUserText("ship it")).toBeNull();
+  });
+
+  test("returns null for short messages", async () => {
+    const { extractUserText } = await import("./generate-session-title-testable.ts");
+
+    expect(extractUserText("fix it")).toBeNull();  // < 15 chars
+    expect(extractUserText("do the thing")).toBeNull();  // < 15 chars
+  });
+
+  test("returns null for messages starting with <", async () => {
+    const { extractUserText } = await import("./generate-session-title-testable.ts");
+
+    expect(extractUserText("<command-name>/status</command-name>")).toBeNull();
+  });
+
+  test("returns valid substantive messages", async () => {
+    const { extractUserText } = await import("./generate-session-title-testable.ts");
+
+    expect(extractUserText("Help me fix the login bug")).toBe("Help me fix the login bug");
+    expect(extractUserText("Refactor the authentication module to use OAuth 2.0")).toBe("Refactor the authentication module to use OAuth 2.0");
+  });
+
+  test("handles array content format", async () => {
+    const { extractUserText } = await import("./generate-session-title-testable.ts");
+
+    const content = [{ type: "text", text: "Help me fix the login bug" }];
+    expect(extractUserText(content)).toBe("Help me fix the login bug");
+  });
+});
+
+// --- Unit Tests for primaryRequest extraction ---
+
+describe("primaryRequest extraction", () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  test("finds longest substantive message when first is short", async () => {
+    const transcript = `
+{"type":"user","message":{"role":"user","content":"yes please continue"}}
+{"type":"user","message":{"role":"user","content":"Help me fix the OAuth redirect loop in the auth module"}}
+{"type":"user","message":{"role":"user","content":"ok thanks"}}
+`.trim();
+    const path = createTranscript(transcript);
+    const { extractSessionContext } = await import("./generate-session-title-testable.ts");
+
+    const ctx = extractSessionContext(path, "test-project");
+
+    // "yes please continue" is a confirmation, so skipped
+    // "ok thanks" is a confirmation, so skipped
+    // Only the OAuth message should be found
+    expect(ctx.primaryRequest).toBe("Help me fix the OAuth redirect loop in the auth module");
+    expect(ctx.messageCount).toBe(1);  // Only one substantive message
+  });
+
+  test("finds longest message among multiple substantive ones", async () => {
+    const transcript = `
+{"type":"user","message":{"role":"user","content":"Fix the login bug"}}
+{"type":"user","message":{"role":"user","content":"Actually, I need to refactor the entire authentication module to use OAuth 2.0 instead"}}
+{"type":"user","message":{"role":"user","content":"Add a logout button"}}
+`.trim();
+    const path = createTranscript(transcript);
+    const { extractSessionContext } = await import("./generate-session-title-testable.ts");
+
+    const ctx = extractSessionContext(path, "test-project");
+
+    // Second message is longest
+    expect(ctx.primaryRequest).toContain("refactor the entire authentication");
+    expect(ctx.messageCount).toBe(3);
+  });
+
+  test("strips system instruction tags before finding primary", async () => {
+    const transcript = `
+{"type":"user","message":{"role":"user","content":"<system_instruction>Context here</system_instruction>Implement the new feature following best practices"}}
+`.trim();
+    const path = createTranscript(transcript);
+    const { extractSessionContext } = await import("./generate-session-title-testable.ts");
+
+    const ctx = extractSessionContext(path, "test-project");
+
+    expect(ctx.primaryRequest).toBe("Implement the new feature following best practices");
+  });
+
+  test("falls back to branch name when only confirmations present", async () => {
+    const transcript = `
+{"type":"user","message":{"role":"user","content":"yes"},"gitBranch":"feat/add-oauth-flow"}
+{"type":"user","message":{"role":"user","content":"ok"}}
+`.trim();
+    const path = createTranscript(transcript);
+    const { extractSessionContext, evolveTitleWithContext } = await import("./generate-session-title-testable.ts");
+
+    const ctx = extractSessionContext(path, "test-project");
+    const result = await evolveTitleWithContext(null, ctx, null);
+
+    // No substantive messages, so falls back to branch
+    expect(ctx.primaryRequest).toBeNull();
+    expect(result.title).toBe("add oauth flow");
+  });
+});
+
 // --- Integration Tests ---
 
 describe("integration", () => {
@@ -362,11 +487,12 @@ describe("integration", () => {
     expect(existsSync(titleFile)).toBe(true);
     expect(existsSync(metaFile)).toBe(true);
 
+    // Now uses primaryRequest (longest substantive message)
     const content = readFileSync(titleFile, "utf-8");
-    expect(content).toBe("Help me fix the login bug");
+    expect(content).toBe("Actually, let's refactor the auth module instead");
 
     const meta = JSON.parse(readFileSync(metaFile, "utf-8"));
-    expect(meta.title).toBe("Help me fix the login bug");
+    expect(meta.title).toBe("Actually, let's refactor the auth module instead");
     expect(meta.shiftCount).toBe(0);
   });
 
@@ -379,7 +505,8 @@ describe("integration", () => {
 
     expect(existsSync(logFile)).toBe(true);
     const content = readFileSync(logFile, "utf-8");
-    expect(content).toContain("Help me fix the login bug");
+    // Now uses primaryRequest (longest substantive message)
+    expect(content).toContain("Actually, let's refactor the auth module instead");
     expect(content).toMatch(/^\d{4}-\d{2}-\d{2}T/); // ISO timestamp
   });
 

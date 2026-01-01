@@ -6,6 +6,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync } from "fs";
 import { basename } from "path";
 import { execSync } from "child_process";
+import { createFeedbackEntry, PROMPT_VERSION, MODEL_USED } from "../title-feedback/schema.ts";
+import { savePendingFeedback } from "../title-feedback/store.ts";
 
 // Legacy interface for backwards compatibility
 export interface Messages { first: string | null; last: string | null }
@@ -19,6 +21,54 @@ export interface SessionContext {
   modifiedFiles: string[];
   explicitSummary: string | null;
   messageCount: number;
+  // Enhanced fields for better context extraction
+  primaryRequest: string | null;  // Longest substantive user message
+  latestActivity: string | null;  // Most recent non-confirmation message
+}
+
+// Patterns that indicate trivial confirmations (not substantive requests)
+const CONFIRMATION_PATTERNS = /^(yes|no|ok|okay|sure|thanks|thank you|got it|sounds good|please|do it|go ahead|yep|yeah|nope|perfect|great|good|fine|correct|right|exactly|absolutely|definitely|indeed|proceed|continue|lgtm|ship it|approved|ack|k|y|n)\b/i;
+
+// System instruction wrapper pattern
+const SYSTEM_INSTRUCTION_PATTERN = /<system_instruction>[\s\S]*?<\/system_instruction>/g;
+
+/**
+ * Extract and clean user text from message content.
+ * Strips system tags, skips trivial confirmations.
+ * Returns null if message is not substantive.
+ */
+export function extractUserText(content: string | { type: string; text?: string }[]): string | null {
+  let text = typeof content === "string"
+    ? content
+    : content?.find((c: { type: string; text?: string }) => c.type === "text")?.text;
+
+  if (!text) return null;
+
+  // Strip system instruction wrappers
+  text = text.replace(SYSTEM_INSTRUCTION_PATTERN, "").trim();
+
+  // Skip messages starting with < (remaining system/command tags)
+  if (text.startsWith("<")) return null;
+
+  // Skip Caveat: prefixes (system injected context)
+  if (text.startsWith("Caveat:")) return null;
+
+  // Skip trivial messages
+  if (text.length < 15) return null;
+
+  // Skip confirmation patterns
+  if (CONFIRMATION_PATTERNS.test(text)) return null;
+
+  return text;
+}
+
+/**
+ * Get the first sentence from text, handling edge cases like ~/.
+ */
+function getFirstSentence(text: string): string {
+  // Split on sentence boundaries, but not on things like ~/. or 2.5
+  const sentence = text.split(/(?<=[.!?])\s+|\n/)[0].replace(/\s+/g, " ").trim();
+  return sentence.substring(0, 100);
 }
 
 // Metadata stored alongside title
@@ -32,6 +82,7 @@ export interface TitleMetadata {
 /**
  * Extract rich context from a session transcript.
  * Parses user messages, git branch, summary entries, and modified files.
+ * Finds the most substantive request (longest qualifying message).
  */
 export function extractSessionContext(path: string | undefined, projectName: string): SessionContext {
   const ctx: SessionContext = {
@@ -42,11 +93,15 @@ export function extractSessionContext(path: string | undefined, projectName: str
     modifiedFiles: [],
     explicitSummary: null,
     messageCount: 0,
+    primaryRequest: null,
+    latestActivity: null,
   };
 
   if (!path || !existsSync(path)) return ctx;
 
   const seenFiles = new Set<string>();
+  let longestSubstantive = "";  // Track the longest substantive message
+  let messageIndex = 0;
 
   for (const line of readFileSync(path, "utf-8").split("\n")) {
     if (!line.trim()) continue;
@@ -66,17 +121,27 @@ export function extractSessionContext(path: string | undefined, projectName: str
           ctx.gitBranch = entry.gitBranch;
         }
 
-        const text = typeof entry.message.content === "string"
-          ? entry.message.content
-          : entry.message.content?.find((c: any) => c.type === "text")?.text;
+        // Use the new extractUserText for smarter filtering
+        const cleanText = extractUserText(entry.message.content);
 
-        if (!text || text.startsWith("<") || text.startsWith("Caveat:") || text.length < 10) continue;
+        if (cleanText) {
+          const sentence = getFirstSentence(cleanText);
+          ctx.messageCount++;
+          messageIndex++;
 
-        const sentence = text.split(/(?<=[.!?])\s+|\n/)[0].replace(/\s+/g, " ").trim().substring(0, 100);
-        ctx.messageCount++;
+          // Legacy: first/last message (for backward compat)
+          if (!ctx.firstMessage) ctx.firstMessage = sentence;
+          ctx.lastMessage = sentence;
 
-        if (!ctx.firstMessage) ctx.firstMessage = sentence;
-        ctx.lastMessage = sentence;
+          // Enhanced: track longest substantive message (from first 10 turns)
+          if (messageIndex <= 10 && cleanText.length > longestSubstantive.length) {
+            longestSubstantive = cleanText;
+            ctx.primaryRequest = getFirstSentence(cleanText);
+          }
+
+          // Enhanced: latest activity is always the most recent valid message
+          ctx.latestActivity = sentence;
+        }
         continue;
       }
 
@@ -94,6 +159,11 @@ export function extractSessionContext(path: string | undefined, projectName: str
         }
       }
     } catch {}
+  }
+
+  // If no primaryRequest was found, fall back to firstMessage
+  if (!ctx.primaryRequest && ctx.firstMessage) {
+    ctx.primaryRequest = ctx.firstMessage;
   }
 
   return ctx;
@@ -161,6 +231,7 @@ async function callHaiku(apiKey: string, prompt: string): Promise<string | null>
 
 /**
  * Build the initial title prompt with rich context.
+ * Uses primaryRequest (longest substantive message) as the main signal.
  */
 function buildInitialPrompt(ctx: SessionContext): string {
   const parts: string[] = [];
@@ -172,8 +243,10 @@ function buildInitialPrompt(ctx: SessionContext): string {
   if (ctx.explicitSummary) {
     parts.push(`Session summary: ${ctx.explicitSummary}`);
   }
-  if (ctx.firstMessage) {
-    parts.push(`User's request: "${ctx.firstMessage}"`);
+  // Use primaryRequest (longest substantive) over firstMessage
+  const request = ctx.primaryRequest || ctx.firstMessage;
+  if (request) {
+    parts.push(`User's request: "${request}"`);
   }
   if (ctx.modifiedFiles.length > 0) {
     parts.push(`Files touched: ${ctx.modifiedFiles.slice(0, 5).join(", ")}`);
@@ -185,10 +258,18 @@ function buildInitialPrompt(ctx: SessionContext): string {
   parts.push("- NO meta-language like \"user wants\" or \"working on\"");
   parts.push("- Focus on the WHAT, not the WHO");
   parts.push("");
-  parts.push("Examples:");
-  parts.push("- \"Fix OAuth redirect loop\"");
-  parts.push("- \"Add rate limiting to API\"");
-  parts.push("- \"Refactor auth module tests\"");
+  parts.push("Examples of GOOD titles:");
+  parts.push("- \"Fix OAuth redirect loop\" (from session debugging auth flow)");
+  parts.push("- \"Add rate limiting to API\" (from session improving API security)");
+  parts.push("- \"Debug flaky pytest CI\" (from session fixing test failures)");
+  parts.push("- \"Refactor user settings page\" (from session about UI changes)");
+  parts.push("- \"Implement session title eval\" (from session about building evaluation system)");
+  parts.push("");
+  parts.push("BAD titles to avoid:");
+  parts.push("- \"Session about fixing things\" (uses meta-language)");
+  parts.push("- \"Working on code\" (too vague)");
+  parts.push("- \"User wants to update auth\" (uses meta-language + vague)");
+  parts.push("- \"Help with bug\" (too generic)");
 
   return parts.join("\n");
 }
@@ -232,7 +313,12 @@ function fallbackTitle(ctx: SessionContext): string {
     return ctx.explicitSummary.substring(0, 60);
   }
 
-  // Priority 2: Descriptive branch name
+  // Priority 2: Primary request (longest substantive message)
+  if (ctx.primaryRequest) {
+    return ctx.primaryRequest.substring(0, 60);
+  }
+
+  // Priority 3: Descriptive branch name
   if (ctx.gitBranch && ctx.gitBranch !== "main" && ctx.gitBranch !== "master") {
     const humanized = humanizeBranch(ctx.gitBranch);
     if (humanized.length >= 5) {
@@ -240,12 +326,12 @@ function fallbackTitle(ctx: SessionContext): string {
     }
   }
 
-  // Priority 3: First message
+  // Priority 4: First message (legacy fallback)
   if (ctx.firstMessage) {
     return ctx.firstMessage.substring(0, 60);
   }
 
-  // Priority 4: Project name (never bare timestamp)
+  // Priority 5: Project name (never bare timestamp)
   return `${ctx.projectName} session`;
 }
 
@@ -423,6 +509,7 @@ export async function evolveTitleWithContext(
 
 /**
  * Write title and metadata to disk.
+ * Also saves pending feedback for later scoring via /rate-title.
  */
 export async function writeTitle(
   dir: string,
@@ -458,6 +545,14 @@ export async function writeTitle(
     const ts = new Date().toISOString();
     const shiftMarker = shifted ? " [SHIFT]" : "";
     appendFileSync(logFile, `${ts}\t${displayTitle}${shiftMarker}\n`);
+
+    // Save pending feedback for /rate-title (only on new/changed titles)
+    try {
+      const feedbackEntry = createFeedbackEntry(sessionId, project, ctx, title);
+      savePendingFeedback(feedbackEntry);
+    } catch {
+      // Non-critical - don't fail title generation if feedback save fails
+    }
   }
 
   return displayTitle;
