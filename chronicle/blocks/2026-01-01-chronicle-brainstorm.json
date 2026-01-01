@@ -14,11 +14,11 @@
     "Created chronicle-curator subagent for intelligent memory curation",
     "Committed design doc (1127 lines) to skills/chronicle/docs/",
     "Created first memory block - Chronicle is bootstrapping itself",
-    "Added curator persistence via CHRONICLE_CURATOR_ID env var (resume within session)"
+    "Added curator persistence via CHRONICLE_CURATOR_ID env var (resume within session)",
+    "Implemented SessionEnd hook for automatic chronicle extraction (Haiku-powered)"
   ],
   "pending": [
     "Test /chronicle in new session (skill/agent discovery requires restart)",
-    "Implement Stop hook for automatic thread extraction",
     "Backfill from last 30 days of history.jsonl"
   ],
   "challenges": [
