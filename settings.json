@@ -71,7 +71,44 @@
       "Bash(gh pr checks:*)",
       "Bash(gh repo view:*)",
       "Bash(gh release list:*)",
-      "Bash(gh release view:*)"
+      "Bash(gh release view:*)",
+      "Bash(~/.claude/scripts/get-session-tokens.sh:*)",
+      "Bash(xargs cat:*)",
+      "mcp__alcova-perplexity-mcp__perplexity_ask",
+      "Bash(~/.claude/scripts/generate-session-title.ts)",
+      "Bash(bun:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(gh api:*)",
+      "Bash(git grep:*)",
+      "Bash(for pattern in '.env' '*.pem' '*.key' '.aws' '.ssh' 'secrets/' 'credentials')",
+      "Bash(do grep -q \"$pattern\" .gitignore)",
+      "Bash(done)",
+      "Bash(gitleaks detect:*)",
+      "Bash(trufflehog git:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(git -C /Users/fairchild/.claude config:*)",
+      "WebFetch(domain:docs.claude.com)",
+      "Bash(git -C ~/.claude config:*)",
+      "Bash(jq:*)",
+      "Bash(xargs -I {} sh -c 'wc -c < \"{}\" | tr -d \"\\n\"; echo \" {}\"; ')",
+      "Bash(pnpm:*)",
+      "Bash(pnpm run:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm add:*)",
+      "Bash(poetry:*)",
+      "Bash(poetry run:*)",
+      "Bash(cargo:*)",
+      "Bash(cargo run:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo build:*)",
+      "Bash(mise:*)",
+      "Bash(wrangler:*)",
+      "Bash(wrangler deploy:*)",
+      "Bash(wrangler dev:*)",
+      "Bash(vitest:*)",
+      "Bash(playwright:*)",
+      "Bash(playwright test:*)"
     ],
     "deny": [
       "Read(.env)",
@@ -103,6 +140,7 @@
     ],
     "defaultMode": "default"
   },
+  "model": "opus",
   "hooks": {
     "PreCompact": [
       {
@@ -135,6 +173,16 @@
           }
         ]
       }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/session-end.sh"
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
@@ -142,5 +190,7 @@
     "command": "~/.claude/statusline.sh"
   },
   "alwaysThinkingEnabled": true,
-  "model": "opus"
+  "enabledPlugins": {
+    "swift-lsp@claude-plugins-official": true
+  }
 }
