@@ -60,16 +60,23 @@ Invokes the **Chronicle Curator** agent for intelligent memory management.
 
 ### How to Use
 
-When user runs `/chronicle curate`, prompt them for:
+When user runs `/chronicle curate`:
+
+1. **Analyze the conversation** to infer goal, challenges, and next steps
+2. **Propose** your observations for confirmation:
 
 ```
-To curate this session, tell me:
-• Goal: What are you trying to accomplish?
-• Challenges: Any blockers or difficulties?
-• Next Steps: What comes next?
+Based on this session, here's what I observed:
 
-(Or just describe the current situation in your own words)
+• Goal: [inferred from conversation]
+• Challenges: [any blockers mentioned or encountered]
+• Next Steps: [logical next actions]
+
+Adjust any of these, or confirm to curate?
 ```
+
+3. User can confirm, adjust specific items, or provide different context
+4. Then invoke the curator with the confirmed context
 
 ### Then Invoke the Curator Agent
 
