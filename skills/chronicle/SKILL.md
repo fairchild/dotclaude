@@ -1,3 +1,8 @@
+---
+name: chronicle
+description: Capture the current session as a memory block. Use when you want to save what you're working on, note pending tasks, or create a record of the session for future reference.
+---
+
 # Chronicle
 
 A persistent journalist tracking your coding sessions.
