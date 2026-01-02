@@ -74,4 +74,7 @@ knowledge/
 # Title feedback data (personal session data)
 title-feedback/*.jsonl
 
+# Chronicle memory blocks (personal session data)
+chronicle/blocks/
+
 tmp/
