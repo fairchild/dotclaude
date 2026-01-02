@@ -31,6 +31,8 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | `/bootstrap` | Scaffold new projects with structure |
 | `/status_line` | Explain current session metrics |
 | `/opensource-precheck` | Audit repo before making public |
+| `/pr-review` | Address PR review feedback and advance toward merge |
+| `/update-dependencies` | Intelligent dependency updates with batching |
 
 ### Skills (auto-invoked)
 
@@ -48,6 +50,11 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | **playwright-ts** | TypeScript-based Playwright workflows |
 | **verify** | Deployment verification and health checks |
 | **excalidraw-diagrams** | Creating diagrams via Excalidraw |
+| **dotclaude-config** | Editing Claude Code configuration |
+| **session-title-eval** | Evaluating session title generation quality |
+| **update-dependencies** | Dependency analysis and updates |
+| **youtube-content** | Extracting/analyzing YouTube video content |
+| **rate-title** | AI-assisted session title rating |
 
 ### Agents (background tasks)
 
