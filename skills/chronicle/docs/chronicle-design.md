@@ -39,7 +39,7 @@ Inspired by Letta's memory blocks and sleep-time compute, this agent **thinks wh
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           THE CHRONICLE SYSTEM                               │
+│                           THE CHRONICLE SYSTEM                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
@@ -202,7 +202,7 @@ const CHRONICLE_BLOCKS = {
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         SLEEP-TIME TRIGGERS                                  │
+│                          SLEEP-TIME TRIGGERS                                │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │   1. SESSION END                                                             │
@@ -351,7 +351,7 @@ async function dailyConsolidation(): Promise<void> {
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                          CHRONICLE QUERY FLOW                                │
+│                          CHRONICLE QUERY FLOW                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │   User: "/chronicle what was that OAuth session?"                           │
@@ -585,7 +585,7 @@ The first release focuses on **knowing what was left undone** and **picking up w
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        CONTINUITY THREADS MVP                                │
+│                         CONTINUITY THREADS MVP                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │   SESSION N                              SESSION N+1                         │
