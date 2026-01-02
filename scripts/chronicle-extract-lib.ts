@@ -211,6 +211,7 @@ async function callHaiku(prompt: string): Promise<{
 
     return JSON.parse(jsonStr);
   } catch {
+    // API call failed - fallback will be used
     return null;
   }
 }
