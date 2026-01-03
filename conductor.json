@@ -1,0 +1,7 @@
+{
+  "scripts": {
+    "setup": "cd $CONDUCTOR_ROOT_PATH && git pull",
+    "run": "cd $CONDUCTOR_ROOT_PATH && cat README.md",
+    "archive": "cd $CONDUCTOR_ROOT_PATH && git pull"
+  }
+}
