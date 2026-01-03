@@ -92,3 +92,22 @@ Use the detected manager for all commands:
 
 - Conventional commits (`feat:`, `fix:`, `chore:`, etc.)
 - Shell: zsh
+
+## Task Tracking
+
+Choose approach based on project needs:
+
+| Approach | When to Use |
+|----------|-------------|
+| **Beads** (`bd`) | Multi-session handoffs, complex dependencies, cross-repo coordination |
+| **Todos/AGENTS.md** | Design-heavy features, narrative plans, retrospectives |
+| **TodoWrite** (built-in) | Simple session tasks, quick fixes, unconfigured projects |
+
+Beads = issues as data (automate). Todos = work as documentation (narrate).
+
+## References
+
+- `~/.claude/references/permission-templates.md` - Copy-paste permission blocks
+- `~/.claude/references/hook-patterns.md` - Standard hook configurations
+- `~/.claude/references/project-config-checklist.md` - New project setup
+- `bun ~/.claude/scripts/config-inventory.ts` - Scan projects for config status
