@@ -85,22 +85,18 @@ Would you like me to proceed with this plan, or would you like to modify it?
 
 For each item in the approved plan:
 
-1. **Code changes**: Read the file, make the fix, reply to comment thread, **mark resolved**
-2. **Clarification responses**: Reply to comment thread with explanation, **mark resolved**
-3. **Defer responses**: Reply with reasoning (do NOT mark resolved - reviewer decides)
+1. **Code changes**: Read the file, make the fix, reply to comment thread
+2. **Clarification responses**: Reply to comment thread with explanation
+3. **Defer responses**: Reply with reasoning
 4. **CI fixes**: Investigate failure logs, fix code, push
 
-**Marking comments as resolved** (after addressing):
+**Replying to comments** (use in-thread replies per CLAUDE.md):
 
 ```bash
-# Get the thread ID from the review thread
-gh api graphql -f query='
-  mutation($threadId: ID!) {
-    resolveReviewThread(input: {threadId: $threadId}) {
-      thread { isResolved }
-    }
-  }
-' -f threadId="{THREAD_NODE_ID}"
+gh api /repos/{owner}/{repo}/pulls/{PR_NUMBER}/comments \
+  -X POST \
+  -f body="Fixed in {commit} - {brief description}" \
+  -F in_reply_to={COMMENT_ID}
 ```
 
 After addressing all items:
@@ -111,14 +107,49 @@ After addressing all items:
 ### Phase 5: Final Check
 
 Once all blockers addressed:
-- Confirm all comments resolved or responded to
+- Confirm all comments have been replied to
 - Confirm CI passing
 - Report ready-to-merge state to user
+
+### Phase 6: Optional Cleanup
+
+After all comments have been addressed with in-thread replies, **ask the user**:
+
+```
+All {N} review comments have been addressed with in-thread replies.
+
+Would you like me to:
+1. Resolve all addressed comment threads
+2. Post a summary comment on the PR
+
+(y/n)
+```
+
+**If user confirms:**
+
+1. Resolve each addressed thread:
+```bash
+gh api graphql -f query='
+  mutation($threadId: ID!) {
+    resolveReviewThread(input: {threadId: $threadId}) {
+      thread { isResolved }
+    }
+  }
+' -f threadId="{THREAD_NODE_ID}"
+```
+
+2. Post summary comment on the PR:
+```bash
+gh pr comment {PR_NUMBER} --body "Addressed review feedback:
+
+- {brief list of fixes/responses}
+
+All {N} comment threads resolved."
+```
 
 ## Important
 
 - Always read the full context of a review comment before addressing
 - When replying to comments, use the in-thread reply pattern from CLAUDE.md
-- **Mark comments as resolved** after addressing them (code fix or clarification)
-- Only leave unresolved when deferring - let reviewer decide if acceptable
+- Do NOT auto-resolve threads - wait for Phase 6 to ask user about bulk resolution
 - If unsure about a comment's intent, ask the user for clarification
