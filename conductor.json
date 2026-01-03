@@ -1,7 +1,7 @@
 {
   "scripts": {
-    "setup": "cd $CONDUCTOR_ROOT_PATH && git pull",
-    "run": "cd $CONDUCTOR_ROOT_PATH && cat README.md",
+    "setup": "cp $CONDUCTOR_ROOT_PATH/.env .env &&  mise trust",
+    "run": "cd $CONDUCTOR_ROOT_PATH",
     "archive": "cd $CONDUCTOR_ROOT_PATH && git pull"
   }
 }
