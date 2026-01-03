@@ -16,7 +16,7 @@ Get a pull request into mergeable state by addressing code review comments and e
 Run the pr-status script:
 
 ```bash
-bun scripts/pr-status.ts [PR_NUMBER]
+bun ~/.claude/scripts/pr-status.ts [PR_NUMBER]
 ```
 
 If no PR number provided, auto-detects from current branch.
@@ -106,7 +106,7 @@ gh api graphql -f query='
 After addressing all items:
 - Commit changes with message: `fix: address PR review feedback`
 - Push to trigger CI
-- Re-run `bun scripts/pr-status.ts` to verify state
+- Re-run `bun ~/.claude/scripts/pr-status.ts` to verify state
 
 ### Phase 5: Final Check
 
