@@ -1,6 +1,6 @@
 ---
 name: chronicle
-description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle curate to have an intelligent curator organize your memory across sessions.
+description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle curate to organize memory, /chronicle publish for digests, /chronicle ui for dashboard.
 ---
 
 # Chronicle
@@ -15,6 +15,10 @@ A persistent journalist tracking your coding sessions.
 /chronicle curate             # Invoke curator to organize memory (interactive)
 /chronicle pending            # Show pending threads across sessions
 /chronicle blocks             # List recent memory blocks
+/chronicle publish            # Generate weekly digest (markdown)
+/chronicle publish daily      # Generate daily digest
+/chronicle publish month      # Generate monthly digest
+/chronicle ui                 # Launch interactive web dashboard
 ```
 
 ## Quick Capture (/chronicle or /chronicle <note>)
@@ -178,6 +182,61 @@ Show filename, date, and first line of summary for each.
 ```
 
 Not all fields required - use what's relevant.
+
+---
+
+## Publish (/chronicle publish)
+
+Generate markdown digests of your Chronicle data.
+
+### How to Use
+
+Run the digest generator:
+
+```bash
+bun ~/.claude/scripts/chronicle-publish.ts [period]
+```
+
+Periods:
+- `weekly` (default) - Last 7 days
+- `daily` - Last 24 hours
+- `month` - Last 30 days
+
+Output goes to `~/.claude/chronicle/digests/`:
+- Weekly: `2026-W01.md` (ISO week)
+- Daily: `2026-01-04-daily.md`
+- Monthly: `2026-01.md`
+
+### Digest Contents
+
+- At a glance metrics
+- Project summaries with highlights
+- Pending work queue
+- Files most modified
+- Observations and patterns
+
+---
+
+## Dashboard (/chronicle ui)
+
+Launch an interactive web dashboard for exploring Chronicle data.
+
+### How to Use
+
+```bash
+bun ~/.claude/scripts/chronicle-dashboard.ts
+```
+
+Opens browser to `http://localhost:3456` with:
+- **Timeline view** - Sessions by date, filterable
+- **Pending inbox** - All pending items grouped by project
+- **Search** - Find sessions by text
+- **Project stats** - Activity per project
+
+Keyboard shortcuts:
+- `/` - Focus search
+- `j`/`k` - Navigate items
+- `Esc` - Clear filters
 
 ---
 
