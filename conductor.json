@@ -1,0 +1,7 @@
+{
+  "scripts": {
+    "setup": "cp $CONDUCTOR_ROOT_PATH/.env .env &&  mise trust",
+    "run": "cd $CONDUCTOR_ROOT_PATH",
+    "archive": "cd $CONDUCTOR_ROOT_PATH && git pull"
+  }
+}
