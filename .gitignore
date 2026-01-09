@@ -76,5 +76,11 @@ title-feedback/*.jsonl
 
 # Chronicle memory blocks (personal session data)
 chronicle/blocks/
-changelog.md
+chronicle/digests/
 tmp/
+
+# Temporary files
+tmp/
+
+# Claude Code Change log
+changelog.md
