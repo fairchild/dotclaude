@@ -3,6 +3,8 @@
  * Simple static file server for the Claude Config Visualizer
  */
 
+import { resolve, relative } from "path";
+
 const PORT = process.env.PORT || 3000;
 
 const MIME_TYPES: Record<string, string> = {
@@ -23,7 +25,13 @@ Bun.serve({
     // Default to index.html
     if (path === "/") path = "/index.html";
 
-    const filePath = import.meta.dir + path;
+    // Prevent path traversal attacks
+    const filePath = resolve(import.meta.dir, "." + path);
+    const rel = relative(import.meta.dir, filePath);
+    if (rel.startsWith("..")) {
+      return new Response("Forbidden", { status: 403 });
+    }
+
     const file = Bun.file(filePath);
 
     if (!(await file.exists())) {

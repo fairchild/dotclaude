@@ -16,7 +16,7 @@ Check if the user provided any arguments after `/claude-webui`:
 
 Stop any running webui server:
 ```bash
-pkill -f "bun.*serve.ts" && echo "Webui server stopped"
+pkill -f "bun.*/\.claude/webui/serve\.ts" && echo "Webui server stopped"
 ```
 
 Done - no further steps.

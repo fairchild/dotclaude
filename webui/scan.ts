@@ -78,7 +78,8 @@ function parseFrontmatter(content: string): { frontmatter: Record<string, unknow
   const frontmatter: Record<string, unknown> = {};
   const lines = match[1].split("\n");
 
-  for (const line of lines) {
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const line = lines[lineIdx];
     const colonIdx = line.indexOf(":");
     if (colonIdx === -1) continue;
     const key = line.slice(0, colonIdx).trim();
@@ -86,7 +87,7 @@ function parseFrontmatter(content: string): { frontmatter: Record<string, unknow
 
     // Handle arrays (tools list)
     if (value === "") {
-      const nextLineIdx = lines.indexOf(line) + 1;
+      const nextLineIdx = lineIdx + 1;
       const arrayItems: string[] = [];
       for (let i = nextLineIdx; i < lines.length; i++) {
         const item = lines[i];
