@@ -13,6 +13,7 @@ export interface ChronicleBlock {
   timestamp: string;
   sessionId: string;
   project: string;
+  worktree?: string;
   branch: string | null;
   summary: string;
   accomplished: string[];
@@ -23,6 +24,7 @@ export interface ChronicleBlock {
 
 export interface SessionContext {
   projectName: string;
+  worktreeName: string | null;
   gitBranch: string | null;
   messageCount: number;
   userMessages: string[];
@@ -35,8 +37,10 @@ export interface SessionContext {
  * Extract context from a session transcript.
  */
 export function extractSessionContext(transcriptPath: string, cwd: string): SessionContext {
+  const { project, worktree } = getProjectInfo(cwd);
   const ctx: SessionContext = {
-    projectName: getProjectName(cwd),
+    projectName: project,
+    worktreeName: worktree,
     gitBranch: null,
     messageCount: 0,
     userMessages: [],
@@ -125,16 +129,63 @@ function truncate(text: string, max: number): string {
   return cleaned.substring(0, max - 3) + "...";
 }
 
-function getProjectName(cwd: string): string {
+const CONDUCTOR_WORKSPACES_PATH = `${process.env.HOME}/conductor/workspaces`;
+
+interface ProjectInfo {
+  project: string;
+  worktree: string | null;
+}
+
+function getProjectInfo(cwd: string): ProjectInfo {
+  const worktree = extractWorktreeName(cwd);
+
   try {
     const url = execSync(`git -C "${cwd}" config --get remote.origin.url`, {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
     }).trim();
-    return url.replace(/\.git$/, "").split("/").pop() || basename(cwd);
+    const project = url.replace(/\.git$/, "").split("/").pop() || basename(cwd);
+    return { project, worktree };
   } catch {
-    return basename(cwd);
+    const parsed = parseFromConductorPath(cwd);
+    if (parsed) return parsed;
+    return { project: basename(cwd), worktree };
   }
+}
+
+function extractWorktreeName(cwd: string): string | null {
+  if (!cwd.startsWith(CONDUCTOR_WORKSPACES_PATH)) return null;
+
+  const relativePath = cwd.slice(CONDUCTOR_WORKSPACES_PATH.length + 1);
+  const parts = relativePath.split("/").filter(Boolean);
+
+  if (parts.length >= 2) {
+    return parts[1];
+  }
+  return null;
+}
+
+function parseFromConductorPath(cwd: string): ProjectInfo | null {
+  if (!cwd.startsWith(CONDUCTOR_WORKSPACES_PATH)) return null;
+
+  const relativePath = cwd.slice(CONDUCTOR_WORKSPACES_PATH.length + 1);
+  const parts = relativePath.split("/").filter(Boolean);
+
+  if (parts.length >= 2) {
+    const repo = parts[0];
+    const worktree = parts[1];
+    const project = repo === ".claude" ? "dotclaude" : repo;
+    return { project, worktree };
+  } else if (parts.length === 1) {
+    const project = parts[0] === ".claude" ? "dotclaude" : parts[0];
+    return { project, worktree: null };
+  }
+
+  return null;
+}
+
+function getProjectName(cwd: string): string {
+  return getProjectInfo(cwd).project;
 }
 
 /**
@@ -273,6 +324,7 @@ export async function extractChronicleBlock(
     timestamp: new Date().toISOString(),
     sessionId,
     project: ctx.projectName,
+    ...(ctx.worktreeName && { worktree: ctx.worktreeName }),
     branch: ctx.gitBranch,
     summary: extracted.summary,
     accomplished: extracted.accomplished,
