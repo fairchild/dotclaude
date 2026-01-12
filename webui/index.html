@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>~/.claude</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Anybody:wght@700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0d0d0d;
+      --bg-surface: #161616;
+      --bg-elevated: #1e1e1e;
+      --bg-hover: #262626;
+      --text-primary: #e8e4d9;
+      --text-secondary: #8a8680;
+      --text-muted: #5a5754;
+      --accent: #d4a04a;
+      --accent-dim: #8b6a32;
+      --accent-glow: rgba(212, 160, 74, 0.15);
+      --border: #2a2a2a;
+      --success: #6b9e6b;
+      --info: #6b8a9e;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg-deep: #f5f3ef;
+        --bg-surface: #faf9f7;
+        --bg-elevated: #ffffff;
+        --bg-hover: #f0ede8;
+        --text-primary: #1a1918;
+        --text-secondary: #5a5754;
+        --text-muted: #8a8680;
+        --accent: #a67c28;
+        --accent-dim: #c49b42;
+        --accent-glow: rgba(166, 124, 40, 0.1);
+        --border: #e5e2dc;
+      }
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      font-size: 15px;
+    }
+
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* Scanline overlay effect */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.03) 2px,
+        rgba(0, 0, 0, 0.03) 4px
+      );
+      z-index: 9999;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+    }
+
+    /* Header */
+    header {
+      margin-bottom: 4rem;
+      animation: fadeSlideIn 0.6s ease-out;
+    }
+
+    .ascii-brand {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 400;
+      font-size: 0.65rem;
+      color: var(--accent);
+      white-space: pre;
+      line-height: 1.1;
+      margin-bottom: 1.5rem;
+      letter-spacing: -0.02em;
+    }
+
+    .header-meta {
+      display: flex;
+      align-items: baseline;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .header-title {
+      font-family: 'Anybody', sans-serif;
+      font-weight: 900;
+      font-size: 2.5rem;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+    }
+
+    .header-path {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .header-scan {
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .header-scan time {
+      color: var(--text-secondary);
+    }
+
+    /* Stats Grid */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1rem;
+      margin-bottom: 3rem;
+    }
+
+    .stat {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      padding: 1.25rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 3px;
+      height: 100%;
+      background: var(--accent);
+      transform: scaleY(0);
+      transition: transform 0.2s ease;
+    }
+
+    .stat:hover,
+    .stat.active {
+      background: var(--bg-elevated);
+      border-color: var(--accent-dim);
+    }
+
+    .stat:hover::before,
+    .stat.active::before {
+      transform: scaleY(1);
+    }
+
+    .stat-count {
+      font-size: 2rem;
+      font-weight: 600;
+      color: var(--accent);
+      line-height: 1;
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-secondary);
+    }
+
+    /* Navigation Tabs */
+    .tabs {
+      display: flex;
+      gap: 0.25rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 2rem;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tab {
+      padding: 0.75rem 1.25rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      position: relative;
+      font-family: inherit;
+      transition: color 0.2s;
+      white-space: nowrap;
+    }
+
+    .tab::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent);
+      transform: scaleX(0);
+      transition: transform 0.2s ease;
+    }
+
+    .tab:hover {
+      color: var(--text-secondary);
+    }
+
+    .tab.active {
+      color: var(--accent);
+    }
+
+    .tab.active::after {
+      transform: scaleX(1);
+    }
+
+    /* Content Sections */
+    .section {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .section.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Cards Grid */
+    .cards {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      transition: all 0.2s ease;
+    }
+
+    .card:hover {
+      border-color: var(--accent-dim);
+      box-shadow: 0 0 30px var(--accent-glow);
+    }
+
+    .card-header {
+      padding: 1rem 1.25rem;
+      cursor: pointer;
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .card-icon {
+      font-size: 1.25rem;
+      line-height: 1;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .card-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .card-name {
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 0.25rem;
+    }
+
+    .card-desc {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-meta {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .card-toggle {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      flex-shrink: 0;
+      transition: transform 0.2s;
+    }
+
+    .card.expanded .card-toggle {
+      transform: rotate(90deg);
+    }
+
+    .card-body {
+      display: none;
+      padding: 0 1.25rem 1.25rem;
+      border-top: 1px dashed var(--border);
+      margin-top: 0;
+    }
+
+    .card.expanded .card-body {
+      display: block;
+    }
+
+    .card-content {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+      padding-top: 1rem;
+    }
+
+    /* Tags */
+    .tag {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    .tag.model {
+      border-color: var(--accent-dim);
+      color: var(--accent);
+    }
+
+    .tag.color {
+      border-color: currentColor;
+    }
+
+    .tag.scope-user {
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .tag.scope-project {
+      border-color: var(--info);
+      color: var(--info);
+    }
+
+    .tag.has-scripts { border-color: #9e6b9e; color: #9e6b9e; }
+    .tag.has-refs { border-color: #6b9e9e; color: #6b9e9e; }
+    .tag.has-assets { border-color: #9e8a6b; color: #9e8a6b; }
+
+    /* MCP Server specific */
+    .mcp-command {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: var(--bg-deep);
+      padding: 0.25rem 0.5rem;
+      margin-top: 0.5rem;
+      display: inline-block;
+    }
+
+    /* Marketplace specific */
+    .marketplace-repo {
+      font-size: 0.75rem;
+      color: var(--accent);
+    }
+
+    .marketplace-repo::before {
+      content: 'github:';
+      color: var(--text-muted);
+    }
+
+    /* Plugin specific */
+    .plugin-path {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      word-break: break-all;
+    }
+
+    /* Empty state */
+    .empty {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-muted);
+    }
+
+    .empty-icon {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+      opacity: 0.5;
+    }
+
+    /* Loading state */
+    .loading {
+      text-align: center;
+      padding: 4rem;
+      color: var(--text-muted);
+    }
+
+    .loading::after {
+      content: '';
+      animation: blink 1s steps(2, start) infinite;
+    }
+
+    @keyframes blink {
+      to { visibility: hidden; }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .container {
+        padding: 1.5rem 1rem;
+      }
+
+      .header-title {
+        font-size: 1.75rem;
+      }
+
+      .ascii-brand {
+        font-size: 0.45rem;
+      }
+
+      .header-meta {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .header-scan {
+        margin-left: 0;
+      }
+
+      .stats {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .stat-count {
+        font-size: 1.5rem;
+      }
+    }
+
+    /* Staggered animation for cards */
+    .card {
+      opacity: 0;
+      animation: cardIn 0.4s ease forwards;
+    }
+
+    @keyframes cardIn {
+      from {
+        opacity: 0;
+        transform: translateY(15px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <pre class="ascii-brand">
+     ██████╗██╗      █████╗ ██╗   ██╗██████╗ ███████╗
+    ██╔════╝██║     ██╔══██╗██║   ██║██╔══██╗██╔════╝
+    ██║     ██║     ███████║██║   ██║██║  ██║█████╗
+    ██║     ██║     ██╔══██║██║   ██║██║  ██║██╔══╝
+    ╚██████╗███████╗██║  ██║╚██████╔╝██████╔╝███████╗
+     ╚═════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝</pre>
+      <div class="header-meta">
+        <h1 class="header-title">Config Visualizer</h1>
+        <span class="header-path">~/.claude</span>
+        <span class="header-scan">scanned <time id="scanTime">--</time></span>
+      </div>
+    </header>
+
+    <div class="stats" id="stats">
+      <div class="stat active" data-section="commands">
+        <div class="stat-count" id="count-commands">--</div>
+        <div class="stat-label">Commands</div>
+      </div>
+      <div class="stat" data-section="agents">
+        <div class="stat-count" id="count-agents">--</div>
+        <div class="stat-label">Agents</div>
+      </div>
+      <div class="stat" data-section="skills">
+        <div class="stat-count" id="count-skills">--</div>
+        <div class="stat-label">Skills</div>
+      </div>
+      <div class="stat" data-section="marketplaces">
+        <div class="stat-count" id="count-marketplaces">--</div>
+        <div class="stat-label">Marketplaces</div>
+      </div>
+      <div class="stat" data-section="plugins">
+        <div class="stat-count" id="count-plugins">--</div>
+        <div class="stat-label">Plugins</div>
+      </div>
+      <div class="stat" data-section="mcp">
+        <div class="stat-count" id="count-mcp">--</div>
+        <div class="stat-label">MCP Servers</div>
+      </div>
+    </div>
+
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-section="commands">/commands</button>
+      <button class="tab" data-section="agents">/agents</button>
+      <button class="tab" data-section="skills">/skills</button>
+      <button class="tab" data-section="marketplaces">/marketplaces</button>
+      <button class="tab" data-section="plugins">/plugins</button>
+      <button class="tab" data-section="mcp">/mcp</button>
+    </nav>
+
+    <main id="content">
+      <div class="loading">Loading configuration_</div>
+    </main>
+  </div>
+
+  <script>
+    let data = null;
+
+    async function loadData() {
+      try {
+        const res = await fetch('/data.json');
+        data = await res.json();
+        render();
+      } catch (err) {
+        document.getElementById('content').innerHTML = `
+          <div class="empty">
+            <div class="empty-icon">⚠</div>
+            <p>Failed to load data.json</p>
+            <p style="font-size: 0.8rem; margin-top: 0.5rem;">Run: bun scan.ts</p>
+          </div>
+        `;
+      }
+    }
+
+    function formatDate(iso) {
+      const d = new Date(iso);
+      return d.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function truncate(str, len = 200) {
+      if (str.length <= len) return str;
+      return str.slice(0, len) + '...';
+    }
+
+    function render() {
+      document.getElementById('scanTime').textContent = formatDate(data.scannedAt);
+      document.getElementById('count-commands').textContent = data.commands.length;
+      document.getElementById('count-agents').textContent = data.agents.length;
+      document.getElementById('count-skills').textContent = data.skills.length;
+      document.getElementById('count-marketplaces').textContent = data.marketplaces.length;
+      document.getElementById('count-plugins').textContent = data.installedPlugins.length;
+      document.getElementById('count-mcp').textContent = data.mcpServers.length;
+
+      renderSection('commands');
+    }
+
+    function renderSection(section) {
+      const content = document.getElementById('content');
+      let html = '';
+
+      switch (section) {
+        case 'commands':
+          html = renderCommands();
+          break;
+        case 'agents':
+          html = renderAgents();
+          break;
+        case 'skills':
+          html = renderSkills();
+          break;
+        case 'marketplaces':
+          html = renderMarketplaces();
+          break;
+        case 'plugins':
+          html = renderPlugins();
+          break;
+        case 'mcp':
+          html = renderMcp();
+          break;
+      }
+
+      content.innerHTML = `<section class="section active">${html}</section>`;
+
+      // Stagger card animations
+      content.querySelectorAll('.card').forEach((card, i) => {
+        card.style.animationDelay = `${i * 0.05}s`;
+      });
+    }
+
+    function renderCommands() {
+      if (!data.commands.length) {
+        return '<div class="empty"><div class="empty-icon">/</div><p>No commands found</p></div>';
+      }
+
+      return `<div class="cards">${data.commands.map(cmd => `
+        <article class="card">
+          <div class="card-header" onclick="this.parentElement.classList.toggle('expanded')">
+            <span class="card-icon">/</span>
+            <div class="card-info">
+              <div class="card-name">${escapeHtml(cmd.name)}</div>
+              <div class="card-desc">${escapeHtml(cmd.description)}</div>
+            </div>
+            <span class="card-toggle">▶</span>
+          </div>
+          <div class="card-body">
+            <div class="card-content">${escapeHtml(truncate(cmd.content, 1000))}</div>
+          </div>
+        </article>
+      `).join('')}</div>`;
+    }
+
+    function renderAgents() {
+      if (!data.agents.length) {
+        return '<div class="empty"><div class="empty-icon">◎</div><p>No agents found</p></div>';
+      }
+
+      return `<div class="cards">${data.agents.map(agent => `
+        <article class="card">
+          <div class="card-header" onclick="this.parentElement.classList.toggle('expanded')">
+            <span class="card-icon">◎</span>
+            <div class="card-info">
+              <div class="card-name">${escapeHtml(agent.name)}</div>
+              <div class="card-desc">${escapeHtml(agent.description)}</div>
+              <div class="card-meta">
+                ${agent.model ? `<span class="tag model">${agent.model}</span>` : ''}
+                ${agent.color ? `<span class="tag color" style="color: ${agent.color}">${agent.color}</span>` : ''}
+                ${(agent.tools || []).slice(0, 4).map(t => `<span class="tag">${t}</span>`).join('')}
+                ${(agent.tools || []).length > 4 ? `<span class="tag">+${agent.tools.length - 4}</span>` : ''}
+              </div>
+            </div>
+            <span class="card-toggle">▶</span>
+          </div>
+          <div class="card-body">
+            <div class="card-content">${escapeHtml(truncate(agent.content, 1000))}</div>
+          </div>
+        </article>
+      `).join('')}</div>`;
+    }
+
+    function renderSkills() {
+      if (!data.skills.length) {
+        return '<div class="empty"><div class="empty-icon">★</div><p>No skills found</p></div>';
+      }
+
+      return `<div class="cards">${data.skills.map(skill => `
+        <article class="card">
+          <div class="card-header" onclick="this.parentElement.classList.toggle('expanded')">
+            <span class="card-icon">★</span>
+            <div class="card-info">
+              <div class="card-name">${escapeHtml(skill.name)}</div>
+              <div class="card-desc">${escapeHtml(skill.description)}</div>
+              <div class="card-meta">
+                ${skill.model ? `<span class="tag model">${skill.model}</span>` : ''}
+                ${skill.hasScripts ? '<span class="tag has-scripts">scripts</span>' : ''}
+                ${skill.hasReferences ? '<span class="tag has-refs">refs</span>' : ''}
+                ${skill.hasAssets ? '<span class="tag has-assets">assets</span>' : ''}
+              </div>
+            </div>
+            <span class="card-toggle">▶</span>
+          </div>
+          <div class="card-body">
+            <div class="card-content">${escapeHtml(truncate(skill.content, 1000))}</div>
+          </div>
+        </article>
+      `).join('')}</div>`;
+    }
+
+    function renderMarketplaces() {
+      if (!data.marketplaces.length) {
+        return '<div class="empty"><div class="empty-icon">⬡</div><p>No marketplaces configured</p></div>';
+      }
+
+      return `<div class="cards">${data.marketplaces.map(mp => `
+        <article class="card">
+          <div class="card-header">
+            <span class="card-icon">⬡</span>
+            <div class="card-info">
+              <div class="card-name">${escapeHtml(mp.name)}</div>
+              <div class="marketplace-repo">${escapeHtml(mp.repo)}</div>
+              <div class="card-meta">
+                <span class="tag">updated ${formatDate(mp.lastUpdated)}</span>
+              </div>
+            </div>
+          </div>
+        </article>
+      `).join('')}</div>`;
+    }
+
+    function renderPlugins() {
+      if (!data.installedPlugins.length) {
+        return '<div class="empty"><div class="empty-icon">◈</div><p>No plugins installed</p></div>';
+      }
+
+      return `<div class="cards">${data.installedPlugins.map(plugin => `
+        <article class="card">
+          <div class="card-header">
+            <span class="card-icon">◈</span>
+            <div class="card-info">
+              <div class="card-name">${escapeHtml(plugin.name)}</div>
+              <div class="card-desc">from ${escapeHtml(plugin.marketplace)}</div>
+              <div class="card-meta">
+                <span class="tag scope-${plugin.scope}">${plugin.scope}</span>
+                <span class="tag">v${escapeHtml(plugin.version)}</span>
+              </div>
+              ${plugin.projectPath ? `<div class="plugin-path">${escapeHtml(plugin.projectPath)}</div>` : ''}
+            </div>
+          </div>
+        </article>
+      `).join('')}</div>`;
+    }
+
+    function renderMcp() {
+      if (!data.mcpServers.length) {
+        return '<div class="empty"><div class="empty-icon">⚡</div><p>No MCP servers configured</p></div>';
+      }
+
+      return `<div class="cards">${data.mcpServers.map(srv => `
+        <article class="card">
+          <div class="card-header">
+            <span class="card-icon">⚡</span>
+            <div class="card-info">
+              <div class="card-name">${escapeHtml(srv.name)}</div>
+              <div class="mcp-command">${escapeHtml(srv.command)} ${srv.args.map(a => escapeHtml(a)).join(' ')}</div>
+              <div class="card-meta">
+                <span class="tag">${srv.type}</span>
+                ${srv.envKeys.map(k => `<span class="tag">${escapeHtml(k)}</span>`).join('')}
+              </div>
+            </div>
+          </div>
+        </article>
+      `).join('')}</div>`;
+    }
+
+    // Tab navigation
+    document.getElementById('tabs').addEventListener('click', (e) => {
+      if (e.target.classList.contains('tab')) {
+        const section = e.target.dataset.section;
+
+        // Update tabs
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        e.target.classList.add('active');
+
+        // Update stats
+        document.querySelectorAll('.stat').forEach(s => s.classList.remove('active'));
+        document.querySelector(`.stat[data-section="${section}"]`)?.classList.add('active');
+
+        renderSection(section);
+      }
+    });
+
+    // Stat click navigation
+    document.getElementById('stats').addEventListener('click', (e) => {
+      const stat = e.target.closest('.stat');
+      if (stat) {
+        const section = stat.dataset.section;
+
+        // Update stats
+        document.querySelectorAll('.stat').forEach(s => s.classList.remove('active'));
+        stat.classList.add('active');
+
+        // Update tabs
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelector(`.tab[data-section="${section}"]`)?.classList.add('active');
+
+        renderSection(section);
+      }
+    });
+
+    // Load data on init
+    loadData();
+  </script>
+</body>
+</html>

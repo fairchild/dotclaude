@@ -84,3 +84,6 @@ tmp/
 
 # Claude Code Change log
 changelog.md
+
+# WebUI generated data
+webui/data.json
