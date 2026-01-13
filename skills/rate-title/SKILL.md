@@ -1,6 +1,8 @@
 ---
 name: rate-title
 description: AI-assisted session title rating. The model judges the title first, then you confirm or correct. Builds a golden dataset for DSPy optimization of both judge and journalist prompts.
+license: Apache 2.0
+status: wip
 ---
 
 # Rate Session Title

@@ -1,6 +1,8 @@
 ---
 name: session-title-eval
 description: Build and run evaluations for session title generation quality. Use after modifying prompts, when curating test cases, or for periodic quality audits.
+license: Apache 2.0
+status: wip
 ---
 
 ## Overview

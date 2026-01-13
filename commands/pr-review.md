@@ -1,5 +1,7 @@
 ---
 description: Address PR review feedback and advance toward mergeable state
+scripts:
+  - scripts/pr-status.ts
 ---
 
 Get a pull request into mergeable state by addressing code review comments and ensuring CI passes.

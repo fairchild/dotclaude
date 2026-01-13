@@ -24,7 +24,7 @@ Commands:
   <branch> [--no-editor]  Create worktree, run setup, open editor
   cd <branch>             Change to worktree directory (shell function)
   home                    Return to main repository (shell function)
-  archive [branch]        Run conductor archive, remove worktree
+  archive [branch]        Run conductor archive, move to .archive
   list, ls                List all worktrees
   tree                    Tree view of worktrees with git status
 
@@ -260,13 +260,25 @@ cmd_archive() {
                 cd "$worktree_path"
                 eval "$archive_script"
             )
-            log_ok "Archive complete"
+            log_ok "Archive script complete"
         fi
     fi
 
-    log_info "Removing worktree: $branch"
+    log_info "Archiving worktree: $branch"
 
-    (cd "$main_repo" && git worktree remove "$worktree_path" --force)
+    # Move to .archive instead of deleting
+    local archive_dir="$WORKTREES_ROOT/.archive/$repo_name"
+    mkdir -p "$archive_dir"
+
+    # If archive already exists, add timestamp suffix
+    local archive_dest="$archive_dir/$branch"
+    if [[ -d "$archive_dest" ]]; then
+        archive_dest="${archive_dest}-$(date +%Y%m%d-%H%M%S)"
+    fi
+
+    mv "$worktree_path" "$archive_dest"
+
+    # Clean up git worktree tracking
     (cd "$main_repo" && git worktree prune)
 
     # Clean up empty repo directory
@@ -275,7 +287,13 @@ cmd_archive() {
         rmdir "$repo_dir"
     fi
 
-    log_ok "Done"
+    log_ok "Archived to: $archive_dest"
+
+    # Print exit hint if we're in the archived directory
+    if [[ "$PWD" == "$worktree_path" || "$PWD" == "$worktree_path/"* ]]; then
+        echo ""
+        log_info "Current directory moved. Run: exit"
+    fi
 }
 
 cmd_list() {

@@ -3,6 +3,7 @@ name: git-worktree
 description: |
   Manage Git worktrees for concurrent local development. Creates worktrees
   at ~/.worktrees/REPO/BRANCH. Wrapper for the `wt` CLI.
+license: Apache 2.0
 ---
 
 # Git Worktree
@@ -12,8 +13,8 @@ Manage worktrees for concurrent development without clobbering changes.
 ## Setup
 
 ```bash
-# Add to ~/.zshrc
-source ~/.claude/skills/git-worktree/scripts/wt.zsh
+~/.claude/skills/git-worktree/scripts/wt.sh install
+source ~/.zshrc
 ```
 
 ## Usage
@@ -23,10 +24,13 @@ wt <branch>           # Create worktree, run setup, open editor
 wt <branch> --no-editor  # Create without opening editor
 wt cd <branch>        # Change to worktree directory
 wt home               # Return to main repo (or REPOS_ROOT if outside git)
-wt archive [branch]   # Run archive script, remove worktree
+wt archive [branch]   # Run archive script, move to ~/.worktrees/.archive
 wt list               # List all worktrees
 wt ls                 # Alias for list
 wt tree               # Tree view with git status indicators
+wt status             # Health check across all worktrees
+wt open [branch]      # Open editor for worktree (current dir if no branch)
+wt install            # Add wt to ~/.zshrc (one-time setup)
 ```
 
 ## Environment
@@ -42,7 +46,7 @@ REPOS_ROOT=~/code            # Fallback for `wt home` outside git
 wt feature-auth       # Creates worktree and opens editor
 # ... work on feature ...
 wt home               # Back to main repo
-wt archive feature-auth  # Clean up when done
+wt archive feature-auth  # Archive when done (moves to .archive)
 ```
 
 ## conductor.json (Optional)
