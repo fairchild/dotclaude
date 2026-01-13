@@ -1,6 +1,7 @@
 ---
 name: release
 description: Create a semantic versioned release with AI-generated changelog. Use when the user wants to create a new release, cut a release, bump version, update changelog, or publish a new version. Analyzes commits since last release, determines version bump, generates release notes, updates CHANGELOG.md, creates git tag, and publishes GitHub Release.
+license: Apache 2.0
 ---
 
 # Release

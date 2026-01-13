@@ -1,6 +1,7 @@
 ---
 name: cloudflare-workers-deploy
 description: Set up Cloudflare Workers deployment for web applications with GitHub Actions CI/CD. Use when adding Workers deployment to an existing project, setting up auto-deploy on push/PR, configuring Durable Objects for stateful apps, or creating a dual-deployment pattern (keep Replit/Vercel while adding Workers). Supports Hono framework, static assets, and nodejs_compat.
+license: Apache 2.0
 ---
 
 # Cloudflare Workers Deployment
