@@ -1,3 +1,7 @@
+---
+description: Log feedback after using the reflection prompt to improve it over time
+---
+
 I just used our reflection prompt. Help me log what we can learn about improving it. Ask me briefly:
 
 What were we reviewing? (one line for context)

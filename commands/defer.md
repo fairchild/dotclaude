@@ -1,3 +1,7 @@
+---
+description: Capture explored work as a todo file for future implementation
+---
+
 # Defer Work to Future Session
 
 Create a comprehensive todo file for work we've explored but decided not to implement now.

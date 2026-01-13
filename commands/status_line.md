@@ -1,5 +1,7 @@
 ---
 description: Explain the current status line with verbose breakdown and ASCII diagram
+scripts:
+  - scripts/get-session-tokens.sh
 ---
 
 You are explaining the Claude Code status line to help the user understand session metrics.

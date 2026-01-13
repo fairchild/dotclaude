@@ -4,9 +4,20 @@
  */
 
 import { readdir, readFile, stat } from "fs/promises";
-import { join, basename } from "path";
+import { join, basename, relative } from "path";
+import { spawnSync } from "child_process";
 
 const CLAUDE_DIR = process.env.CLAUDE_DIR || `${process.env.HOME}/.claude`;
+
+// Gitignore checking
+function isGitignored(absolutePath: string): boolean {
+  const relativePath = relative(CLAUDE_DIR, absolutePath);
+  const result = spawnSync("git", ["check-ignore", "-q", relativePath], {
+    cwd: CLAUDE_DIR,
+    stdio: "ignore",
+  });
+  return result.status === 0;
+}
 
 // CLI Arguments
 const args = process.argv.slice(2);
@@ -78,9 +89,6 @@ interface Skill {
   model?: string;
   color?: string;
   license?: string;
-  hasScripts: boolean;
-  hasReferences: boolean;
-  hasAssets: boolean;
   content: string;
 }
 
@@ -169,7 +177,10 @@ async function scanCommands(): Promise<Command[]> {
     for (const file of files) {
       if (!file.endsWith(".md")) continue;
 
-      const content = await readFile(join(dir, file), "utf-8");
+      const filePath = join(dir, file);
+      if (isGitignored(filePath)) continue;
+
+      const content = await readFile(filePath, "utf-8");
       const { frontmatter, body } = parseFrontmatter(content);
 
       commands.push({
@@ -195,7 +206,10 @@ async function scanAgents(): Promise<Agent[]> {
     for (const file of files) {
       if (!file.endsWith(".md") || file === "AGENTS-README.md") continue;
 
-      const content = await readFile(join(dir, file), "utf-8");
+      const filePath = join(dir, file);
+      if (isGitignored(filePath)) continue;
+
+      const content = await readFile(filePath, "utf-8");
       const { frontmatter, body } = parseFrontmatter(content);
 
       agents.push({
@@ -224,6 +238,10 @@ async function scanSkills(): Promise<Skill[]> {
 
     for (const entry of entries) {
       const entryPath = join(dir, entry);
+
+      // Skip gitignored entries
+      if (isGitignored(entryPath)) continue;
+
       const entryStat = await stat(entryPath);
 
       // Skip .skill files (ZIP archives for distribution, not readable as text)
@@ -238,9 +256,6 @@ async function scanSkills(): Promise<Skill[]> {
           const content = await readFile(skillMdPath, "utf-8");
           const { frontmatter, body } = parseFrontmatter(content);
 
-          // Check for subdirectories
-          const subentries = await readdir(entryPath);
-
           skills.push({
             name: (frontmatter.name as string) || entry,
             dirname: entry,
@@ -248,9 +263,6 @@ async function scanSkills(): Promise<Skill[]> {
             model: frontmatter.model as string | undefined,
             color: frontmatter.color as string | undefined,
             license: frontmatter.license as string | undefined,
-            hasScripts: subentries.includes("scripts"),
-            hasReferences: subentries.includes("references"),
-            hasAssets: subentries.includes("assets"),
             content: body.trim(),
           });
         } catch {
