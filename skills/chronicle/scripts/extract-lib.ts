@@ -6,7 +6,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 import { basename } from "path";
 import { execSync } from "child_process";
-import { ChronicleBlock } from "./chronicle-queries.ts";
+import { ChronicleBlock } from "./queries.ts";
 
 export type { ChronicleBlock };
 

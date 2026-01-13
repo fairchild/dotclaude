@@ -50,6 +50,9 @@ scripts/.gitignore
 scripts/bun.lock
 scripts/tsconfig.json
 
+# Skill scripts (track code, ignore generated)
+skills/*/scripts/node_modules/
+
 # IDE and config state
 ide/
 config/notification_states.json

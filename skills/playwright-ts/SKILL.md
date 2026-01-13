@@ -1,6 +1,7 @@
 ---
 name: playwright-ts
 description: TypeScript Playwright E2E testing patterns for Cloudflare Workers applications. Use when running E2E tests, capturing screenshots, or debugging frontend behavior in projects using npm/pnpm/bun test scripts.
+license: Apache 2.0
 ---
 
 # TypeScript Playwright Testing

@@ -1,0 +1,1147 @@
+#!/bin/bash
+# ai-coding-usage - Unified usage analyzer for AI coding assistants
+#
+# Loads Claude Code and Cursor logs into a persistent DuckDB database
+# for analysis via SQL queries.
+#
+# Usage:
+#   ai-coding-usage              # Load data and show summary
+#   ai-coding-usage --help       # Detailed help for agents/users
+#   ai-coding-usage --schema     # Show database schema with example queries
+#   ai-coding-usage query "SQL"  # Run a SQL query
+#   ai-coding-usage reload       # Force reload all data
+
+set -euo pipefail
+
+VERSION="1.0.0"
+
+# ============================================================================
+# Configuration
+# ============================================================================
+
+DB_PATH="${AI_CODING_USAGE_DB:-$HOME/.local/share/ai-coding-usage/usage.duckdb}"
+DB_DIR=$(dirname "$DB_PATH")
+
+# Source paths
+CLAUDE_PROJECTS="${CLAUDE_PROJECTS_DIR:-$HOME/.claude/projects}"
+
+case "$(uname -s)" in
+    Darwin)
+        CURSOR_BASE="$HOME/Library/Application Support/Cursor/User"
+        ;;
+    Linux)
+        CURSOR_BASE="$HOME/.config/Cursor/User"
+        ;;
+    *)
+        CURSOR_BASE=""
+        ;;
+esac
+
+CURSOR_WORKSPACE="${CURSOR_BASE:+$CURSOR_BASE/workspaceStorage}"
+
+# ============================================================================
+# Prerequisite checks
+# ============================================================================
+
+if ! command -v duckdb &> /dev/null; then
+    cat >&2 << 'EOF'
+Error: DuckDB is required but not installed.
+
+Install with:
+  macOS:  brew install duckdb
+  Linux:  curl -LO https://github.com/duckdb/duckdb/releases/latest/download/duckdb_cli-linux-amd64.zip
+          unzip duckdb_cli-linux-amd64.zip && sudo mv duckdb /usr/local/bin/
+EOF
+    exit 1
+fi
+
+# ============================================================================
+# Help Documentation
+# ============================================================================
+
+show_help() {
+    cat << 'EOF'
+ai-coding-usage - Unified usage analyzer for AI coding assistants
+
+DESCRIPTION
+    Loads conversation and tool usage logs from Claude Code and Cursor into a
+    persistent DuckDB database. Enables SQL-based analysis of AI coding patterns
+    across both tools.
+
+USAGE
+    ai-coding-usage                     Load data (if needed) and show summary
+    ai-coding-usage --help              Show this help message
+    ai-coding-usage --schema            Show database schema with example queries
+    ai-coding-usage --version           Show version
+    ai-coding-usage reload              Force reload all data from source logs
+    ai-coding-usage query "SQL"         Execute a SQL query against the database
+    ai-coding-usage shell               Open interactive DuckDB shell
+
+COMMANDS
+    (default)   Ensures data is loaded, prints a brief summary, and shows
+                how to explore further. Idempotent - safe to run repeatedly.
+
+    reload      Drops and recreates all tables from source log files.
+                Use after significant new usage or if data seems stale.
+
+    query       Execute arbitrary SQL. Results printed to stdout.
+                Use --schema to see available tables and columns.
+
+    shell       Opens an interactive DuckDB REPL connected to the database.
+                Useful for exploratory analysis.
+
+ENVIRONMENT VARIABLES
+    AI_CODING_USAGE_DB      Path to DuckDB database file
+                            Default: ~/.local/share/ai-coding-usage/usage.duckdb
+
+    CLAUDE_PROJECTS_DIR     Path to Claude Code projects directory
+                            Default: ~/.claude/projects
+
+DATA SOURCES
+    Claude Code     ~/.claude/projects/*/*.jsonl
+                    Contains: tool invocations, messages, token usage
+
+    Cursor          ~/Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb
+                    Contains: prompts, chat history, composer sessions
+
+EXAMPLES
+    # First run - loads data and shows summary
+    ai-coding-usage
+
+    # See what tables and columns are available
+    ai-coding-usage --schema
+
+    # Count tool usage by type
+    ai-coding-usage query "SELECT tool_name, COUNT(*) FROM claude_tools GROUP BY 1 ORDER BY 2 DESC"
+
+    # Daily usage across both tools
+    ai-coding-usage query "SELECT * FROM daily_summary ORDER BY date DESC LIMIT 14"
+
+    # Find all Bash commands containing 'npm'
+    ai-coding-usage query "SELECT timestamp, context FROM claude_tools WHERE tool_name='Bash' AND context LIKE '%npm%'"
+
+    # Search Cursor prompts
+    ai-coding-usage query "SELECT * FROM cursor_prompts WHERE prompt_text LIKE '%refactor%'"
+
+    # Interactive exploration
+    ai-coding-usage shell
+
+FOR AI AGENTS
+    To analyze AI coding usage programmatically:
+    
+    1. Run: ai-coding-usage --schema
+       This outputs the complete database schema with column types and descriptions.
+    
+    2. Write SQL queries against the tables described in the schema.
+    
+    3. Execute with: ai-coding-usage query "YOUR SQL HERE"
+    
+    The database uses standard SQL. DuckDB supports modern SQL features including
+    window functions, CTEs, JSON functions, and more.
+
+SEE ALSO
+    ai-coding-usage --schema    Complete schema documentation
+    https://duckdb.org/docs/    DuckDB SQL reference
+EOF
+}
+
+show_schema() {
+    cat << 'EOF'
+ai-coding-usage DATABASE SCHEMA
+===============================
+
+This document describes all tables in the ai-coding-usage database.
+Use this information to construct SQL queries for analysis.
+
+DATABASE LOCATION
+    Default: ~/.local/share/ai-coding-usage/usage.duckdb
+    Override: AI_CODING_USAGE_DB environment variable
+
+================================================================================
+TABLE: claude_tools
+================================================================================
+Primary table for Claude Code tool invocations. Each row represents one tool
+call made by Claude during a coding session.
+
+COLUMNS:
+    timestamp       TIMESTAMP   When the tool was invoked (ISO 8601)
+    session_id      VARCHAR     Unique session identifier
+    project_dir     VARCHAR     Working directory / project path
+    tool_name       VARCHAR     Name of tool (see TOOL NAMES below)
+    context         VARCHAR     Tool-specific context (command, file path, etc.)
+    input_tokens    INTEGER     Tokens consumed by this interaction (input)
+    output_tokens   INTEGER     Tokens generated by this interaction (output)
+
+TOOL NAMES (tool_name column):
+    Bash            Shell command execution
+    Read            File reading
+    Write           File creation
+    Edit            File modification  
+    MultiEdit       Multiple file edits
+    Glob            File pattern matching
+    Grep            Text search
+    LS              Directory listing
+    Task            Subagent/background task
+    Skill           Skill invocation (context = skill name)
+    WebSearch       Web search
+    WebFetch        URL fetching
+    TodoRead        Todo list reading
+    TodoWrite       Todo list writing
+    NotebookRead    Jupyter notebook reading
+    NotebookEdit    Jupyter notebook editing
+
+EXAMPLE QUERIES:
+
+    -- Most used tools
+    SELECT tool_name, COUNT(*) as uses
+    FROM claude_tools
+    GROUP BY tool_name
+    ORDER BY uses DESC;
+
+    -- Skill usage breakdown
+    SELECT context as skill_name, COUNT(*) as uses
+    FROM claude_tools
+    WHERE tool_name = 'Skill'
+    GROUP BY context
+    ORDER BY uses DESC;
+
+    -- Daily tool usage
+    SELECT DATE_TRUNC('day', timestamp) as date, COUNT(*) as tools
+    FROM claude_tools
+    GROUP BY date
+    ORDER BY date DESC
+    LIMIT 14;
+
+    -- Most common Bash commands
+    SELECT context, COUNT(*) as uses
+    FROM claude_tools
+    WHERE tool_name = 'Bash'
+    GROUP BY context
+    ORDER BY uses DESC
+    LIMIT 20;
+
+    -- Token usage by project
+    SELECT project_dir, 
+           SUM(input_tokens) as input, 
+           SUM(output_tokens) as output
+    FROM claude_tools
+    GROUP BY project_dir
+    ORDER BY input + output DESC;
+
+================================================================================
+TABLE: claude_sessions
+================================================================================
+Metadata about Claude Code sessions.
+
+COLUMNS:
+    session_id      VARCHAR     Unique session identifier
+    project_dir     VARCHAR     Working directory
+    started_at      TIMESTAMP   First activity timestamp
+    ended_at        TIMESTAMP   Last activity timestamp
+    tool_count      INTEGER     Number of tool invocations
+    unique_tools    INTEGER     Number of distinct tools used
+
+EXAMPLE QUERIES:
+
+    -- Recent sessions
+    SELECT * FROM claude_sessions ORDER BY started_at DESC LIMIT 10;
+
+    -- Sessions by project
+    SELECT project_dir, COUNT(*) as sessions, SUM(tool_count) as total_tools
+    FROM claude_sessions
+    GROUP BY project_dir
+    ORDER BY total_tools DESC;
+
+================================================================================
+TABLE: cursor_prompts
+================================================================================
+User prompts sent to Cursor AI.
+
+COLUMNS:
+    timestamp       TIMESTAMP   When the prompt was sent
+    workspace_id    VARCHAR     Cursor workspace identifier (MD5 hash)
+    workspace_path  VARCHAR     Resolved workspace directory path
+    prompt_text     VARCHAR     The user's prompt text
+
+NOTE: Cursor does not log tool-level detail like Claude Code. This table
+contains user prompts only, not individual file edits or commands.
+
+EXAMPLE QUERIES:
+
+    -- Recent prompts
+    SELECT timestamp, LEFT(prompt_text, 100) as prompt
+    FROM cursor_prompts
+    ORDER BY timestamp DESC
+    LIMIT 20;
+
+    -- Prompts by workspace
+    SELECT workspace_path, COUNT(*) as prompts
+    FROM cursor_prompts
+    GROUP BY workspace_path
+    ORDER BY prompts DESC;
+
+    -- Search prompts
+    SELECT timestamp, prompt_text
+    FROM cursor_prompts
+    WHERE prompt_text ILIKE '%refactor%'
+    ORDER BY timestamp DESC;
+
+================================================================================
+TABLE: cursor_workspaces
+================================================================================
+Cursor workspace metadata.
+
+COLUMNS:
+    workspace_id    VARCHAR     Unique workspace identifier (MD5 hash)
+    workspace_path  VARCHAR     Directory path (decoded from workspace.json)
+    prompt_count    INTEGER     Number of prompts in this workspace
+    db_path         VARCHAR     Path to state.vscdb file
+
+================================================================================
+VIEW: daily_summary
+================================================================================
+Aggregated daily usage across both tools.
+
+COLUMNS:
+    date            DATE        The date
+    claude_tools    INTEGER     Number of Claude Code tool invocations
+    cursor_prompts  INTEGER     Number of Cursor prompts
+    total           INTEGER     Combined total
+
+EXAMPLE QUERIES:
+
+    -- Last two weeks
+    SELECT * FROM daily_summary ORDER BY date DESC LIMIT 14;
+
+    -- Weekly aggregation
+    SELECT DATE_TRUNC('week', date) as week,
+           SUM(claude_tools) as claude,
+           SUM(cursor_prompts) as cursor
+    FROM daily_summary
+    GROUP BY week
+    ORDER BY week DESC;
+
+================================================================================
+VIEW: tool_summary
+================================================================================
+Aggregated tool usage statistics.
+
+COLUMNS:
+    tool_name       VARCHAR     Name of the tool
+    uses            INTEGER     Total invocations
+    pct             DECIMAL     Percentage of all tool uses
+    first_used      TIMESTAMP   Earliest usage
+    last_used       TIMESTAMP   Most recent usage
+
+================================================================================
+================================================================================
+                         UNIFIED VIEWS (Cross-Tool Analysis)
+================================================================================
+================================================================================
+
+The following views normalize data across Claude Code and Cursor, enabling
+unified analysis at the finest available granularity.
+
+================================================================================
+VIEW: interactions
+================================================================================
+**PRIMARY UNIFIED VIEW** - All interactions from both tools in a single schema.
+
+This is the finest granularity available:
+- Claude Code: each tool invocation = 1 row
+- Cursor: each prompt = 1 row
+
+COLUMNS:
+    timestamp           TIMESTAMP   When the interaction occurred
+    source              VARCHAR     'claude_code' or 'cursor'
+    session_id          VARCHAR     Session/workspace identifier
+    project             VARCHAR     Full project path
+    project_name        VARCHAR     Just the project folder name
+    interaction_type    VARCHAR     'tool_use' or 'prompt'
+    category            VARCHAR     Tool name (Claude) or 'Prompt' (Cursor)
+    detail              VARCHAR     Context: command/file (Claude) or prompt text (Cursor)
+    input_tokens        INTEGER     Input tokens (Claude only, NULL for Cursor)
+    output_tokens       INTEGER     Output tokens (Claude only, NULL for Cursor)
+    total_tokens        INTEGER     Sum of tokens (Claude only, NULL for Cursor)
+
+EXAMPLE QUERIES:
+
+    -- All interactions, most recent first
+    SELECT timestamp, source, category, project_name, LEFT(detail, 50)
+    FROM interactions
+    ORDER BY timestamp DESC
+    LIMIT 50;
+
+    -- Count by source
+    SELECT source, COUNT(*) as total
+    FROM interactions
+    GROUP BY source;
+
+    -- Interactions per project across both tools
+    SELECT project_name, source, COUNT(*) as interactions
+    FROM interactions
+    GROUP BY project_name, source
+    ORDER BY interactions DESC;
+
+    -- Filter to last 7 days
+    SELECT * FROM interactions
+    WHERE timestamp >= CURRENT_DATE - INTERVAL '7 days';
+
+================================================================================
+VIEW: daily_by_source
+================================================================================
+Daily interaction counts separated by source.
+
+COLUMNS:
+    date            DATE        The date
+    source          VARCHAR     'claude_code' or 'cursor'
+    interactions    INTEGER     Number of interactions
+    sessions        INTEGER     Distinct sessions
+    projects        INTEGER     Distinct projects touched
+
+EXAMPLE QUERIES:
+
+    -- Side-by-side daily comparison
+    SELECT 
+        date,
+        SUM(CASE WHEN source = 'claude_code' THEN interactions END) as claude,
+        SUM(CASE WHEN source = 'cursor' THEN interactions END) as cursor
+    FROM daily_by_source
+    GROUP BY date
+    ORDER BY date DESC
+    LIMIT 14;
+
+================================================================================
+VIEW: weekly_summary
+================================================================================
+Weekly aggregation by source.
+
+COLUMNS:
+    week_start      DATE        Monday of the week
+    source          VARCHAR     'claude_code' or 'cursor'
+    interactions    INTEGER     Total interactions
+    sessions        INTEGER     Distinct sessions
+    projects        INTEGER     Distinct projects
+    active_days     INTEGER     Days with activity
+
+================================================================================
+VIEW: project_activity
+================================================================================
+Project-level summary across both tools.
+
+COLUMNS:
+    project_name    VARCHAR     Folder name
+    project         VARCHAR     Full path
+    source          VARCHAR     'claude_code' or 'cursor'
+    interactions    INTEGER     Total interactions
+    sessions        INTEGER     Distinct sessions
+    first_activity  TIMESTAMP   Earliest activity
+    last_activity   TIMESTAMP   Most recent activity
+    active_days     INTEGER     Days with activity
+
+EXAMPLE QUERIES:
+
+    -- Most active projects
+    SELECT project_name, SUM(interactions) as total
+    FROM project_activity
+    GROUP BY project_name
+    ORDER BY total DESC
+    LIMIT 10;
+
+    -- Projects with activity in both tools
+    SELECT project_name, 
+           SUM(CASE WHEN source = 'claude_code' THEN interactions END) as claude,
+           SUM(CASE WHEN source = 'cursor' THEN interactions END) as cursor
+    FROM project_activity
+    GROUP BY project_name
+    HAVING claude > 0 AND cursor > 0;
+
+================================================================================
+VIEW: category_breakdown
+================================================================================
+Usage breakdown by category (tool names for Claude, 'Prompt' for Cursor).
+
+COLUMNS:
+    source          VARCHAR     'claude_code' or 'cursor'
+    category        VARCHAR     Tool name or 'Prompt'
+    uses            INTEGER     Total uses
+    pct_of_source   DECIMAL     Percentage within that source
+    first_used      TIMESTAMP   First usage
+    last_used       TIMESTAMP   Last usage
+
+================================================================================
+VIEW: session_summary
+================================================================================
+Unified session-level metrics.
+
+COLUMNS:
+    session_id          VARCHAR     Session/workspace identifier
+    source              VARCHAR     'claude_code' or 'cursor'
+    project_name        VARCHAR     Project folder name
+    project             VARCHAR     Full path
+    started_at          TIMESTAMP   First activity
+    ended_at            TIMESTAMP   Last activity
+    duration_minutes    DECIMAL     Session duration in minutes
+    interactions        INTEGER     Total interactions
+    unique_categories   INTEGER     Distinct tools/categories used
+
+EXAMPLE QUERIES:
+
+    -- Longest sessions
+    SELECT source, project_name, duration_minutes, interactions
+    FROM session_summary
+    WHERE duration_minutes IS NOT NULL
+    ORDER BY duration_minutes DESC
+    LIMIT 10;
+
+================================================================================
+VIEW: peak_hours
+================================================================================
+Find your most productive hours of the day.
+
+COLUMNS:
+    hour_of_day     INTEGER     Hour (0-23)
+    source          VARCHAR     'claude_code' or 'cursor'
+    interactions    INTEGER     Total interactions at this hour
+    pct             DECIMAL     Percentage of that source's total
+
+EXAMPLE QUERIES:
+
+    -- Your peak coding hours
+    SELECT hour_of_day, SUM(interactions) as total
+    FROM peak_hours
+    GROUP BY hour_of_day
+    ORDER BY total DESC
+    LIMIT 5;
+
+================================================================================
+VIEW: hourly_activity
+================================================================================
+Time-series data at hourly granularity.
+
+COLUMNS:
+    hour            TIMESTAMP   Hour bucket
+    source          VARCHAR     'claude_code' or 'cursor'
+    interactions    INTEGER     Interactions in this hour
+    sessions        INTEGER     Active sessions
+
+================================================================================
+VIEW: recent_interactions
+================================================================================
+Last 100 interactions across both tools for quick review.
+
+COLUMNS:
+    timestamp       TIMESTAMP   When
+    source          VARCHAR     'claude_code' or 'cursor'
+    category        VARCHAR     Tool name or 'Prompt'
+    project_name    VARCHAR     Project folder
+    detail          VARCHAR     Context (truncated)
+
+EXAMPLE:
+    SELECT * FROM recent_interactions;
+
+================================================================================
+USEFUL SQL PATTERNS
+================================================================================
+
+-- Time filtering (last 7 days)
+WHERE timestamp >= CURRENT_DATE - INTERVAL '7 days'
+
+-- Time filtering (specific date range)
+WHERE timestamp BETWEEN '2025-01-01' AND '2025-01-31'
+
+-- Case-insensitive search
+WHERE column ILIKE '%search_term%'
+
+-- Aggregate by hour of day (find peak usage times)
+SELECT EXTRACT(HOUR FROM timestamp) as hour, COUNT(*)
+FROM claude_tools
+GROUP BY hour
+ORDER BY hour;
+
+-- Window functions (running total)
+SELECT date, claude_tools,
+       SUM(claude_tools) OVER (ORDER BY date) as cumulative
+FROM daily_summary;
+
+-- JSON extraction (if needed)
+SELECT json_extract_string(raw_json, '$.field') FROM ...
+
+================================================================================
+DUCKDB TIPS
+================================================================================
+
+- Use LIMIT when exploring large result sets
+- Use DESCRIBE table_name to see column types
+- Use .tables in shell to list all tables
+- Use .schema table_name in shell for CREATE statement
+- DuckDB supports standard SQL + extensions
+
+For full SQL reference: https://duckdb.org/docs/sql/introduction
+EOF
+}
+
+# ============================================================================
+# Database Operations
+# ============================================================================
+
+ensure_db_dir() {
+    mkdir -p "$DB_DIR"
+}
+
+db_exists() {
+    [ -f "$DB_PATH" ]
+}
+
+# Check if data needs loading (no tables or tables empty)
+needs_load() {
+    if ! db_exists; then
+        return 0
+    fi
+    
+    local table_count
+    table_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='main';" 2>/dev/null || echo "0")
+    
+    [ "$table_count" -eq 0 ]
+}
+
+# Load Claude Code data
+load_claude_data() {
+    if [ ! -d "$CLAUDE_PROJECTS" ]; then
+        echo "  Claude Code: Not found at $CLAUDE_PROJECTS"
+        return
+    fi
+    
+    local jsonl_count
+    jsonl_count=$(find "$CLAUDE_PROJECTS" -name "*.jsonl" 2>/dev/null | wc -l | tr -d ' ')
+    
+    if [ "$jsonl_count" -eq 0 ]; then
+        echo "  Claude Code: No log files found"
+        return
+    fi
+    
+    echo "  Claude Code: Loading from $jsonl_count files..."
+    
+    duckdb "$DB_PATH" << EOF
+-- Create claude_tools table from JSONL logs
+CREATE OR REPLACE TABLE claude_tools AS
+WITH raw_logs AS (
+    SELECT * FROM read_json_auto('$CLAUDE_PROJECTS/*/*.jsonl', 
+        ignore_errors=true, 
+        maximum_object_size=104857600)
+),
+expanded AS (
+    SELECT 
+        logs.timestamp,
+        logs.sessionId as session_id,
+        logs.cwd as project_dir,
+        json_extract_string(c.value, '\$.name') as tool_name,
+        COALESCE(
+            json_extract_string(json_extract(c.value, '\$.input'), '\$.command'),
+            json_extract_string(json_extract(c.value, '\$.input'), '\$.file_path'),
+            json_extract_string(json_extract(c.value, '\$.input'), '\$.pattern'),
+            json_extract_string(json_extract(c.value, '\$.input'), '\$.description'),
+            json_extract_string(json_extract(c.value, '\$.input'), '\$.query'),
+            json_extract_string(json_extract(c.value, '\$.input'), '\$.url'),
+            LEFT(json_extract_string(c.value, '\$.input'), 200)
+        ) as context,
+        logs.message.usage.input_tokens as input_tokens,
+        logs.message.usage.output_tokens as output_tokens
+    FROM raw_logs logs,
+    LATERAL UNNEST(
+        CASE 
+            WHEN json_type(logs.message.content) = 'ARRAY' 
+            THEN from_json(logs.message.content::VARCHAR, '["JSON"]')
+            ELSE ['{}']::JSON[]
+        END
+    ) as c(value)
+    WHERE json_extract_string(c.value, '\$.type') = 'tool_use'
+)
+SELECT * FROM expanded WHERE tool_name IS NOT NULL;
+
+-- Create claude_sessions summary table
+CREATE OR REPLACE TABLE claude_sessions AS
+SELECT 
+    session_id,
+    project_dir,
+    MIN(timestamp) as started_at,
+    MAX(timestamp) as ended_at,
+    COUNT(*) as tool_count,
+    COUNT(DISTINCT tool_name) as unique_tools
+FROM claude_tools
+WHERE session_id IS NOT NULL
+GROUP BY session_id, project_dir;
+EOF
+    
+    local tool_count
+    tool_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM claude_tools;" 2>/dev/null || echo "0")
+    echo "  Claude Code: Loaded $tool_count tool invocations"
+}
+
+# Load Cursor data
+load_cursor_data() {
+    if [ -z "$CURSOR_WORKSPACE" ] || [ ! -d "$CURSOR_WORKSPACE" ]; then
+        echo "  Cursor: Not found"
+        return
+    fi
+    
+    local db_count
+    db_count=$(find "$CURSOR_WORKSPACE" -name "state.vscdb" 2>/dev/null | wc -l | tr -d ' ')
+    
+    if [ "$db_count" -eq 0 ]; then
+        echo "  Cursor: No workspace databases found"
+        return
+    fi
+    
+    echo "  Cursor: Loading from $db_count workspaces..."
+    
+    # Install SQLite extension
+    duckdb "$DB_PATH" -c "INSTALL sqlite; LOAD sqlite;" 2>/dev/null
+    
+    # Create tables
+    duckdb "$DB_PATH" << 'EOF'
+CREATE OR REPLACE TABLE cursor_prompts (
+    timestamp TIMESTAMP,
+    workspace_id VARCHAR,
+    workspace_path VARCHAR,
+    prompt_text VARCHAR
+);
+
+CREATE OR REPLACE TABLE cursor_workspaces (
+    workspace_id VARCHAR,
+    workspace_path VARCHAR,
+    prompt_count INTEGER,
+    db_path VARCHAR
+);
+EOF
+    
+    # Process each workspace
+    find "$CURSOR_WORKSPACE" -name "state.vscdb" 2>/dev/null | while read -r db; do
+        workspace_id=$(basename "$(dirname "$db")")
+        workspace_dir=$(dirname "$db")
+        
+        # Try to get folder path
+        workspace_path="unknown"
+        if [ -f "$workspace_dir/workspace.json" ]; then
+            workspace_path=$(jq -r '.folder // "unknown"' "$workspace_dir/workspace.json" 2>/dev/null | sed 's|file://||' || echo "unknown")
+        fi
+        
+        # Extract prompts
+        duckdb "$DB_PATH" << EOF 2>/dev/null || true
+LOAD sqlite;
+INSERT INTO cursor_prompts
+SELECT 
+    TRY_CAST(json_extract_string(p.value, '\$.timestamp') AS TIMESTAMP) as timestamp,
+    '$workspace_id' as workspace_id,
+    '$workspace_path' as workspace_path,
+    json_extract_string(p.value, '\$.text') as prompt_text
+FROM sqlite_scan('$db', 'ItemTable') t,
+LATERAL UNNEST(from_json(t.value::VARCHAR, '["JSON"]')) as p(value)
+WHERE t.key = 'aiService.prompts'
+AND json_extract_string(p.value, '\$.text') IS NOT NULL;
+EOF
+        
+        # Record workspace
+        local prompt_count
+        prompt_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM cursor_prompts WHERE workspace_id='$workspace_id';" 2>/dev/null || echo "0")
+        
+        duckdb "$DB_PATH" << EOF 2>/dev/null || true
+INSERT INTO cursor_workspaces VALUES ('$workspace_id', '$workspace_path', $prompt_count, '$db');
+EOF
+    done
+    
+    local prompt_count
+    prompt_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM cursor_prompts;" 2>/dev/null || echo "0")
+    echo "  Cursor: Loaded $prompt_count prompts"
+}
+
+# Create summary views
+create_views() {
+    duckdb "$DB_PATH" << 'EOF'
+-- ============================================================================
+-- UNIFIED INTERACTIONS VIEW
+-- ============================================================================
+-- Normalizes Claude Code tool uses and Cursor prompts into a single schema.
+-- This is the finest granularity available across both tools.
+
+CREATE OR REPLACE VIEW interactions AS
+SELECT
+    TRY_CAST(timestamp AS TIMESTAMP) as timestamp,
+    'claude_code' as source,
+    session_id as session_id,
+    project_dir as project,
+    REGEXP_EXTRACT(project_dir, '[^/]+$') as project_name,
+    'tool_use' as interaction_type,
+    tool_name as category,
+    context as detail,
+    input_tokens,
+    output_tokens,
+    input_tokens + output_tokens as total_tokens
+FROM claude_tools
+WHERE timestamp IS NOT NULL
+
+UNION ALL
+
+SELECT
+    TRY_CAST(timestamp AS TIMESTAMP) as timestamp,
+    'cursor' as source,
+    workspace_id as session_id,
+    workspace_path as project,
+    REGEXP_EXTRACT(workspace_path, '[^/]+$') as project_name,
+    'prompt' as interaction_type,
+    'Prompt' as category,
+    LEFT(prompt_text, 200) as detail,
+    NULL as input_tokens,
+    NULL as output_tokens,
+    NULL as total_tokens
+FROM cursor_prompts
+WHERE timestamp IS NOT NULL;
+
+-- ============================================================================
+-- HOURLY ACTIVITY VIEW
+-- ============================================================================
+-- Aggregated by hour for time-of-day analysis
+
+CREATE OR REPLACE VIEW hourly_activity AS
+SELECT
+    DATE_TRUNC('hour', timestamp) as hour,
+    source,
+    COUNT(*) as interactions,
+    COUNT(DISTINCT session_id) as sessions
+FROM interactions
+GROUP BY hour, source;
+
+-- ============================================================================
+-- PROJECT ACTIVITY VIEW
+-- ============================================================================
+-- Unified project-level summary across both tools
+
+CREATE OR REPLACE VIEW project_activity AS
+SELECT
+    project_name,
+    project,
+    source,
+    COUNT(*) as interactions,
+    COUNT(DISTINCT session_id) as sessions,
+    MIN(timestamp) as first_activity,
+    MAX(timestamp) as last_activity,
+    COUNT(DISTINCT DATE_TRUNC('day', timestamp)) as active_days
+FROM interactions
+WHERE project_name IS NOT NULL AND project_name != 'unknown'
+GROUP BY project_name, project, source;
+
+-- ============================================================================
+-- CATEGORY BREAKDOWN VIEW
+-- ============================================================================
+-- Usage by category (tool names for Claude, 'Prompt' for Cursor)
+
+CREATE OR REPLACE VIEW category_breakdown AS
+SELECT
+    source,
+    category,
+    COUNT(*) as uses,
+    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY source), 2) as pct_of_source,
+    MIN(timestamp) as first_used,
+    MAX(timestamp) as last_used
+FROM interactions
+GROUP BY source, category
+ORDER BY source, uses DESC;
+
+-- ============================================================================
+-- DAILY ACTIVITY BY SOURCE VIEW
+-- ============================================================================
+-- Daily breakdown with source separation
+
+CREATE OR REPLACE VIEW daily_by_source AS
+SELECT
+    DATE_TRUNC('day', timestamp)::DATE as date,
+    source,
+    COUNT(*) as interactions,
+    COUNT(DISTINCT session_id) as sessions,
+    COUNT(DISTINCT project_name) as projects
+FROM interactions
+GROUP BY date, source;
+
+-- ============================================================================
+-- WEEKLY SUMMARY VIEW
+-- ============================================================================
+
+CREATE OR REPLACE VIEW weekly_summary AS
+SELECT
+    DATE_TRUNC('week', timestamp)::DATE as week_start,
+    source,
+    COUNT(*) as interactions,
+    COUNT(DISTINCT session_id) as sessions,
+    COUNT(DISTINCT project_name) as projects,
+    COUNT(DISTINCT DATE_TRUNC('day', timestamp)) as active_days
+FROM interactions
+GROUP BY week_start, source;
+
+-- ============================================================================
+-- SESSION SUMMARY VIEW
+-- ============================================================================
+-- Unified session-level view
+
+CREATE OR REPLACE VIEW session_summary AS
+SELECT
+    session_id,
+    source,
+    project_name,
+    project,
+    MIN(timestamp) as started_at,
+    MAX(timestamp) as ended_at,
+    EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))) / 60 as duration_minutes,
+    COUNT(*) as interactions,
+    COUNT(DISTINCT category) as unique_categories
+FROM interactions
+GROUP BY session_id, source, project_name, project;
+
+-- ============================================================================
+-- PEAK HOURS VIEW
+-- ============================================================================
+-- Find your most productive hours
+
+CREATE OR REPLACE VIEW peak_hours AS
+SELECT
+    EXTRACT(HOUR FROM timestamp)::INTEGER as hour_of_day,
+    source,
+    COUNT(*) as interactions,
+    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY source), 2) as pct
+FROM interactions
+GROUP BY hour_of_day, source
+ORDER BY hour_of_day;
+
+-- ============================================================================
+-- RECENT INTERACTIONS VIEW
+-- ============================================================================
+-- Last 100 interactions across both tools, for quick review
+
+CREATE OR REPLACE VIEW recent_interactions AS
+SELECT
+    timestamp,
+    source,
+    category,
+    project_name,
+    detail
+FROM interactions
+ORDER BY timestamp DESC
+LIMIT 100;
+
+-- ============================================================================
+-- ORIGINAL SUMMARY VIEWS (kept for compatibility)
+-- ============================================================================
+
+-- Daily summary view
+CREATE OR REPLACE VIEW daily_summary AS
+WITH claude_daily AS (
+    SELECT DATE_TRUNC('day', TRY_CAST(timestamp AS TIMESTAMP))::DATE as date, COUNT(*) as cnt
+    FROM claude_tools
+    WHERE timestamp IS NOT NULL
+    GROUP BY date
+),
+cursor_daily AS (
+    SELECT DATE_TRUNC('day', TRY_CAST(timestamp AS TIMESTAMP))::DATE as date, COUNT(*) as cnt
+    FROM cursor_prompts
+    WHERE timestamp IS NOT NULL
+    GROUP BY date
+),
+all_dates AS (
+    SELECT date FROM claude_daily
+    UNION
+    SELECT date FROM cursor_daily
+)
+SELECT 
+    d.date,
+    COALESCE(c.cnt, 0) as claude_tools,
+    COALESCE(cu.cnt, 0) as cursor_prompts,
+    COALESCE(c.cnt, 0) + COALESCE(cu.cnt, 0) as total
+FROM all_dates d
+LEFT JOIN claude_daily c ON d.date = c.date
+LEFT JOIN cursor_daily cu ON d.date = cu.date;
+
+-- Tool summary view
+CREATE OR REPLACE VIEW tool_summary AS
+SELECT 
+    tool_name,
+    COUNT(*) as uses,
+    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) as pct,
+    MIN(timestamp) as first_used,
+    MAX(timestamp) as last_used
+FROM claude_tools
+GROUP BY tool_name
+ORDER BY uses DESC;
+
+-- Metadata table for tracking loads
+CREATE TABLE IF NOT EXISTS _metadata (
+    key VARCHAR PRIMARY KEY,
+    value VARCHAR,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT OR REPLACE INTO _metadata (key, value, updated_at) 
+VALUES ('last_load', CURRENT_TIMESTAMP::VARCHAR, CURRENT_TIMESTAMP);
+EOF
+}
+
+# Full load/reload
+load_all_data() {
+    ensure_db_dir
+    
+    echo "Loading AI coding usage data..."
+    echo ""
+    
+    # Drop existing tables on reload
+    if db_exists; then
+        duckdb "$DB_PATH" << 'EOF' 2>/dev/null || true
+DROP TABLE IF EXISTS claude_tools;
+DROP TABLE IF EXISTS claude_sessions;
+DROP TABLE IF EXISTS cursor_prompts;
+DROP TABLE IF EXISTS cursor_workspaces;
+DROP VIEW IF EXISTS daily_summary;
+DROP VIEW IF EXISTS tool_summary;
+EOF
+    fi
+    
+    load_claude_data
+    load_cursor_data
+    create_views
+    
+    echo ""
+    echo "Data loaded to: $DB_PATH"
+}
+
+# ============================================================================
+# Query Execution
+# ============================================================================
+
+run_query() {
+    local sql="$1"
+    
+    if ! db_exists; then
+        echo "Database not found. Run 'ai-coding-usage' first to load data." >&2
+        exit 1
+    fi
+    
+    duckdb "$DB_PATH" -c "$sql"
+}
+
+open_shell() {
+    if ! db_exists; then
+        echo "Database not found. Run 'ai-coding-usage' first to load data." >&2
+        exit 1
+    fi
+    
+    echo "Opening DuckDB shell. Type '.help' for commands, '.quit' to exit."
+    echo "Database: $DB_PATH"
+    echo ""
+    duckdb "$DB_PATH"
+}
+
+# ============================================================================
+# Summary Output
+# ============================================================================
+
+show_summary() {
+    if ! db_exists; then
+        echo "No data loaded yet."
+        return
+    fi
+    
+    cat << 'EOF'
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                         AI Coding Usage Summary                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+EOF
+    
+    echo ""
+    
+    # Claude Code stats
+    local claude_tools claude_sessions
+    claude_tools=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM claude_tools;" 2>/dev/null || echo "0")
+    claude_sessions=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM claude_sessions;" 2>/dev/null || echo "0")
+    
+    echo "Claude Code"
+    echo "  Tool invocations: $claude_tools"
+    echo "  Sessions: $claude_sessions"
+    echo ""
+    
+    # Cursor stats
+    local cursor_prompts cursor_workspaces
+    cursor_prompts=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM cursor_prompts;" 2>/dev/null || echo "0")
+    cursor_workspaces=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM cursor_workspaces WHERE prompt_count > 0;" 2>/dev/null || echo "0")
+    
+    echo "Cursor"
+    echo "  Prompts: $cursor_prompts"
+    echo "  Active workspaces: $cursor_workspaces"
+    echo ""
+    
+    # Last load time
+    local last_load
+    last_load=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT value FROM _metadata WHERE key='last_load';" 2>/dev/null || echo "unknown")
+    echo "Database: $DB_PATH"
+    echo "Last loaded: $last_load"
+    echo ""
+    
+    echo "───────────────────────────────────────────────────────────────────────────────"
+    echo ""
+    echo "Quick start:"
+    echo "  ai-coding-usage --schema           Show tables and example queries"
+    echo "  ai-coding-usage query \"SQL\"        Run a SQL query"
+    echo "  ai-coding-usage shell              Interactive SQL shell"
+    echo "  ai-coding-usage reload             Reload data from source logs"
+    echo ""
+    echo "Example queries:"
+    echo "  ai-coding-usage query \"SELECT * FROM tool_summary\""
+    echo "  ai-coding-usage query \"SELECT * FROM daily_summary ORDER BY date DESC LIMIT 7\""
+}
+
+# ============================================================================
+# Main
+# ============================================================================
+
+case "${1:-}" in
+    --help|-h|help)
+        show_help
+        ;;
+    
+    --schema|schema)
+        show_schema
+        ;;
+    
+    --version|-v)
+        echo "ai-coding-usage version $VERSION"
+        ;;
+    
+    reload)
+        load_all_data
+        echo ""
+        show_summary
+        ;;
+    
+    query|q)
+        if [ -z "${2:-}" ]; then
+            echo "Usage: ai-coding-usage query \"SQL QUERY\"" >&2
+            exit 1
+        fi
+        run_query "$2"
+        ;;
+    
+    shell|repl)
+        open_shell
+        ;;
+    
+    "")
+        # Default: load if needed, then show summary
+        if needs_load; then
+            load_all_data
+            echo ""
+        fi
+        show_summary
+        ;;
+    
+    *)
+        echo "Unknown command: $1" >&2
+        echo "Run 'ai-coding-usage --help' for usage" >&2
+        exit 1
+        ;;
+esac

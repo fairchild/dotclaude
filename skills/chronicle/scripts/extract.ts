@@ -4,7 +4,7 @@
  * Captures accomplishments, pending threads, and session summary.
  */
 import { existsSync, readFileSync } from "fs";
-import { extractChronicleBlock } from "./chronicle-extract-lib.ts";
+import { extractChronicleBlock } from "./extract-lib.ts";
 
 // Load ~/.claude/.env if present
 const envPath = `${process.env.HOME}/.claude/.env`;

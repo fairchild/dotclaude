@@ -1,6 +1,7 @@
 ---
 name: verify
 description: Verify deployment health for production or staging. Use when checking if a deployment succeeded, running smoke tests against live environments, or confirming a feature works before continuing development. Works with Cloudflare Workers, GitHub Actions, and generic HTTP endpoints.
+license: Apache 2.0
 ---
 
 # Verify Deployment

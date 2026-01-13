@@ -1,6 +1,7 @@
 ---
 name: chronicle
 description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle curate to organize memory, /chronicle publish for digests, /chronicle ui for dashboard.
+license: Apache 2.0
 ---
 
 # Chronicle
@@ -194,7 +195,7 @@ Generate markdown digests of your Chronicle data.
 Run the digest generator:
 
 ```bash
-bun ~/.claude/scripts/chronicle-publish.ts [period]
+bun ~/.claude/skills/chronicle/scripts/publish.ts [period]
 ```
 
 Periods:
@@ -224,7 +225,7 @@ Launch an interactive web dashboard for exploring Chronicle data.
 ### How to Use
 
 ```bash
-bun ~/.claude/scripts/chronicle-dashboard.ts
+bun ~/.claude/skills/chronicle/scripts/dashboard.ts
 ```
 
 Opens browser to `http://localhost:3456` with:
