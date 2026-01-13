@@ -6,21 +6,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 import { basename } from "path";
 import { execSync } from "child_process";
+import { ChronicleBlock } from "./chronicle-queries.ts";
+
+export type { ChronicleBlock };
 
 const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;
-
-export interface ChronicleBlock {
-  timestamp: string;
-  sessionId: string;
-  project: string;
-  worktree?: string;
-  branch: string | null;
-  summary: string;
-  accomplished: string[];
-  pending: string[];
-  filesModified: string[];
-  messageCount: number;
-}
 
 export interface SessionContext {
   projectName: string;
@@ -156,7 +146,8 @@ interface ProjectInfo {
 }
 
 function getProjectInfo(cwd: string): ProjectInfo {
-  const worktree = extractWorktreeName(cwd);
+  const parsed = parseFromWorktreeSpace(cwd);
+  const worktree = parsed?.worktree ?? null;
 
   try {
     const url = execSync(`git -C "${cwd}" config --get remote.origin.url`, {
@@ -166,24 +157,9 @@ function getProjectInfo(cwd: string): ProjectInfo {
     const project = url.replace(/\.git$/, "").split("/").pop() || basename(cwd);
     return { project, worktree };
   } catch {
-    const parsed = parseFromWorktreeSpace(cwd);
     if (parsed) return parsed;
     return { project: basename(cwd), worktree };
   }
-}
-
-function extractWorktreeName(cwd: string): string | null {
-  for (const space of WORKTREE_SPACES) {
-    if (!cwd.startsWith(space.basePath)) continue;
-
-    const relativePath = cwd.slice(space.basePath.length + 1);
-    const parts = relativePath.split("/").filter(Boolean);
-
-    if (parts.length >= 2) {
-      return parts[1];
-    }
-  }
-  return null;
 }
 
 function parseFromWorktreeSpace(cwd: string): ProjectInfo | null {
@@ -205,10 +181,6 @@ function parseFromWorktreeSpace(cwd: string): ProjectInfo | null {
   }
 
   return null;
-}
-
-function getProjectName(cwd: string): string {
-  return getProjectInfo(cwd).project;
 }
 
 /**
