@@ -6,23 +6,15 @@ import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 import { basename } from "path";
 import { execSync } from "child_process";
+import { ChronicleBlock } from "./chronicle-queries.ts";
+
+export type { ChronicleBlock };
 
 const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;
 
-export interface ChronicleBlock {
-  timestamp: string;
-  sessionId: string;
-  project: string;
-  branch: string | null;
-  summary: string;
-  accomplished: string[];
-  pending: string[];
-  filesModified: string[];
-  messageCount: number;
-}
-
 export interface SessionContext {
   projectName: string;
+  worktreeName: string | null;
   gitBranch: string | null;
   messageCount: number;
   userMessages: string[];
@@ -35,8 +27,10 @@ export interface SessionContext {
  * Extract context from a session transcript.
  */
 export function extractSessionContext(transcriptPath: string, cwd: string): SessionContext {
+  const { project, worktree } = getProjectInfo(cwd);
   const ctx: SessionContext = {
-    projectName: getProjectName(cwd),
+    projectName: project,
+    worktreeName: worktree,
     gitBranch: null,
     messageCount: 0,
     userMessages: [],
@@ -125,16 +119,68 @@ function truncate(text: string, max: number): string {
   return cleaned.substring(0, max - 3) + "...";
 }
 
-function getProjectName(cwd: string): string {
+// Worktree space configuration
+// Each space defines a location where worktrees are organized as {basePath}/{repo}/{worktree}
+interface WorktreeSpace {
+  name: string;
+  basePath: string;
+  // Optional project name overrides (e.g., ".claude" -> "dotclaude")
+  projectAliases?: Record<string, string>;
+}
+
+const WORKTREE_SPACES: WorktreeSpace[] = [
+  {
+    name: "conductor",
+    basePath: `${process.env.HOME}/conductor/workspaces`,
+    projectAliases: { ".claude": "dotclaude" },
+  },
+  {
+    name: "worktrees",
+    basePath: `${process.env.HOME}/.worktrees`,
+  },
+];
+
+interface ProjectInfo {
+  project: string;
+  worktree: string | null;
+}
+
+function getProjectInfo(cwd: string): ProjectInfo {
+  const parsed = parseFromWorktreeSpace(cwd);
+  const worktree = parsed?.worktree ?? null;
+
   try {
     const url = execSync(`git -C "${cwd}" config --get remote.origin.url`, {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
     }).trim();
-    return url.replace(/\.git$/, "").split("/").pop() || basename(cwd);
+    const project = url.replace(/\.git$/, "").split("/").pop() || basename(cwd);
+    return { project, worktree };
   } catch {
-    return basename(cwd);
+    if (parsed) return parsed;
+    return { project: basename(cwd), worktree };
   }
+}
+
+function parseFromWorktreeSpace(cwd: string): ProjectInfo | null {
+  for (const space of WORKTREE_SPACES) {
+    if (!cwd.startsWith(space.basePath)) continue;
+
+    const relativePath = cwd.slice(space.basePath.length + 1);
+    const parts = relativePath.split("/").filter(Boolean);
+
+    if (parts.length >= 2) {
+      const repo = parts[0];
+      const worktree = parts[1];
+      const project = space.projectAliases?.[repo] ?? repo;
+      return { project, worktree };
+    } else if (parts.length === 1) {
+      const project = space.projectAliases?.[parts[0]] ?? parts[0];
+      return { project, worktree: null };
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -273,6 +319,7 @@ export async function extractChronicleBlock(
     timestamp: new Date().toISOString(),
     sessionId,
     project: ctx.projectName,
+    ...(ctx.worktreeName && { worktree: ctx.worktreeName }),
     branch: ctx.gitBranch,
     summary: extracted.summary,
     accomplished: extracted.accomplished,
