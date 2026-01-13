@@ -58,15 +58,18 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 
 ### Agents (background tasks)
 
-| Agent | Use case |
-|-------|----------|
-| **research** | Deep codebase exploration |
-| **verify** | Deployment health checks |
-| **github-notifications-triager** | Prioritize GitHub notifications |
-| **devcontainer-setup** | Configure dev containers |
-| **project-handoff-auditor** | Pre-handoff quality audit |
-| **ai-sdk-agent-architect** | Vercel AI SDK implementations |
-| **playwright-test-analyzer** | Visual test analysis |
+| Agent | Use case | Example prompt |
+|-------|----------|----------------|
+| **research** | Deep codebase exploration | "Research how auth works in this codebase" |
+| **verify** | Deployment health checks | "Verify the staging deployment is healthy" |
+| **github-notifications-triager** | Prioritize GitHub notifications | "What's important on GitHub today?" |
+| **devcontainer-setup** | Configure dev containers | "Set up a devcontainer for this project" |
+| **project-handoff-auditor** | Pre-handoff quality audit | "Prepare this project for client handoff" |
+| **ai-sdk-agent-architect** | Vercel AI SDK 5 implementations | "Implement a search agent with AI SDK" |
+| **playwright-test-analyzer** | Visual test analysis | "Run checkout tests and analyze the UI" |
+| **chronicle-curator** | Curate Chronicle memory blocks | Auto-invoked for memory management |
+| **youtube-content** | Extract YouTube transcripts | "Summarize this video: youtube.com/..." |
+| **experiment-creator** | Create UI experiments | Project-specific (JrnlFish) |
 
 ### MCP Servers
 
