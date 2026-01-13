@@ -23,7 +23,7 @@ wt <branch>           # Create worktree, run setup, open editor
 wt <branch> --no-editor  # Create without opening editor
 wt cd <branch>        # Change to worktree directory
 wt home               # Return to main repo (or REPOS_ROOT if outside git)
-wt archive [branch]   # Run archive script, remove worktree
+wt archive [branch]   # Run archive script, move to ~/.worktrees/.archive
 wt list               # List all worktrees
 wt ls                 # Alias for list
 wt tree               # Tree view with git status indicators
@@ -42,7 +42,7 @@ REPOS_ROOT=~/code            # Fallback for `wt home` outside git
 wt feature-auth       # Creates worktree and opens editor
 # ... work on feature ...
 wt home               # Back to main repo
-wt archive feature-auth  # Clean up when done
+wt archive feature-auth  # Archive when done (moves to .archive)
 ```
 
 ## conductor.json (Optional)
