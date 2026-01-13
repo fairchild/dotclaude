@@ -72,11 +72,28 @@ def format_reset_time(reset_time: str) -> str:
     return local_dt.strftime("%a %-I:%M %p")
 
 
+def format_reset_short(reset_time: str) -> str:
+    """Format reset time compactly for one-liner."""
+    reset_dt = datetime.fromisoformat(reset_time.replace("Z", "+00:00"))
+    now = datetime.now(timezone.utc)
+    delta = reset_dt - now
+    hours = int(delta.total_seconds()) // 3600
+
+    if hours < 24:
+        minutes = (int(delta.total_seconds()) % 3600) // 60
+        return f"{hours}h{minutes}m" if hours > 0 else f"{minutes}m"
+
+    local_dt = reset_dt.astimezone()
+    return local_dt.strftime("%a")
+
+
 def format_oneline(usage: dict) -> str:
-    """One-liner for status bars: 35%/5h 25%/7d"""
+    """One-liner for status bars: 5h:90%:1h34m 7d:30%:Thu"""
     five = usage.get("five_hour", {})
     seven = usage.get("seven_day", {})
-    return f"{five.get('utilization', 0):.0f}%/5h {seven.get('utilization', 0):.0f}%/7d"
+    five_reset = format_duration(five.get("resets_at", ""))
+    seven_reset = format_reset_short(seven.get("resets_at", ""))
+    return f"5h:{five.get('utilization', 0):.0f}%:{five_reset} 7d:{seven.get('utilization', 0):.0f}%:{seven_reset}"
 
 
 def format_human(usage: dict) -> str:
@@ -124,7 +141,16 @@ def format_json(usage: dict) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Check Claude usage limits")
+    parser = argparse.ArgumentParser(
+        description="Check Claude usage limits",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+examples:
+  claude-usage.py          # compact: 5h:42%:3h12m 7d:15%:Thu
+  claude-usage.py --human  # readable summary
+  claude-usage.py --json   # full data for scripting
+""",
+    )
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--json", action="store_true", help="JSON output")
     group.add_argument("--human", action="store_true", help="Human-readable output")
