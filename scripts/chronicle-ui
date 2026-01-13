@@ -1,0 +1,2 @@
+#!/bin/bash
+cd ~/.claude/scripts && bun chronicle-dashboard.ts "$@"

@@ -1,56 +1,7 @@
-# History and personal data
-history.jsonl
-file-history/
-plans/
-todos/
-session-titles/
-
-# Debug and logs
-debug/
-shell-snapshots/
-
-# Session state
-session-env/
-
-# Analytics and tracking
-statsig/
-stats-cache.json
-telemetry/
-
-# Project-specific data
-projects/
-
-# Scripts - track shared utilities, ignore node_modules and personal scripts
-scripts/node_modules/
-scripts/.gitignore
-scripts/bun.lock
-scripts/tsconfig.json
-
-# IDE state
-ide/
-
-# Plugins (downloaded/installed)
-plugins/
-
-# Config state files
-config/notification_states.json
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Temporary files
-*.tmp
-*.cache
-*.swp
-*~
-
-# Environment variables (API keys)
+# Secrets and credentials (defensive patterns for forks)
 .env
 .env.*
 .env.local
-
-# Secrets and credentials (defensive patterns for forks)
 *.pem
 *.key
 *.p12
@@ -65,25 +16,53 @@ Thumbs.db
 secrets/
 credentials/
 
-# Cached/generated
-image-cache/
-
-# Knowledge base (synced separately)
-knowledge/
-
-# Title feedback data (personal session data)
-title-feedback/*.jsonl
-
-# Chronicle memory blocks (personal session data)
+# Session data (personal, ephemeral)
+history.jsonl
+plans/
+todos/
+session-titles/
+session-env/
+file-history/
 chronicle/blocks/
 chronicle/digests/
-tmp/
+title-feedback/*.jsonl
+
+# Debug and logs
+debug/
+shell-snapshots/
+
+# Analytics and tracking
+statsig/
+stats-cache.json
+telemetry/
+
+# Generated/cached
+projects/
+plugins/
+image-cache/
+knowledge/
+webui/data.json
+changelog.md
+
+# Scripts (track utilities, ignore generated)
+scripts/node_modules/
+scripts/.gitignore
+scripts/bun.lock
+scripts/tsconfig.json
+
+# IDE and config state
+ide/
+config/notification_states.json
+
+# OS files
+.DS_Store
+Thumbs.db
 
 # Temporary files
 tmp/
-
-# Claude Code Change log
-changelog.md
-
-# WebUI generated data
-webui/data.json
+*.tmp
+*.cache
+*.swp
+*~
+scratch/
+paste-cache/
