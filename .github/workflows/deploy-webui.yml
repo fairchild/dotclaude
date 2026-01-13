@@ -1,0 +1,64 @@
+name: Deploy Webui to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Check for plugin/marketplace changes
+        id: check-changes
+        run: |
+          if git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -qE '^plugins/(known_marketplaces|installed_plugins)\.json$'; then
+            echo "validate=true" >> $GITHUB_OUTPUT
+          else
+            echo "validate=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate data.json
+        run: |
+          if [ "${{ steps.check-changes.outputs.validate }}" = "true" ]; then
+            echo "Running with URL validation (plugin/marketplace files changed)"
+            bun webui/scan.ts
+          else
+            echo "Skipping URL validation (no plugin/marketplace changes)"
+            bun webui/scan.ts --skip-validation
+          fi
+        env:
+          CLAUDE_DIR: ${{ github.workspace }}
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: webui
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment

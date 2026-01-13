@@ -6,7 +6,7 @@
 import { readdir, readFile, stat } from "fs/promises";
 import { join, basename } from "path";
 
-const CLAUDE_DIR = `${process.env.HOME}/.claude`;
+const CLAUDE_DIR = process.env.CLAUDE_DIR || `${process.env.HOME}/.claude`;
 
 // CLI Arguments
 const args = process.argv.slice(2);
