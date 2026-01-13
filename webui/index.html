@@ -411,6 +411,25 @@
       word-break: break-all;
     }
 
+    /* External links */
+    a.marketplace-repo,
+    a.plugin-name-link {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    a.marketplace-repo:hover,
+    a.plugin-name-link:hover {
+      text-decoration: underline;
+    }
+
+    a.marketplace-repo::after,
+    a.plugin-name-link::after {
+      content: ' ↗';
+      font-size: 0.7em;
+      opacity: 0.6;
+    }
+
     /* Empty state */
     .empty {
       text-align: center;
@@ -590,6 +609,27 @@
       return str.slice(0, len) + '...';
     }
 
+    function getPluginUrl(pluginName, marketplaceName) {
+      const mp = data.marketplaces.find(m => m.name === marketplaceName);
+      if (!mp) return null;
+
+      // Look up plugin source info from marketplace.json data
+      const sourceInfo = mp.pluginSources?.find(ps => ps.name === pluginName);
+      if (sourceInfo) {
+        switch (sourceInfo.sourceType) {
+          case 'url':
+            return sourceInfo.sourceUrl;
+          case 'root':
+            return `https://github.com/${mp.repo}`;
+          case 'path':
+            return `https://github.com/${mp.repo}/tree/main/${sourceInfo.sourcePath}`;
+        }
+      }
+
+      // Fallback to default path
+      return `https://github.com/${mp.repo}/tree/main/plugins/${pluginName}`;
+    }
+
     function render() {
       document.getElementById('scanTime').textContent = formatDate(data.scannedAt);
       document.getElementById('count-commands').textContent = data.commands.length;
@@ -724,7 +764,7 @@
             <span class="card-icon">⬡</span>
             <div class="card-info">
               <div class="card-name">${escapeHtml(mp.name)}</div>
-              <div class="marketplace-repo">${escapeHtml(mp.repo)}</div>
+              <a href="https://github.com/${escapeHtml(mp.repo)}" target="_blank" rel="noopener" class="marketplace-repo">${escapeHtml(mp.repo)}</a>
               <div class="card-meta">
                 <span class="tag">updated ${formatDate(mp.lastUpdated)}</span>
               </div>
@@ -739,12 +779,17 @@
         return '<div class="empty"><div class="empty-icon">◈</div><p>No plugins installed</p></div>';
       }
 
-      return `<div class="cards">${data.installedPlugins.map(plugin => `
+      return `<div class="cards">${data.installedPlugins.map(plugin => {
+        const url = getPluginUrl(plugin.name, plugin.marketplace);
+        const nameHtml = url
+          ? `<a href="${url}" target="_blank" rel="noopener" class="plugin-name-link">${escapeHtml(plugin.name)}</a>`
+          : escapeHtml(plugin.name);
+        return `
         <article class="card">
           <div class="card-header">
             <span class="card-icon">◈</span>
             <div class="card-info">
-              <div class="card-name">${escapeHtml(plugin.name)}</div>
+              <div class="card-name">${nameHtml}</div>
               <div class="card-desc">from ${escapeHtml(plugin.marketplace)}</div>
               <div class="card-meta">
                 <span class="tag scope-${plugin.scope}">${plugin.scope}</span>
@@ -754,7 +799,7 @@
             </div>
           </div>
         </article>
-      `).join('')}</div>`;
+      `}).join('')}</div>`;
     }
 
     function renderMcp() {

@@ -5,7 +5,7 @@
 
 import { resolve, relative } from "path";
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3847;
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html",
