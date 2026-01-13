@@ -10,6 +10,7 @@ export interface ChronicleBlock {
   timestamp: string;
   sessionId: string;
   project: string;
+  worktree?: string;
   branch: string | null;
   summary: string;
   accomplished: string[];
