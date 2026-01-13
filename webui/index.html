@@ -612,6 +612,21 @@
     function getPluginUrl(pluginName, marketplaceName) {
       const mp = data.marketplaces.find(m => m.name === marketplaceName);
       if (!mp) return null;
+
+      // Look up plugin source info from marketplace.json data
+      const sourceInfo = mp.pluginSources?.find(ps => ps.name === pluginName);
+      if (sourceInfo) {
+        switch (sourceInfo.sourceType) {
+          case 'url':
+            return sourceInfo.sourceUrl;
+          case 'root':
+            return `https://github.com/${mp.repo}`;
+          case 'path':
+            return `https://github.com/${mp.repo}/tree/main/${sourceInfo.sourcePath}`;
+        }
+      }
+
+      // Fallback to default path
       return `https://github.com/${mp.repo}/tree/main/plugins/${pluginName}`;
     }
 
