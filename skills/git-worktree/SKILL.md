@@ -13,24 +13,33 @@ Manage worktrees for concurrent development without clobbering changes.
 
 ```bash
 # Add to ~/.zshrc
-source ~/.claude/skills/git-worktree/shell/wt.zsh
+source ~/.claude/skills/git-worktree/scripts/wt.zsh
 ```
 
 ## Usage
 
 ```bash
-wt <branch>           # Create worktree, run setup if conductor.json present
+wt <branch>           # Create worktree, run setup, open editor
+wt <branch> --no-editor  # Create without opening editor
 wt cd <branch>        # Change to worktree directory
-wt home               # Return to main repository
+wt home               # Return to main repo (or REPOS_ROOT if outside git)
 wt archive [branch]   # Run archive script, remove worktree
 wt list               # List all worktrees
+wt ls                 # Alias for list
+wt tree               # Tree view with git status indicators
+```
+
+## Environment
+
+```bash
+WORKTREES_ROOT=~/.worktrees  # Where worktrees are created
+REPOS_ROOT=~/code            # Fallback for `wt home` outside git
 ```
 
 ## Example
 
 ```bash
-wt feature-auth       # Creates ~/.worktrees/myrepo/feature-auth
-wt cd feature-auth    # Switch to it
+wt feature-auth       # Creates worktree and opens editor
 # ... work on feature ...
 wt home               # Back to main repo
 wt archive feature-auth  # Clean up when done
