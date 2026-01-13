@@ -5,7 +5,6 @@ set -euo pipefail
 # Usage: wt <branch> | wt archive [branch] | wt list
 
 WORKTREES_ROOT="${WORKTREES_ROOT:-$HOME/.worktrees}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Colors
 RED='\033[0;31m'
@@ -22,28 +21,31 @@ usage() {
 Usage: wt <command> [args]
 
 Commands:
-  <branch>           Create worktree for branch, run conductor setup
-  cd <branch>        Change to worktree directory (shell function)
-  home               Return to main repository (shell function)
-  archive [branch]   Run conductor archive, remove worktree
-  list               List all worktrees
+  <branch> [--no-editor]  Create worktree, run setup, open editor
+  cd <branch>             Change to worktree directory (shell function)
+  home                    Return to main repository (shell function)
+  archive [branch]        Run conductor archive, remove worktree
+  list, ls                List all worktrees
+  tree                    Tree view of worktrees with git status
 
 Environment:
   WORKTREES_ROOT     Base directory for worktrees (default: ~/.worktrees)
+  REPOS_ROOT         Home for repos when outside git (default: ~/code)
 EOF
     exit 1
 }
 
 detect_editor() {
-    # Check common editor env vars and commands
+    # Return editor command (for execution) and name (for display)
+    # Usage: read -r editor editor_name <<< "$(detect_editor)"
     if [[ -n "${EDITOR:-}" ]]; then
-        basename "$EDITOR"
+        echo "$EDITOR $(basename "$EDITOR")"
     elif command -v cursor &>/dev/null; then
-        echo "cursor"
+        echo "cursor cursor"
     elif command -v zed &>/dev/null; then
-        echo "zed"
+        echo "zed zed"
     elif command -v code &>/dev/null; then
-        echo "code"
+        echo "code code"
     else
         echo ""
     fi
@@ -103,8 +105,32 @@ copy_env_files() {
 }
 
 cmd_create() {
-    local branch="$1"
-    local base_branch="${2:-main}"
+    local branch=""
+    local base_branch="main"
+    local open_editor=true
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --no-editor)
+                open_editor=false
+                shift
+                ;;
+            *)
+                if [[ -z "$branch" ]]; then
+                    branch="$1"
+                else
+                    base_branch="$1"
+                fi
+                shift
+                ;;
+        esac
+    done
+
+    if [[ -z "$branch" ]]; then
+        log_error "Branch name required"
+        exit 1
+    fi
 
     if ! git rev-parse --git-dir &>/dev/null; then
         log_error "Not in a git repository"
@@ -162,13 +188,23 @@ cmd_create() {
 
     echo ""
     log_ok "Ready: $worktree_path"
-    echo ""
-    echo "  wt cd $branch"
 
-    local editor
-    editor=$(detect_editor)
-    if [[ -n "$editor" ]]; then
-        echo "  $editor $worktree_path"
+    # Open editor
+    local editor_info editor editor_name
+    editor_info=$(detect_editor)
+    if [[ -n "$editor_info" ]]; then
+        read -r editor editor_name <<< "$editor_info"
+    fi
+
+    if [[ "$open_editor" == true ]] && [[ -n "$editor" ]]; then
+        log_info "Opening $editor_name..."
+        $editor "$worktree_path"
+    else
+        echo ""
+        echo "  wt cd $branch"
+        if [[ -n "$editor" ]]; then
+            echo "  $editor $worktree_path"
+        fi
     fi
 }
 
@@ -243,7 +279,101 @@ cmd_archive() {
 }
 
 cmd_list() {
-    "$SCRIPT_DIR/list-worktrees.sh" "$@"
+    local filter_repo="${1:-}"
+
+    if [[ ! -d "$WORKTREES_ROOT" ]]; then
+        echo "No worktrees found. Directory $WORKTREES_ROOT does not exist."
+        return 0
+    fi
+
+    echo "REPO                 BRANCH                         PATH"
+    echo "-------------------- ------------------------------ ----"
+
+    for repo_dir in "$WORKTREES_ROOT"/*; do
+        [[ -d "$repo_dir" ]] || continue
+        local repo_name
+        repo_name=$(basename "$repo_dir")
+
+        # Apply filter if specified
+        if [[ -n "$filter_repo" ]] && [[ "$repo_name" != "$filter_repo" ]]; then
+            continue
+        fi
+
+        for branch_dir in "$repo_dir"/*; do
+            [[ -d "$branch_dir" ]] || continue
+            local branch_name
+            branch_name=$(basename "$branch_dir")
+
+            # Check if it's a valid worktree
+            [[ -f "$branch_dir/.git" ]] || continue
+
+            local status=""
+            if ! (cd "$branch_dir" && git status &>/dev/null); then
+                status=" (stale)"
+            fi
+
+            printf "%-20s %-30s %s%s\n" "$repo_name" "$branch_name" "$branch_dir" "$status"
+        done
+    done
+}
+
+cmd_tree() {
+    if [[ ! -d "$WORKTREES_ROOT" ]]; then
+        echo "No worktrees found. Directory $WORKTREES_ROOT does not exist."
+        return 0
+    fi
+
+    local YELLOW='\033[0;33m'
+    local CYAN='\033[0;36m'
+
+    for repo_dir in "$WORKTREES_ROOT"/*; do
+        [[ -d "$repo_dir" ]] || continue
+        local repo_name
+        repo_name=$(basename "$repo_dir")
+
+        echo -e "${CYAN}${repo_name}${NC}"
+
+        # Collect valid worktrees first
+        local branches=()
+        for branch_dir in "$repo_dir"/*; do
+            [[ -d "$branch_dir" ]] || continue
+            [[ -f "$branch_dir/.git" ]] || continue
+            branches+=("$branch_dir")
+        done
+
+        local count=${#branches[@]}
+        local i=0
+        for branch_dir in "${branches[@]}"; do
+            ((i++))
+            local branch_name
+            branch_name=$(basename "$branch_dir")
+
+            # Use └── for last item, ├── for others
+            local connector="├──"
+            [[ $i -eq $count ]] && connector="└──"
+
+            # Get git status indicators
+            local status_indicator=""
+            if (cd "$branch_dir" && git status &>/dev/null); then
+                local changes
+                changes=$(cd "$branch_dir" && git status --porcelain 2>/dev/null | head -1)
+                if [[ -n "$changes" ]]; then
+                    status_indicator=" ${YELLOW}*${NC}"
+                fi
+
+                # Check for unpushed commits
+                local ahead
+                ahead=$(cd "$branch_dir" && git rev-list --count @{u}..HEAD 2>/dev/null || echo "0")
+                if [[ "$ahead" -gt 0 ]]; then
+                    status_indicator="${status_indicator} ${GREEN}↑${ahead}${NC}"
+                fi
+            else
+                status_indicator=" ${RED}(stale)${NC}"
+            fi
+
+            echo -e "  ${connector} ${branch_name}${status_indicator}"
+        done
+    done
 }
 
 main() {
@@ -253,9 +383,12 @@ main() {
         ""|--help|-h)
             usage
             ;;
-        list)
+        list|ls)
             shift
             cmd_list "$@"
+            ;;
+        tree)
+            cmd_tree
             ;;
         archive)
             shift
@@ -263,7 +396,7 @@ main() {
             ;;
         cd|home)
             log_error "wt $cmd requires shell function. Add to ~/.zshrc:"
-            echo "  source ~/.claude/skills/git-worktree/shell/wt.zsh"
+            echo "  source ~/.claude/skills/git-worktree/scripts/wt.zsh"
             exit 1
             ;;
         *)

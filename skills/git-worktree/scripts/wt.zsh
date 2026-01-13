@@ -2,6 +2,7 @@
 # Source this file in ~/.zshrc
 
 WORKTREES_ROOT="${WORKTREES_ROOT:-$HOME/.worktrees}"
+REPOS_ROOT="${REPOS_ROOT:-$HOME/code}"
 _WT_SCRIPT="$HOME/.claude/skills/git-worktree/scripts/wt.sh"
 
 _wt_get_repo_name() {
@@ -57,14 +58,20 @@ wt() {
             fi
             ;;
         home)
-            if ! git rev-parse --git-dir &>/dev/null; then
-                echo "Error: Not in a git repository"
-                return 1
+            if git rev-parse --git-dir &>/dev/null; then
+                # In a git repo - go to main repo
+                local main_repo
+                main_repo=$(_wt_get_main_repo)
+                cd "$main_repo" || return 1
+            else
+                # Not in a repo - go to REPOS_ROOT
+                if [[ -d "$REPOS_ROOT" ]]; then
+                    cd "$REPOS_ROOT" || return 1
+                else
+                    echo "Error: REPOS_ROOT ($REPOS_ROOT) does not exist"
+                    return 1
+                fi
             fi
-
-            local main_repo
-            main_repo=$(_wt_get_main_repo)
-            cd "$main_repo" || return 1
             ;;
         *)
             "$_WT_SCRIPT" "$@"
@@ -79,7 +86,7 @@ _wt() {
 
     case $state in
         cmd)
-            _values 'command' 'cd[Change to worktree]' 'home[Return to main repo]' 'list[List worktrees]' 'archive[Archive worktree]'
+            _values 'command' 'cd[Change to worktree]' 'home[Return to main repo]' 'list[List worktrees]' 'ls[List worktrees]' 'tree[Tree view with status]' 'archive[Archive worktree]'
             # Also complete branch names for direct create
             if git rev-parse --git-dir &>/dev/null; then
                 local branches
