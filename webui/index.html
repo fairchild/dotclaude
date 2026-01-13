@@ -528,13 +528,6 @@
       color: var(--text-muted);
     }
 
-    /* Plugin specific */
-    .plugin-path {
-      font-size: 0.7rem;
-      color: var(--text-muted);
-      word-break: break-all;
-    }
-
     /* External links */
     a.marketplace-repo,
     a.plugin-name-link {
@@ -1068,7 +1061,6 @@ ${skill.isExternal && skill.source
                 <span class="tag scope-${plugin.scope}">${plugin.scope}</span>
                 <span class="tag">v${escapeHtml(plugin.version)}</span>
               </div>
-              ${plugin.projectPath ? `<div class="plugin-path">${escapeHtml(plugin.projectPath)}</div>` : ''}
             </div>
           </div>
         </article>

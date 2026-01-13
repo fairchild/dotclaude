@@ -106,7 +106,6 @@ interface InstalledPlugin {
   marketplace: string;
   scope: string;
   version: string;
-  projectPath?: string;
   installedAt: string;
 }
 
@@ -486,7 +485,6 @@ async function scanInstalledPlugins(): Promise<InstalledPlugin[]> {
           marketplace,
           scope: install.scope,
           version: install.version,
-          projectPath: install.projectPath,
           installedAt: install.installedAt,
         });
       }
