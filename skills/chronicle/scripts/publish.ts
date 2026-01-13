@@ -3,7 +3,7 @@
  * Generate Chronicle digests in markdown format.
  *
  * Usage:
- *   bun scripts/chronicle-publish.ts [period]
+ *   bun publish.ts [period]
  *
  * Periods:
  *   daily  - Last 24 hours
@@ -25,7 +25,7 @@ import {
   type DateRange,
   type PendingItem,
   type ProjectStats,
-} from "./chronicle-queries.ts";
+} from "./queries.ts";
 
 const DIGESTS_DIR = `${process.env.HOME}/.claude/chronicle/digests`;
 

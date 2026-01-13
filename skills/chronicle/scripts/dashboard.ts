@@ -7,7 +7,7 @@
  *   INSIDE (below the fold) - Project breakdowns & session details
  *
  * Usage:
- *   bun scripts/chronicle-dashboard.ts
+ *   bun dashboard.ts
  *
  * Opens browser to http://localhost:3456
  */
@@ -16,7 +16,7 @@ import {
   getDateRanges,
   type ChronicleBlock,
   type ProjectStats,
-} from "./chronicle-queries.ts";
+} from "./queries.ts";
 
 const PORT = 3456;
 
