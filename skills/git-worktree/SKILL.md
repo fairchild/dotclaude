@@ -2,78 +2,60 @@
 name: git-worktree
 description: |
   Manage Git worktrees for concurrent local development. Creates worktrees
-  at ~/.worktrees/REPO/BRANCH with automatic setup command detection.
-  Use when: (1) creating a worktree for a branch, (2) listing existing
-  worktrees, (3) removing old worktrees. Invoke with /worktree.
+  at ~/.worktrees/REPO/BRANCH. Wrapper for the `wt` CLI.
 ---
 
 # Git Worktree
 
-Manage worktrees for concurrent development without clobbering changes across terminals.
+Manage worktrees for concurrent development without clobbering changes.
 
-## Workflow
-
-1. Run `create-worktree.sh --plan <branch>` to get JSON plan
-2. Present plan to user in readable format
-3. After confirmation, run `create-worktree.sh <branch>` to execute
-
-## Commands
-
-### Create Worktree
+## Setup
 
 ```bash
-scripts/create-worktree.sh [options] <branch> [base-branch]
+# Add to ~/.zshrc
+source ~/.claude/skills/git-worktree/shell/wt.zsh
 ```
 
-**Options:**
-- `--plan` - Output JSON plan without executing
-- `--skip-setup` - Skip running setup command
-- `--pr <number>` - Create worktree for existing PR
+## Usage
 
-**Plan output:**
+```bash
+wt <branch>           # Create worktree, run setup if conductor.json present
+wt cd <branch>        # Change to worktree directory
+wt home               # Return to main repository
+wt archive [branch]   # Run archive script, remove worktree
+wt list               # List all worktrees
+```
+
+## Example
+
+```bash
+wt feature-auth       # Creates ~/.worktrees/myrepo/feature-auth
+wt cd feature-auth    # Switch to it
+# ... work on feature ...
+wt home               # Back to main repo
+wt archive feature-auth  # Clean up when done
+```
+
+## conductor.json (Optional)
+
+If your repo has a `conductor.json`, scripts run automatically:
+
 ```json
 {
-  "path": "~/.worktrees/repo/branch",
-  "branch": "feature-x",
-  "branch_status": "new|local|remote",
-  "base_branch": "main",
-  "setup_command": "bun install",
-  "env_files": [".env", ".dev.vars"],
-  "skip_setup": false
+  "scripts": {
+    "setup": "cp $CONDUCTOR_ROOT_PATH/.env .env && bun install",
+    "archive": "git stash"
+  }
 }
 ```
 
-**Env files copied:** `.env`, `.env.local`, `.dev.vars` (if present in main repo)
+## For Claude Code
 
-**Setup detection priority:**
-1. `.cursor/environment.json` → `install` field
-2. `.devcontainer/devcontainer.json` → `postCreateCommand` field
-3. Auto-detect from lockfiles (bun/pnpm/yarn/npm/uv/poetry/etc.)
-
-### List Worktrees
+When user asks to create a worktree, run:
 
 ```bash
-scripts/list-worktrees.sh [repo-name]
+wt <branch>
 ```
 
-### Remove Worktree
-
-```bash
-scripts/remove-worktree.sh <branch-or-path>
-```
-
-## Example Interaction
-
-User: "create a worktree for feature-auth"
-
-1. Run: `scripts/create-worktree.sh --plan feature-auth`
-2. Parse JSON, present to user:
-   ```
-   Plan:
-   - Path: ~/.worktrees/bread-builder/feature-auth
-   - Branch: feature-auth (new, from main)
-   - Setup: bun install
-
-   Proceed?
-   ```
-3. After confirmation: `scripts/create-worktree.sh feature-auth`
+The script handles branch detection, env file copying, and setup automatically.
+Suggest opening the worktree in their editor after creation.
