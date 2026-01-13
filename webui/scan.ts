@@ -78,6 +78,9 @@ interface Skill {
   model?: string;
   color?: string;
   license?: string;
+  author?: string;
+  source?: string;
+  isExternal: boolean;
   hasScripts: boolean;
   hasReferences: boolean;
   hasAssets: boolean;
@@ -113,6 +116,16 @@ interface McpServer {
   command: string;
   args: string[];
   envKeys: string[];
+  rawConfig: object;
+  url?: string;
+}
+
+interface Script {
+  name: string;
+  filename: string;
+  type: 'ts' | 'py' | 'sh' | 'unknown';
+  description: string;
+  content: string;
 }
 
 interface ConfigData {
@@ -120,6 +133,7 @@ interface ConfigData {
   commands: Command[];
   agents: Agent[];
   skills: Skill[];
+  scripts: Script[];
   marketplaces: Marketplace[];
   installedPlugins: InstalledPlugin[];
   mcpServers: McpServer[];
@@ -241,6 +255,9 @@ async function scanSkills(): Promise<Skill[]> {
           // Check for subdirectories
           const subentries = await readdir(entryPath);
 
+          const author = frontmatter.author as string | undefined;
+          const source = frontmatter.source as string | undefined;
+
           skills.push({
             name: (frontmatter.name as string) || entry,
             dirname: entry,
@@ -248,6 +265,9 @@ async function scanSkills(): Promise<Skill[]> {
             model: frontmatter.model as string | undefined,
             color: frontmatter.color as string | undefined,
             license: frontmatter.license as string | undefined,
+            author,
+            source,
+            isExternal: !!(author || source),
             hasScripts: subentries.includes("scripts"),
             hasReferences: subentries.includes("references"),
             hasAssets: subentries.includes("assets"),
@@ -263,6 +283,72 @@ async function scanSkills(): Promise<Skill[]> {
   }
 
   return skills.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function parseScriptDescription(content: string, type: Script['type']): string {
+  switch (type) {
+    case 'py': {
+      // Python docstring: """...""" or '''...'''
+      const match = content.match(/^(?:#![^\n]*\n)?(?:\s*\n)*(?:"""([^"]*?)"""|'''([^']*?)''')/);
+      return (match?.[1] || match?.[2] || '').trim();
+    }
+    case 'ts': {
+      // JSDoc: /** ... */
+      const match = content.match(/^(?:#![^\n]*\n)?(?:\s*\n)*\/\*\*\s*\n?\s*\*?\s*([^@*][^\n]*)/);
+      return (match?.[1] || '').trim();
+    }
+    case 'sh': {
+      // Shell: first # comment after shebang
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line.startsWith('#!')) continue;
+        if (line === '') continue;
+        if (line.startsWith('#')) {
+          return line.slice(1).trim();
+        }
+        break;
+      }
+      return '';
+    }
+    default:
+      return '';
+  }
+}
+
+async function scanScripts(): Promise<Script[]> {
+  const scripts: Script[] = [];
+  const dir = join(CLAUDE_DIR, "scripts");
+
+  try {
+    const files = await readdir(dir);
+    for (const file of files) {
+      const filePath = join(dir, file);
+      const fileStat = await stat(filePath);
+      if (!fileStat.isFile()) continue;
+
+      // Determine type from extension
+      let type: Script['type'] = 'unknown';
+      if (file.endsWith('.ts') || file.endsWith('.js')) type = 'ts';
+      else if (file.endsWith('.py')) type = 'py';
+      else if (file.endsWith('.sh') || file.endsWith('.bash')) type = 'sh';
+
+      const content = await readFile(filePath, "utf-8");
+      const description = parseScriptDescription(content, type);
+
+      scripts.push({
+        name: file.replace(/\.[^.]+$/, ''),
+        filename: file,
+        type,
+        description,
+        content,
+      });
+    }
+  } catch (e) {
+    console.error("Error scanning scripts:", e);
+  }
+
+  return scripts.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function parsePluginSource(pluginDef: { name: string; source: unknown }): PluginSourceInfo {
@@ -398,9 +484,20 @@ async function scanInstalledPlugins(): Promise<InstalledPlugin[]> {
   return plugins.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+async function loadMcpUrls(): Promise<Record<string, string>> {
+  try {
+    const urlsPath = join(CLAUDE_DIR, ".mcp-urls.json");
+    const content = await readFile(urlsPath, "utf-8");
+    return JSON.parse(content);
+  } catch {
+    return {};
+  }
+}
+
 async function scanMcpServers(): Promise<McpServer[]> {
   const servers: McpServer[] = [];
   const path = join(CLAUDE_DIR, ".mcp.json");
+  const mcpUrls = await loadMcpUrls();
 
   try {
     const content = await readFile(path, "utf-8");
@@ -420,6 +517,8 @@ async function scanMcpServers(): Promise<McpServer[]> {
         command: srv.command,
         args: srv.args || [],
         envKeys: Object.keys(srv.env || {}),
+        rawConfig: { [name]: config },
+        url: mcpUrls[name],
       });
     }
   } catch (e) {
@@ -614,6 +713,7 @@ async function main() {
     commands: await scanCommands(),
     agents: await scanAgents(),
     skills: await scanSkills(),
+    scripts: await scanScripts(),
     marketplaces: await scanMarketplaces(),
     installedPlugins: await scanInstalledPlugins(),
     mcpServers: await scanMcpServers(),
@@ -650,6 +750,7 @@ async function main() {
   console.log(`Commands:     ${data.commands.length}`);
   console.log(`Agents:       ${data.agents.length}`);
   console.log(`Skills:       ${data.skills.length}`);
+  console.log(`Scripts:      ${data.scripts.length}`);
   console.log(`Marketplaces: ${data.marketplaces.length}`);
   console.log(`Plugins:      ${data.installedPlugins.length}`);
   console.log(`MCP Servers:  ${data.mcpServers.length}`);
