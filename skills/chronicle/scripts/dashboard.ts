@@ -16,7 +16,7 @@ import {
   getDateRanges,
   type ChronicleBlock,
   type ProjectStats,
-} from "./chronicle-queries.ts";
+} from "./queries.ts";
 
 const PORT = 3456;
 

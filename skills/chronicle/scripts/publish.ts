@@ -25,7 +25,7 @@ import {
   type DateRange,
   type PendingItem,
   type ProjectStats,
-} from "./chronicle-queries.ts";
+} from "./queries.ts";
 
 const DIGESTS_DIR = `${process.env.HOME}/.claude/chronicle/digests`;
 

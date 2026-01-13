@@ -1,0 +1,10 @@
+{
+  "name": "chronicle-scripts",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2"
+  }
+}
