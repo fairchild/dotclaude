@@ -320,18 +320,32 @@ async function scanScripts(): Promise<Script[]> {
   const scripts: Script[] = [];
   const dir = join(CLAUDE_DIR, "scripts");
 
+  // Skip config/metadata files and tests
+  const skipPatterns = [
+    /^\./, // hidden files
+    /\.test\.(ts|js)$/, // test files
+    /\.spec\.(ts|js)$/, // spec files
+    /^(package|tsconfig|bun\.lock)/i, // config files
+  ];
+
   try {
     const files = await readdir(dir);
     for (const file of files) {
+      // Skip non-script files
+      if (skipPatterns.some(p => p.test(file))) continue;
+
       const filePath = join(dir, file);
       const fileStat = await stat(filePath);
       if (!fileStat.isFile()) continue;
 
-      // Determine type from extension
+      // Determine type from extension - skip unknown types
       let type: Script['type'] = 'unknown';
       if (file.endsWith('.ts') || file.endsWith('.js')) type = 'ts';
       else if (file.endsWith('.py')) type = 'py';
       else if (file.endsWith('.sh') || file.endsWith('.bash')) type = 'sh';
+
+      // Skip files we can't identify as scripts
+      if (type === 'unknown') continue;
 
       const content = await readFile(filePath, "utf-8");
       const description = parseScriptDescription(content, type);
