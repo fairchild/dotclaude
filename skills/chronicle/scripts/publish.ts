@@ -3,7 +3,7 @@
  * Generate Chronicle digests in markdown format.
  *
  * Usage:
- *   bun scripts/chronicle-publish.ts [period]
+ *   bun publish.ts [period]
  *
  * Periods:
  *   daily  - Last 24 hours

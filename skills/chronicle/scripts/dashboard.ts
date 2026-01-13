@@ -7,7 +7,7 @@
  *   INSIDE (below the fold) - Project breakdowns & session details
  *
  * Usage:
- *   bun scripts/chronicle-dashboard.ts
+ *   bun dashboard.ts
  *
  * Opens browser to http://localhost:3456
  */
