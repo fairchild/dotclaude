@@ -63,14 +63,14 @@ test.describe("Claude Config Visualizer", () => {
     await expect(commandsCount).not.toHaveText("--");
 
     // All stat counts should have loaded
-    for (const id of ["commands", "agents", "skills", "marketplaces", "plugins", "mcp"]) {
+    for (const id of ["commands", "agents", "skills", "scripts", "marketplaces", "plugins", "mcp"]) {
       const count = page.locator(`#count-${id}`);
       await expect(count).not.toHaveText("--");
     }
   });
 
   test("tabs navigate between sections", async ({ page }) => {
-    const tabs = ["commands", "agents", "skills", "marketplaces", "plugins", "mcp"];
+    const tabs = ["commands", "agents", "skills", "scripts", "marketplaces", "plugins", "mcp"];
 
     for (const tab of tabs) {
       await page.click(`.tab[data-section="${tab}"]`);
@@ -134,6 +134,15 @@ test.describe("Claude Config Visualizer", () => {
 
     await page.screenshot({
       path: join(SCREENSHOTS_DIR, "skills.png"),
+    });
+  });
+
+  test("capture scripts section", async ({ page }) => {
+    await page.click('.tab[data-section="scripts"]');
+    await page.waitForTimeout(300);
+
+    await page.screenshot({
+      path: join(SCREENSHOTS_DIR, "scripts.png"),
     });
   });
 
