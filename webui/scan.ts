@@ -226,23 +226,8 @@ async function scanSkills(): Promise<Skill[]> {
       const entryPath = join(dir, entry);
       const entryStat = await stat(entryPath);
 
-      // Handle .skill files
+      // Skip .skill files (ZIP archives for distribution, not readable as text)
       if (entry.endsWith(".skill")) {
-        const content = await readFile(entryPath, "utf-8");
-        const { frontmatter, body } = parseFrontmatter(content);
-
-        skills.push({
-          name: (frontmatter.name as string) || entry.replace(".skill", ""),
-          dirname: entry,
-          description: (frontmatter.description as string) || "",
-          model: frontmatter.model as string | undefined,
-          color: frontmatter.color as string | undefined,
-          license: frontmatter.license as string | undefined,
-          hasScripts: false,
-          hasReferences: false,
-          hasAssets: false,
-          content: body.trim(),
-        });
         continue;
       }
 
