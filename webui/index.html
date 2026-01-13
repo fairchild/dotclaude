@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Anybody:wght@700;900&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
       --bg-deep: #0d0d0d;
@@ -383,6 +384,129 @@
     .tag.has-refs { border-color: #6b9e9e; color: #6b9e9e; }
     .tag.has-assets { border-color: #9e8a6b; color: #9e8a6b; }
 
+    /* Copy button */
+    .copy-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      padding: 0.25rem 0.4rem;
+      cursor: pointer;
+      opacity: 0;
+      transition: all 0.2s ease;
+      font-family: inherit;
+      line-height: 1;
+    }
+
+    .card:hover .copy-btn,
+    .card.expanded .copy-btn {
+      opacity: 1;
+    }
+
+    .copy-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .copy-btn.success {
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    /* Action buttons group */
+    .action-btns {
+      display: flex;
+      gap: 0.25rem;
+      flex-shrink: 0;
+    }
+
+    .action-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      padding: 0.3rem 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+      line-height: 1;
+    }
+
+    .action-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .action-btn.success {
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    /* Scripts section - non-standard indicator */
+    .card.script-card {
+      border-style: dashed;
+    }
+
+    .custom-badge {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-left: 0.5rem;
+    }
+
+    /* Script type badges */
+    .tag.type-ts { border-color: #3178c6; color: #3178c6; }
+    .tag.type-py { border-color: #3776ab; color: #3776ab; }
+    .tag.type-sh { border-color: #4eaa25; color: #4eaa25; }
+
+    /* External skill attribution */
+    .tag.external {
+      border-color: var(--info);
+      color: var(--info);
+    }
+
+    .attribution {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      margin-top: 0.5rem;
+      font-size: 0.7rem;
+    }
+
+    .attribution a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .attribution a:hover {
+      text-decoration: underline;
+    }
+
+    /* Source link for MCP */
+    .source-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.8rem;
+      margin-left: 0.5rem;
+    }
+
+    .source-link:hover {
+      color: var(--accent);
+    }
+
+    /* Header link */
+    .header-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.8rem;
+      margin-left: 1rem;
+    }
+
+    .header-link:hover {
+      color: var(--accent);
+    }
+
     /* MCP Server specific */
     .mcp-command {
       font-size: 0.75rem;
@@ -522,6 +646,7 @@
       <div class="header-meta">
         <h1 class="header-title">Config Visualizer</h1>
         <span class="header-path">~/.claude</span>
+        <a href="https://github.com/anthropics/claude-code/blob/main/README.md" target="_blank" rel="noopener" class="header-link" title="Documentation">?</a>
         <span class="header-scan">scanned <time id="scanTime">--</time></span>
       </div>
     </header>
@@ -538,6 +663,10 @@
       <div class="stat" data-section="skills">
         <div class="stat-count" id="count-skills">--</div>
         <div class="stat-label">Skills</div>
+      </div>
+      <div class="stat" data-section="scripts">
+        <div class="stat-count" id="count-scripts">--</div>
+        <div class="stat-label">Scripts</div>
       </div>
       <div class="stat" data-section="marketplaces">
         <div class="stat-count" id="count-marketplaces">--</div>
@@ -557,6 +686,7 @@
       <button class="tab active" data-section="commands">/commands</button>
       <button class="tab" data-section="agents">/agents</button>
       <button class="tab" data-section="skills">/skills</button>
+      <button class="tab" data-section="scripts">$scripts</button>
       <button class="tab" data-section="marketplaces">/marketplaces</button>
       <button class="tab" data-section="plugins">/plugins</button>
       <button class="tab" data-section="mcp">/mcp</button>
@@ -609,6 +739,45 @@
       return str.slice(0, len) + '...';
     }
 
+    async function copyToClipboard(text, btn) {
+      await navigator.clipboard.writeText(text);
+      const orig = btn.textContent;
+      btn.textContent = '\u2713';
+      btn.classList.add('success');
+      setTimeout(() => {
+        btn.textContent = orig;
+        btn.classList.remove('success');
+      }, 1000);
+    }
+
+    function downloadFile(filename, content) {
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function downloadSkillZip(skill) {
+      const zip = new JSZip();
+      zip.file('SKILL.md', `---
+name: ${skill.name}
+description: ${skill.description}
+${skill.model ? `model: ${skill.model}\n` : ''}${skill.license ? `license: ${skill.license}\n` : ''}${skill.author ? `author: ${skill.author}\n` : ''}${skill.source ? `source: ${skill.source}\n` : ''}---
+
+${skill.content}`);
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${skill.dirname}.skill`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
     function getPluginUrl(pluginName, marketplaceName) {
       const mp = data.marketplaces.find(m => m.name === marketplaceName);
       if (!mp) return null;
@@ -635,6 +804,7 @@
       document.getElementById('count-commands').textContent = data.commands.length;
       document.getElementById('count-agents').textContent = data.agents.length;
       document.getElementById('count-skills').textContent = data.skills.length;
+      document.getElementById('count-scripts').textContent = data.scripts.length;
       document.getElementById('count-marketplaces').textContent = data.marketplaces.length;
       document.getElementById('count-plugins').textContent = data.installedPlugins.length;
       document.getElementById('count-mcp').textContent = data.mcpServers.length;
@@ -655,6 +825,9 @@
           break;
         case 'skills':
           html = renderSkills();
+          break;
+        case 'scripts':
+          html = renderScripts();
           break;
         case 'marketplaces':
           html = renderMarketplaces();
@@ -680,14 +853,15 @@
         return '<div class="empty"><div class="empty-icon">/</div><p>No commands found</p></div>';
       }
 
-      return `<div class="cards">${data.commands.map(cmd => `
-        <article class="card">
+      return `<div class="cards">${data.commands.map((cmd, i) => `
+        <article class="card" data-idx="${i}">
           <div class="card-header" onclick="this.parentElement.classList.toggle('expanded')">
             <span class="card-icon">/</span>
             <div class="card-info">
               <div class="card-name">${escapeHtml(cmd.name)}</div>
               <div class="card-desc">${escapeHtml(cmd.description)}</div>
             </div>
+            <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard(data.commands[${i}].content, this)" title="Copy content">\u29C9</button>
             <span class="card-toggle">▶</span>
           </div>
           <div class="card-body">
@@ -702,8 +876,8 @@
         return '<div class="empty"><div class="empty-icon">◎</div><p>No agents found</p></div>';
       }
 
-      return `<div class="cards">${data.agents.map(agent => `
-        <article class="card">
+      return `<div class="cards">${data.agents.map((agent, i) => `
+        <article class="card" data-idx="${i}">
           <div class="card-header" onclick="this.parentElement.classList.toggle('expanded')">
             <span class="card-icon">◎</span>
             <div class="card-info">
@@ -716,6 +890,7 @@
                 ${(agent.tools || []).length > 4 ? `<span class="tag">+${agent.tools.length - 4}</span>` : ''}
               </div>
             </div>
+            <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard(data.agents[${i}].content, this)" title="Copy content">\u29C9</button>
             <span class="card-toggle">▶</span>
           </div>
           <div class="card-body">
@@ -730,8 +905,8 @@
         return '<div class="empty"><div class="empty-icon">★</div><p>No skills found</p></div>';
       }
 
-      return `<div class="cards">${data.skills.map(skill => `
-        <article class="card">
+      return `<div class="cards">${data.skills.map((skill, i) => `
+        <article class="card" data-idx="${i}">
           <div class="card-header" onclick="this.parentElement.classList.toggle('expanded')">
             <span class="card-icon">★</span>
             <div class="card-info">
@@ -739,15 +914,55 @@
               <div class="card-desc">${escapeHtml(skill.description)}</div>
               <div class="card-meta">
                 ${skill.model ? `<span class="tag model">${skill.model}</span>` : ''}
+                ${skill.isExternal ? '<span class="tag external">external</span>' : ''}
                 ${skill.hasScripts ? '<span class="tag has-scripts">scripts</span>' : ''}
                 ${skill.hasReferences ? '<span class="tag has-refs">refs</span>' : ''}
                 ${skill.hasAssets ? '<span class="tag has-assets">assets</span>' : ''}
               </div>
+              ${skill.isExternal ? `
+              <div class="attribution">
+                ${skill.author ? `<span>by ${escapeHtml(skill.author)}</span>` : ''}
+                ${skill.source ? `<a href="${escapeHtml(skill.source)}" target="_blank" rel="noopener">\u2197 source</a>` : ''}
+                ${skill.license ? `<span class="tag">${escapeHtml(skill.license)}</span>` : ''}
+              </div>` : ''}
+            </div>
+            <div class="action-btns">
+              <button class="action-btn" onclick="event.stopPropagation(); copyToClipboard(data.skills[${i}].content, this)" title="Copy content">\u29C9</button>
+              <button class="action-btn" onclick="event.stopPropagation(); downloadSkillZip(data.skills[${i}])" title="Download .skill">\u2B73</button>
             </div>
             <span class="card-toggle">▶</span>
           </div>
           <div class="card-body">
             <div class="card-content">${escapeHtml(truncate(skill.content, 1000))}</div>
+          </div>
+        </article>
+      `).join('')}</div>`;
+    }
+
+    function renderScripts() {
+      if (!data.scripts.length) {
+        return '<div class="empty"><div class="empty-icon">$</div><p>No scripts found</p></div>';
+      }
+
+      return `<div class="cards">${data.scripts.map((script, i) => `
+        <article class="card script-card" data-idx="${i}">
+          <div class="card-header" onclick="this.parentElement.classList.toggle('expanded')">
+            <span class="card-icon">$</span>
+            <div class="card-info">
+              <div class="card-name">${escapeHtml(script.name)}<span class="custom-badge">(custom)</span></div>
+              <div class="card-desc">${escapeHtml(script.description)}</div>
+              <div class="card-meta">
+                <span class="tag type-${script.type}">${script.type}</span>
+              </div>
+            </div>
+            <div class="action-btns">
+              <button class="action-btn" onclick="event.stopPropagation(); copyToClipboard(data.scripts[${i}].content, this)" title="Copy">\u29C9</button>
+              <button class="action-btn" onclick="event.stopPropagation(); downloadFile(data.scripts[${i}].filename, data.scripts[${i}].content)" title="Download">\u2B73</button>
+            </div>
+            <span class="card-toggle">▶</span>
+          </div>
+          <div class="card-body">
+            <div class="card-content">${escapeHtml(truncate(script.content, 2000))}</div>
           </div>
         </article>
       `).join('')}</div>`;
@@ -807,18 +1022,26 @@
         return '<div class="empty"><div class="empty-icon">⚡</div><p>No MCP servers configured</p></div>';
       }
 
-      return `<div class="cards">${data.mcpServers.map(srv => `
-        <article class="card">
-          <div class="card-header">
+      return `<div class="cards">${data.mcpServers.map((srv, i) => `
+        <article class="card" data-idx="${i}">
+          <div class="card-header" onclick="this.parentElement.classList.toggle('expanded')">
             <span class="card-icon">⚡</span>
             <div class="card-info">
-              <div class="card-name">${escapeHtml(srv.name)}</div>
+              <div class="card-name">
+                ${escapeHtml(srv.name)}
+                ${srv.url ? `<a href="${escapeHtml(srv.url)}" target="_blank" rel="noopener" class="source-link" onclick="event.stopPropagation()">\u2197</a>` : ''}
+              </div>
               <div class="mcp-command">${escapeHtml(srv.command)} ${srv.args.map(a => escapeHtml(a)).join(' ')}</div>
               <div class="card-meta">
                 <span class="tag">${srv.type}</span>
                 ${srv.envKeys.map(k => `<span class="tag">${escapeHtml(k)}</span>`).join('')}
               </div>
             </div>
+            <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard(JSON.stringify(data.mcpServers[${i}].rawConfig, null, 2), this)" title="Copy config">\u29C9</button>
+            <span class="card-toggle">▶</span>
+          </div>
+          <div class="card-body">
+            <div class="card-content">${escapeHtml(JSON.stringify(srv.rawConfig, null, 2))}</div>
           </div>
         </article>
       `).join('')}</div>`;
