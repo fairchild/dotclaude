@@ -17,8 +17,146 @@ import {
   type ChronicleBlock,
   type ProjectStats,
 } from "./queries.ts";
+import { readdirSync, statSync, existsSync } from "fs";
+import { execSync } from "child_process";
 
 const PORT = 3456;
+const WORKTREES_ROOT = `${process.env.HOME}/.worktrees`;
+
+// Worktree status for Mission Control sidebar
+interface WorktreeStatus {
+  name: string;
+  repo: string;
+  path: string;
+  branch: string;
+  gitStatus: "clean" | "dirty";
+  uncommittedFiles: number;
+  lastCommitTime: string;
+  session: {
+    active: boolean;
+    lastActivity: string;
+    ageMinutes: number;
+  } | null;
+  chronicle: {
+    latestSummary: string;
+    pendingCount: number;
+    pending: string[];
+  } | null;
+}
+
+function getSessionStatus(wtPath: string): WorktreeStatus["session"] | null {
+  // Path encoding: /Users/x/.worktrees/y -> -Users-x--worktrees-y
+  // Both / and . become -
+  const encodedPath = wtPath.replace(/[/.]/g, "-");
+  const claudeProjectDir = `${process.env.HOME}/.claude/projects/${encodedPath}`;
+
+  if (!existsSync(claudeProjectDir)) return null;
+
+  try {
+    const files = readdirSync(claudeProjectDir);
+    const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
+    if (jsonlFiles.length === 0) return null;
+
+    let latestMtime = 0;
+    for (const file of jsonlFiles) {
+      const mtime = statSync(`${claudeProjectDir}/${file}`).mtimeMs;
+      if (mtime > latestMtime) latestMtime = mtime;
+    }
+
+    const ageMinutes = Math.floor((Date.now() - latestMtime) / 60000);
+    return {
+      active: ageMinutes < 5,
+      lastActivity: new Date(latestMtime).toISOString(),
+      ageMinutes,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getChronicleForWorktree(
+  repo: string,
+  branch: string
+): WorktreeStatus["chronicle"] | null {
+  const blocks = loadAllBlocks();
+  const matching = blocks.filter(
+    (b) =>
+      b.project.toLowerCase() === repo.toLowerCase() && b.branch === branch
+  );
+
+  if (matching.length === 0) return null;
+
+  const latest = matching[0];
+  const allPending = matching.flatMap((b) => b.pending);
+  const uniquePending = [...new Set(allPending)];
+
+  return {
+    latestSummary: latest.summary,
+    pendingCount: uniquePending.length,
+    pending: uniquePending.slice(0, 3),
+  };
+}
+
+function getWorktreeStatus(): WorktreeStatus[] {
+  const worktrees: WorktreeStatus[] = [];
+
+  if (!existsSync(WORKTREES_ROOT)) return worktrees;
+
+  try {
+    for (const repo of readdirSync(WORKTREES_ROOT)) {
+      if (repo.startsWith(".")) continue;
+      const repoPath = `${WORKTREES_ROOT}/${repo}`;
+      if (!statSync(repoPath).isDirectory()) continue;
+
+      for (const branch of readdirSync(repoPath)) {
+        const wtPath = `${repoPath}/${branch}`;
+        if (!existsSync(`${wtPath}/.git`)) continue;
+
+        try {
+          const gitBranch = execSync(`git -C "${wtPath}" branch --show-current`, {
+            encoding: "utf-8",
+          }).trim();
+          const gitStatusOutput = execSync(
+            `git -C "${wtPath}" status --porcelain`,
+            { encoding: "utf-8" }
+          );
+          const uncommittedFiles = gitStatusOutput
+            .split("\n")
+            .filter(Boolean).length;
+          const lastCommitTime = execSync(
+            `git -C "${wtPath}" log -1 --format=%cI 2>/dev/null || echo ""`,
+            { encoding: "utf-8" }
+          ).trim();
+
+          const session = getSessionStatus(wtPath);
+          const chronicle = getChronicleForWorktree(repo, gitBranch);
+
+          worktrees.push({
+            name: branch,
+            repo,
+            path: wtPath,
+            branch: gitBranch,
+            gitStatus: uncommittedFiles === 0 ? "clean" : "dirty",
+            uncommittedFiles,
+            lastCommitTime,
+            session,
+            chronicle,
+          });
+        } catch {
+          // Skip worktrees with git errors
+        }
+      }
+    }
+  } catch {
+    return worktrees;
+  }
+
+  return worktrees.sort((a, b) => {
+    if (a.session?.active && !b.session?.active) return -1;
+    if (!a.session?.active && b.session?.active) return 1;
+    return (a.session?.ageMinutes ?? Infinity) - (b.session?.ageMinutes ?? Infinity);
+  });
+}
 
 interface FrontPage {
   headline: string;
@@ -336,6 +474,183 @@ const HTML = `<!DOCTYPE html>
       background: var(--bg);
       color: var(--text);
       line-height: 1.6;
+      display: flex;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      height: 100vh;
+      position: fixed;
+      left: 0;
+      top: 0;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 16px;
+      transition: width 0.2s, padding 0.2s;
+    }
+
+    .sidebar.collapsed {
+      width: 48px;
+      padding: 8px;
+      overflow: hidden;
+    }
+
+    .sidebar.collapsed .sidebar-header,
+    .sidebar.collapsed .worktree-list,
+    .sidebar.collapsed .sidebar-footer {
+      display: none;
+    }
+
+    .sidebar-toggle {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+      font-size: 18px;
+    }
+
+    .sidebar-toggle:hover {
+      background: var(--bg-tertiary);
+      color: var(--text);
+    }
+
+    .sidebar.collapsed .sidebar-toggle {
+      margin: 0 auto;
+    }
+
+    .sidebar-nav-link {
+      display: block;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      text-decoration: none;
+      padding: 8px 12px;
+      margin: 0 -4px 12px;
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+
+    .sidebar-nav-link:hover { background: var(--bg-tertiary); }
+    .sidebar-nav-link.active { color: var(--accent); }
+
+    .sidebar.collapsed .sidebar-nav-link { display: none; }
+
+    .sidebar-header {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .worktree-list { list-style: none; }
+
+    .repo-group { margin-bottom: 16px; }
+
+    .repo-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .repo-branches { list-style: none; margin-left: 8px; }
+
+    .worktree-item {
+      padding: 6px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .worktree-item:hover { background: var(--bg-tertiary); }
+    .worktree-item.selected { background: var(--accent-subtle); }
+
+    .tree-connector {
+      color: var(--text-muted);
+      font-family: monospace;
+      font-size: 12px;
+      width: 20px;
+      flex-shrink: 0;
+    }
+
+    .worktree-name {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .worktree-name .indicator {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .indicator.active { background: var(--green); }
+    .indicator.recent { background: var(--yellow); }
+    .indicator.stale { background: var(--text-muted); }
+
+    .worktree-status {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+
+    .sidebar-empty {
+      color: var(--text-muted);
+      font-size: 13px;
+      text-align: center;
+      padding: 24px 12px;
+    }
+
+    .sidebar-footer {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .clear-filter-btn {
+      width: 100%;
+      padding: 8px;
+      font-size: 12px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: 4px;
+      cursor: pointer;
+      display: none;
+    }
+
+    .clear-filter-btn.visible { display: block; }
+    .clear-filter-btn:hover { border-color: var(--accent); color: var(--text); }
+
+    /* Main content */
+    .main-content {
+      flex: 1;
+      margin-left: 280px;
+      transition: margin-left 0.2s;
+    }
+
+    body.sidebar-collapsed .main-content {
+      margin-left: 48px;
     }
 
     .container {
@@ -689,9 +1004,180 @@ const HTML = `<!DOCTYPE html>
     }
 
     .empty { text-align: center; padding: 24px; color: var(--text-muted); }
+
+    /* Worktree Article View */
+    .worktree-article {
+      padding-top: 24px;
+    }
+
+    .article-header {
+      margin-bottom: 32px;
+    }
+
+    .article-breadcrumb {
+      margin-bottom: 16px;
+    }
+
+    .article-breadcrumb a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    .article-breadcrumb a:hover {
+      text-decoration: underline;
+    }
+
+    .article-title {
+      font-size: 36px;
+      font-weight: 700;
+      font-family: Georgia, "Times New Roman", serif;
+      margin-bottom: 8px;
+    }
+
+    .article-meta {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .article-status {
+      display: flex;
+      gap: 16px;
+      padding: 16px 20px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 32px;
+    }
+
+    .article-status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .article-status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .article-status-dot.active { background: var(--green); }
+    .article-status-dot.recent { background: var(--yellow); }
+    .article-status-dot.stale { background: var(--text-muted); }
+
+    .article-section {
+      margin-bottom: 32px;
+    }
+
+    .article-section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .article-summary {
+      font-size: 18px;
+      line-height: 1.8;
+      color: var(--text-secondary);
+      border-left: 3px solid var(--accent);
+      padding-left: 20px;
+    }
+
+    .article-list {
+      list-style: none;
+    }
+
+    .article-list li {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .article-list li:last-child { border-bottom: none; }
+
+    .article-list li::before {
+      content: "•";
+      color: var(--accent);
+      font-weight: bold;
+    }
+
+    .article-actions {
+      display: flex;
+      gap: 12px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .article-action-btn {
+      padding: 10px 20px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.15s;
+    }
+
+    .article-action-btn:hover {
+      border-color: var(--accent);
+      background: var(--accent-subtle);
+    }
+
+    .article-action-archive {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .article-action-archive:hover {
+      border-color: var(--red);
+      background: rgba(248, 81, 73, 0.1);
+    }
+
+    .article-empty {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-muted);
+    }
+
+    .article-empty p {
+      margin-bottom: 12px;
+    }
+
+    .article-empty-hint {
+      font-size: 14px;
+    }
+
+    .article-empty code {
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
+  <!-- Sidebar: Worktrees -->
+  <aside class="sidebar" id="sidebar">
+    <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar">☰</button>
+    <a href="#" class="sidebar-nav-link active" id="nav-chronicle">Chronicle</a>
+    <div class="sidebar-header">Worktrees</div>
+    <ul class="worktree-list" id="worktree-list"></ul>
+    <div class="sidebar-footer">
+      <button class="clear-filter-btn" id="clear-filter">Show All Projects</button>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <div class="main-content">
   <div class="container">
     <!-- Masthead -->
     <header class="masthead">
@@ -779,16 +1265,364 @@ const HTML = `<!DOCTYPE html>
     </footer>
   </div>
 
+  <!-- Worktree Article View (hidden by default) -->
+  <div class="container worktree-article" id="worktree-article" style="display: none;">
+    <div class="article-header">
+      <div class="article-breadcrumb">
+        <a href="#" id="article-back">← Chronicle</a>
+      </div>
+      <h1 class="article-title" id="article-title">Loading...</h1>
+      <div class="article-meta" id="article-meta"></div>
+    </div>
+
+    <div class="article-status" id="article-status"></div>
+
+    <div class="article-section" id="article-summary-section">
+      <h2 class="article-section-title">Latest Session</h2>
+      <p class="article-summary" id="article-summary"></p>
+    </div>
+
+    <div class="article-section" id="article-pending-section">
+      <h2 class="article-section-title">Pending Work</h2>
+      <ul class="article-list" id="article-pending"></ul>
+    </div>
+
+    <div class="article-section" id="article-accomplished-section">
+      <h2 class="article-section-title">Accomplished</h2>
+      <ul class="article-list" id="article-accomplished"></ul>
+    </div>
+
+    <div class="article-empty" id="article-empty" style="display: none;">
+      <p>No Chronicle entries yet for this worktree.</p>
+      <p class="article-empty-hint">Chronicle captures session summaries when you use <code>/chronicle</code> or session hooks.</p>
+    </div>
+
+    <div class="article-actions">
+      <button class="article-action-btn" id="article-open-editor" title="Opens in VS Code (or copies command)">Open in Editor</button>
+      <button class="article-action-btn" id="article-open-terminal" title="Opens in iTerm2 (or copies command)">Open Terminal</button>
+      <button class="article-action-btn article-action-archive" id="article-archive" title="Copies: wt archive [name]">Archive</button>
+    </div>
+  </div>
+  </div><!-- end main-content -->
+
   <script>
     let allData = { blocks: [], frontPage: null, breakdowns: [], stats: [] };
+    let worktrees = [];
     let currentPeriod = 'weekly';
     let searchQuery = '';
+    let selectedWorktree = null;
+
+    async function loadWorktrees() {
+      const res = await fetch('/api/worktrees');
+      worktrees = await res.json();
+      renderWorktrees();
+    }
+
+    function renderWorktrees() {
+      const list = document.getElementById('worktree-list');
+
+      if (worktrees.length === 0) {
+        list.innerHTML = '<li class="sidebar-empty">No worktrees found.<br><br>Run <code>wt &lt;branch&gt;</code> to create one.</li>';
+        return;
+      }
+
+      // Group by repo
+      const byRepo = {};
+      for (const wt of worktrees) {
+        if (!byRepo[wt.repo]) byRepo[wt.repo] = [];
+        byRepo[wt.repo].push(wt);
+      }
+
+      let html = '';
+      for (const [repo, branches] of Object.entries(byRepo)) {
+        html += \`<li class="repo-group"><div class="repo-name">\${repo}</div><ul class="repo-branches">\`;
+
+        branches.forEach((wt, idx) => {
+          const isLast = idx === branches.length - 1;
+          const connector = isLast ? '└──' : '├──';
+          const indicator = wt.session?.active ? 'active' :
+                           wt.session?.ageMinutes < 60 ? 'recent' : 'stale';
+          const ageText = wt.session ? (wt.session.ageMinutes < 60 ? wt.session.ageMinutes + 'm' : Math.floor(wt.session.ageMinutes / 60) + 'h') : '';
+          const statusMark = wt.gitStatus === 'dirty' ? ' *' : '';
+          const selected = selectedWorktree && selectedWorktree.path === wt.path ? 'selected' : '';
+
+          html += \`
+            <li class="worktree-item \${selected}" data-path="\${wt.path}" data-repo="\${wt.repo}" data-branch="\${wt.branch}">
+              <span class="tree-connector">\${connector}</span>
+              <span class="worktree-name">
+                <span class="indicator \${indicator}"></span>
+                \${wt.name}\${statusMark}
+              </span>
+              <span class="worktree-status">\${ageText}</span>
+            </li>
+          \`;
+        });
+
+        html += '</ul></li>';
+      }
+      list.innerHTML = html;
+
+      // Add click handlers
+      document.querySelectorAll('.worktree-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const path = item.dataset.path;
+          const wt = worktrees.find(w => w.path === path);
+          selectWorktree(wt);
+        });
+      });
+    }
+
+    function selectWorktree(wt) {
+      selectedWorktree = wt;
+
+      // Update selection in list
+      document.querySelectorAll('.worktree-item').forEach(item => {
+        item.classList.toggle('selected', item.dataset.path === wt.path);
+      });
+
+      // Show clear filter button
+      document.getElementById('clear-filter').classList.add('visible');
+
+      // Switch to worktree article view
+      showWorktreeArticle(wt);
+    }
+
+    function showChronicleView() {
+      // Show newspaper, hide article
+      document.querySelector('.container:not(.worktree-article)').style.display = 'block';
+      document.getElementById('worktree-article').style.display = 'none';
+
+      // Update nav
+      document.getElementById('nav-chronicle').classList.add('active');
+
+      // Deselect worktree
+      selectedWorktree = null;
+      document.querySelectorAll('.worktree-item').forEach(item => item.classList.remove('selected'));
+      document.getElementById('clear-filter').classList.remove('visible');
+
+      // Load all data
+      loadData();
+    }
+
+    function showWorktreeArticle(wt) {
+      // Hide newspaper, show article
+      document.querySelector('.container:not(.worktree-article)').style.display = 'none';
+      document.getElementById('worktree-article').style.display = 'block';
+
+      // Update nav
+      document.getElementById('nav-chronicle').classList.remove('active');
+
+      // Populate article header
+      document.getElementById('article-title').textContent = wt.name;
+      document.getElementById('article-meta').textContent = wt.repo + ' · ' + wt.branch;
+
+      // Status bar
+      const statusClass = wt.session?.active ? 'active' : wt.session?.ageMinutes < 60 ? 'recent' : 'stale';
+      const sessionText = wt.session?.active ? 'Active session' :
+                         wt.session ? (wt.session.ageMinutes < 60 ? wt.session.ageMinutes + 'm ago' : Math.floor(wt.session.ageMinutes / 60) + 'h ago') : 'No session';
+      const gitText = wt.gitStatus === 'clean' ? 'Clean' : wt.uncommittedFiles + ' uncommitted';
+
+      document.getElementById('article-status').innerHTML = \`
+        <div class="article-status-item">
+          <span class="article-status-dot \${statusClass}"></span>
+          <span>\${sessionText}</span>
+        </div>
+        <div class="article-status-item">
+          <span>\${gitText}</span>
+        </div>
+        <div class="article-status-item">
+          <span>Last commit: \${wt.lastCommitTime ? new Date(wt.lastCommitTime).toLocaleDateString() : 'unknown'}</span>
+        </div>
+      \`;
+
+      // Check if we have any chronicle data
+      const hasChronicle = wt.chronicle?.latestSummary || wt.chronicle?.pending?.length > 0;
+      const emptyState = document.getElementById('article-empty');
+
+      // Summary section
+      const summarySection = document.getElementById('article-summary-section');
+      const summaryEl = document.getElementById('article-summary');
+      if (wt.chronicle?.latestSummary) {
+        summarySection.style.display = 'block';
+        summaryEl.textContent = wt.chronicle.latestSummary;
+      } else {
+        summarySection.style.display = 'none';
+      }
+
+      // Pending section
+      const pendingSection = document.getElementById('article-pending-section');
+      const pendingList = document.getElementById('article-pending');
+      if (wt.chronicle?.pending?.length > 0) {
+        pendingSection.style.display = 'block';
+        pendingList.innerHTML = wt.chronicle.pending.map(p => \`<li>\${p}</li>\`).join('');
+      } else {
+        pendingSection.style.display = 'none';
+      }
+
+      // Accomplished section - fetch from chronicle blocks
+      fetchWorktreeAccomplished(wt, hasChronicle);
+    }
+
+    async function fetchWorktreeAccomplished(wt, hasChronicle) {
+      const url = '/api/data?period=weekly&worktree=' + encodeURIComponent(wt.repo + '/' + wt.branch);
+      const res = await fetch(url);
+      const data = await res.json();
+
+      const accomplishedSection = document.getElementById('article-accomplished-section');
+      const accomplishedList = document.getElementById('article-accomplished');
+      const emptyState = document.getElementById('article-empty');
+
+      // Collect unique accomplishments from all blocks
+      const accomplished = new Set();
+      for (const block of data.blocks) {
+        block.accomplished.forEach(a => accomplished.add(a));
+      }
+
+      const accomplishedArr = [...accomplished].slice(0, 10);
+      if (accomplishedArr.length > 0) {
+        accomplishedSection.style.display = 'block';
+        accomplishedList.innerHTML = accomplishedArr.map(a => \`<li>\${a}</li>\`).join('');
+        emptyState.style.display = 'none';
+      } else {
+        accomplishedSection.style.display = 'none';
+        // Show empty state if no chronicle data at all
+        emptyState.style.display = hasChronicle ? 'none' : 'block';
+      }
+    }
+
+    // Chronicle nav link
+    document.getElementById('nav-chronicle').addEventListener('click', (e) => {
+      e.preventDefault();
+      showChronicleView();
+    });
+
+    // Article back link
+    document.getElementById('article-back').addEventListener('click', (e) => {
+      e.preventDefault();
+      showChronicleView();
+    });
+
+    // URL protocol support for native app integration
+    // Editors: vscode://, cursor:// (if added), zed://
+    // Terminals: warp://, iterm2://, wezterm://, ghostty://
+    // Falls back to clipboard if protocol handler not registered
+
+    // Terminal URL schemes (in preference order - user can change via localStorage)
+    const TERMINAL_SCHEMES = {
+      warp: (path) => \`warp://action/new_tab?path=\${encodeURIComponent(path)}\`,
+      iterm2: (path) => \`iterm2://open?dir=\${encodeURIComponent(path)}\`,
+      wezterm: (path) => \`wezterm://open?path=\${encodeURIComponent(path)}\`,
+      ghostty: (path) => \`ghostty://open?path=\${encodeURIComponent(path)}\`,
+    };
+
+    // Editor URL schemes
+    const EDITOR_SCHEMES = {
+      vscode: (path) => \`vscode://file\${path}\`,
+      cursor: (path) => \`cursor://file\${path}\`,  // May not work yet
+      zed: (path) => \`zed://file\${path}\`,
+    };
+
+    // Get user's preferred terminal (default: warp, then iterm2)
+    function getPreferredTerminal() {
+      return localStorage.getItem('preferredTerminal') || 'warp';
+    }
+
+    function getPreferredEditor() {
+      return localStorage.getItem('preferredEditor') || 'zed';
+    }
+
+    function tryOpenEditor(path) {
+      const editor = getPreferredEditor();
+      const schemeBuilder = EDITOR_SCHEMES[editor] || EDITOR_SCHEMES.vscode;
+      window.location.href = schemeBuilder(path);
+
+      // Fallback to clipboard after delay
+      setTimeout(async () => {
+        const cmd = 'wt open ' + selectedWorktree?.name;
+        await navigator.clipboard.writeText(cmd);
+        showToast('Copied: ' + cmd);
+      }, 800);
+    }
+
+    function tryOpenTerminal(path) {
+      const terminal = getPreferredTerminal();
+      const schemeBuilder = TERMINAL_SCHEMES[terminal] || TERMINAL_SCHEMES.warp;
+      window.location.href = schemeBuilder(path);
+
+      // Fallback to clipboard
+      setTimeout(async () => {
+        const wtCmd = 'wt cd ' + selectedWorktree?.name;
+        await navigator.clipboard.writeText(wtCmd);
+        showToast('Copied: ' + wtCmd);
+      }, 800);
+    }
+
+    // Allow setting preferences via console: setTerminal('iterm2'), setEditor('zed')
+    window.setTerminal = (t) => { localStorage.setItem('preferredTerminal', t); showToast('Terminal set to: ' + t); };
+    window.setEditor = (e) => { localStorage.setItem('preferredEditor', e); showToast('Editor set to: ' + e); };
+
+    // Article action buttons
+    document.getElementById('article-open-editor').addEventListener('click', () => {
+      if (selectedWorktree) {
+        tryOpenEditor(selectedWorktree.path);
+      }
+    });
+
+    document.getElementById('article-open-terminal').addEventListener('click', () => {
+      if (selectedWorktree) {
+        tryOpenTerminal(selectedWorktree.path);
+      }
+    });
+
+    document.getElementById('article-archive').addEventListener('click', async () => {
+      if (selectedWorktree) {
+        const cmd = 'wt archive ' + selectedWorktree.name;
+        await navigator.clipboard.writeText(cmd);
+        showToast('Copied: ' + cmd);
+      }
+    });
+
+    function clearFilter() {
+      showChronicleView();
+    }
+
+    function showToast(message) {
+      const toast = document.createElement('div');
+      toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--green);color:#000;padding:8px 16px;border-radius:4px;font-size:13px;z-index:1000;';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2000);
+    }
+
+    document.getElementById('clear-filter').addEventListener('click', clearFilter);
+
+    // Sidebar toggle
+    document.getElementById('sidebar-toggle').addEventListener('click', () => {
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('collapsed');
+      document.body.classList.toggle('sidebar-collapsed');
+      // Persist state
+      localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+    });
+
+    // Restore sidebar state
+    if (localStorage.getItem('sidebarCollapsed') === 'true') {
+      document.getElementById('sidebar').classList.add('collapsed');
+      document.body.classList.add('sidebar-collapsed');
+    }
 
     async function loadData() {
-      const res = await fetch('/api/data?period=' + currentPeriod);
+      let url = '/api/data?period=' + currentPeriod;
+      if (selectedWorktree) {
+        url += '&worktree=' + encodeURIComponent(selectedWorktree.repo + '/' + selectedWorktree.branch);
+      }
+      const res = await fetch(url);
       allData = await res.json();
       render();
     }
+
+    // Auto-refresh worktrees every 30 seconds
+    setInterval(loadWorktrees, 30000);
 
     function render() {
       const { frontPage, breakdowns, blocks, stats } = allData;
@@ -951,6 +1785,7 @@ const HTML = `<!DOCTYPE html>
     });
 
     loadData();
+    loadWorktrees();
   </script>
 </body>
 </html>`;
@@ -1023,7 +1858,29 @@ const server = Bun.serve({
 
     if (url.pathname === "/api/data") {
       const period = url.searchParams.get("period") ?? "weekly";
-      return new Response(JSON.stringify(buildApiData(period)), {
+      const worktreeFilter = url.searchParams.get("worktree");
+      let data = buildApiData(period);
+
+      // Filter by worktree if specified
+      if (worktreeFilter) {
+        const [repo, branch] = worktreeFilter.split("/");
+        data = {
+          ...data,
+          blocks: data.blocks.filter(
+            (b) =>
+              b.project.toLowerCase() === repo.toLowerCase() &&
+              b.branch === branch
+          ),
+        };
+      }
+
+      return new Response(JSON.stringify(data), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (url.pathname === "/api/worktrees") {
+      return new Response(JSON.stringify(getWorktreeStatus()), {
         headers: { "Content-Type": "application/json" },
       });
     }
