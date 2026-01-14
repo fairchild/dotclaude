@@ -172,6 +172,11 @@
       transform: scaleY(1);
     }
 
+    .stat:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
     .stat-count {
       font-size: 2rem;
       font-weight: 600;
@@ -232,6 +237,11 @@
       color: var(--text-secondary);
     }
 
+    .tab:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
+
     .tab.active {
       color: var(--accent);
     }
@@ -283,6 +293,11 @@
       display: flex;
       align-items: flex-start;
       gap: 1rem;
+    }
+
+    .card-header:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
     }
 
     .card-icon {
@@ -408,6 +423,12 @@
       color: var(--accent);
     }
 
+    .copy-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      opacity: 1;
+    }
+
     .copy-btn.success {
       border-color: var(--success);
       color: var(--success);
@@ -435,6 +456,11 @@
     .action-btn:hover {
       border-color: var(--accent);
       color: var(--accent);
+    }
+
+    .action-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
 
     .action-btn.success {
@@ -547,6 +573,103 @@
       opacity: 0.6;
     }
 
+    /* README section */
+    .readme-container {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      padding: 2rem;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .readme-content {
+      max-width: 800px;
+      line-height: 1.8;
+    }
+
+    .readme-content h1,
+    .readme-content h2,
+    .readme-content h3 {
+      color: var(--text-primary);
+      margin: 1.5rem 0 0.75rem;
+    }
+
+    .readme-content h2:first-child {
+      margin-top: 0;
+    }
+
+    .readme-content p {
+      color: var(--text-secondary);
+      margin: 0.75rem 0;
+    }
+
+    .readme-content ul {
+      margin: 1rem 0;
+      padding-left: 1.5rem;
+    }
+
+    .readme-content li {
+      color: var(--text-secondary);
+      margin: 0.5rem 0;
+    }
+
+    .readme-content code {
+      background: var(--bg-deep);
+      padding: 0.15rem 0.4rem;
+      font-size: 0.9em;
+      color: var(--accent);
+    }
+
+    .readme-content a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .readme-content a:hover {
+      text-decoration: underline;
+    }
+
+    .readme-content pre {
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      padding: 1rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+
+    .readme-content pre code {
+      background: none;
+      padding: 0;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .readme-content .readme-img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid var(--border);
+      margin: 1rem 0;
+      display: block;
+    }
+
+    .readme-content h1 {
+      font-family: 'Anybody', sans-serif;
+      font-weight: 900;
+      font-size: 2rem;
+      color: var(--accent);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+
+    .readme-content h2 {
+      font-size: 1.4rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.25rem;
+    }
+
+    .readme-content h3 {
+      font-size: 1.1rem;
+    }
+
     /* Empty state */
     .empty {
       text-align: center;
@@ -645,44 +768,45 @@
     </header>
 
     <div class="stats" id="stats">
-      <div class="stat active" data-section="commands">
+      <div class="stat active" data-section="commands" tabindex="0" role="button" aria-label="View commands">
         <div class="stat-count" id="count-commands">--</div>
         <div class="stat-label">Commands</div>
       </div>
-      <div class="stat" data-section="agents">
+      <div class="stat" data-section="agents" tabindex="0" role="button" aria-label="View agents">
         <div class="stat-count" id="count-agents">--</div>
         <div class="stat-label">Agents</div>
       </div>
-      <div class="stat" data-section="skills">
+      <div class="stat" data-section="skills" tabindex="0" role="button" aria-label="View skills">
         <div class="stat-count" id="count-skills">--</div>
         <div class="stat-label">Skills</div>
       </div>
-      <div class="stat" data-section="scripts">
+      <div class="stat" data-section="scripts" tabindex="0" role="button" aria-label="View scripts">
         <div class="stat-count" id="count-scripts">--</div>
         <div class="stat-label">Scripts</div>
       </div>
-      <div class="stat" data-section="marketplaces">
+      <div class="stat" data-section="marketplaces" tabindex="0" role="button" aria-label="View marketplaces">
         <div class="stat-count" id="count-marketplaces">--</div>
         <div class="stat-label">Marketplaces</div>
       </div>
-      <div class="stat" data-section="plugins">
+      <div class="stat" data-section="plugins" tabindex="0" role="button" aria-label="View plugins">
         <div class="stat-count" id="count-plugins">--</div>
         <div class="stat-label">Plugins</div>
       </div>
-      <div class="stat" data-section="mcp">
+      <div class="stat" data-section="mcp" tabindex="0" role="button" aria-label="View MCP servers">
         <div class="stat-count" id="count-mcp">--</div>
         <div class="stat-label">MCP Servers</div>
       </div>
     </div>
 
-    <nav class="tabs" id="tabs">
-      <button class="tab active" data-section="commands">/commands</button>
-      <button class="tab" data-section="agents">/agents</button>
-      <button class="tab" data-section="skills">/skills</button>
-      <button class="tab" data-section="scripts">$scripts</button>
-      <button class="tab" data-section="marketplaces">/marketplaces</button>
-      <button class="tab" data-section="plugins">/plugins</button>
-      <button class="tab" data-section="mcp">/mcp</button>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Configuration sections">
+      <button id="tab-readme" class="tab active" data-section="readme" role="tab" aria-selected="true" aria-controls="readme">README</button>
+      <button id="tab-commands" class="tab" data-section="commands" role="tab" aria-selected="false" aria-controls="commands">/commands</button>
+      <button id="tab-agents" class="tab" data-section="agents" role="tab" aria-selected="false" aria-controls="agents">/agents</button>
+      <button id="tab-skills" class="tab" data-section="skills" role="tab" aria-selected="false" aria-controls="skills">/skills</button>
+      <button id="tab-marketplaces" class="tab" data-section="marketplaces" role="tab" aria-selected="false" aria-controls="marketplaces">/marketplaces</button>
+      <button id="tab-plugins" class="tab" data-section="plugins" role="tab" aria-selected="false" aria-controls="plugins">/plugins</button>
+      <button id="tab-mcp" class="tab" data-section="mcp" role="tab" aria-selected="false" aria-controls="mcp">/mcp</button>
+      <button id="tab-scripts" class="tab" data-section="scripts" role="tab" aria-selected="false" aria-controls="scripts">$scripts</button>
     </nav>
 
     <main id="content">
@@ -738,10 +862,10 @@
 
     function parseHash() {
       const hash = window.location.hash.slice(1);
-      if (!hash) return { section: 'commands', card: null };
+      if (!hash) return { section: 'readme', card: null };
       const [section, ...cardParts] = hash.split('/');
       const card = cardParts.length ? decodeURIComponent(cardParts.join('/')) : null;
-      return { section: section || 'commands', card };
+      return { section: section || 'readme', card };
     }
 
     function updateHash(section, card = null) {
@@ -753,12 +877,17 @@
 
     function navigateToHash() {
       const { section, card } = parseHash();
-      const validSections = ['commands', 'agents', 'skills', 'scripts', 'marketplaces', 'plugins', 'mcp'];
-      const targetSection = validSections.includes(section) ? section : 'commands';
+      const validSections = ['readme', 'commands', 'agents', 'skills', 'marketplaces', 'plugins', 'mcp', 'scripts'];
+      const targetSection = validSections.includes(section) ? section : 'readme';
 
       // Update UI
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.querySelector(`.tab[data-section="${targetSection}"]`)?.classList.add('active');
+      document.querySelectorAll('.tab').forEach(t => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
+      const activeTab = document.querySelector(`.tab[data-section="${targetSection}"]`);
+      activeTab?.classList.add('active');
+      activeTab?.setAttribute('aria-selected', 'true');
       document.querySelectorAll('.stat').forEach(s => s.classList.remove('active'));
       document.querySelector(`.stat[data-section="${targetSection}"]`)?.classList.add('active');
 
@@ -783,13 +912,24 @@
       const cardName = cardEl.dataset.name;
 
       // Collapse all other cards
-      document.querySelectorAll('.card.expanded').forEach(c => c.classList.remove('expanded'));
+      document.querySelectorAll('.card.expanded').forEach(c => {
+        c.classList.remove('expanded');
+        c.querySelector('.card-header')?.setAttribute('aria-expanded', 'false');
+      });
 
       if (!wasExpanded) {
         cardEl.classList.add('expanded');
+        cardEl.querySelector('.card-header')?.setAttribute('aria-expanded', 'true');
         updateHash(currentSection, cardName);
       } else {
         updateHash(currentSection);
+      }
+    }
+
+    function handleCardKeydown(e, header) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggleCard(header.parentElement);
       }
     }
 
@@ -869,6 +1009,9 @@ ${skill.content}`);
       let html = '';
 
       switch (section) {
+        case 'readme':
+          html = renderReadme();
+          break;
         case 'commands':
           html = renderCommands();
           break;
@@ -877,9 +1020,6 @@ ${skill.content}`);
           break;
         case 'skills':
           html = renderSkills();
-          break;
-        case 'scripts':
-          html = renderScripts();
           break;
         case 'marketplaces':
           html = renderMarketplaces();
@@ -890,14 +1030,96 @@ ${skill.content}`);
         case 'mcp':
           html = renderMcp();
           break;
+        case 'scripts':
+          html = renderScripts();
+          break;
       }
 
-      content.innerHTML = `<section class="section active">${html}</section>`;
+      content.innerHTML = `<section id="${section}" class="section active" role="tabpanel" aria-labelledby="tab-${section}">${html}</section>`;
 
-      // Stagger card animations
-      content.querySelectorAll('.card').forEach((card, i) => {
-        card.style.animationDelay = `${i * 0.05}s`;
+      // Stagger card animations (capped at 500ms total)
+      const cards = content.querySelectorAll('.card');
+      const maxDelay = 0.5; // 500ms total
+      const delayPerCard = cards.length > 0 ? Math.min(0.05, maxDelay / cards.length) : 0.05;
+      cards.forEach((card, i) => {
+        card.style.animationDelay = `${i * delayPerCard}s`;
       });
+    }
+
+    function renderReadme() {
+      const readmeContent = data.readme || '';
+      if (!readmeContent) {
+        return `<div class="readme-container">
+          <div class="readme-content">
+            <h2>~/.claude Configuration</h2>
+            <p>This is Michael's Claude Code configuration directory.</p>
+            <p>Use the tabs above to explore:</p>
+            <ul>
+              <li><strong>/commands</strong> - Slash commands available in sessions</li>
+              <li><strong>/agents</strong> - Background agent definitions</li>
+              <li><strong>/skills</strong> - Specialized capabilities and workflows</li>
+              <li><strong>/marketplaces</strong> - Plugin sources</li>
+              <li><strong>/plugins</strong> - Installed plugins</li>
+              <li><strong>/mcp</strong> - MCP server configurations</li>
+              <li><strong>$scripts</strong> - Custom utility scripts</li>
+            </ul>
+            <p><a href="https://github.com/anthropics/claude-code/blob/main/README.md" target="_blank" rel="noopener">Claude Code Documentation ↗</a></p>
+          </div>
+        </div>`;
+      }
+      return `<div class="readme-container"><div class="readme-content">${renderMarkdown(readmeContent)}</div></div>`;
+    }
+
+    function renderMarkdown(md) {
+      // Extract code blocks first to protect them
+      const codeBlocks = [];
+      let processed = md.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+        const idx = codeBlocks.length;
+        codeBlocks.push({ lang, code: escapeHtml(code.trim()) });
+        return `%%%CODEBLOCK${idx}%%%`;
+      });
+
+      // Process inline elements
+      processed = processed
+        // Headers
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        // Bold and italic
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        // Inline code
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        // Images - render as actual images
+        .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="readme-img">')
+        // Links
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+        // Lists
+        .replace(/^- (.+)$/gm, '<li>$1</li>');
+
+      // Wrap consecutive list items in ul
+      processed = processed.replace(/(<li>[\s\S]*?<\/li>\n?)+/g, '<ul>$&</ul>');
+
+      // Paragraphs - split by double newlines
+      processed = processed.split(/\n\n+/).map(block => {
+        block = block.trim();
+        if (!block) return '';
+        if (block.startsWith('<h') || block.startsWith('<ul') || block.startsWith('%%%CODEBLOCK') || block.startsWith('<img')) {
+          return block;
+        }
+        return `<p>${block.replace(/\n/g, '<br>')}</p>`;
+      }).join('\n');
+
+      // Restore code blocks
+      codeBlocks.forEach((block, idx) => {
+        const langClass = block.lang ? ` class="language-${block.lang}"` : '';
+        processed = processed.replace(
+          `%%%CODEBLOCK${idx}%%%`,
+          `<pre><code${langClass}>${block.code}</code></pre>`
+        );
+      });
+
+      return processed;
     }
 
     function renderCommands() {
@@ -907,14 +1129,14 @@ ${skill.content}`);
 
       return `<div class="cards">${data.commands.map((cmd, i) => `
         <article class="card" data-idx="${i}" data-name="${escapeHtml(cmd.name)}">
-          <div class="card-header" onclick="toggleCard(this.parentElement)">
+          <div class="card-header" tabindex="0" role="button" aria-expanded="false" onclick="toggleCard(this.parentElement)" onkeydown="handleCardKeydown(event, this)">
             <span class="card-icon">/</span>
             <div class="card-info">
               <div class="card-name">${escapeHtml(cmd.name)}</div>
               <div class="card-desc">${escapeHtml(cmd.description)}</div>
             </div>
-            <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard(data.commands[${i}].content, this)" title="Copy content">\u29C9</button>
-            <span class="card-toggle">▶</span>
+            <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard(data.commands[${i}].content, this)" aria-label="Copy content" title="Copy content">\u29C9</button>
+            <span class="card-toggle" aria-hidden="true">▶</span>
           </div>
           <div class="card-body">
             <div class="card-content">${escapeHtml(truncate(cmd.content, 1000))}</div>
@@ -930,7 +1152,7 @@ ${skill.content}`);
 
       return `<div class="cards">${data.agents.map((agent, i) => `
         <article class="card" data-idx="${i}" data-name="${escapeHtml(agent.name)}">
-          <div class="card-header" onclick="toggleCard(this.parentElement)">
+          <div class="card-header" tabindex="0" role="button" aria-expanded="false" onclick="toggleCard(this.parentElement)" onkeydown="handleCardKeydown(event, this)">
             <span class="card-icon">◎</span>
             <div class="card-info">
               <div class="card-name">${escapeHtml(agent.name)}</div>
@@ -942,8 +1164,8 @@ ${skill.content}`);
                 ${(agent.tools || []).length > 4 ? `<span class="tag">+${agent.tools.length - 4}</span>` : ''}
               </div>
             </div>
-            <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard(data.agents[${i}].content, this)" title="Copy content">\u29C9</button>
-            <span class="card-toggle">▶</span>
+            <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard(data.agents[${i}].content, this)" aria-label="Copy content" title="Copy content">\u29C9</button>
+            <span class="card-toggle" aria-hidden="true">▶</span>
           </div>
           <div class="card-body">
             <div class="card-content">${escapeHtml(truncate(agent.content, 1000))}</div>
@@ -959,7 +1181,7 @@ ${skill.content}`);
 
       return `<div class="cards">${data.skills.map((skill, i) => `
         <article class="card" data-idx="${i}" data-name="${escapeHtml(skill.name)}">
-          <div class="card-header" onclick="toggleCard(this.parentElement)">
+          <div class="card-header" tabindex="0" role="button" aria-expanded="false" onclick="toggleCard(this.parentElement)" onkeydown="handleCardKeydown(event, this)">
             <span class="card-icon">★</span>
             <div class="card-info">
               <div class="card-name">${escapeHtml(skill.name)}</div>
@@ -979,9 +1201,9 @@ ${skill.content}`);
               </div>` : ''}
             </div>
 ${skill.isExternal && skill.source
-              ? `<a class="action-btn" href="${escapeHtml(skill.source)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="View source">\u2197</a>`
-              : `<button class="action-btn" onclick="event.stopPropagation(); downloadSkillZip(data.skills[${i}])" title="Download .skill">\u2B73</button>`}
-            <span class="card-toggle">▶</span>
+              ? `<a class="action-btn" href="${escapeHtml(skill.source)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" aria-label="View source" title="View source">\u2197</a>`
+              : `<button class="action-btn" onclick="event.stopPropagation(); downloadSkillZip(data.skills[${i}])" aria-label="Download skill" title="Download .skill">\u2B73</button>`}
+            <span class="card-toggle" aria-hidden="true">▶</span>
           </div>
           <div class="card-body">
             <div class="card-content">${escapeHtml(truncate(skill.content, 1000))}</div>
@@ -997,7 +1219,7 @@ ${skill.isExternal && skill.source
 
       return `<div class="cards">${data.scripts.map((script, i) => `
         <article class="card script-card" data-idx="${i}" data-name="${escapeHtml(script.name)}">
-          <div class="card-header" onclick="toggleCard(this.parentElement)">
+          <div class="card-header" tabindex="0" role="button" aria-expanded="false" onclick="toggleCard(this.parentElement)" onkeydown="handleCardKeydown(event, this)">
             <span class="card-icon">$</span>
             <div class="card-info">
               <div class="card-name">${escapeHtml(script.name)}<span class="custom-badge">(custom)</span></div>
@@ -1007,10 +1229,10 @@ ${skill.isExternal && skill.source
               </div>
             </div>
             <div class="action-btns">
-              <button class="action-btn" onclick="event.stopPropagation(); copyToClipboard(data.scripts[${i}].content, this)" title="Copy">\u29C9</button>
-              <button class="action-btn" onclick="event.stopPropagation(); downloadFile(data.scripts[${i}].filename, data.scripts[${i}].content)" title="Download">\u2B73</button>
+              <button class="action-btn" onclick="event.stopPropagation(); copyToClipboard(data.scripts[${i}].content, this)" aria-label="Copy script" title="Copy">\u29C9</button>
+              <button class="action-btn" onclick="event.stopPropagation(); downloadFile(data.scripts[${i}].filename, data.scripts[${i}].content)" aria-label="Download script" title="Download">\u2B73</button>
             </div>
-            <span class="card-toggle">▶</span>
+            <span class="card-toggle" aria-hidden="true">▶</span>
           </div>
           <div class="card-body">
             <div class="card-content">${escapeHtml(truncate(script.content, 2000))}</div>
@@ -1074,7 +1296,7 @@ ${skill.isExternal && skill.source
 
       return `<div class="cards">${data.mcpServers.map((srv, i) => `
         <article class="card" data-idx="${i}" data-name="${escapeHtml(srv.name)}">
-          <div class="card-header" onclick="toggleCard(this.parentElement)">
+          <div class="card-header" tabindex="0" role="button" aria-expanded="false" onclick="toggleCard(this.parentElement)" onkeydown="handleCardKeydown(event, this)">
             <span class="card-icon">⚡</span>
             <div class="card-info">
               <div class="card-name">
@@ -1087,8 +1309,8 @@ ${skill.isExternal && skill.source
                 ${srv.envKeys.map(k => `<span class="tag">${escapeHtml(k)}</span>`).join('')}
               </div>
             </div>
-            <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard(JSON.stringify(data.mcpServers[${i}].rawConfig, null, 2), this)" title="Copy config">\u29C9</button>
-            <span class="card-toggle">▶</span>
+            <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard(JSON.stringify(data.mcpServers[${i}].rawConfig, null, 2), this)" aria-label="Copy config" title="Copy config">\u29C9</button>
+            <span class="card-toggle" aria-hidden="true">▶</span>
           </div>
           <div class="card-body">
             <div class="card-content">${escapeHtml(JSON.stringify(srv.rawConfig, null, 2))}</div>
@@ -1111,6 +1333,18 @@ ${skill.isExternal && skill.source
       if (stat) {
         updateHash(stat.dataset.section);
         navigateToHash();
+      }
+    });
+
+    // Stat keyboard navigation
+    document.getElementById('stats').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        const stat = e.target.closest('.stat');
+        if (stat) {
+          e.preventDefault();
+          updateHash(stat.dataset.section);
+          navigateToHash();
+        }
       }
     });
 
