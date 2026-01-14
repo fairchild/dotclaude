@@ -20,17 +20,18 @@ source ~/.zshrc
 ## Usage
 
 ```bash
-wt <branch>           # Create worktree, run setup, open editor
+wt <branch>              # Create worktree, run setup, open editor
 wt <branch> --no-editor  # Create without opening editor
-wt cd <branch>        # Change to worktree directory
-wt home               # Return to main repo (or REPOS_ROOT if outside git)
-wt archive [branch]   # Run archive script, move to ~/.worktrees/.archive
-wt list               # List all worktrees
-wt ls                 # Alias for list
-wt tree               # Tree view with git status indicators
-wt status             # Health check across all worktrees
-wt open [branch]      # Open editor for worktree (current dir if no branch)
-wt install            # Add wt to ~/.zshrc (one-time setup)
+wt <branch> --carry      # Create and copy work-in-progress files
+wt cd <branch>           # Change to worktree directory
+wt home                  # Return to main repo (or REPOS_ROOT if outside git)
+wt archive [branch]      # Run archive script, move to ~/.worktrees/.archive
+wt list                  # List all worktrees
+wt ls                    # Alias for list
+wt tree                  # Tree view with git status indicators
+wt status                # Health check across all worktrees
+wt open [branch]         # Open editor for worktree (current dir if no branch)
+wt install               # Add wt to ~/.zshrc (one-time setup)
 ```
 
 ## Environment
@@ -48,6 +49,17 @@ wt feature-auth       # Creates worktree and opens editor
 wt home               # Back to main repo
 wt archive feature-auth  # Archive when done (moves to .archive)
 ```
+
+## Carrying Work in Progress
+
+When you've been exploring and decide it should be its own branch:
+
+```bash
+# You're in main with untracked files and modifications...
+wt feature-x --carry  # Creates worktree with those files copied over
+```
+
+Copies both untracked files and modified tracked files. Works from any branch.
 
 ## conductor.json (Optional)
 
