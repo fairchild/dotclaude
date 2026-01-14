@@ -27,6 +27,8 @@ Commands:
   archive [branch]        Run conductor archive, move to .archive
   list, ls                List all worktrees
   tree                    Tree view of worktrees with git status
+  status                  Show all worktrees with session activity
+  open [branch]           Open editor for worktree (current or specified)
 
 Environment:
   WORKTREES_ROOT     Base directory for worktrees (default: ~/.worktrees)
@@ -36,16 +38,20 @@ EOF
 }
 
 detect_editor() {
-    # Return editor command (for execution) and name (for display)
-    # Usage: read -r editor editor_name <<< "$(detect_editor)"
+    # Return "editor_command|editor_name" for parsing
+    # Usage: IFS='|' read -r editor editor_name <<< "$(detect_editor)"
     if [[ -n "${EDITOR:-}" ]]; then
-        echo "$EDITOR $(basename "$EDITOR")"
+        # Handle EDITOR with flags like "zed --wait"
+        local editor_cmd="${EDITOR%% *}"  # First word
+        local editor_name
+        editor_name=$(basename "$editor_cmd")
+        echo "${EDITOR}|${editor_name}"
     elif command -v cursor &>/dev/null; then
-        echo "cursor cursor"
+        echo "cursor|cursor"
     elif command -v zed &>/dev/null; then
-        echo "zed zed"
+        echo "zed|zed"
     elif command -v code &>/dev/null; then
-        echo "code code"
+        echo "code|code"
     else
         echo ""
     fi
@@ -193,7 +199,7 @@ cmd_create() {
     local editor_info editor editor_name
     editor_info=$(detect_editor)
     if [[ -n "$editor_info" ]]; then
-        read -r editor editor_name <<< "$editor_info"
+        IFS='|' read -r editor editor_name <<< "$editor_info"
     fi
 
     if [[ "$open_editor" == true ]] && [[ -n "$editor" ]]; then
@@ -394,6 +400,126 @@ cmd_tree() {
     done
 }
 
+cmd_status() {
+    if [[ ! -d "$WORKTREES_ROOT" ]]; then
+        echo "No worktrees found."
+        return 0
+    fi
+
+    local YELLOW='\033[0;33m'
+
+    echo ""
+    echo -e "${BLUE}WORKTREES${NC}"
+    echo "════════════════════════════════════════════════════════════"
+
+    for repo_dir in "$WORKTREES_ROOT"/*; do
+        [[ -d "$repo_dir" ]] || continue
+        [[ "$(basename "$repo_dir")" != "."* ]] || continue
+
+        for branch_dir in "$repo_dir"/*; do
+            [[ -d "$branch_dir" ]] || continue
+            [[ -f "$branch_dir/.git" ]] || continue
+
+            local branch_name
+            branch_name=$(basename "$branch_dir")
+            local git_branch
+            git_branch=$(git -C "$branch_dir" branch --show-current 2>/dev/null || echo "unknown")
+
+            # Get git status
+            local changes
+            changes=$(git -C "$branch_dir" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+            local status_text="clean"
+            [[ "$changes" -gt 0 ]] && status_text="${changes} files"
+
+            # Get session activity
+            # Path encoding: /Users/x/.worktrees/y -> -Users-x--worktrees-y
+            # Both / and . become -
+            local encoded_path
+            encoded_path=$(echo "$branch_dir" | sed 's|[/.]|-|g')
+            local claude_dir="$HOME/.claude/projects/$encoded_path"
+            local session_indicator="○"
+            local age_text=""
+
+            if [[ -d "$claude_dir" ]]; then
+                local newest_mtime
+                newest_mtime=$(stat -f %m "$claude_dir"/*.jsonl 2>/dev/null | sort -rn | head -1)
+                if [[ -n "$newest_mtime" ]]; then
+                    local now
+                    now=$(date +%s)
+                    local age_minutes=$(( (now - newest_mtime) / 60 ))
+
+                    if [[ $age_minutes -lt 5 ]]; then
+                        session_indicator="${GREEN}●${NC}"
+                        age_text="${age_minutes}m"
+                    elif [[ $age_minutes -lt 60 ]]; then
+                        session_indicator="${YELLOW}◐${NC}"
+                        age_text="${age_minutes}m"
+                    else
+                        local age_hours=$(( age_minutes / 60 ))
+                        age_text="${age_hours}h"
+                    fi
+                fi
+            fi
+
+            printf "%b %-20s %-20s %8s   %s\n" \
+                "$session_indicator" "$branch_name" "$git_branch" "$age_text" "$status_text"
+        done
+    done
+    echo ""
+}
+
+cmd_open() {
+    local branch="${1:-}"
+
+    # If no branch specified, try current directory
+    if [[ -z "$branch" ]]; then
+        if [[ "$PWD" == "$WORKTREES_ROOT/"* ]]; then
+            local editor_info
+            editor_info=$(detect_editor)
+            if [[ -n "$editor_info" ]]; then
+                local editor editor_name
+                IFS='|' read -r editor editor_name <<< "$editor_info"
+                log_info "Opening $editor_name..."
+                $editor "$PWD"
+            else
+                log_error "No editor found"
+                return 1
+            fi
+            return 0
+        else
+            log_error "Usage: wt open [branch]"
+            return 1
+        fi
+    fi
+
+    # Find worktree by branch name
+    if ! git rev-parse --git-dir &>/dev/null; then
+        log_error "Not in a git repository"
+        return 1
+    fi
+
+    local repo_name
+    repo_name=$(get_repo_name)
+    local worktree_path="$WORKTREES_ROOT/$repo_name/$branch"
+
+    if [[ ! -d "$worktree_path" ]]; then
+        log_error "Worktree not found: $worktree_path"
+        return 1
+    fi
+
+    local editor_info
+    editor_info=$(detect_editor)
+    if [[ -n "$editor_info" ]]; then
+        local editor editor_name
+        IFS='|' read -r editor editor_name <<< "$editor_info"
+        log_info "Opening $editor_name at $worktree_path"
+        $editor "$worktree_path"
+    else
+        log_error "No editor found. Set \$EDITOR or install cursor/zed/code"
+        return 1
+    fi
+}
+
 main() {
     local cmd="${1:-}"
 
@@ -407,6 +533,13 @@ main() {
             ;;
         tree)
             cmd_tree
+            ;;
+        status)
+            cmd_status
+            ;;
+        open)
+            shift
+            cmd_open "${1:-}"
             ;;
         archive)
             shift

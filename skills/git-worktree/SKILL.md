@@ -28,7 +28,7 @@ wt archive [branch]   # Run archive script, move to ~/.worktrees/.archive
 wt list               # List all worktrees
 wt ls                 # Alias for list
 wt tree               # Tree view with git status indicators
-wt status             # Health check across all worktrees
+wt status             # Show worktrees with Claude session activity
 wt open [branch]      # Open editor for worktree (current dir if no branch)
 wt install            # Add wt to ~/.zshrc (one-time setup)
 ```
