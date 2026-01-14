@@ -21,7 +21,9 @@ usage() {
 Usage: wt <command> [args]
 
 Commands:
-  <branch> [--no-editor]  Create worktree, run setup, open editor
+  <branch> [options]      Create worktree, run setup, open editor
+    --no-editor           Don't open editor after creation
+    --carry               Copy untracked files to new worktree
   cd <branch>             Change to worktree directory (shell function)
   home                    Return to main repository (shell function)
   archive [branch]        Run conductor archive, move to .archive
@@ -110,16 +112,49 @@ copy_env_files() {
     fi
 }
 
+# --- CARRY MODIFIED FILES (experimental) ---
+# Copies modified tracked files to worktree, overwriting clean versions.
+# Remove this function and its call site to revert to untracked-only behavior.
+carry_modified_files() {
+    local worktree_path="$1"
+    local repo_root="$2"
+    local modified_files
+    modified_files=$(cd "$repo_root" && git diff --name-only --diff-filter=M)
+
+    if [[ -z "$modified_files" ]]; then
+        return 0
+    fi
+
+    local count
+    count=$(echo "$modified_files" | wc -l | tr -d ' ')
+    log_info "Copying $count modified files..."
+
+    local copied=0
+    while IFS= read -r file; do
+        [[ -z "$file" ]] && continue
+        mkdir -p "$worktree_path/$(dirname "$file")"
+        cp "$repo_root/$file" "$worktree_path/$file"
+        ((copied++))
+    done <<< "$modified_files"
+    log_ok "Carried $copied modified files"
+}
+# --- END CARRY MODIFIED FILES ---
+
 cmd_create() {
     local branch=""
     local base_branch="main"
     local open_editor=true
+    local carry_untracked=false
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --no-editor)
                 open_editor=false
+                shift
+                ;;
+            --carry)
+                carry_untracked=true
                 shift
                 ;;
             *)
@@ -150,6 +185,17 @@ cmd_create() {
     local worktree_path="$WORKTREES_ROOT/$repo_name/$branch"
     local conductor_json="$main_repo/conductor.json"
 
+    # Capture untracked files before creating worktree (from repo root for correct paths)
+    local untracked_files=""
+    if [[ "$carry_untracked" == true ]]; then
+        untracked_files=$(cd "$main_repo" && git ls-files --others --exclude-standard)
+        if [[ -n "$untracked_files" ]]; then
+            local file_count
+            file_count=$(echo "$untracked_files" | wc -l | tr -d ' ')
+            log_info "Will carry $file_count untracked files"
+        fi
+    fi
+
     log_info "Creating worktree: $branch"
     log_info "Path: $worktree_path"
 
@@ -173,6 +219,24 @@ cmd_create() {
     fi
 
     log_ok "Worktree created"
+
+    # Copy untracked files if --carry was specified
+    if [[ "$carry_untracked" == true ]] && [[ -n "$untracked_files" ]]; then
+        log_info "Copying untracked files..."
+        local copied=0
+        while IFS= read -r file; do
+            [[ -z "$file" ]] && continue
+            mkdir -p "$worktree_path/$(dirname "$file")"
+            cp "$main_repo/$file" "$worktree_path/$file"
+            ((copied++))
+        done <<< "$untracked_files"
+        log_ok "Carried $copied files"
+    fi
+
+    # Copy modified tracked files (experimental - see carry_modified_files)
+    if [[ "$carry_untracked" == true ]]; then
+        carry_modified_files "$worktree_path" "$main_repo"
+    fi
 
     # Copy env files from main repo
     copy_env_files "$main_repo" "$worktree_path"
