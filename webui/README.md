@@ -35,20 +35,6 @@ bun serve.ts
 
 Open http://localhost:3000 in your browser.
 
-## Screenshots
-
-### Commands Section
-![Commands](screenshots/commands.png)
-
-### Agents Section
-![Agents](screenshots/agents.png)
-
-### Skills Section
-![Skills](screenshots/skills.png)
-
-### MCP Servers Section
-![MCP Servers](screenshots/mcp.png)
-
 ## Testing
 
 Run the E2E tests (also regenerates screenshots):

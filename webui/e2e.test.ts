@@ -70,16 +70,23 @@ test.describe("Claude Config Visualizer", () => {
   });
 
   test("tabs navigate between sections", async ({ page }) => {
-    const tabs = ["commands", "agents", "skills", "scripts", "marketplaces", "plugins", "mcp"];
+    const tabs = ["readme", "commands", "agents", "skills", "marketplaces", "plugins", "mcp", "scripts"];
 
     for (const tab of tabs) {
       await page.click(`.tab[data-section="${tab}"]`);
       await expect(page.locator(`.tab[data-section="${tab}"]`)).toHaveClass(/active/);
-      await expect(page.locator(`.stat[data-section="${tab}"]`)).toHaveClass(/active/);
+      // readme tab doesn't have a stat card
+      if (tab !== "readme") {
+        await expect(page.locator(`.stat[data-section="${tab}"]`)).toHaveClass(/active/);
+      }
     }
   });
 
   test("cards expand on click", async ({ page }) => {
+    // Navigate to commands section first (readme has no cards)
+    await page.click('.tab[data-section="commands"]');
+    await page.waitForTimeout(300);
+
     // Find a card and click to expand
     const card = page.locator(".card").first();
     await card.locator(".card-header").click();
@@ -91,6 +98,9 @@ test.describe("Claude Config Visualizer", () => {
   });
 
   test("capture hero screenshot", async ({ page }) => {
+    // Capture from commands tab to show actual content (not README which would be recursive)
+    await page.click('.tab[data-section="commands"]');
+    await page.waitForTimeout(300);
     await page.screenshot({
       path: join(SCREENSHOTS_DIR, "hero.png"),
       fullPage: true,

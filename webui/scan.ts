@@ -129,6 +129,7 @@ interface Script {
 
 interface ConfigData {
   scannedAt: string;
+  readme: string;
   commands: Command[];
   agents: Agent[];
   skills: Skill[];
@@ -717,11 +718,21 @@ function printValidationReport(errors: ValidationError[]): void {
   console.error("--- END ---\n");
 }
 
+async function scanReadme(): Promise<string> {
+  const readmePath = join(import.meta.dir, "README.md");
+  try {
+    return await readFile(readmePath, "utf-8");
+  } catch {
+    return "";
+  }
+}
+
 async function main() {
   console.log("Scanning ~/.claude configuration...\n");
 
   const data: ConfigData = {
     scannedAt: new Date().toISOString(),
+    readme: await scanReadme(),
     commands: await scanCommands(),
     agents: await scanAgents(),
     skills: await scanSkills(),
