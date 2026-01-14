@@ -499,7 +499,6 @@ const HTML = `<!DOCTYPE html>
 
     .sidebar.collapsed .sidebar-header,
     .sidebar.collapsed .worktree-list,
-    .sidebar.collapsed .worktree-detail,
     .sidebar.collapsed .sidebar-footer {
       display: none;
     }
@@ -613,80 +612,6 @@ const HTML = `<!DOCTYPE html>
       font-size: 11px;
       color: var(--text-muted);
       margin-left: auto;
-    }
-
-    .worktree-detail {
-      background: var(--bg-tertiary);
-      border-radius: 6px;
-      padding: 12px;
-      margin-top: 12px;
-      display: none;
-    }
-
-    .worktree-detail.visible { display: block; }
-
-    .worktree-detail-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-    }
-
-    .worktree-detail-title {
-      font-weight: 600;
-      color: var(--accent);
-    }
-
-    .worktree-detail-branch {
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    .worktree-pending {
-      margin-top: 8px;
-    }
-
-    .worktree-pending-title {
-      font-size: 11px;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      margin-bottom: 4px;
-    }
-
-    .worktree-pending-list {
-      list-style: none;
-      font-size: 13px;
-      color: var(--text-secondary);
-    }
-
-    .worktree-pending-list li {
-      padding: 3px 0;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .worktree-actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 12px;
-    }
-
-    .worktree-action-btn {
-      flex: 1;
-      padding: 6px 8px;
-      font-size: 12px;
-      border: 1px solid var(--border);
-      background: var(--bg-secondary);
-      color: var(--text-muted);
-      border-radius: 4px;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-
-    .worktree-action-btn:hover {
-      border-color: var(--accent);
-      color: var(--text);
     }
 
     .sidebar-empty {
@@ -1246,21 +1171,6 @@ const HTML = `<!DOCTYPE html>
     <a href="#" class="sidebar-nav-link active" id="nav-chronicle">Chronicle</a>
     <div class="sidebar-header">Worktrees</div>
     <ul class="worktree-list" id="worktree-list"></ul>
-    <div class="worktree-detail" id="worktree-detail">
-      <div class="worktree-detail-header">
-        <span class="worktree-detail-title" id="detail-name"></span>
-        <span class="worktree-detail-branch" id="detail-branch"></span>
-      </div>
-      <div class="worktree-status" id="detail-status"></div>
-      <div class="worktree-pending" id="detail-pending-section">
-        <div class="worktree-pending-title">Pending</div>
-        <ul class="worktree-pending-list" id="detail-pending"></ul>
-      </div>
-      <div class="worktree-actions">
-        <button class="worktree-action-btn" id="btn-open-editor">Open Editor</button>
-        <button class="worktree-action-btn" id="btn-open-terminal">Terminal</button>
-      </div>
-    </div>
     <div class="sidebar-footer">
       <button class="clear-filter-btn" id="clear-filter">Show All Projects</button>
     </div>
@@ -1470,27 +1380,6 @@ const HTML = `<!DOCTYPE html>
         item.classList.toggle('selected', item.dataset.path === wt.path);
       });
 
-      // Show detail panel in sidebar
-      const detail = document.getElementById('worktree-detail');
-      detail.classList.add('visible');
-      document.getElementById('detail-name').textContent = wt.name;
-      document.getElementById('detail-branch').textContent = wt.branch;
-
-      const indicator = wt.session?.active ? 'Active' :
-                       wt.session?.ageMinutes < 60 ? 'Recent' : 'No session';
-      const statusText = wt.gitStatus === 'clean' ? 'clean' : wt.uncommittedFiles + ' modified';
-      document.getElementById('detail-status').innerHTML = \`<span style="color: var(--\${wt.session?.active ? 'green' : wt.session?.ageMinutes < 60 ? 'yellow' : 'text-muted'})">\${indicator}</span> · \${statusText}\`;
-
-      // Show pending items
-      const pendingSection = document.getElementById('detail-pending-section');
-      const pendingList = document.getElementById('detail-pending');
-      if (wt.chronicle && wt.chronicle.pending.length > 0) {
-        pendingSection.style.display = 'block';
-        pendingList.innerHTML = wt.chronicle.pending.map(p => \`<li>\${p}</li>\`).join('');
-      } else {
-        pendingSection.style.display = 'none';
-      }
-
       // Show clear filter button
       document.getElementById('clear-filter').classList.add('visible');
 
@@ -1509,7 +1398,6 @@ const HTML = `<!DOCTYPE html>
       // Deselect worktree
       selectedWorktree = null;
       document.querySelectorAll('.worktree-item').forEach(item => item.classList.remove('selected'));
-      document.getElementById('worktree-detail').classList.remove('visible');
       document.getElementById('clear-filter').classList.remove('visible');
 
       // Load all data
@@ -1697,19 +1585,6 @@ const HTML = `<!DOCTYPE html>
     function clearFilter() {
       showChronicleView();
     }
-
-    // Sidebar quick action handlers - use same URL protocol logic
-    document.getElementById('btn-open-editor').addEventListener('click', () => {
-      if (selectedWorktree) {
-        tryOpenEditor(selectedWorktree.path);
-      }
-    });
-
-    document.getElementById('btn-open-terminal').addEventListener('click', () => {
-      if (selectedWorktree) {
-        tryOpenTerminal(selectedWorktree.path);
-      }
-    });
 
     function showToast(message) {
       const toast = document.createElement('div');

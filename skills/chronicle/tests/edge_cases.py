@@ -188,8 +188,8 @@ def test_worktree_selection_persistence():
         browser.close()
 
 
-def test_detail_panel_updates():
-    """Test: Detail panel updates when switching worktrees."""
+def test_article_updates_on_worktree_switch():
+    """Test: Article view updates when switching worktrees."""
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1400, "height": 900})
@@ -208,18 +208,18 @@ def test_detail_panel_updates():
         worktree_items.first.click()
         page.wait_for_timeout(300)
 
-        first_title = page.locator("#detail-name").text_content()
+        first_title = page.locator("#article-title").text_content()
 
         # Click second worktree
         worktree_items.nth(1).click()
         page.wait_for_timeout(300)
 
-        second_title = page.locator("#detail-name").text_content()
+        second_title = page.locator("#article-title").text_content()
 
         # Titles should be different
-        assert first_title != second_title, "Detail panel should update for different worktrees"
+        assert first_title != second_title, "Article should update for different worktrees"
 
-        print("✓ Detail panel updates correctly")
+        print("✓ Article updates correctly on worktree switch")
 
         browser.close()
 
@@ -267,7 +267,7 @@ def run_all_tests():
         test_keyboard_navigation,
         test_sidebar_state_persistence,
         test_worktree_selection_persistence,
-        test_detail_panel_updates,
+        test_article_updates_on_worktree_switch,
         test_empty_search_shows_all,
     ]
 
