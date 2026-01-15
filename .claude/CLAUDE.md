@@ -45,6 +45,10 @@ bun webui/scan.ts && bun webui/serve.ts  # visualize
 bunx playwright test -c webui/           # E2E
 ```
 
+## PR Reviews
+
+See `.github/copilot-instructions.md` for code review style (shared with Copilot).
+
 ## Cloning
 
 See README.md - customize CLAUDE.md + settings.json, prune unwanted skills.
