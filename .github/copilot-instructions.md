@@ -45,3 +45,17 @@ Extended explanation...
 ## Inline Style
 
 Terse labels: `Bug:`, `Perf:`, `Security:` — not "I think it might be beneficial..."
+
+## Line-Level Comments
+
+Post inline comments directly on problematic lines. Include a code suggestion when you have a fix:
+
+```suggestion
+// your fixed code here
+```
+
+## Label Management
+
+After review:
+- Remove `needs code review` label
+- Add `code review passed` if score >= 4 and ready to merge
