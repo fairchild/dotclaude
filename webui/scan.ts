@@ -719,7 +719,7 @@ function printValidationReport(errors: ValidationError[]): void {
 }
 
 async function scanReadme(): Promise<string> {
-  const readmePath = join(import.meta.dir, "README.md");
+  const readmePath = join(CLAUDE_DIR, "README.md");
   try {
     return await readFile(readmePath, "utf-8");
   } catch {
