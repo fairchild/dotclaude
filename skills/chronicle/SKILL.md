@@ -227,106 +227,29 @@ Output goes to `~/.claude/chronicle/digests/`:
 
 Launch an interactive web dashboard for exploring Chronicle data.
 
-### Quick Start
-
 ```bash
 bun ~/.claude/skills/chronicle/scripts/dashboard.ts
 ```
 
 Opens browser to `http://localhost:3456`.
 
-### Run as a Service (macOS)
-
-Install and manage the dashboard as a launchd service:
-
-```bash
-# Install the service (one-time setup)
-/chronicle ui install
-
-# Start the service
-/chronicle ui start
-
-# Stop the service
-/chronicle ui stop
-
-# Check status
-/chronicle ui status
-
-# View logs
-/chronicle ui logs
-
-# Uninstall the service
-/chronicle ui uninstall
-```
-
-**Manual launchctl commands** (if not using skill commands):
-
-```bash
-# Install plist (copies to ~/Library/LaunchAgents/)
-cp ~/.claude/skills/chronicle/config/com.chronicle.dashboard.plist ~/Library/LaunchAgents/
-
-# Start
-launchctl load ~/Library/LaunchAgents/com.chronicle.dashboard.plist
-
-# Stop
-launchctl unload ~/Library/LaunchAgents/com.chronicle.dashboard.plist
-
-# Check if running
-launchctl list | grep chronicle
-
-# View logs
-tail -f /tmp/chronicle-dashboard.log
-```
-
-### Service Commands
-
-When user runs `/chronicle ui <command>`, execute:
-
-**install** - Copy plist to LaunchAgents:
-```bash
-cp ~/.claude/skills/chronicle/config/com.chronicle.dashboard.plist ~/Library/LaunchAgents/
-```
-
-**start** - Load and start the service:
-```bash
-launchctl load ~/Library/LaunchAgents/com.chronicle.dashboard.plist
-```
-Then report: "Dashboard service started at http://localhost:3456"
-
-**stop** - Unload the service:
-```bash
-launchctl unload ~/Library/LaunchAgents/com.chronicle.dashboard.plist
-```
-
-**status** - Check if running:
-```bash
-launchctl list | grep chronicle
-```
-Report whether service is running or not.
-
-**logs** - Show recent logs:
-```bash
-tail -50 /tmp/chronicle-dashboard.log
-```
-
-**uninstall** - Stop and remove:
-```bash
-launchctl unload ~/Library/LaunchAgents/com.chronicle.dashboard.plist 2>/dev/null
-rm ~/Library/LaunchAgents/com.chronicle.dashboard.plist
-```
-
-### Dashboard Features
+### Features
 
 - **Newspaper-style view** - Sessions as stories, grouped by time period
-- **Worktree sidebar** - See all active worktrees with status indicators
-- **Create worktrees** - Click + next to repo name to spawn new worktree
-- **Archive worktrees** - Click 📦 to archive a worktree
-- **Project breakdowns** - Stats and summaries per project
+- **Worktree sidebar** - Active worktrees with status indicators
+- **Create worktrees** - Click + next to repo name
+- **Archive worktrees** - Click 📦 to archive
 
-Keyboard shortcuts:
-- `/` - Focus search
-- `j`/`k` - Navigate items
-- `Esc` - Clear filters
+### Run as Service
+
+For persistent background operation, see **[docs/dashboard-service.md](docs/dashboard-service.md)**.
+
+Quick start:
+```bash
+/chronicle ui install   # One-time setup
+/chronicle ui start     # Start service
+/chronicle ui status    # Check if running
+```
 
 ---
 
