@@ -58,7 +58,9 @@ function getMainRepoPath(wtPath: string): string {
       const mainGit = gitdir.replace(/\/\.git\/worktrees\/[^/]+$/, "");
       return mainGit;
     }
-  } catch {}
+  } catch {
+    // Graceful degradation - worktree may not have standard .git file format
+  }
   return "";
 }
 
@@ -2138,8 +2140,16 @@ const server = Bun.serve({
     // Archive worktree
     if (url.pathname === "/api/worktrees/archive" && req.method === "POST") {
       try {
-        const body = await req.json() as { path: string; name: string; mainRepoPath: string };
+        const body = await req.json() as { name: string; mainRepoPath: string };
         const { name, mainRepoPath } = body;
+
+        // Validate name to prevent command injection (must match generated pattern)
+        if (!name || !/^[a-z]+-[a-z]+$/.test(name)) {
+          return new Response(JSON.stringify({ error: "Invalid worktree name" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
 
         if (!mainRepoPath || !existsSync(mainRepoPath)) {
           return new Response(JSON.stringify({ error: "Invalid main repo path" }), {
