@@ -1,6 +1,6 @@
 ---
 name: chronicle
-description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle curate to organize memory, /chronicle publish for digests, /chronicle ui for dashboard.
+description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle curate to organize memory, /chronicle pending for open threads, /chronicle search to find sessions, /chronicle publish for digests, /chronicle ui for dashboard.
 license: Apache 2.0
 ---
 
@@ -16,10 +16,20 @@ A persistent journalist tracking your coding sessions.
 /chronicle curate             # Invoke curator to organize memory (interactive)
 /chronicle pending            # Show pending threads across sessions
 /chronicle blocks             # List recent memory blocks
+/chronicle search <query>     # Search sessions by text
 /chronicle publish            # Generate weekly digest (markdown)
 /chronicle publish daily      # Generate daily digest
 /chronicle publish month      # Generate monthly digest
 /chronicle ui                 # Launch interactive web dashboard
+/chronicle ui watch           # Run with auto-restart on file changes
+/chronicle ui hot             # Run with hot module reloading
+/chronicle ui install         # Install dashboard as macOS service
+/chronicle ui start           # Start the dashboard service
+/chronicle ui stop            # Stop the dashboard service
+/chronicle ui status          # Check if dashboard service is running
+/chronicle ui logs            # View dashboard service logs
+/chronicle ui uninstall       # Remove dashboard service
+/chronicle dev                # Start development session for Chronicle itself
 ```
 
 ## Quick Capture (/chronicle or /chronicle <note>)
@@ -164,6 +174,21 @@ Show filename, date, and first line of summary for each.
 
 ---
 
+## Search (/chronicle search <query>)
+
+Search across all Chronicle blocks by text:
+
+1. Read all blocks from `~/.claude/chronicle/blocks/`
+2. Search in: summary, accomplished items, pending items, project name, branch
+3. Return matching blocks sorted by relevance
+
+Example queries:
+- `/chronicle search oauth` - Find sessions mentioning OAuth
+- `/chronicle search jrnlfish` - Find all jrnlfish sessions
+- `/chronicle search "error handling"` - Find sessions with specific phrase
+
+---
+
 ## Block Schema
 
 ```json
@@ -222,22 +247,58 @@ Output goes to `~/.claude/chronicle/digests/`:
 
 Launch an interactive web dashboard for exploring Chronicle data.
 
-### How to Use
-
 ```bash
 bun ~/.claude/skills/chronicle/scripts/dashboard.ts
 ```
 
-Opens browser to `http://localhost:3456` with:
-- **Timeline view** - Sessions by date, filterable
-- **Pending inbox** - All pending items grouped by project
-- **Search** - Find sessions by text
-- **Project stats** - Activity per project
+Opens browser to `http://localhost:3456`.
 
-Keyboard shortcuts:
-- `/` - Focus search
-- `j`/`k` - Navigate items
-- `Esc` - Clear filters
+### Features
+
+- **Newspaper-style view** - Sessions as stories, grouped by time period
+- **Worktree sidebar** - Active worktrees with status indicators
+- **Create worktrees** - Click + next to repo name
+- **Archive worktrees** - Click 📦 to archive
+
+### Run as Service
+
+For persistent background operation, see **[docs/dashboard-service.md](docs/dashboard-service.md)**.
+
+Quick start:
+```bash
+/chronicle ui install   # One-time setup
+/chronicle ui start     # Start service (port 3457)
+/chronicle ui status    # Check if running
+```
+
+---
+
+## Development (/chronicle dev)
+
+Start a development session for working on Chronicle itself.
+
+```bash
+# Stop service to free port, start dev server with auto-reload
+launchctl unload ~/Library/LaunchAgents/com.chronicle.dashboard.plist 2>/dev/null
+bun --watch ~/.claude/skills/chronicle/scripts/dashboard.ts
+```
+
+Opens browser to http://localhost:3456
+
+### Port Strategy
+
+| Mode | Port | Purpose |
+|------|------|---------|
+| Development | 3456 | Local dev, tests |
+| Service | 3457 | Background service |
+
+### Running Tests
+
+```bash
+./skills/chronicle/tests/run_tests.sh
+```
+
+For detailed development workflow, see **[docs/development.md](docs/development.md)**.
 
 ---
 

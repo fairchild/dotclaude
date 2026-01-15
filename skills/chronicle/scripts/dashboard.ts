@@ -20,7 +20,7 @@ import {
 import { readdirSync, statSync, existsSync } from "fs";
 import { execSync } from "child_process";
 
-const PORT = 3456;
+const PORT = parseInt(process.env.PORT || "3456");
 const WORKTREES_ROOT = `${process.env.HOME}/.worktrees`;
 
 // Worktree status for Mission Control sidebar
@@ -29,6 +29,7 @@ interface WorktreeStatus {
   repo: string;
   path: string;
   branch: string;
+  mainRepoPath: string;
   gitStatus: "clean" | "dirty";
   uncommittedFiles: number;
   lastCommitTime: string;
@@ -42,6 +43,45 @@ interface WorktreeStatus {
     pendingCount: number;
     pending: string[];
   } | null;
+}
+
+// Derive main repo path from worktree's .git file
+function getMainRepoPath(wtPath: string): string {
+  try {
+    const gitFile = `${wtPath}/.git`;
+    const content = require("fs").readFileSync(gitFile, "utf-8");
+    // Format: gitdir: /path/to/main/.git/worktrees/{branch}
+    const match = content.match(/gitdir:\s*(.+)/);
+    if (match) {
+      const gitdir = match[1].trim();
+      // Extract main repo: remove .git/worktrees/{branch}
+      const mainGit = gitdir.replace(/\/\.git\/worktrees\/[^/]+$/, "");
+      return mainGit;
+    }
+  } catch {
+    // Graceful degradation - worktree may not have standard .git file format
+  }
+  return "";
+}
+
+// Random name generator for new worktrees
+const ADJECTIVES = [
+  "brave", "swift", "calm", "wild", "quiet", "bold", "keen", "wise",
+  "warm", "cool", "fair", "fond", "glad", "kind", "soft", "true",
+  "free", "pure", "rare", "safe", "sure", "vast", "wary", "zany",
+  "deft", "fine", "good", "hale", "neat", "spry"
+];
+const NOUNS = [
+  "fox", "moon", "river", "hawk", "oak", "wolf", "bear", "deer",
+  "dove", "elm", "fern", "glen", "hill", "lake", "lynx", "nest",
+  "peak", "pine", "reef", "sage", "star", "tide", "vale", "wind",
+  "wren", "aspen", "cedar", "maple", "birch", "coral"
+];
+
+function generateRandomName(): string {
+  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+  return `${adj}-${noun}`;
 }
 
 function getSessionStatus(wtPath: string): WorktreeStatus["session"] | null {
@@ -130,12 +170,14 @@ function getWorktreeStatus(): WorktreeStatus[] {
 
           const session = getSessionStatus(wtPath);
           const chronicle = getChronicleForWorktree(repo, gitBranch);
+          const mainRepoPath = getMainRepoPath(wtPath);
 
           worktrees.push({
             name: branch,
             repo,
             path: wtPath,
             branch: gitBranch,
+            mainRepoPath,
             gitStatus: uncommittedFiles === 0 ? "clean" : "dirty",
             uncommittedFiles,
             lastCommitTime,
@@ -449,7 +491,7 @@ const HTML = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The Chronicle</title>
+  <title>The Coding Chronicle</title>
   <style>
     :root {
       --bg: #0d1117;
@@ -503,6 +545,13 @@ const HTML = `<!DOCTYPE html>
       display: none;
     }
 
+    .sidebar-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
     .sidebar-toggle {
       width: 32px;
       height: 32px;
@@ -514,8 +563,8 @@ const HTML = `<!DOCTYPE html>
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 12px;
       font-size: 18px;
+      flex-shrink: 0;
     }
 
     .sidebar-toggle:hover {
@@ -523,18 +572,16 @@ const HTML = `<!DOCTYPE html>
       color: var(--text);
     }
 
-    .sidebar.collapsed .sidebar-toggle {
-      margin: 0 auto;
+    .sidebar.collapsed .sidebar-title-row {
+      justify-content: center;
     }
 
     .sidebar-nav-link {
-      display: block;
       font-size: 18px;
       font-weight: 700;
       color: var(--text);
       text-decoration: none;
-      padding: 8px 12px;
-      margin: 0 -4px 12px;
+      padding: 4px 8px;
       border-radius: 6px;
       transition: background 0.15s;
     }
@@ -559,11 +606,10 @@ const HTML = `<!DOCTYPE html>
 
     .repo-group { margin-bottom: 16px; }
 
-    .repo-name {
+    .repo-name-text {
       font-size: 14px;
       font-weight: 600;
       color: var(--accent);
-      margin-bottom: 4px;
     }
 
     .repo-branches { list-style: none; margin-left: 8px; }
@@ -641,6 +687,99 @@ const HTML = `<!DOCTYPE html>
 
     .clear-filter-btn.visible { display: block; }
     .clear-filter-btn:hover { border-color: var(--accent); color: var(--text); }
+
+    /* Worktree management buttons */
+    .repo-name {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .repo-create-btn {
+      width: 20px;
+      height: 20px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.15s, background 0.15s, color 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .repo-group:hover .repo-create-btn { opacity: 1; }
+    .repo-create-btn:hover { background: var(--accent-subtle); color: var(--accent); }
+    .repo-create-btn.loading { opacity: 1; }
+    .repo-create-btn.error { background: rgba(248, 81, 73, 0.3); color: var(--red); opacity: 1; }
+
+    .worktree-archive-btn {
+      width: 18px;
+      height: 18px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity 0.15s, background 0.15s, color 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    .worktree-item:hover .worktree-archive-btn { opacity: 1; }
+    .worktree-archive-btn:hover { background: rgba(248, 81, 73, 0.2); color: var(--red); }
+    .worktree-archive-btn.loading { opacity: 1; }
+    .worktree-archive-btn.error { background: rgba(248, 81, 73, 0.3); opacity: 1; }
+
+    /* Spinner */
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--text-muted);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    /* Toast notifications */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--green);
+      color: #000;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      z-index: 1000;
+      animation: toast-in 0.2s ease-out;
+    }
+
+    .toast.error {
+      background: var(--red);
+      color: #fff;
+    }
+
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
 
     /* Main content */
     .main-content {
@@ -1167,8 +1306,10 @@ const HTML = `<!DOCTYPE html>
 <body>
   <!-- Sidebar: Worktrees -->
   <aside class="sidebar" id="sidebar">
-    <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar">☰</button>
-    <a href="#" class="sidebar-nav-link active" id="nav-chronicle">Chronicle</a>
+    <div class="sidebar-title-row">
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar">☰</button>
+      <a href="#" class="sidebar-nav-link active" id="nav-chronicle">Code</a>
+    </div>
     <div class="sidebar-header">Worktrees</div>
     <ul class="worktree-list" id="worktree-list"></ul>
     <div class="sidebar-footer">
@@ -1181,7 +1322,7 @@ const HTML = `<!DOCTYPE html>
   <div class="container">
     <!-- Masthead -->
     <header class="masthead">
-      <h1 class="masthead-title">The Chronicle</h1>
+      <h1 class="masthead-title">The Coding Chronicle</h1>
       <p class="masthead-subtitle">A record of your coding sessions</p>
       <div class="period-select">
         <button class="period-btn" data-period="daily">Today</button>
@@ -1269,7 +1410,7 @@ const HTML = `<!DOCTYPE html>
   <div class="container worktree-article" id="worktree-article" style="display: none;">
     <div class="article-header">
       <div class="article-breadcrumb">
-        <a href="#" id="article-back">← Chronicle</a>
+        <a href="#" id="article-back">← Code</a>
       </div>
       <h1 class="article-title" id="article-title">Loading...</h1>
       <div class="article-meta" id="article-meta"></div>
@@ -1335,7 +1476,14 @@ const HTML = `<!DOCTYPE html>
 
       let html = '';
       for (const [repo, branches] of Object.entries(byRepo)) {
-        html += \`<li class="repo-group"><div class="repo-name">\${repo}</div><ul class="repo-branches">\`;
+        // Get mainRepoPath from first worktree in this repo
+        const mainRepoPath = branches[0]?.mainRepoPath || '';
+        html += \`<li class="repo-group">
+          <div class="repo-name">
+            <span class="repo-name-text">\${repo}</span>
+            <button class="repo-create-btn" data-repo="\${repo}" data-main-repo-path="\${mainRepoPath}" title="Create new worktree">+</button>
+          </div>
+          <ul class="repo-branches">\`;
 
         branches.forEach((wt, idx) => {
           const isLast = idx === branches.length - 1;
@@ -1347,13 +1495,14 @@ const HTML = `<!DOCTYPE html>
           const selected = selectedWorktree && selectedWorktree.path === wt.path ? 'selected' : '';
 
           html += \`
-            <li class="worktree-item \${selected}" data-path="\${wt.path}" data-repo="\${wt.repo}" data-branch="\${wt.branch}">
+            <li class="worktree-item \${selected}" data-path="\${wt.path}" data-repo="\${wt.repo}" data-branch="\${wt.branch}" data-name="\${wt.name}" data-main-repo-path="\${wt.mainRepoPath}">
               <span class="tree-connector">\${connector}</span>
               <span class="worktree-name">
                 <span class="indicator \${indicator}"></span>
                 \${wt.name}\${statusMark}
               </span>
               <span class="worktree-status">\${ageText}</span>
+              <button class="worktree-archive-btn" title="Archive worktree">&#128230;</button>
             </li>
           \`;
         });
@@ -1362,12 +1511,87 @@ const HTML = `<!DOCTYPE html>
       }
       list.innerHTML = html;
 
-      // Add click handlers
+      // Add click handlers for worktree items
       document.querySelectorAll('.worktree-item').forEach(item => {
-        item.addEventListener('click', () => {
+        item.addEventListener('click', (e) => {
+          // Don't select if clicking archive button
+          if (e.target.closest('.worktree-archive-btn')) return;
           const path = item.dataset.path;
           const wt = worktrees.find(w => w.path === path);
           selectWorktree(wt);
+        });
+      });
+
+      // Add click handlers for create buttons
+      document.querySelectorAll('.repo-create-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const mainRepoPath = btn.dataset.mainRepoPath;
+          if (!mainRepoPath) return;
+
+          btn.classList.add('loading');
+          btn.innerHTML = '<span class="spinner"></span>';
+
+          try {
+            const res = await fetch('/api/worktrees/create', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mainRepoPath })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+              await loadWorktrees();
+            } else {
+              btn.classList.add('error');
+              setTimeout(() => btn.classList.remove('error'), 1500);
+            }
+          } catch (err) {
+            btn.classList.add('error');
+            setTimeout(() => btn.classList.remove('error'), 1500);
+          } finally {
+            btn.classList.remove('loading');
+            btn.innerHTML = '+';
+          }
+        });
+      });
+
+      // Add click handlers for archive buttons
+      document.querySelectorAll('.worktree-archive-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const item = btn.closest('.worktree-item');
+          const name = item.dataset.name;
+          const mainRepoPath = item.dataset.mainRepoPath;
+          if (!mainRepoPath) return;
+
+          btn.classList.add('loading');
+          btn.innerHTML = '<span class="spinner"></span>';
+
+          try {
+            const res = await fetch('/api/worktrees/archive', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name, mainRepoPath })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+              if (selectedWorktree && selectedWorktree.name === name) {
+                showChronicleView();
+              }
+              await loadWorktrees();
+            } else {
+              btn.classList.add('error');
+              setTimeout(() => btn.classList.remove('error'), 1500);
+            }
+          } catch (err) {
+            btn.classList.add('error');
+            setTimeout(() => btn.classList.remove('error'), 1500);
+          } finally {
+            btn.classList.remove('loading');
+            btn.innerHTML = '&#128230;';
+          }
         });
       });
     }
@@ -1586,12 +1810,12 @@ const HTML = `<!DOCTYPE html>
       showChronicleView();
     }
 
-    function showToast(message) {
+    function showToast(message, isError = false) {
       const toast = document.createElement('div');
-      toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--green);color:#000;padding:8px 16px;border-radius:4px;font-size:13px;z-index:1000;';
+      toast.className = 'toast' + (isError ? ' error' : '');
       toast.textContent = message;
       document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 2000);
+      setTimeout(() => toast.remove(), 3000);
     }
 
     document.getElementById('clear-filter').addEventListener('click', clearFilter);
@@ -1853,7 +2077,7 @@ function buildApiData(periodParam: string) {
 
 const server = Bun.serve({
   port: PORT,
-  fetch(req) {
+  async fetch(req) {
     const url = new URL(req.url);
 
     if (url.pathname === "/api/data") {
@@ -1885,16 +2109,93 @@ const server = Bun.serve({
       });
     }
 
+    // Create new worktree
+    if (url.pathname === "/api/worktrees/create" && req.method === "POST") {
+      try {
+        const body = await req.json() as { mainRepoPath: string };
+        const { mainRepoPath } = body;
+
+        if (!mainRepoPath || !existsSync(mainRepoPath)) {
+          return new Response(JSON.stringify({ error: "Invalid main repo path" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        const name = generateRandomName();
+        const wtScript = `${process.env.HOME}/.claude/skills/git-worktree/scripts/wt.sh`;
+
+        // Run wt command from main repo
+        const result = execSync(`bash "${wtScript}" "${name}" --no-editor`, {
+          cwd: mainRepoPath,
+          encoding: "utf-8",
+          timeout: 60000,
+        });
+
+        return new Response(JSON.stringify({ success: true, name, output: result }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        return new Response(JSON.stringify({ error }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // Archive worktree
+    if (url.pathname === "/api/worktrees/archive" && req.method === "POST") {
+      try {
+        const body = await req.json() as { name: string; mainRepoPath: string };
+        const { name, mainRepoPath } = body;
+
+        // Validate name to prevent command injection (alphanumeric, dash, underscore only)
+        if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) {
+          return new Response(JSON.stringify({ error: "Invalid worktree name" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        if (!mainRepoPath || !existsSync(mainRepoPath)) {
+          return new Response(JSON.stringify({ error: "Invalid main repo path" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        const wtScript = `${process.env.HOME}/.claude/skills/git-worktree/scripts/wt.sh`;
+
+        // Run wt archive command from main repo
+        const result = execSync(`bash "${wtScript}" archive "${name}"`, {
+          cwd: mainRepoPath,
+          encoding: "utf-8",
+          timeout: 60000,
+        });
+
+        return new Response(JSON.stringify({ success: true, name, output: result }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        return new Response(JSON.stringify({ error }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
     return new Response(HTML, { headers: { "Content-Type": "text/html" } });
   },
 });
 
-console.log(`The Chronicle running at http://localhost:${PORT}`);
+console.log(`The Coding Chronicle running at http://localhost:${PORT}`);
 
 const { exec } = await import("child_process");
 exec(`open http://localhost:${PORT}`);
 
 process.on("SIGINT", () => {
-  console.log("\nShutting down The Chronicle");
+  console.log("\nShutting down The Coding Chronicle");
   process.exit(0);
 });
