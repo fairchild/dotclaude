@@ -2143,8 +2143,8 @@ const server = Bun.serve({
         const body = await req.json() as { name: string; mainRepoPath: string };
         const { name, mainRepoPath } = body;
 
-        // Validate name to prevent command injection (must match generated pattern)
-        if (!name || !/^[a-z]+-[a-z]+$/.test(name)) {
+        // Validate name to prevent command injection (alphanumeric, dash, underscore only)
+        if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) {
           return new Response(JSON.stringify({ error: "Invalid worktree name" }), {
             status: 400,
             headers: { "Content-Type": "application/json" },
