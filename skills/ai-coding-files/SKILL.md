@@ -1,6 +1,7 @@
 ---
 name: ai-coding-usage
 description: Analyze AI coding assistant usage patterns across Claude Code and Cursor. Use when user asks about their coding usage, tool statistics, productivity patterns, skill popularity, session history, or wants to query their AI coding logs. Triggers include "usage", "how much have I used", "most used tools", "skill popularity", "coding stats", "productivity patterns".
+license: Apache-2.0
 ---
 
 # AI Coding Usage

@@ -1,7 +1,7 @@
 ---
 name: youtube-content
 description: Extract and analyze YouTube video content (transcripts + metadata). Use when the user explicitly requests to analyze, summarize, extract wisdom from, or get context from a YouTube video. Supports wisdom extraction, summary, Q&A prep, key quotes, and custom analysis. Does NOT auto-trigger on YouTube URLs - only when analysis is explicitly requested.
-license: Apache 2.0
+license: Apache-2.0
 ---
 
 # YouTube Content
