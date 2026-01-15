@@ -2,23 +2,19 @@
  * Test file for code review workflow verification
  */
 
-// Bug: division by zero when array is empty
 export function average(nums: number[]): number {
   const sum = nums.reduce((a, b) => a + b, 0);
-  return sum / nums.length;
+  return nums.length === 0 ? 0 : sum / nums.length;
 }
 
-// Bug: SQL injection vulnerability
-export function getUserQuery(id: string): string {
-  return `SELECT * FROM users WHERE id = '${id}'`;
+export function getUserQuery(id: string): { query: string; params: string[] } {
+  return { query: 'SELECT * FROM users WHERE id = ?', params: [id] };
 }
 
-// Bug: loose equality with type coercion
-export function isActive(status: any): boolean {
-  return status == true;
+export function isActive(status: unknown): boolean {
+  return status === true;
 }
 
-// Bug: no bounds checking
 export function getScore(errors: number): number {
-  return 5 - errors;
+  return Math.max(0, Math.min(5, 5 - errors));
 }
