@@ -23,7 +23,7 @@ def test_chronicle_newspaper_view():
         page.wait_for_load_state("networkidle")
 
         # Should see the masthead
-        expect(page.locator(".masthead-title")).to_have_text("The Chronicle")
+        expect(page.locator(".masthead-title")).to_have_text("The Coding Chronicle")
 
         # Should see a headline (not Loading...)
         headline = page.locator("#headline")
@@ -86,8 +86,8 @@ def test_sidebar_shows_worktrees():
         # Should see sidebar
         expect(page.locator(".sidebar")).to_be_visible()
 
-        # Should see Chronicle nav link
-        expect(page.locator("#nav-chronicle")).to_have_text("Chronicle")
+        # Should see Code nav link
+        expect(page.locator("#nav-chronicle")).to_have_text("Code")
 
         # Should see worktree list (either items or empty message)
         worktree_list = page.locator("#worktree-list")
@@ -183,7 +183,7 @@ def test_worktree_selection_shows_article():
 
 
 def test_chronicle_link_returns_to_newspaper():
-    """Test: Clicking 'Chronicle' link returns to newspaper view."""
+    """Test: Clicking 'Code' link returns to newspaper view."""
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1400, "height": 900})
@@ -203,7 +203,7 @@ def test_chronicle_link_returns_to_newspaper():
         page.wait_for_timeout(500)
         expect(page.locator("#worktree-article")).to_be_visible()
 
-        # Click Chronicle link
+        # Click Code link
         page.locator("#nav-chronicle").click()
         page.wait_for_timeout(300)
 
@@ -211,7 +211,7 @@ def test_chronicle_link_returns_to_newspaper():
         expect(page.locator(".front-page")).to_be_visible()
         expect(page.locator("#worktree-article")).not_to_be_visible()
 
-        print("✓ Chronicle link returns to newspaper view")
+        print("✓ Code link returns to newspaper view")
 
         browser.close()
 
