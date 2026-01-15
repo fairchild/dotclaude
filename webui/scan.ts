@@ -564,7 +564,16 @@ function collectUrls(data: ConfigData): UrlToValidate[] {
     if (!mp) continue;
 
     // Find plugin source info
-    const sourceInfo = mp.pluginSources.find((ps) => ps.name === plugin.name);
+    let sourceInfo = mp.pluginSources.find((ps) => ps.name === plugin.name);
+
+    // Fallback: if marketplace has exactly one root-sourced plugin, use it
+    // This handles cases where installed name differs from marketplace definition
+    if (!sourceInfo) {
+      const rootPlugins = mp.pluginSources.filter((ps) => ps.sourceType === "root");
+      if (rootPlugins.length === 1) {
+        sourceInfo = rootPlugins[0];
+      }
+    }
 
     let url: string;
     if (sourceInfo) {
