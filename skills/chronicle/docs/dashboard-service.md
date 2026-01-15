@@ -1,10 +1,15 @@
 # Dashboard Service Management (macOS)
 
-Run the Chronicle dashboard as a persistent launchd service.
+Run the Chronicle dashboard as a persistent launchd service or in development mode.
 
 ## Commands
 
 ```bash
+# Development
+/chronicle ui watch      # Auto-restart on file changes
+/chronicle ui hot        # Hot module reloading (faster, may have state issues)
+
+# Service management
 /chronicle ui install    # Install service (one-time)
 /chronicle ui start      # Start the service
 /chronicle ui stop       # Stop the service
@@ -12,6 +17,20 @@ Run the Chronicle dashboard as a persistent launchd service.
 /chronicle ui logs       # View recent logs
 /chronicle ui uninstall  # Remove service
 ```
+
+## Development Commands
+
+### watch
+```bash
+bun --watch ~/.claude/skills/chronicle/scripts/dashboard.ts
+```
+Full process restart when files change. Reliable for development.
+
+### hot
+```bash
+bun --hot ~/.claude/skills/chronicle/scripts/dashboard.ts
+```
+In-place hot reload without full restart. Faster but may have state issues.
 
 ## Service Commands Implementation
 

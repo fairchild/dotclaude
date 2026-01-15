@@ -20,6 +20,8 @@ A persistent journalist tracking your coding sessions.
 /chronicle publish daily      # Generate daily digest
 /chronicle publish month      # Generate monthly digest
 /chronicle ui                 # Launch interactive web dashboard
+/chronicle ui watch           # Run with auto-restart on file changes
+/chronicle ui hot             # Run with hot module reloading
 /chronicle ui install         # Install dashboard as macOS service
 /chronicle ui start           # Start the dashboard service
 /chronicle ui stop            # Stop the dashboard service
