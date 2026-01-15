@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.chronicle.summarize</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/fairchild/.bun/bin/bun</string>
+        <string>/Users/fairchild/.claude/skills/chronicle/scripts/summarize.ts</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>0</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/tmp/chronicle-summarize.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/chronicle-summarize.err</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/fairchild/.claude</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/fairchild</string>
+    </dict>
+</dict>
+</plist>
