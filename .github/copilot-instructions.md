@@ -54,8 +54,26 @@ Post inline comments directly on problematic lines. Include a code suggestion wh
 // your fixed code here
 ```
 
+## Previous Review Comments
+
+On re-review (after fixes):
+1. Check all previous unresolved review comments
+2. If the issue is fixed in the current code, resolve the thread
+3. Only create new comments for NEW issues
+
+## GitHub Review Submission
+
+Submit a formal GitHub PR review:
+- **Score >= 4**: Submit `APPROVE` review
+- **Score <= 3**: Submit `REQUEST_CHANGES` review (blocks merging)
+
 ## Label Management
 
 After review:
 - Remove `needs code review` label
 - Add `code review passed` if score >= 4 and ready to merge
+
+## CI Behavior
+
+- Score >= 4: CI passes ✓
+- Score <= 3: CI fails ✗ (blocks merge)
