@@ -1,6 +1,6 @@
 ---
 name: chronicle
-description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle curate to organize memory, /chronicle insights for deep analysis with Explore subagents, /chronicle pending for open threads, /chronicle search to find sessions, /chronicle publish for digests, /chronicle ui for dashboard.
+description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle curate to organize memory, /chronicle insights for deep analysis, /chronicle summarize for AI summaries, /chronicle pending for open threads, /chronicle search to find sessions, /chronicle publish for digests, /chronicle ui for dashboard with repo-level views and usage stats.
 license: Apache-2.0
 ---
 
@@ -22,6 +22,8 @@ A persistent journalist tracking your coding sessions.
 /chronicle publish            # Generate weekly digest (markdown)
 /chronicle publish daily      # Generate daily digest
 /chronicle publish month      # Generate monthly digest
+/chronicle summarize          # Generate AI summaries (daily + repos)
+/chronicle summarize weekly   # Generate weekly AI summaries (Opus)
 /chronicle ui                 # Launch interactive web dashboard
 /chronicle ui watch           # Run with auto-restart on file changes
 /chronicle ui hot             # Run with hot module reloading
@@ -315,6 +317,8 @@ Opens browser to `http://localhost:3456`.
 
 - **Newspaper-style view** - Sessions as stories, grouped by time period
 - **Worktree sidebar** - Active worktrees with status indicators
+- **Repo-level view** - Click repo name to see aggregate stats, worktree cards, and AI summaries
+- **Usage stats** - Tokens used, peak productivity hours (from ai-coding-usage DB)
 - **Create worktrees** - Click + next to repo name
 - **Archive worktrees** - Click 📦 to archive
 
@@ -357,6 +361,46 @@ Opens browser to http://localhost:3456
 ```
 
 For detailed development workflow, see **[docs/development.md](docs/development.md)**.
+
+---
+
+## Summarize (/chronicle summarize)
+
+Generate high-quality AI summaries using Claude.
+
+### Manual Generation
+
+```bash
+bun ~/.claude/skills/chronicle/scripts/summarize.ts              # Daily global + repo summaries
+bun ~/.claude/skills/chronicle/scripts/summarize.ts --weekly     # Weekly summaries (Opus)
+bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=name  # Single repo summary
+```
+
+Summaries stored in `~/.claude/chronicle/summaries/{global,repos}/`.
+
+### Automated Generation (Launchd)
+
+Daily summaries run at midnight, weekly on Sunday 00:05.
+
+**Install services:**
+```bash
+cp ~/.claude/skills/chronicle/config/com.chronicle.summarize*.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.chronicle.summarize.plist
+launchctl load ~/Library/LaunchAgents/com.chronicle.summarize-weekly.plist
+```
+
+**Check logs:**
+```bash
+tail -f /tmp/chronicle-summarize.log
+tail -f /tmp/chronicle-summarize-weekly.log
+```
+
+### Model Strategy
+
+| Period | Model | Rationale |
+|--------|-------|-----------|
+| Daily | Sonnet | Cost-effective, sufficient quality |
+| Weekly | Opus | Higher quality synthesis for weekly review |
 
 ---
 
