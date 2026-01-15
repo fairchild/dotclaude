@@ -20,7 +20,7 @@ import {
 import { readdirSync, statSync, existsSync } from "fs";
 import { execSync } from "child_process";
 
-const PORT = 3456;
+const PORT = parseInt(process.env.PORT || "3456");
 const WORKTREES_ROOT = `${process.env.HOME}/.worktrees`;
 
 // Worktree status for Mission Control sidebar

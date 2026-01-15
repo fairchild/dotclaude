@@ -22,5 +22,10 @@
     <string>/tmp/chronicle-dashboard.err</string>
     <key>WorkingDirectory</key>
     <string>/Users/fairchild/.claude</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PORT</key>
+        <string>3457</string>
+    </dict>
 </dict>
 </plist>

@@ -46,7 +46,7 @@ Report: "Service installed. Run `/chronicle ui start` to start it."
 ```bash
 launchctl load ~/Library/LaunchAgents/com.chronicle.dashboard.plist
 ```
-Report: "Dashboard service started at http://localhost:3456"
+Report: "Dashboard service started at http://localhost:3457"
 
 ### stop
 ```bash
@@ -102,4 +102,13 @@ Key settings:
 - **RunAtLoad**: false (doesn't start on login by default)
 - **KeepAlive**: restarts on crash
 - **Logs**: `/tmp/chronicle-dashboard.log` and `/tmp/chronicle-dashboard.err`
-- **Port**: 3456
+- **Port**: 3457 (service), 3456 (development)
+
+## Port Strategy
+
+| Mode | Port | Purpose |
+|------|------|---------|
+| Service | 3457 | Background launchd service |
+| Development | 3456 | Local dev, tests |
+
+Both can run simultaneously - service uses 3457, dev uses 3456.

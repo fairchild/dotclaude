@@ -29,6 +29,7 @@ A persistent journalist tracking your coding sessions.
 /chronicle ui status          # Check if dashboard service is running
 /chronicle ui logs            # View dashboard service logs
 /chronicle ui uninstall       # Remove dashboard service
+/chronicle dev                # Start development session for Chronicle itself
 ```
 
 ## Quick Capture (/chronicle or /chronicle <note>)
@@ -266,9 +267,38 @@ For persistent background operation, see **[docs/dashboard-service.md](docs/dash
 Quick start:
 ```bash
 /chronicle ui install   # One-time setup
-/chronicle ui start     # Start service
+/chronicle ui start     # Start service (port 3457)
 /chronicle ui status    # Check if running
 ```
+
+---
+
+## Development (/chronicle dev)
+
+Start a development session for working on Chronicle itself.
+
+```bash
+# Stop service to free port, start dev server with auto-reload
+launchctl unload ~/Library/LaunchAgents/com.chronicle.dashboard.plist 2>/dev/null
+bun --watch ~/.claude/skills/chronicle/scripts/dashboard.ts
+```
+
+Opens browser to http://localhost:3456
+
+### Port Strategy
+
+| Mode | Port | Purpose |
+|------|------|---------|
+| Development | 3456 | Local dev, tests |
+| Service | 3457 | Background service |
+
+### Running Tests
+
+```bash
+./skills/chronicle/tests/run_tests.sh
+```
+
+For detailed development workflow, see **[docs/development.md](docs/development.md)**.
 
 ---
 
