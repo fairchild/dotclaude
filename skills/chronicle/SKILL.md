@@ -1,6 +1,6 @@
 ---
 name: chronicle
-description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle curate to organize memory, /chronicle pending for open threads, /chronicle search to find sessions, /chronicle publish for digests, /chronicle ui for dashboard.
+description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle curate to organize memory, /chronicle insights for deep analysis with Explore subagents, /chronicle pending for open threads, /chronicle search to find sessions, /chronicle publish for digests, /chronicle ui for dashboard.
 license: Apache 2.0
 ---
 
@@ -14,6 +14,8 @@ A persistent journalist tracking your coding sessions.
 /chronicle                    # Quick capture of current session
 /chronicle <note>             # Capture with a specific note
 /chronicle curate             # Invoke curator to organize memory (interactive)
+/chronicle insights           # Deep analysis with Explore subagents
+/chronicle insights <project> # Analyze specific project
 /chronicle pending            # Show pending threads across sessions
 /chronicle blocks             # List recent memory blocks
 /chronicle search <query>     # Search sessions by text
@@ -186,6 +188,62 @@ Example queries:
 - `/chronicle search oauth` - Find sessions mentioning OAuth
 - `/chronicle search jrnlfish` - Find all jrnlfish sessions
 - `/chronicle search "error handling"` - Find sessions with specific phrase
+
+---
+
+## Insights (/chronicle insights)
+
+Generate deep insights by exploring code and memory patterns using subagents.
+
+### How to Use
+
+```
+/chronicle insights              # All active projects (max 3)
+/chronicle insights <project>    # Specific project
+```
+
+### Process
+
+1. Spawn the **chronicle-insights** agent:
+
+```
+Task(
+  subagent_type: "chronicle-insights",
+  prompt: "Generate insights for {project or 'all active projects'}.
+
+    Focus on:
+    - Stalled work (pending items >7 days with no progress)
+    - Tech debt patterns (TODOs, FIXMEs, complex code)
+    - Cross-project themes
+    - Evolution of focus over time
+
+    For each project, spawn Explore subagents to examine actual code.
+    Cross-reference findings with memory blocks.
+    Save results to ~/.claude/chronicle/insights/"
+)
+```
+
+2. The insights agent spawns **Explore subagents** to examine actual code in worktrees.
+
+3. Results saved to `~/.claude/chronicle/insights/{date}-{project}.json`
+
+### Insight Types
+
+| Type | Meaning |
+|------|---------|
+| `stalled_work` | Pending items appearing repeatedly with no resolution |
+| `tech_debt` | TODOs/FIXMEs found in code, complex patterns |
+| `pattern` | Recurring themes across sessions |
+| `opportunity` | Actionable improvements identified |
+
+### Viewing Insights
+
+Insights appear in the Chronicle dashboard under each repo's detail view.
+You can also read them directly:
+
+```bash
+cat ~/.claude/chronicle/insights/*.json | jq .
+```
 
 ---
 

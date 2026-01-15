@@ -280,6 +280,45 @@ function loadRepoSummaries(repoName: string): SavedSummary[] {
   return summaries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
+// Load deep insights from chronicle-insights agent
+interface DeepInsight {
+  type: "tech_debt" | "stalled_work" | "pattern" | "opportunity";
+  title: string;
+  detail: string;
+  evidence: string[];
+  recommendation: string;
+}
+
+interface DeepInsightsFile {
+  project: string;
+  generatedAt: string;
+  generatedBy: string;
+  explorationDepth: string;
+  insights: DeepInsight[];
+  crossProjectPatterns: string[];
+  stalledItems: string[];
+  summary: string;
+}
+
+function loadDeepInsights(repoName: string): DeepInsightsFile | null {
+  const insightsDir = `${process.env.HOME}/.claude/chronicle/insights`;
+  if (!existsSync(insightsDir)) return null;
+
+  try {
+    const files = readdirSync(insightsDir)
+      .filter(f => f.toLowerCase().includes(repoName.toLowerCase()) && f.endsWith(".json"))
+      .sort()
+      .reverse();
+
+    if (files.length === 0) return null;
+
+    const content = require("fs").readFileSync(`${insightsDir}/${files[0]}`, "utf-8");
+    return JSON.parse(content);
+  } catch {
+    return null;
+  }
+}
+
 // Generate insights from memory blocks (pattern detection)
 interface RepoInsights {
   themes: string[];
@@ -1606,6 +1645,76 @@ const HTML = `<!DOCTYPE html>
     .velocity-trend.decreasing { color: var(--red); }
     .velocity-trend.stable { color: var(--text-muted); }
 
+    /* Deep Insights (from chronicle-insights agent) */
+    .deep-insights-section {
+      margin-top: 24px;
+    }
+
+    .deep-insights-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .deep-insights-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .deep-insight-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .deep-insight-card.tech_debt { border-left: 3px solid var(--red); }
+    .deep-insight-card.stalled_work { border-left: 3px solid var(--yellow); }
+    .deep-insight-card.pattern { border-left: 3px solid var(--accent); }
+    .deep-insight-card.opportunity { border-left: 3px solid var(--green); }
+
+    .deep-insight-type {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .deep-insight-card.tech_debt .deep-insight-type { color: var(--red); }
+    .deep-insight-card.stalled_work .deep-insight-type { color: var(--yellow); }
+    .deep-insight-card.pattern .deep-insight-type { color: var(--accent); }
+    .deep-insight-card.opportunity .deep-insight-type { color: var(--green); }
+
+    .deep-insight-title {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .deep-insight-detail {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      line-height: 1.5;
+    }
+
+    .deep-insight-recommendation {
+      font-size: 13px;
+      color: var(--accent);
+      font-style: italic;
+    }
+
+    .deep-insights-summary {
+      font-size: 15px;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      border-left: 3px solid var(--purple);
+      padding-left: 16px;
+      margin-bottom: 16px;
+    }
+
     /* Archived Worktrees */
     .archived-section {
       margin-top: 16px;
@@ -1841,6 +1950,16 @@ const HTML = `<!DOCTYPE html>
       </div>
     </div>
 
+    <!-- Deep Insights (from chronicle-insights agent with Explore subagents) -->
+    <div class="article-section deep-insights-section" id="repo-deep-insights-section" style="display: none;">
+      <div class="deep-insights-header">
+        <h2 class="article-section-title">Deep Insights <span class="ai-summary-badge">Explored</span></h2>
+        <span class="deep-insights-meta" id="deep-insights-meta"></span>
+      </div>
+      <p class="deep-insights-summary" id="deep-insights-summary"></p>
+      <div id="deep-insights-list"></div>
+    </div>
+
     <div class="article-section" id="repo-narrative-section">
       <h2 class="article-section-title">Current State</h2>
       <p class="article-narrative" id="repo-narrative">Aggregate summary across worktrees will appear here.</p>
@@ -2057,6 +2176,30 @@ const HTML = `<!DOCTYPE html>
             };
           } else {
             document.getElementById('repo-archived-section').style.display = 'none';
+          }
+        }
+      } catch {}
+
+      // Load deep insights (from chronicle-insights agent)
+      try {
+        const deepRes = await fetch('/api/deep-insights/' + encodeURIComponent(repoName));
+        if (deepRes.ok) {
+          const data = await deepRes.json();
+          if (data && data.insights?.length > 0) {
+            document.getElementById('repo-deep-insights-section').style.display = 'block';
+            document.getElementById('deep-insights-meta').textContent =
+              'Generated ' + new Date(data.generatedAt).toLocaleDateString() + ' · ' + data.explorationDepth;
+            document.getElementById('deep-insights-summary').textContent = data.summary || '';
+            document.getElementById('deep-insights-list').innerHTML = data.insights.map(i => \`
+              <div class="deep-insight-card \${i.type}">
+                <div class="deep-insight-type">\${i.type.replace('_', ' ')}</div>
+                <div class="deep-insight-title">\${i.title}</div>
+                <div class="deep-insight-detail">\${i.detail}</div>
+                <div class="deep-insight-recommendation">\${i.recommendation}</div>
+              </div>
+            \`).join('');
+          } else {
+            document.getElementById('repo-deep-insights-section').style.display = 'none';
           }
         }
       } catch {}
@@ -2886,6 +3029,15 @@ const server = Bun.serve({
       const repoName = decodeURIComponent(url.pathname.split("/").pop() || "");
       const insights = analyzeRepoPatterns(repoName);
       return new Response(JSON.stringify(insights), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Deep insights from chronicle-insights agent (Explore subagent analysis)
+    if (url.pathname.startsWith("/api/deep-insights/")) {
+      const repoName = decodeURIComponent(url.pathname.split("/").pop() || "");
+      const deepInsights = loadDeepInsights(repoName);
+      return new Response(JSON.stringify(deepInsights), {
         headers: { "Content-Type": "application/json" },
       });
     }
