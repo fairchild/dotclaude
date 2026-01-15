@@ -491,7 +491,7 @@ const HTML = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The Chronicle</title>
+  <title>The Coding Chronicle</title>
   <style>
     :root {
       --bg: #0d1117;
@@ -545,6 +545,13 @@ const HTML = `<!DOCTYPE html>
       display: none;
     }
 
+    .sidebar-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
     .sidebar-toggle {
       width: 32px;
       height: 32px;
@@ -556,8 +563,8 @@ const HTML = `<!DOCTYPE html>
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 12px;
       font-size: 18px;
+      flex-shrink: 0;
     }
 
     .sidebar-toggle:hover {
@@ -565,18 +572,16 @@ const HTML = `<!DOCTYPE html>
       color: var(--text);
     }
 
-    .sidebar.collapsed .sidebar-toggle {
-      margin: 0 auto;
+    .sidebar.collapsed .sidebar-title-row {
+      justify-content: center;
     }
 
     .sidebar-nav-link {
-      display: block;
       font-size: 18px;
       font-weight: 700;
       color: var(--text);
       text-decoration: none;
-      padding: 8px 12px;
-      margin: 0 -4px 12px;
+      padding: 4px 8px;
       border-radius: 6px;
       transition: background 0.15s;
     }
@@ -1301,8 +1306,10 @@ const HTML = `<!DOCTYPE html>
 <body>
   <!-- Sidebar: Worktrees -->
   <aside class="sidebar" id="sidebar">
-    <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar">☰</button>
-    <a href="#" class="sidebar-nav-link active" id="nav-chronicle">Chronicle</a>
+    <div class="sidebar-title-row">
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar">☰</button>
+      <a href="#" class="sidebar-nav-link active" id="nav-chronicle">Code</a>
+    </div>
     <div class="sidebar-header">Worktrees</div>
     <ul class="worktree-list" id="worktree-list"></ul>
     <div class="sidebar-footer">
@@ -1315,7 +1322,7 @@ const HTML = `<!DOCTYPE html>
   <div class="container">
     <!-- Masthead -->
     <header class="masthead">
-      <h1 class="masthead-title">The Chronicle</h1>
+      <h1 class="masthead-title">The Coding Chronicle</h1>
       <p class="masthead-subtitle">A record of your coding sessions</p>
       <div class="period-select">
         <button class="period-btn" data-period="daily">Today</button>
@@ -1403,7 +1410,7 @@ const HTML = `<!DOCTYPE html>
   <div class="container worktree-article" id="worktree-article" style="display: none;">
     <div class="article-header">
       <div class="article-breadcrumb">
-        <a href="#" id="article-back">← Chronicle</a>
+        <a href="#" id="article-back">← Code</a>
       </div>
       <h1 class="article-title" id="article-title">Loading...</h1>
       <div class="article-meta" id="article-meta"></div>
@@ -2183,12 +2190,12 @@ const server = Bun.serve({
   },
 });
 
-console.log(`The Chronicle running at http://localhost:${PORT}`);
+console.log(`The Coding Chronicle running at http://localhost:${PORT}`);
 
 const { exec } = await import("child_process");
 exec(`open http://localhost:${PORT}`);
 
 process.on("SIGINT", () => {
-  console.log("\nShutting down The Chronicle");
+  console.log("\nShutting down The Coding Chronicle");
   process.exit(0);
 });
