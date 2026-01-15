@@ -29,6 +29,15 @@ import { execSync } from "child_process";
 const PORT = parseInt(process.env.PORT || "3456");
 const WORKTREES_ROOT = `${process.env.HOME}/.worktrees`;
 
+// Extended PATH for shell commands (includes homebrew, mise shims, etc.)
+const SHELL_PATH = [
+  "/opt/homebrew/bin",
+  "/opt/homebrew/sbin",
+  `${process.env.HOME}/.local/bin`,
+  `${process.env.HOME}/.local/share/mise/shims`,
+  process.env.PATH,
+].filter(Boolean).join(":");
+
 // Worktree status for Mission Control sidebar
 interface WorktreeStatus {
   name: string;
@@ -2309,12 +2318,15 @@ const HTML = `<!DOCTYPE html>
             const data = await res.json();
 
             if (data.success) {
+              showToast('Created ' + data.name);
               await loadWorktrees();
             } else {
+              showToast(data.error || 'Failed to create worktree', true);
               btn.classList.add('error');
               setTimeout(() => btn.classList.remove('error'), 1500);
             }
           } catch (err) {
+            showToast('Failed to create worktree', true);
             btn.classList.add('error');
             setTimeout(() => btn.classList.remove('error'), 1500);
           } finally {
@@ -2345,15 +2357,18 @@ const HTML = `<!DOCTYPE html>
             const data = await res.json();
 
             if (data.success) {
+              showToast('Archived ' + name);
               if (selectedWorktree && selectedWorktree.name === name) {
                 showChronicleView();
               }
               await loadWorktrees();
             } else {
+              showToast(data.error || 'Failed to archive worktree', true);
               btn.classList.add('error');
               setTimeout(() => btn.classList.remove('error'), 1500);
             }
           } catch (err) {
+            showToast('Failed to archive worktree', true);
             btn.classList.add('error');
             setTimeout(() => btn.classList.remove('error'), 1500);
           } finally {
@@ -2916,6 +2931,7 @@ const server = Bun.serve({
           cwd: mainRepoPath,
           encoding: "utf-8",
           timeout: 60000,
+          env: { ...process.env, PATH: SHELL_PATH },
         });
 
         return new Response(JSON.stringify({ success: true, name, output: result }), {
@@ -2923,6 +2939,7 @@ const server = Bun.serve({
         });
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
+        console.error("[wt create]", error);
         return new Response(JSON.stringify({ error }), {
           status: 500,
           headers: { "Content-Type": "application/json" },
@@ -2958,6 +2975,7 @@ const server = Bun.serve({
           cwd: mainRepoPath,
           encoding: "utf-8",
           timeout: 60000,
+          env: { ...process.env, PATH: SHELL_PATH },
         });
 
         return new Response(JSON.stringify({ success: true, name, output: result }), {
@@ -2965,6 +2983,7 @@ const server = Bun.serve({
         });
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
+        console.error("[wt archive]", error);
         return new Response(JSON.stringify({ error }), {
           status: 500,
           headers: { "Content-Type": "application/json" },
