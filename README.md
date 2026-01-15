@@ -13,13 +13,16 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 ├── CLAUDE.md          # Personal context (name, preferences, tool choices)
 ├── settings.json      # Permissions, hooks, model selection
 ├── .mcp.json          # MCP server configs
-└── statusline.sh      # Custom status bar
+├── statusline.sh      # Custom status bar
 ├── commands/          # Slash commands (/bootstrap, /status_line)
 ├── skills/            # Extended capabilities with references
 ├── agents/            # Specialized autonomous agents
 ├── hooks/             # Session lifecycle scripts
 ├── scripts/           # Helper utilities
-├── [generated]        # Gitignored: history, todos, plans, debug, etc.
+├── references/        # Reference documentation
+├── chronicle/         # Chronicle session memory
+├── webui/             # Config Visualizer dashboard
+└── [generated]        # Gitignored: history, todos, plans, debug, etc.
 ```
 
 ## Quick Reference
@@ -29,17 +32,26 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | Command | Purpose |
 |---------|---------|
 | `/bootstrap` | Scaffold new projects with structure |
-| `/status_line` | Explain current session metrics |
+| `/claude-webui` | Launch the Config Visualizer dashboard |
+| `/defer` | Capture explored work as todo for later |
 | `/opensource-precheck` | Audit repo before making public |
-| `/pr-review` | Address PR review feedback and advance toward merge |
+| `/plan_retro` | Append retrospective to current plan |
+| `/pr-review` | Address PR feedback toward merge |
+| `/project-health` | Review ~/code projects health |
+| `/reflect` | Pause to review work with fresh eyes |
+| `/reflection-log` | Log feedback to improve reflection prompt |
+| `/retro` | Review session trajectory and update todos |
+| `/status_line` | Explain current session metrics |
 | `/update-dependencies` | Intelligent dependency updates with batching |
 
 ### Skills (auto-invoked)
 
 | Skill | When it activates |
 |-------|-------------------|
-| **frontend-design** | Building web UIs, components, pages |
+| **ai-coding-usage** | Analyzing AI coding patterns and statistics |
 | **canvas-design** | Creating visual art, posters, PDFs |
+| **chronicle** | Capturing and curating session memory |
+| **frontend-design** | Building web UIs, components, pages |
 | **webapp-testing** | Playwright browser automation |
 | **mcp-builder** | Creating MCP servers |
 | **skill-creator** | Building new skills |
@@ -131,7 +143,9 @@ The `.mcp.json` in this repo defines shareable servers with env var references:
 {
   "mcpServers": {
     "alcova-perplexity-mcp": {
+      "type": "stdio",
       "command": "perplexity-mcp",
+      "args": ["--model", "sonar-pro", "--reasoning-model", "sonar-reasoning-pro"],
       "env": { "PERPLEXITY_API_KEY": "${PERPLEXITY_API_KEY}" }
     }
   }
