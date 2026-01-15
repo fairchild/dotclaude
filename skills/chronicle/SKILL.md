@@ -20,6 +20,11 @@ A persistent journalist tracking your coding sessions.
 /chronicle publish daily      # Generate daily digest
 /chronicle publish month      # Generate monthly digest
 /chronicle ui                 # Launch interactive web dashboard
+/chronicle ui install         # Install dashboard as macOS service
+/chronicle ui start           # Start the dashboard service
+/chronicle ui stop            # Stop the dashboard service
+/chronicle ui status          # Check if dashboard service is running
+/chronicle ui logs            # View dashboard service logs
 ```
 
 ## Quick Capture (/chronicle or /chronicle <note>)
@@ -222,17 +227,101 @@ Output goes to `~/.claude/chronicle/digests/`:
 
 Launch an interactive web dashboard for exploring Chronicle data.
 
-### How to Use
+### Quick Start
 
 ```bash
 bun ~/.claude/skills/chronicle/scripts/dashboard.ts
 ```
 
-Opens browser to `http://localhost:3456` with:
-- **Timeline view** - Sessions by date, filterable
-- **Pending inbox** - All pending items grouped by project
-- **Search** - Find sessions by text
-- **Project stats** - Activity per project
+Opens browser to `http://localhost:3456`.
+
+### Run as a Service (macOS)
+
+Install and manage the dashboard as a launchd service:
+
+```bash
+# Install the service (one-time setup)
+/chronicle ui install
+
+# Start the service
+/chronicle ui start
+
+# Stop the service
+/chronicle ui stop
+
+# Check status
+/chronicle ui status
+
+# View logs
+/chronicle ui logs
+
+# Uninstall the service
+/chronicle ui uninstall
+```
+
+**Manual launchctl commands** (if not using skill commands):
+
+```bash
+# Install plist (copies to ~/Library/LaunchAgents/)
+cp ~/.claude/skills/chronicle/config/com.chronicle.dashboard.plist ~/Library/LaunchAgents/
+
+# Start
+launchctl load ~/Library/LaunchAgents/com.chronicle.dashboard.plist
+
+# Stop
+launchctl unload ~/Library/LaunchAgents/com.chronicle.dashboard.plist
+
+# Check if running
+launchctl list | grep chronicle
+
+# View logs
+tail -f /tmp/chronicle-dashboard.log
+```
+
+### Service Commands
+
+When user runs `/chronicle ui <command>`, execute:
+
+**install** - Copy plist to LaunchAgents:
+```bash
+cp ~/.claude/skills/chronicle/config/com.chronicle.dashboard.plist ~/Library/LaunchAgents/
+```
+
+**start** - Load and start the service:
+```bash
+launchctl load ~/Library/LaunchAgents/com.chronicle.dashboard.plist
+```
+Then report: "Dashboard service started at http://localhost:3456"
+
+**stop** - Unload the service:
+```bash
+launchctl unload ~/Library/LaunchAgents/com.chronicle.dashboard.plist
+```
+
+**status** - Check if running:
+```bash
+launchctl list | grep chronicle
+```
+Report whether service is running or not.
+
+**logs** - Show recent logs:
+```bash
+tail -50 /tmp/chronicle-dashboard.log
+```
+
+**uninstall** - Stop and remove:
+```bash
+launchctl unload ~/Library/LaunchAgents/com.chronicle.dashboard.plist 2>/dev/null
+rm ~/Library/LaunchAgents/com.chronicle.dashboard.plist
+```
+
+### Dashboard Features
+
+- **Newspaper-style view** - Sessions as stories, grouped by time period
+- **Worktree sidebar** - See all active worktrees with status indicators
+- **Create worktrees** - Click + next to repo name to spawn new worktree
+- **Archive worktrees** - Click 📦 to archive a worktree
+- **Project breakdowns** - Stats and summaries per project
 
 Keyboard shortcuts:
 - `/` - Focus search
