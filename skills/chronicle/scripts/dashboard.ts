@@ -17,6 +17,12 @@ import {
   type ChronicleBlock,
   type ProjectStats,
 } from "./queries.ts";
+import {
+  getGlobalUsage,
+  getRepoUsage,
+  getToolBreakdown,
+  getPeakHours,
+} from "./usage-queries.ts";
 import { readdirSync, statSync, existsSync } from "fs";
 import { execSync } from "child_process";
 
@@ -198,6 +204,200 @@ function getWorktreeStatus(): WorktreeStatus[] {
     if (!a.session?.active && b.session?.active) return 1;
     return (a.session?.ageMinutes ?? Infinity) - (b.session?.ageMinutes ?? Infinity);
   });
+}
+
+// Archived worktrees info
+interface ArchivedWorktree {
+  name: string;
+  repo: string;
+  archivedAt: string;
+  chronicle: { latestSummary: string; pendingCount: number } | null;
+}
+
+function getArchivedWorktrees(repoName?: string): ArchivedWorktree[] {
+  const archiveRoot = `${process.env.HOME}/.worktrees/.archive`;
+  if (!existsSync(archiveRoot)) return [];
+
+  const archived: ArchivedWorktree[] = [];
+  const allBlocks = loadAllBlocks(); // Load once, not per worktree
+
+  try {
+    const repos = repoName ? [repoName] : readdirSync(archiveRoot).filter(f => !f.startsWith("."));
+
+    for (const repo of repos) {
+      const repoArchive = `${archiveRoot}/${repo}`;
+      if (!existsSync(repoArchive) || !statSync(repoArchive).isDirectory()) continue;
+
+      for (const name of readdirSync(repoArchive)) {
+        const wtPath = `${repoArchive}/${name}`;
+        if (!statSync(wtPath).isDirectory()) continue;
+
+        const archivedAt = statSync(wtPath).mtime.toISOString();
+
+        // Try to get chronicle data - match by branch name (worktree names often match branch)
+        const matching = allBlocks.filter(
+          (b) => b.project.toLowerCase() === repo.toLowerCase() &&
+                 (b.worktree === name || b.branch === name)
+        );
+        const chronicle = matching.length > 0
+          ? { latestSummary: matching[0].summary, pendingCount: matching.flatMap(b => b.pending).length }
+          : null;
+
+        archived.push({ name, repo, archivedAt, chronicle });
+      }
+    }
+  } catch {
+    return archived;
+  }
+
+  return archived.sort((a, b) => new Date(b.archivedAt).getTime() - new Date(a.archivedAt).getTime());
+}
+
+// Load saved AI summaries
+interface SavedSummary {
+  level: string;
+  period: string;
+  date: string;
+  repo?: string;
+  narrative: string;
+  highlights: string[];
+  pending: string[];
+  generatedAt: string;
+}
+
+function loadRepoSummaries(repoName: string): SavedSummary[] {
+  const summaryDir = `${process.env.HOME}/.claude/chronicle/summaries/repos/${repoName.toLowerCase()}`;
+  if (!existsSync(summaryDir)) return [];
+
+  const summaries: SavedSummary[] = [];
+  try {
+    for (const file of readdirSync(summaryDir).filter(f => f.endsWith(".json"))) {
+      const content = require("fs").readFileSync(`${summaryDir}/${file}`, "utf-8");
+      summaries.push(JSON.parse(content));
+    }
+  } catch {}
+
+  return summaries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+
+// Load deep insights from chronicle-insights agent
+interface DeepInsight {
+  type: "tech_debt" | "stalled_work" | "pattern" | "opportunity";
+  title: string;
+  detail: string;
+  evidence: string[];
+  recommendation: string;
+}
+
+interface DeepInsightsFile {
+  project: string;
+  generatedAt: string;
+  generatedBy: string;
+  explorationDepth: string;
+  insights: DeepInsight[];
+  crossProjectPatterns: string[];
+  stalledItems: string[];
+  summary: string;
+}
+
+function loadDeepInsights(repoName: string): DeepInsightsFile | null {
+  const insightsDir = `${process.env.HOME}/.claude/chronicle/insights`;
+  if (!existsSync(insightsDir)) return null;
+
+  try {
+    const files = readdirSync(insightsDir)
+      .filter(f => f.toLowerCase().includes(repoName.toLowerCase()) && f.endsWith(".json"))
+      .sort()
+      .reverse();
+
+    if (files.length === 0) return null;
+
+    const content = require("fs").readFileSync(`${insightsDir}/${files[0]}`, "utf-8");
+    return JSON.parse(content);
+  } catch {
+    return null;
+  }
+}
+
+// Generate insights from memory blocks (pattern detection)
+interface RepoInsights {
+  themes: string[];
+  patterns: string[];
+  hotspots: string[];
+  velocity: { trend: "increasing" | "decreasing" | "stable"; change: number };
+}
+
+function analyzeRepoPatterns(repoName: string): RepoInsights {
+  const blocks = loadAllBlocks().filter(
+    (b) => b.project.toLowerCase().includes(repoName.toLowerCase())
+  );
+
+  if (blocks.length < 2) {
+    return { themes: [], patterns: [], hotspots: [], velocity: { trend: "stable", change: 0 } };
+  }
+
+  // Extract themes from accomplishments
+  const allAccomplished = blocks.flatMap(b => b.accomplished);
+  const wordFreq = new Map<string, number>();
+  const stopWords = new Set(["the", "a", "an", "to", "for", "of", "in", "on", "with", "and", "is", "was", "are", "were", "this", "that"]);
+
+  for (const text of allAccomplished) {
+    for (const word of text.toLowerCase().split(/\W+/)) {
+      if (word.length > 3 && !stopWords.has(word)) {
+        wordFreq.set(word, (wordFreq.get(word) || 0) + 1);
+      }
+    }
+  }
+
+  const themes = Array.from(wordFreq.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([word]) => word);
+
+  // Detect patterns (recurring pending items, repeated work areas)
+  const pendingFreq = new Map<string, number>();
+  for (const block of blocks) {
+    for (const p of block.pending) {
+      const key = p.toLowerCase().substring(0, 50);
+      pendingFreq.set(key, (pendingFreq.get(key) || 0) + 1);
+    }
+  }
+
+  const patterns: string[] = [];
+  for (const [text, count] of pendingFreq) {
+    if (count >= 2) {
+      patterns.push(`Recurring: "${text.substring(0, 40)}..." (${count}x)`);
+    }
+  }
+
+  // Hotspots (most modified files)
+  const fileFreq = new Map<string, number>();
+  for (const block of blocks) {
+    for (const f of block.filesModified || []) {
+      fileFreq.set(f, (fileFreq.get(f) || 0) + 1);
+    }
+  }
+
+  const hotspots = Array.from(fileFreq.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([file, count]) => `${file.split("/").pop()} (${count} sessions)`);
+
+  // Velocity trend (comparing recent vs older activity)
+  const now = Date.now();
+  const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+  const twoWeeksAgo = now - 14 * 24 * 60 * 60 * 1000;
+
+  const recentCount = blocks.filter(b => new Date(b.timestamp).getTime() > weekAgo).length;
+  const olderCount = blocks.filter(b => {
+    const t = new Date(b.timestamp).getTime();
+    return t > twoWeeksAgo && t <= weekAgo;
+  }).length;
+
+  const change = olderCount > 0 ? Math.round(((recentCount - olderCount) / olderCount) * 100) : 0;
+  const trend = change > 20 ? "increasing" : change < -20 ? "decreasing" : "stable";
+
+  return { themes, patterns: patterns.slice(0, 3), hotspots, velocity: { trend, change } };
 }
 
 interface FrontPage {
@@ -1301,6 +1501,265 @@ const HTML = `<!DOCTYPE html>
       padding: 2px 6px;
       border-radius: 4px;
     }
+
+    /* Repo name clickable */
+    .repo-name-text.clickable { cursor: pointer; }
+    .repo-name-text.clickable:hover { color: var(--text); text-decoration: underline; }
+    .repo-name.selected .repo-name-text { color: var(--green); }
+
+    /* Repo Article View */
+    .repo-article { padding-top: 24px; }
+
+    .worktree-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+
+    .worktree-card {
+      background: var(--bg-secondary);
+      padding: 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      transition: border-color 0.15s;
+    }
+
+    .worktree-card:hover { border-color: var(--accent); }
+
+    .wt-card-name {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      color: var(--text);
+    }
+
+    .wt-card-meta {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .wt-card-summary {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .wt-card-pending {
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--yellow);
+    }
+
+    .usage-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+
+    .usage-stat { text-align: center; }
+
+    .usage-stat-value {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .usage-stat-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .article-narrative {
+      font-size: 16px;
+      line-height: 1.8;
+      color: var(--text-secondary);
+      border-left: 3px solid var(--accent);
+      padding-left: 20px;
+    }
+
+    /* AI Summary Section */
+    .ai-summary-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--purple);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 12px;
+    }
+
+    .ai-summary-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .ai-summary-narrative {
+      font-size: 15px;
+      line-height: 1.7;
+      color: var(--text-secondary);
+    }
+
+    .ai-summary-badge {
+      display: inline-block;
+      background: var(--purple);
+      color: #fff;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      margin-left: 8px;
+    }
+
+    /* Insights Section */
+    .insights-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .insight-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .insight-card-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .insight-themes { color: var(--accent); }
+    .insight-patterns { color: var(--yellow); }
+    .insight-hotspots { color: var(--red); }
+    .insight-velocity { color: var(--green); }
+
+    .velocity-trend {
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    .velocity-trend.increasing { color: var(--green); }
+    .velocity-trend.decreasing { color: var(--red); }
+    .velocity-trend.stable { color: var(--text-muted); }
+
+    /* Deep Insights (from chronicle-insights agent) */
+    .deep-insights-section {
+      margin-top: 24px;
+    }
+
+    .deep-insights-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .deep-insights-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .deep-insight-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .deep-insight-card.tech_debt { border-left: 3px solid var(--red); }
+    .deep-insight-card.stalled_work { border-left: 3px solid var(--yellow); }
+    .deep-insight-card.pattern { border-left: 3px solid var(--accent); }
+    .deep-insight-card.opportunity { border-left: 3px solid var(--green); }
+
+    .deep-insight-type {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .deep-insight-card.tech_debt .deep-insight-type { color: var(--red); }
+    .deep-insight-card.stalled_work .deep-insight-type { color: var(--yellow); }
+    .deep-insight-card.pattern .deep-insight-type { color: var(--accent); }
+    .deep-insight-card.opportunity .deep-insight-type { color: var(--green); }
+
+    .deep-insight-title {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .deep-insight-detail {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      line-height: 1.5;
+    }
+
+    .deep-insight-recommendation {
+      font-size: 13px;
+      color: var(--accent);
+      font-style: italic;
+    }
+
+    .deep-insights-summary {
+      font-size: 15px;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      border-left: 3px solid var(--purple);
+      padding-left: 16px;
+      margin-bottom: 16px;
+    }
+
+    /* Archived Worktrees */
+    .archived-section {
+      margin-top: 16px;
+    }
+
+    .archived-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 14px;
+      padding: 8px 0;
+    }
+
+    .archived-toggle:hover { color: var(--text); }
+
+    .archived-toggle .arrow {
+      transition: transform 0.2s;
+    }
+
+    .archived-toggle.open .arrow {
+      transform: rotate(90deg);
+    }
+
+    .archived-list {
+      display: none;
+      margin-top: 8px;
+    }
+
+    .archived-list.open { display: block; }
+
+    .archived-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .archived-item-name { color: var(--text-muted); }
+    .archived-item-date { color: var(--text-muted); font-size: 12px; }
   </style>
 </head>
 <body>
@@ -1353,6 +1812,14 @@ const HTML = `<!DOCTYPE html>
         <div class="stat">
           <span class="stat-value" id="stat-projects">-</span>
           <span class="stat-label">Projects</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="stat-tokens">-</span>
+          <span class="stat-label">Tokens</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="stat-peak">-</span>
+          <span class="stat-label">Peak Hour</span>
         </div>
       </div>
 
@@ -1444,6 +1911,100 @@ const HTML = `<!DOCTYPE html>
       <button class="article-action-btn article-action-archive" id="article-archive" title="Copies: wt archive [name]">Archive</button>
     </div>
   </div>
+
+  <!-- Repo Article View (hidden by default) -->
+  <div class="container repo-article" id="repo-article" style="display: none;">
+    <div class="article-header">
+      <div class="article-breadcrumb"><a href="#" id="repo-back">← Code</a></div>
+      <h1 class="article-title" id="repo-title">Loading...</h1>
+      <div class="article-meta" id="repo-meta"></div>
+    </div>
+    <div class="article-status" id="repo-status"></div>
+
+    <!-- AI Summary Section -->
+    <div class="article-section" id="repo-ai-summary-section" style="display: none;">
+      <h2 class="article-section-title">AI Summary <span class="ai-summary-badge">Synthesized</span></h2>
+      <div id="repo-ai-summaries"></div>
+    </div>
+
+    <!-- Insights Section -->
+    <div class="article-section" id="repo-insights-section">
+      <h2 class="article-section-title">Insights &amp; Patterns</h2>
+      <div class="insights-grid" id="repo-insights">
+        <div class="insight-card">
+          <div class="insight-card-title insight-velocity">Velocity</div>
+          <div id="insight-velocity">-</div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-card-title insight-themes">Themes</div>
+          <div id="insight-themes">-</div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-card-title insight-hotspots">Hotspots</div>
+          <div id="insight-hotspots">-</div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-card-title insight-patterns">Patterns</div>
+          <div id="insight-patterns">-</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Deep Insights (from chronicle-insights agent with Explore subagents) -->
+    <div class="article-section deep-insights-section" id="repo-deep-insights-section" style="display: none;">
+      <div class="deep-insights-header">
+        <h2 class="article-section-title">Deep Insights <span class="ai-summary-badge">Explored</span></h2>
+        <span class="deep-insights-meta" id="deep-insights-meta"></span>
+      </div>
+      <p class="deep-insights-summary" id="deep-insights-summary"></p>
+      <div id="deep-insights-list"></div>
+    </div>
+
+    <div class="article-section" id="repo-narrative-section">
+      <h2 class="article-section-title">Current State</h2>
+      <p class="article-narrative" id="repo-narrative">Aggregate summary across worktrees will appear here.</p>
+    </div>
+
+    <div class="article-section" id="repo-worktrees-section">
+      <h2 class="article-section-title">Active Worktrees</h2>
+      <div class="worktree-cards" id="repo-worktree-cards"></div>
+      <!-- Archived worktrees (collapsible) -->
+      <div class="archived-section" id="repo-archived-section" style="display: none;">
+        <div class="archived-toggle" id="archived-toggle">
+          <span class="arrow">▶</span>
+          <span id="archived-count">0 archived worktrees</span>
+        </div>
+        <div class="archived-list" id="archived-list"></div>
+      </div>
+    </div>
+
+    <div class="article-section" id="repo-pending-section">
+      <h2 class="article-section-title">Pending Work</h2>
+      <ul class="article-list" id="repo-pending"></ul>
+    </div>
+
+    <div class="article-section" id="repo-usage-section">
+      <h2 class="article-section-title">Usage</h2>
+      <div class="usage-stats" id="repo-usage">
+        <div class="usage-stat">
+          <div class="usage-stat-value" id="repo-usage-sessions">-</div>
+          <div class="usage-stat-label">Sessions</div>
+        </div>
+        <div class="usage-stat">
+          <div class="usage-stat-value" id="repo-usage-interactions">-</div>
+          <div class="usage-stat-label">Interactions</div>
+        </div>
+        <div class="usage-stat">
+          <div class="usage-stat-value" id="repo-usage-tokens">-</div>
+          <div class="usage-stat-label">Tokens</div>
+        </div>
+        <div class="usage-stat">
+          <div class="usage-stat-value" id="repo-usage-worktrees">-</div>
+          <div class="usage-stat-label">Worktrees</div>
+        </div>
+      </div>
+    </div>
+  </div>
   </div><!-- end main-content -->
 
   <script>
@@ -1452,6 +2013,203 @@ const HTML = `<!DOCTYPE html>
     let currentPeriod = 'weekly';
     let searchQuery = '';
     let selectedWorktree = null;
+    let selectedRepo = null;
+
+    function selectRepo(repoName) {
+      selectedRepo = repoName;
+      selectedWorktree = null;
+
+      // Update selection UI
+      document.querySelectorAll('.worktree-item').forEach(item => item.classList.remove('selected'));
+      document.querySelectorAll('.repo-name').forEach(el => {
+        el.classList.toggle('selected', el.dataset.repo === repoName);
+      });
+      document.getElementById('clear-filter').classList.add('visible');
+
+      showRepoArticle(repoName);
+    }
+
+    async function showRepoArticle(repoName) {
+      // Hide other views, show repo article
+      document.querySelector('.container:not(.worktree-article):not(.repo-article)').style.display = 'none';
+      document.getElementById('worktree-article').style.display = 'none';
+      document.getElementById('repo-article').style.display = 'block';
+
+      // Get worktrees for this repo
+      const repoWorktrees = worktrees.filter(w => w.repo === repoName);
+
+      // Populate header
+      document.getElementById('repo-title').textContent = repoName;
+      document.getElementById('repo-meta').textContent = repoWorktrees.length + ' worktrees';
+
+      // Status bar
+      const cleanCount = repoWorktrees.filter(w => w.gitStatus === 'clean').length;
+      const activeCount = repoWorktrees.filter(w => w.session?.active).length;
+      document.getElementById('repo-status').innerHTML = \`
+        <div class="article-status-item"><span>\${cleanCount}/\${repoWorktrees.length} clean</span></div>
+        <div class="article-status-item"><span>\${activeCount} active</span></div>
+      \`;
+
+      // Worktree cards
+      const cardsHtml = repoWorktrees.map(wt => \`
+        <div class="worktree-card" data-path="\${wt.path}">
+          <div class="wt-card-name">\${wt.name}</div>
+          <div class="wt-card-meta">\${wt.branch} · \${wt.gitStatus}</div>
+          <div class="wt-card-summary">\${wt.chronicle?.latestSummary || 'No chronicle data'}</div>
+          <div class="wt-card-pending">\${wt.chronicle?.pendingCount || 0} pending</div>
+        </div>
+      \`).join('');
+      document.getElementById('repo-worktree-cards').innerHTML = cardsHtml;
+
+      // Add click handlers to worktree cards
+      document.querySelectorAll('.worktree-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const path = card.dataset.path;
+          const wt = worktrees.find(w => w.path === path);
+          if (wt) selectWorktree(wt);
+        });
+      });
+
+      // Aggregate pending from all worktrees
+      const allPending = repoWorktrees.flatMap(w => w.chronicle?.pending || []);
+      const uniquePending = [...new Set(allPending)];
+      if (uniquePending.length > 0) {
+        document.getElementById('repo-pending-section').style.display = 'block';
+        document.getElementById('repo-pending').innerHTML = uniquePending.map(p => \`<li>\${p}</li>\`).join('');
+      } else {
+        document.getElementById('repo-pending-section').style.display = 'none';
+      }
+
+      // Generate aggregate narrative
+      const totalSessions = repoWorktrees.reduce((sum, w) => {
+        const wBlocks = allData.blocks.filter(b => b.project.toLowerCase() === repoName.toLowerCase());
+        return wBlocks.length;
+      }, 0);
+      const narrative = repoWorktrees.length > 1
+        ? \`This repo has \${repoWorktrees.length} active worktrees. \${activeCount > 0 ? activeCount + ' have active sessions.' : 'No active sessions.'}\`
+        : \`Single worktree (\${repoWorktrees[0]?.name || 'unknown'}) for this repo.\`;
+      document.getElementById('repo-narrative').textContent = narrative;
+
+      // Update usage stats
+      document.getElementById('repo-usage-worktrees').textContent = repoWorktrees.length;
+      const repoBlocks = allData.blocks.filter(b => b.project.toLowerCase() === repoName.toLowerCase());
+      document.getElementById('repo-usage-sessions').textContent = repoBlocks.length;
+
+      // Fetch usage stats from API
+      try {
+        const usageRes = await fetch('/api/usage/repo/' + encodeURIComponent(repoName));
+        if (usageRes.ok) {
+          const usage = await usageRes.json();
+          document.getElementById('repo-usage-interactions').textContent = usage.interactions || '-';
+          document.getElementById('repo-usage-tokens').textContent = usage.tokens ? (usage.tokens / 1000).toFixed(0) + 'k' : '-';
+        }
+      } catch {}
+
+      // Load AI summaries
+      try {
+        const summariesRes = await fetch('/api/summaries/' + encodeURIComponent(repoName));
+        if (summariesRes.ok) {
+          const summaries = await summariesRes.json();
+          if (summaries.length > 0) {
+            document.getElementById('repo-ai-summary-section').style.display = 'block';
+            document.getElementById('repo-ai-summaries').innerHTML = summaries.slice(0, 2).map(s => \`
+              <div class="ai-summary-card">
+                <div class="ai-summary-meta">\${s.period} · \${s.date} · via \${s.generatedBy?.includes('opus') ? 'Opus' : 'Sonnet'}</div>
+                <div class="ai-summary-narrative">\${s.narrative}</div>
+              </div>
+            \`).join('');
+          } else {
+            document.getElementById('repo-ai-summary-section').style.display = 'none';
+          }
+        }
+      } catch {}
+
+      // Load insights
+      try {
+        const insightsRes = await fetch('/api/insights/' + encodeURIComponent(repoName));
+        if (insightsRes.ok) {
+          const insights = await insightsRes.json();
+
+          // Velocity
+          const velocityEl = document.getElementById('insight-velocity');
+          const trendIcon = insights.velocity.trend === 'increasing' ? '↑' : insights.velocity.trend === 'decreasing' ? '↓' : '→';
+          velocityEl.innerHTML = \`<span class="velocity-trend \${insights.velocity.trend}">\${trendIcon} \${Math.abs(insights.velocity.change)}%</span>\`;
+
+          // Themes
+          const themesEl = document.getElementById('insight-themes');
+          themesEl.textContent = insights.themes.length > 0 ? insights.themes.join(', ') : 'No clear themes';
+
+          // Hotspots
+          const hotspotsEl = document.getElementById('insight-hotspots');
+          hotspotsEl.innerHTML = insights.hotspots.length > 0
+            ? insights.hotspots.map(h => \`<div>\${h}</div>\`).join('')
+            : 'No hotspots detected';
+
+          // Patterns
+          const patternsEl = document.getElementById('insight-patterns');
+          patternsEl.innerHTML = insights.patterns.length > 0
+            ? insights.patterns.map(p => \`<div>\${p}</div>\`).join('')
+            : 'No recurring patterns';
+        }
+      } catch {}
+
+      // Load archived worktrees
+      try {
+        const archivedRes = await fetch('/api/archived?repo=' + encodeURIComponent(repoName));
+        if (archivedRes.ok) {
+          const archived = await archivedRes.json();
+          if (archived.length > 0) {
+            document.getElementById('repo-archived-section').style.display = 'block';
+            document.getElementById('archived-count').textContent = archived.length + ' archived worktree' + (archived.length > 1 ? 's' : '');
+            document.getElementById('archived-list').innerHTML = archived.map(a => \`
+              <div class="archived-item">
+                <span class="archived-item-name">\${a.name}</span>
+                <span class="archived-item-date">\${new Date(a.archivedAt).toLocaleDateString()}</span>
+              </div>
+            \`).join('');
+
+            // Toggle handler for archived list
+            const toggle = document.getElementById('archived-toggle');
+            toggle.onclick = () => {
+              toggle.classList.toggle('open');
+              document.getElementById('archived-list').classList.toggle('open');
+            };
+          } else {
+            document.getElementById('repo-archived-section').style.display = 'none';
+          }
+        }
+      } catch {}
+
+      // Load deep insights (from chronicle-insights agent)
+      try {
+        const deepRes = await fetch('/api/deep-insights/' + encodeURIComponent(repoName));
+        if (deepRes.ok) {
+          const data = await deepRes.json();
+          if (data && data.insights?.length > 0) {
+            document.getElementById('repo-deep-insights-section').style.display = 'block';
+            document.getElementById('deep-insights-meta').textContent =
+              'Generated ' + new Date(data.generatedAt).toLocaleDateString() + ' · ' + data.explorationDepth;
+            document.getElementById('deep-insights-summary').textContent = data.summary || '';
+            document.getElementById('deep-insights-list').innerHTML = data.insights.map(i => \`
+              <div class="deep-insight-card \${i.type}">
+                <div class="deep-insight-type">\${i.type.replace('_', ' ')}</div>
+                <div class="deep-insight-title">\${i.title}</div>
+                <div class="deep-insight-detail">\${i.detail}</div>
+                <div class="deep-insight-recommendation">\${i.recommendation}</div>
+              </div>
+            \`).join('');
+          } else {
+            document.getElementById('repo-deep-insights-section').style.display = 'none';
+          }
+        }
+      } catch {}
+    }
+
+    // Repo back link
+    document.getElementById('repo-back').addEventListener('click', (e) => {
+      e.preventDefault();
+      showChronicleView();
+    });
 
     async function loadWorktrees() {
       const res = await fetch('/api/worktrees');
@@ -1478,9 +2236,10 @@ const HTML = `<!DOCTYPE html>
       for (const [repo, branches] of Object.entries(byRepo)) {
         // Get mainRepoPath from first worktree in this repo
         const mainRepoPath = branches[0]?.mainRepoPath || '';
+        const repoSelected = selectedRepo === repo ? 'selected' : '';
         html += \`<li class="repo-group">
-          <div class="repo-name">
-            <span class="repo-name-text">\${repo}</span>
+          <div class="repo-name \${repoSelected}" data-repo="\${repo}">
+            <span class="repo-name-text clickable">\${repo}</span>
             <button class="repo-create-btn" data-repo="\${repo}" data-main-repo-path="\${mainRepoPath}" title="Create new worktree">+</button>
           </div>
           <ul class="repo-branches">\`;
@@ -1519,6 +2278,15 @@ const HTML = `<!DOCTYPE html>
           const path = item.dataset.path;
           const wt = worktrees.find(w => w.path === path);
           selectWorktree(wt);
+        });
+      });
+
+      // Add click handlers for repo names (to show repo article view)
+      document.querySelectorAll('.repo-name-text.clickable').forEach(el => {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const repo = el.closest('.repo-name').dataset.repo;
+          selectRepo(repo);
         });
       });
 
@@ -1612,16 +2380,19 @@ const HTML = `<!DOCTYPE html>
     }
 
     function showChronicleView() {
-      // Show newspaper, hide article
-      document.querySelector('.container:not(.worktree-article)').style.display = 'block';
+      // Show newspaper, hide article views
+      document.querySelector('.container:not(.worktree-article):not(.repo-article)').style.display = 'block';
       document.getElementById('worktree-article').style.display = 'none';
+      document.getElementById('repo-article').style.display = 'none';
 
       // Update nav
       document.getElementById('nav-chronicle').classList.add('active');
 
-      // Deselect worktree
+      // Deselect worktree and repo
       selectedWorktree = null;
+      selectedRepo = null;
       document.querySelectorAll('.worktree-item').forEach(item => item.classList.remove('selected'));
+      document.querySelectorAll('.repo-name').forEach(el => el.classList.remove('selected'));
       document.getElementById('clear-filter').classList.remove('visible');
 
       // Load all data
@@ -1629,8 +2400,9 @@ const HTML = `<!DOCTYPE html>
     }
 
     function showWorktreeArticle(wt) {
-      // Hide newspaper, show article
-      document.querySelector('.container:not(.worktree-article)').style.display = 'none';
+      // Hide newspaper and repo article, show worktree article
+      document.querySelector('.container:not(.worktree-article):not(.repo-article)').style.display = 'none';
+      document.getElementById('repo-article').style.display = 'none';
       document.getElementById('worktree-article').style.display = 'block';
 
       // Update nav
@@ -2008,8 +2780,22 @@ const HTML = `<!DOCTYPE html>
       else if (e.key === 'Escape') { searchInput.value = ''; searchQuery = ''; renderSessions(); searchInput.blur(); }
     });
 
+    async function loadUsageStats() {
+      try {
+        const usage = await fetch('/api/usage/global').then(r => r.json());
+        if (usage.total_tokens) {
+          document.getElementById('stat-tokens').textContent = (usage.total_tokens / 1000).toFixed(0) + 'k';
+        }
+        const peaks = await fetch('/api/usage/peaks').then(r => r.json());
+        if (peaks && peaks[0]) {
+          document.getElementById('stat-peak').textContent = peaks[0].hour_of_day + ':00';
+        }
+      } catch { /* Usage API may not have data */ }
+    }
+
     loadData();
     loadWorktrees();
+    loadUsageStats();
   </script>
 </body>
 </html>`;
@@ -2184,6 +2970,76 @@ const server = Bun.serve({
           headers: { "Content-Type": "application/json" },
         });
       }
+    }
+
+    // Usage API endpoints
+    if (url.pathname === "/api/usage/global") {
+      const days = parseInt(url.searchParams.get("days") || "7");
+      const usage = getGlobalUsage(days);
+      return new Response(JSON.stringify(usage || {}), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (url.pathname === "/api/usage/peaks") {
+      const peaks = getPeakHours();
+      return new Response(JSON.stringify(peaks), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (url.pathname === "/api/usage/tools") {
+      const project = url.searchParams.get("project") || undefined;
+      const days = parseInt(url.searchParams.get("days") || "7");
+      const tools = getToolBreakdown(project, days);
+      return new Response(JSON.stringify(tools), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (url.pathname.startsWith("/api/usage/repo/")) {
+      const repoName = decodeURIComponent(url.pathname.split("/").pop() || "");
+      const days = parseInt(url.searchParams.get("days") || "7");
+      const usage = getRepoUsage(repoName, days);
+      return new Response(JSON.stringify(usage || {}), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Archived worktrees API
+    if (url.pathname === "/api/archived") {
+      const repo = url.searchParams.get("repo") || undefined;
+      const archived = getArchivedWorktrees(repo);
+      return new Response(JSON.stringify(archived), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Repo summaries API (AI-generated)
+    if (url.pathname.startsWith("/api/summaries/")) {
+      const repoName = decodeURIComponent(url.pathname.split("/").pop() || "");
+      const summaries = loadRepoSummaries(repoName);
+      return new Response(JSON.stringify(summaries), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Repo insights API (pattern analysis)
+    if (url.pathname.startsWith("/api/insights/")) {
+      const repoName = decodeURIComponent(url.pathname.split("/").pop() || "");
+      const insights = analyzeRepoPatterns(repoName);
+      return new Response(JSON.stringify(insights), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Deep insights from chronicle-insights agent (Explore subagent analysis)
+    if (url.pathname.startsWith("/api/deep-insights/")) {
+      const repoName = decodeURIComponent(url.pathname.split("/").pop() || "");
+      const deepInsights = loadDeepInsights(repoName);
+      return new Response(JSON.stringify(deepInsights), {
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     return new Response(HTML, { headers: { "Content-Type": "text/html" } });

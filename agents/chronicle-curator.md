@@ -43,6 +43,47 @@ ls -la ~/.claude/chronicle/blocks/
 # Look for patterns, open threads, related work
 ```
 
+### 1.5 Load Usage Data (ai-coding-files)
+
+Use the `ai-coding-usage` tool to get rich usage statistics across all projects:
+
+```bash
+# Ensure data is loaded (idempotent, safe to run)
+ai-coding-usage
+
+# Get full schema for available queries
+ai-coding-usage --schema
+
+# Useful queries for curation:
+
+# Daily activity summary (last 7 days)
+ai-coding-usage query "SELECT * FROM daily_summary ORDER BY date DESC LIMIT 7"
+
+# Project activity ranked by recency
+ai-coding-usage query "SELECT project_name, interactions, sessions, last_activity FROM project_activity ORDER BY last_activity DESC LIMIT 10"
+
+# Tool usage breakdown
+ai-coding-usage query "SELECT category, uses, pct_of_source FROM category_breakdown WHERE source='claude_code' ORDER BY uses DESC LIMIT 10"
+
+# Peak productivity hours
+ai-coding-usage query "SELECT hour_of_day, SUM(interactions) as total FROM peak_hours GROUP BY hour_of_day ORDER BY total DESC LIMIT 5"
+
+# Session details for deep analysis
+ai-coding-usage query "SELECT project_name, started_at, duration_minutes, interactions FROM session_summary ORDER BY started_at DESC LIMIT 20"
+
+# Skill popularity (which skills are most used)
+ai-coding-usage query \"SELECT context as skill, COUNT(*) as uses FROM claude_tools WHERE tool_name='Skill' GROUP BY context ORDER BY uses DESC LIMIT 10\"
+```
+
+This data enriches your curation by providing:
+- **Project heat map**: Which projects have the most activity
+- **Tool patterns**: Which tools dominate (Edit heavy? Bash heavy?)
+- **Session intensity**: Long focused sessions vs. short bursts
+- **Productivity rhythms**: Peak hours and active days
+- **Skill adoption**: Which skills are being used most
+
+Cross-reference this data with chronicle blocks to create richer narratives.
+
 ### 2. Analyze Current Session
 
 Consider:
