@@ -201,6 +201,8 @@ myproject fix/branch (3) Opus 4.5 $0.66 +28 -5 (70+210K+1.6M):7K [1:267]
 
 Cache reads are cumulative across turns (not context size).
 
+For implementation details, see [docs/statusline-architecture.md](docs/statusline-architecture.md).
+
 ---
 
 ## Model Reference

@@ -20,7 +20,12 @@
 #   [1:N] = cumulative input:output ratio
 #
 # Dependencies: jq, bc, git
-# See README.md for full documentation
+#
+# Related files:
+#   commands/status_line.md         /status_line explainer command
+#   scripts/get-session-tokens.sh   Token data extraction
+#   docs/statusline-architecture.md Full system documentation
+#   settings.json:130-133           Hook registration
 # ============================================================================
 
 set -euo pipefail
