@@ -1,7 +1,7 @@
 ---
 name: chronicle
 description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle curate to organize memory, /chronicle pending for open threads, /chronicle search to find sessions, /chronicle publish for digests, /chronicle ui for dashboard.
-license: Apache 2.0
+license: Apache-2.0
 ---
 
 # Chronicle

@@ -1,7 +1,7 @@
 ---
 name: dotclaude-config
 description: Work with Claude Code configuration at global (~/.claude) or project (.claude/) level. Use when editing settings.json (permissions, hooks, statusline, model), managing MCP servers, or creating agents/commands/skills. Determines context automatically and provides guidance on global vs project placement to avoid duplication.
-license: Apache 2.0
+license: Apache-2.0
 ---
 
 # Claude Code Configuration
