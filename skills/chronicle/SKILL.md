@@ -1,6 +1,6 @@
 ---
 name: chronicle
-description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle curate to organize memory, /chronicle publish for digests, /chronicle ui for dashboard.
+description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle curate to organize memory, /chronicle pending for open threads, /chronicle search to find sessions, /chronicle publish for digests, /chronicle ui for dashboard.
 license: Apache 2.0
 ---
 
@@ -16,6 +16,7 @@ A persistent journalist tracking your coding sessions.
 /chronicle curate             # Invoke curator to organize memory (interactive)
 /chronicle pending            # Show pending threads across sessions
 /chronicle blocks             # List recent memory blocks
+/chronicle search <query>     # Search sessions by text
 /chronicle publish            # Generate weekly digest (markdown)
 /chronicle publish daily      # Generate daily digest
 /chronicle publish month      # Generate monthly digest
@@ -27,6 +28,7 @@ A persistent journalist tracking your coding sessions.
 /chronicle ui stop            # Stop the dashboard service
 /chronicle ui status          # Check if dashboard service is running
 /chronicle ui logs            # View dashboard service logs
+/chronicle ui uninstall       # Remove dashboard service
 ```
 
 ## Quick Capture (/chronicle or /chronicle <note>)
@@ -168,6 +170,21 @@ ls -lt ~/.claude/chronicle/blocks/ | head -10
 ```
 
 Show filename, date, and first line of summary for each.
+
+---
+
+## Search (/chronicle search <query>)
+
+Search across all Chronicle blocks by text:
+
+1. Read all blocks from `~/.claude/chronicle/blocks/`
+2. Search in: summary, accomplished items, pending items, project name, branch
+3. Return matching blocks sorted by relevance
+
+Example queries:
+- `/chronicle search oauth` - Find sessions mentioning OAuth
+- `/chronicle search jrnlfish` - Find all jrnlfish sessions
+- `/chronicle search "error handling"` - Find sessions with specific phrase
 
 ---
 
