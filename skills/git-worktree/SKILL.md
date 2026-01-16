@@ -25,6 +25,9 @@ wt <branch> --no-editor  # Create without opening editor
 wt <branch> --carry      # Create and copy work-in-progress files
 wt cd <branch>           # Change to worktree directory
 wt home                  # Return to main repo (or REPOS_ROOT if outside git)
+wt apply [branch]        # Merge worktree into branch (default: main), ff-only
+wt apply --archive       # Merge and archive without prompting
+wt apply --push          # Merge and push to remote
 wt archive [branch]      # Run archive script, move to ~/.worktrees/.archive
 wt list                  # List all worktrees
 wt ls                    # Alias for list
@@ -42,6 +45,14 @@ REPOS_ROOT=~/code            # Fallback for `wt home` outside git
 ```
 
 ## Example
+
+```bash
+wt feature-auth       # Creates worktree and opens editor
+# ... work on feature ...
+wt apply              # Merge into main (prompts to archive)
+```
+
+Or with the traditional archive workflow:
 
 ```bash
 wt feature-auth       # Creates worktree and opens editor

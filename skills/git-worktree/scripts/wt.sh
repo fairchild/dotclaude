@@ -26,6 +26,9 @@ Commands:
     --carry               Copy untracked files to new worktree
   cd <branch>             Change to worktree directory (shell function)
   home                    Return to main repository (shell function)
+  apply [branch] [opts]   Merge worktree into branch (default: main)
+    --archive             Archive worktree after merge without prompting
+    --push                Push to remote after merge
   archive [branch]        Run conductor archive, move to .archive
   list, ls                List all worktrees
   tree                    Tree view of worktrees with git status
@@ -366,6 +369,112 @@ cmd_archive() {
     fi
 }
 
+cmd_apply() {
+    local target_branch="main"
+    local auto_archive=false
+    local push_after=false
+
+    local target_set=false
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --archive)
+                auto_archive=true
+                shift
+                ;;
+            --push)
+                push_after=true
+                shift
+                ;;
+            *)
+                if [[ "$target_set" == true ]]; then
+                    log_error "Too many arguments. Usage: wt apply [branch] [--archive] [--push]"
+                    exit 1
+                fi
+                target_branch="$1"
+                target_set=true
+                shift
+                ;;
+        esac
+    done
+
+    # Must be in a git repo
+    if ! git rev-parse --git-dir &>/dev/null; then
+        log_error "Not in a git repository"
+        exit 1
+    fi
+
+    # Must be in a worktree (not main repo)
+    local git_dir
+    git_dir=$(git rev-parse --git-dir)
+    if [[ ! -f "$git_dir" ]]; then
+        log_error "Not in a worktree. Run from within a worktree directory."
+        exit 1
+    fi
+
+    # Get current branch
+    local current_branch
+    current_branch=$(git branch --show-current)
+    if [[ -z "$current_branch" ]]; then
+        log_error "Cannot determine current branch"
+        exit 1
+    fi
+
+    # Check for uncommitted changes
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+        log_error "Uncommitted changes in worktree. Commit or stash first."
+        exit 1
+    fi
+
+    local main_repo
+    main_repo=$(get_main_repo)
+
+    log_info "Merging $current_branch → $target_branch"
+
+    # Switch to main repo and target branch
+    if ! (cd "$main_repo" && git switch "$target_branch" 2>/dev/null); then
+        log_error "Cannot switch to $target_branch in main repo"
+        exit 1
+    fi
+
+    # Attempt fast-forward merge
+    if ! (cd "$main_repo" && git merge --ff-only -- "$current_branch"); then
+        log_error "Cannot fast-forward. Rebase your branch first:"
+        echo "  cd $PWD && git rebase $target_branch"
+        (cd "$main_repo" && git switch - &>/dev/null)
+        exit 1
+    fi
+
+    log_ok "Merged $current_branch into $target_branch"
+
+    # Push if requested
+    if [[ "$push_after" == true ]]; then
+        log_info "Pushing to remote..."
+        if ! (cd "$main_repo" && git push); then
+            log_error "Push failed (merge completed locally)"
+            exit 1
+        fi
+        log_ok "Pushed to remote"
+    fi
+
+    # Archive handling
+    if [[ "$auto_archive" == true ]]; then
+        cmd_archive "$current_branch"
+    else
+        echo ""
+        read -p "[wt] Archive worktree '$current_branch'? [y/N] " -n 1 -r
+        echo ""
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            cmd_archive "$current_branch"
+        else
+            local repo_name
+            repo_name=$(get_repo_name)
+            log_info "Worktree kept at: $WORKTREES_ROOT/$repo_name/$current_branch"
+        fi
+    fi
+}
+
 cmd_list() {
     local filter_repo="${1:-}"
 
@@ -608,6 +717,10 @@ main() {
         archive)
             shift
             cmd_archive "${1:-}"
+            ;;
+        apply)
+            shift
+            cmd_apply "$@"
             ;;
         cd|home)
             log_error "wt $cmd requires shell function. Add to ~/.zshrc:"
