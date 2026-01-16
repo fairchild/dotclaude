@@ -86,19 +86,21 @@ jobs:
                - Always remove `needs code review` label
                - If score >= 4, add `code review passed` label
                Use: `gh pr edit --remove-label "needs code review" --add-label "code review passed"`
-
-            ## Step 5: Signal CI Result
-            CRITICAL: At the very end, output exactly one of these lines:
-            - `REVIEW_RESULT:PASS` if score >= 4
-            - `REVIEW_RESULT:FAIL` if score <= 3
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr edit:*),Bash(gh api:*),Read,Glob,Grep"
 
       - name: Check Review Result
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # Parse the review output to find the result signal
-          if echo "${{ steps.claude-review.outputs.stdout }}" | grep -q "REVIEW_RESULT:FAIL"; then
-            echo "Code review failed with score <= 3"
+          # Check if the most recent review from claude[bot] requested changes
+          REVIEW_STATE=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
+            --jq '[.[] | select(.user.login == "claude[bot]")] | last | .state')
+
+          echo "Latest Claude review state: $REVIEW_STATE"
+
+          if [ "$REVIEW_STATE" = "CHANGES_REQUESTED" ]; then
+            echo "::error::Code review failed - changes requested (score <= 3)"
             exit 1
           fi
           echo "Code review passed"
