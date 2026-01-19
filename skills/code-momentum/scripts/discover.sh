@@ -17,6 +17,20 @@ for dir in "$CODE_ROOT"/*/; do
   [[ -d "$dir/.git" ]] && projects+=("$name")
 done
 
+# Helper: get modified (blocks pull) and untracked counts
+get_status_counts() {
+  local modified=0 untracked=0
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    if [[ "$line" == '??'* ]]; then
+      ((untracked++))
+    else
+      ((modified++))
+    fi
+  done < <(git status --porcelain 2>/dev/null)
+  echo "$modified $untracked"
+}
+
 if $json_output; then
   echo "["
   first=true
@@ -24,7 +38,7 @@ if $json_output; then
     cd "$CODE_ROOT/$project"
 
     branch=$(git branch --show-current 2>/dev/null || echo "detached")
-    dirty=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+    read -r modified untracked <<< "$(get_status_counts)"
 
     git fetch origin 2>/dev/null || true
     counts=$(git rev-list --left-right --count HEAD...@{u} 2>/dev/null || echo "0 0")
@@ -39,7 +53,8 @@ if $json_output; then
   {
     "name": "$project",
     "branch": "$branch",
-    "dirty": $dirty,
+    "modified": $modified,
+    "untracked": $untracked,
     "ahead": $ahead,
     "behind": $behind,
     "hasUpstream": $has_upstream
@@ -48,22 +63,28 @@ EOF
   done
   echo "]"
 else
-  printf "%-20s %-12s %-8s %s\n" "PROJECT" "BRANCH" "CLEAN" "REMOTE"
-  printf "%-20s %-12s %-8s %s\n" "-------" "------" "-----" "------"
+  printf "%-20s %-12s %-10s %s\n" "PROJECT" "BRANCH" "STATUS" "REMOTE"
+  printf "%-20s %-12s %-10s %s\n" "-------" "------" "------" "------"
 
   for project in "${projects[@]}"; do
     cd "$CODE_ROOT/$project"
 
     branch=$(git branch --show-current 2>/dev/null || echo "detached")
-    dirty=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+    read -r modified untracked <<< "$(get_status_counts)"
 
     git fetch origin 2>/dev/null || true
     counts=$(git rev-list --left-right --count HEAD...@{u} 2>/dev/null || echo "0 0")
     ahead=$(echo "$counts" | awk '{print $1}')
     behind=$(echo "$counts" | awk '{print $2}')
 
-    clean="yes"
-    [[ "$dirty" -gt 0 ]] && clean="no ($dirty)"
+    # Status: modified blocks pull, untracked doesn't
+    if [[ "$modified" -gt 0 ]]; then
+      status="dirty ($modified)"
+    elif [[ "$untracked" -gt 0 ]]; then
+      status="untracked"
+    else
+      status="clean"
+    fi
 
     if [[ "$ahead" == "0" && "$behind" == "0" ]]; then
       remote="up-to-date"
@@ -75,6 +96,6 @@ else
       remote="${ahead}↑ ${behind}↓"
     fi
 
-    printf "%-20s %-12s %-8s %s\n" "$project" "$branch" "$clean" "$remote"
+    printf "%-20s %-12s %-10s %s\n" "$project" "$branch" "$status" "$remote"
   done
 fi

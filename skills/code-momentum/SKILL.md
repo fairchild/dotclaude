@@ -32,14 +32,21 @@ Run the discovery script to get current status:
 
 ### Step 2: Identify Issues
 
-From the output, categorize projects:
+From the output, categorize projects by STATUS:
 
-| Category | Condition | Action Available |
-|----------|-----------|------------------|
-| Behind | `behind > 0`, clean | `pull` |
-| Fork stale | Has upstream, behind upstream | `forks` |
-| Dirty | Uncommitted changes | `stash` first |
-| Diverged | `ahead > 0` and `behind > 0` | Manual |
+| Status | Meaning | Can Pull? |
+|--------|---------|-----------|
+| clean | No changes | Yes |
+| untracked | Only untracked files | Yes |
+| dirty (N) | N modified/staged files | No - stash first |
+
+And by REMOTE:
+
+| Remote | Action |
+|--------|--------|
+| N behind | `pull` |
+| N ahead | Push when ready |
+| N↑ M↓ | Diverged - manual resolution |
 
 ### Step 3: Offer Actions
 
@@ -81,26 +88,32 @@ done
 
 ### Step 5: Report
 
-Show summary of what changed:
+Show summary of what changed AND what's still pending:
 
 ```
-Pulled 3 repos:
+Pulled 2 repos:
   - beads: 584 commits
-  - better-auth: 134 commits
-  - superpowers: 10 commits
+  - superpowers: 12 commits
 
 Skipped 2 (dirty):
-  - jrnlfish-v4
-  - planventura
+  - jrnlfish-v4 (1 modified)
+  - planventura (1 modified)
+
+Still pending:
+  - jrnlfish-v4: dirty, needs stash or commit
+  - planventura: dirty, needs stash or commit
 ```
+
+Always show "Still pending" if any repos need attention after the action.
 
 ## Safety Rules
 
 - **Never force push**
-- **Skip dirty repos** unless user explicitly stashes
+- **Skip dirty repos** (modified files) - untracked files are OK
 - **Only --ff-only merges** - no merge commits
 - **Confirm before bulk ops** - show what will happen first
 - **Stop on errors** - don't continue if one repo fails
+- **Always show pending** - report what still needs attention
 
 ## Quick Commands
 
