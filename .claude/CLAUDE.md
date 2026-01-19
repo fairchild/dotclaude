@@ -13,6 +13,14 @@ Everything here affects ALL Claude Code sessions globally:
 
 This repo is public on GitHub but serves as Michael's actual working config.
 
+## Opensource
+
+**This repo is public.** Never commit secrets, credentials, or personal data.
+
+- Session data is gitignored (see [docs/session-data.md](../docs/session-data.md))
+- Run `/opensource-precheck` before major changes
+- Use `.gitignore` patterns for any new sensitive data
+
 ## Licensing
 
 All skills are Apache 2.0 - consistent with Anthropic skills.

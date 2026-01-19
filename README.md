@@ -22,7 +22,8 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 ├── references/        # Reference documentation
 ├── chronicle/         # Chronicle session memory
 ├── webui/             # Config Visualizer dashboard
-└── [generated]        # Gitignored: history, todos, plans, debug, etc.
+├── docs/              # Architecture documentation
+└── [session data]     # Gitignored: history, todos, plans, etc. (see docs/session-data.md)
 ```
 
 ## Quick Reference
@@ -202,6 +203,16 @@ myproject fix/branch (3) Opus 4.5 $0.66 +28 -5 (70+210K+1.6M):7K [1:267]
 Cache reads are cumulative across turns (not context size).
 
 For implementation details, see [docs/statusline-architecture.md](docs/statusline-architecture.md).
+
+---
+
+## Documentation
+
+| Doc | Topic |
+|-----|-------|
+| [docs/session-data.md](docs/session-data.md) | Gitignored session data, multi-machine sync |
+| [docs/statusline-architecture.md](docs/statusline-architecture.md) | Status line implementation |
+| [skills/chronicle/docs/chronicle-design.md](skills/chronicle/docs/chronicle-design.md) | Chronicle memory system design |
 
 ---
 
