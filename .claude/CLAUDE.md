@@ -17,7 +17,7 @@ This repo is public on GitHub but serves as Michael's actual working config.
 
 **This repo is public.** Never commit secrets, credentials, or personal data.
 
-- Session data is gitignored (see `docs/session-data.md`)
+- Session data is gitignored (see [docs/session-data.md](../docs/session-data.md))
 - Run `/opensource-precheck` before major changes
 - Use `.gitignore` patterns for any new sensitive data
 
