@@ -333,6 +333,33 @@ Quick start:
 /chronicle ui status    # Check if running
 ```
 
+### Remote Dashboard Sync
+
+Run the dashboard on a remote server with periodic data sync from your Mac.
+
+**Setup:**
+1. Deploy dashboard to remote host (requires Bun runtime + systemd)
+2. Configure sync in `~/.claude/.env`:
+   ```bash
+   CHRONICLE_SYNC_TARGET=myserver      # Display name
+   CHRONICLE_DEPLOY_DIR=/path/to/deploy # Ansible deploy directory
+   ```
+3. Install the reminder service:
+   ```bash
+   launchctl load ~/Library/LaunchAgents/com.chronicle.sync-reminder.plist
+   ```
+
+**How it works:**
+- Daily popup (9am) if Chronicle blocks changed since last sync
+- Click "Sync Now" to rsync data to remote
+- Silent when no changes
+
+**Manual sync:**
+```bash
+~/.claude/scripts/chronicle-sync-reminder.sh           # Interactive
+ansible-playbook claude.yml --tags chronicle-sync -e chronicle_sync_enabled=true  # Direct
+```
+
 ---
 
 ## Development (/chronicle dev)
