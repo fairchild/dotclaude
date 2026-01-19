@@ -4,10 +4,14 @@
 # dependencies = ["pyyaml"]
 # ///
 """
-Save YouTube video analysis to the knowledge base.
+Save YouTube video analysis and raw transcript to the knowledge base.
+
+Saves two files:
+- analyses/{date}_{video_id}.md: Formatted analysis with frontmatter
+- transcripts/{date}_{video_id}.json: Raw transcript and metadata
 
 Usage:
-    echo '{"video_id": "...", "metadata": {...}, "analysis": "..."}' | \
+    echo '{"video_id": "...", "metadata": {...}, "transcript": {...}, "analysis": "..."}' | \
         uv run save_analysis.py --mode wisdom --tags "ai,coding"
 
 Environment:
@@ -36,9 +40,17 @@ class Metadata(TypedDict, total=False):
     tags: list[str]
 
 
+class Transcript(TypedDict, total=False):
+    text: str
+    language: str
+    segments: list[dict]
+
+
 class AnalysisInput(TypedDict, total=False):
     video_id: str
     metadata: Metadata
+    transcript: Transcript
+    errors: list[str]
     analysis: str
 
 
@@ -51,9 +63,16 @@ def get_knowledge_dir() -> Path:
 
 def ensure_dirs(knowledge_dir: Path) -> Path:
     """Create knowledge directory structure if needed."""
-    youtube_dir = knowledge_dir / "youtube" / "analyses"
-    youtube_dir.mkdir(parents=True, exist_ok=True)
-    return knowledge_dir / "youtube"
+    youtube_dir = knowledge_dir / "youtube"
+    (youtube_dir / "analyses").mkdir(parents=True, exist_ok=True)
+    (youtube_dir / "transcripts").mkdir(parents=True, exist_ok=True)
+
+    # Ensure transcripts are gitignored
+    gitignore = youtube_dir / ".gitignore"
+    if not gitignore.exists():
+        gitignore.write_text("# Raw transcripts are large and can be re-fetched\ntranscripts/\n")
+
+    return youtube_dir
 
 
 def generate_filename(video_id: str, date: datetime) -> str:
@@ -149,14 +168,40 @@ Analyzed videos from the youtube-content skill.
     index_path.write_text(content)
 
 
+def save_transcript(
+    youtube_dir: Path,
+    video_id: str,
+    metadata: Metadata,
+    transcript: Transcript | None,
+    errors: list[str],
+    analyzed: datetime,
+) -> Path:
+    """Save raw transcript data as JSON."""
+    filename = generate_filename(video_id, analyzed).replace(".md", ".json")
+    filepath = youtube_dir / "transcripts" / filename
+
+    data = {
+        "video_id": video_id,
+        "metadata": metadata,
+        "transcript": transcript,
+        "errors": errors,
+        "fetched": analyzed.isoformat(),
+    }
+
+    filepath.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    return filepath
+
+
 def save_analysis(
     data: AnalysisInput,
     mode: str,
     tags: list[str],
-) -> Path:
-    """Save analysis to knowledge base and return the file path."""
+) -> tuple[Path, Path]:
+    """Save analysis and transcript to knowledge base and return file paths."""
     video_id = data.get("video_id", "unknown")
     metadata = data.get("metadata", {})
+    transcript = data.get("transcript")
+    errors = data.get("errors", [])
     analysis = data.get("analysis", "")
 
     knowledge_dir = get_knowledge_dir()
@@ -164,15 +209,20 @@ def save_analysis(
 
     analyzed = datetime.now(timezone.utc)
     filename = generate_filename(video_id, analyzed)
-    filepath = youtube_dir / "analyses" / filename
+    analysis_path = youtube_dir / "analyses" / filename
 
+    # Save analysis
     frontmatter = build_frontmatter(video_id, metadata, mode, tags, analyzed)
     content = build_markdown(frontmatter, metadata, analysis, analyzed)
-
-    filepath.write_text(content)
+    analysis_path.write_text(content)
     update_index(youtube_dir, frontmatter, filename)
 
-    return filepath
+    # Save raw transcript
+    transcript_path = save_transcript(
+        youtube_dir, video_id, metadata, transcript, errors, analyzed
+    )
+
+    return analysis_path, transcript_path
 
 
 def main():
@@ -202,11 +252,12 @@ def main():
         print(json.dumps({"error": "Missing video_id in input"}))
         sys.exit(1)
 
-    filepath = save_analysis(data, args.mode, tags)
+    analysis_path, transcript_path = save_analysis(data, args.mode, tags)
 
     print(json.dumps({
         "saved": True,
-        "path": str(filepath),
+        "analysis_path": str(analysis_path),
+        "transcript_path": str(transcript_path),
         "knowledge_dir": str(get_knowledge_dir()),
     }))
 
