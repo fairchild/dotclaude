@@ -25,6 +25,8 @@ session-env/
 file-history/
 chronicle/blocks/
 chronicle/digests/
+chronicle/insights/
+chronicle/summaries/
 title-feedback/*.jsonl
 
 # Debug and logs
