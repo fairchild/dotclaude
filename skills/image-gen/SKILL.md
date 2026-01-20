@@ -80,17 +80,6 @@ Options:
 
 Set in `~/.env` or export in shell.
 
-## Configuration Check
-
-Verify your API key is valid before generating:
-
-```bash
-uv run ~/.claude/skills/image-gen/scripts/generate_openai.py --check
-uv run ~/.claude/skills/image-gen/scripts/generate_imagen.py --check
-uv run ~/.claude/skills/image-gen/scripts/generate_gemini.py --check
-uv run ~/.claude/skills/image-gen/scripts/generate_fal.py --check
-```
-
 ## Troubleshooting
 
 ### Getting API Keys
@@ -135,3 +124,7 @@ export GOOGLE_API_KEY=your-key-here
 - **Google Imagen**: Returns PNG
 - **Google Gemini**: Returns JPEG (scripts auto-correct extension if needed)
 - **fal.ai Flux**: Returns JPEG (scripts auto-correct extension if needed)
+
+## Testing
+
+`uv run ~/.claude/skills/image-gen/tests/test_image_gen.py --help`
