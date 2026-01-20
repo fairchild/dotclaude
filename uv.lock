@@ -128,7 +128,7 @@ wheels = [
 ]
 
 [[package]]
-name = "wt-conductor"
+name = "dotclaude"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
@@ -139,5 +139,5 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "playwright", specifier = ">=1.57.0" },
-    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
 ]
