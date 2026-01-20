@@ -79,3 +79,52 @@ Options:
 | fal.ai | `FAL_KEY` | Yes |
 
 Set in `~/.env` or export in shell.
+
+## Troubleshooting
+
+### Getting API Keys
+
+| Provider | Get Key URL |
+|----------|-------------|
+| OpenAI | https://platform.openai.com/api-keys |
+| Google | https://aistudio.google.com/apikey |
+| fal.ai | https://fal.ai/dashboard/keys |
+
+### Common Errors
+
+**"API key not set"**
+```bash
+# Add to ~/.env
+echo "GOOGLE_API_KEY=your-key-here" >> ~/.env
+
+# Or export in current shell
+export GOOGLE_API_KEY=your-key-here
+```
+
+**"API key is invalid"**
+- Regenerate your key at the provider's dashboard
+- Ensure no extra whitespace when copying the key
+- Check the key hasn't expired
+
+**"Rate limit exceeded"**
+- Wait 1-2 minutes and retry
+- Check your usage quota at the provider's dashboard
+
+**"Content blocked"**
+- The prompt triggered safety filters
+- Rephrase to avoid restricted content
+
+**"Cannot connect"**
+- Check your internet connection
+- Verify the API service isn't experiencing outages
+
+### File Format Notes
+
+- **OpenAI**: Returns PNG
+- **Google Imagen**: Returns PNG
+- **Google Gemini**: Returns JPEG (scripts auto-correct extension if needed)
+- **fal.ai Flux**: Returns JPEG (scripts auto-correct extension if needed)
+
+## Testing
+
+`uv run ~/.claude/skills/image-gen/tests/test_image_gen.py --help`
