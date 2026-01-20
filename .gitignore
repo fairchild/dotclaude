@@ -71,3 +71,6 @@ tmp/
 *~
 scratch/
 paste-cache/
+
+# claude chrome plugin
+chrome-native-host
