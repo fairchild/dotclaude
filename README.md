@@ -50,6 +50,8 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | Skill | When it activates |
 |-------|-------------------|
 | **ai-coding-usage** | Analyzing AI coding patterns and statistics |
+| **brainstorm-to-brief** | Visual design exploration and design briefs |
+| **image-gen** | Generating images with AI (OpenAI, Imagen, fal.ai) |
 | **canvas-design** | Creating visual art, posters, PDFs |
 | **chronicle** | Capturing and curating session memory |
 | **frontend-design** | Building web UIs, components, pages |
@@ -78,7 +80,7 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | **github-notifications-triager** | Prioritize GitHub notifications | "What's important on GitHub today?" |
 | **devcontainer-setup** | Configure dev containers | "Set up a devcontainer for this project" |
 | **project-handoff-auditor** | Pre-handoff quality audit | "Prepare this project for client handoff" |
-| **ai-sdk-agent-architect** | Vercel AI SDK 5 implementations | "Implement a search agent with AI SDK" |
+| **ai-sdk-agent-architect** | Vercel AI SDK 6 agent implementations | "Implement a search agent with AI SDK" |
 | **playwright-test-analyzer** | Visual test analysis | "Run checkout tests and analyze the UI" |
 | **chronicle-curator** | Curate Chronicle memory blocks | Auto-invoked for memory management |
 | **youtube-content** | Extract YouTube transcripts | "Summarize this video: youtube.com/..." |
