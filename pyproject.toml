@@ -1,7 +1,7 @@
 [project]
 name = "dotclaude"
 version = "0.1.0"
-description = "Add your description here"
+description = "Personal Claude Code configuration with skills, commands, agents, and hooks"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
