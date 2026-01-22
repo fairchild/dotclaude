@@ -1,15 +1,19 @@
 # Session Wrapup
 
-Prepare for PR merge: update backlog and create handoff. Run after `/reflect`.
+The final step before merging a PR. Run after `/reflect`.
+
+## Purpose
+
+Capture what we learned, update artifacts, and create a handoff prompt for the next session. This ensures continuity across sessions and builds a knowledge base that accumulates over time.
+
+The handoff prompt is deliberately manual—you copy/paste it to start the next session. This friction ensures wrapup truly is the last step before merge.
 
 ## Workflow
 
-### 1. Initialize Backlog (if needed)
-If `backlog/` doesn't exist:
+### 1. Initialize (if needed)
 ```bash
 mkdir -p backlog/done
 ```
-Create `backlog/CLAUDE.md` with schema from existing pattern.
 
 If `backlog/ROADMAP.md` doesn't exist, create it:
 ```markdown
@@ -32,14 +36,20 @@ For the backlog item(s) completed in this PR:
 - Move file to `backlog/done/`
 
 ### 3. Capture Deferred Work
-For scope discovered but not implemented:
-- Use `/defer` to create new backlog items, OR
-- Create files manually following `backlog/CLAUDE.md` schema
+For scope discovered but not implemented, use `/defer` or create manually:
+```yaml
+---
+status: pending
+category: followup  # or: plan, task-list, ideas
+pr: null
+branch: null
+---
+```
 
 ### 4. Update Roadmap
 Review `backlog/ROADMAP.md`:
 
-**Direction** — Suggest updates based on session insights:
+**Direction** — Suggest updates based on session insights, if any:
 - New priorities that emerged
 - Goals that should shift
 - Directions no longer relevant
@@ -51,25 +61,20 @@ Review `backlog/ROADMAP.md`:
 - What caused friction
 - Anything worth documenting
 ```
-Fast capture—don't overthink. Patterns emerge over time.
 
 ### 5. Generate Handoff
-Create a prompt for the next session including:
+Output a prompt for the next session. The user will copy/paste it to start fresh.
+
+Include:
 - What was completed (PR link)
 - What's next (backlog item or area)
 - Key decisions or context
+- `@filename` references for files that should be loaded in context
 
 ### 6. Final Commit
 ```bash
 git add backlog/
 git commit -m "chore: update backlog for [feature]"
 ```
+
 Ready to merge PR.
-
-## Execution
-
-1. Check for `backlog/` — init if missing
-2. Read current backlog item being completed
-3. Walk through updates
-4. Present: summary, learnings, handoff prompt
-5. Commit backlog changes
