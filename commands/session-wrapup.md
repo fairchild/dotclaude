@@ -78,3 +78,11 @@ git commit -m "chore: update backlog for [feature]"
 ```
 
 Ready to merge PR.
+
+### 7. Consider Release
+If this PR completes a milestone (not just a task), suggest running `/release` to:
+- Bump version
+- Generate changelog from commits
+- Create GitHub Release
+
+Milestones often span multiple PRs—suggest release when meaningful capability is complete, not after every PR.
