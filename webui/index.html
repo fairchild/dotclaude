@@ -670,6 +670,39 @@
       font-size: 1.1rem;
     }
 
+    .readme-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+
+    .readme-content th,
+    .readme-content td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+    }
+
+    .readme-content th {
+      background: var(--bg-card);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .readme-content td {
+      color: var(--text-secondary);
+    }
+
+    .readme-content tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .readme-content td code,
+    .readme-content th code {
+      font-size: 0.85em;
+    }
+
     /* Empty state */
     .empty {
       text-align: center;
@@ -1079,6 +1112,50 @@ ${skill.content}`);
         return `%%%CODEBLOCK${idx}%%%`;
       });
 
+      // Extract and convert tables
+      const tables = [];
+      processed = processed.replace(/(\n(?:\|[^\n]+\|[ \t]*\n)+)/g, (match, tableBlock) => {
+        const lines = tableBlock.trim().split('\n').filter(l => l.trim());
+        if (lines.length < 2) return match;
+
+        // Check if second line is separator (contains only |, -, :, and spaces)
+        if (!/^[\|\-:\s]+$/.test(lines[1].trim())) return match;
+        // Must have at least one dash
+        if (!lines[1].includes('-')) return match;
+
+        const parseRow = (line) => line.split('|').slice(1, -1).map(cell => cell.trim());
+        const headers = parseRow(lines[0]);
+        const rows = lines.slice(2).map(parseRow);
+
+        let html = '<table><thead><tr>';
+        headers.forEach(h => {
+          // Process inline markdown in cells
+          let cell = h
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+          html += `<th>${cell}</th>`;
+        });
+        html += '</tr></thead><tbody>';
+        rows.forEach(row => {
+          html += '<tr>';
+          row.forEach(cell => {
+            // Process inline markdown in cells
+            let c = cell
+              .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+              .replace(/`([^`]+)`/g, '<code>$1</code>')
+              .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+            html += `<td>${c}</td>`;
+          });
+          html += '</tr>';
+        });
+        html += '</tbody></table>';
+
+        const idx = tables.length;
+        tables.push(html);
+        return `\n%%%TABLE${idx}%%%\n`;
+      });
+
       // Process inline elements
       processed = processed
         // Headers
@@ -1104,7 +1181,7 @@ ${skill.content}`);
       processed = processed.split(/\n\n+/).map(block => {
         block = block.trim();
         if (!block) return '';
-        if (block.startsWith('<h') || block.startsWith('<ul') || block.startsWith('%%%CODEBLOCK') || block.startsWith('<img')) {
+        if (block.startsWith('<h') || block.startsWith('<ul') || block.startsWith('%%%CODEBLOCK') || block.startsWith('%%%TABLE') || block.startsWith('<img')) {
           return block;
         }
         return `<p>${block.replace(/\n/g, '<br>')}</p>`;
@@ -1117,6 +1194,11 @@ ${skill.content}`);
           `%%%CODEBLOCK${idx}%%%`,
           `<pre><code${langClass}>${block.code}</code></pre>`
         );
+      });
+
+      // Restore tables
+      tables.forEach((html, idx) => {
+        processed = processed.replace(`%%%TABLE${idx}%%%`, html);
       });
 
       return processed;
