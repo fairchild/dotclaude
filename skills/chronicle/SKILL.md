@@ -1,6 +1,6 @@
 ---
 name: chronicle
-description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle curate to organize memory, /chronicle insights for deep analysis, /chronicle summarize for AI summaries, /chronicle pending for open threads, /chronicle search to find sessions, /chronicle publish for digests, /chronicle ui for dashboard with repo-level views and usage stats.
+description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle catchup to restore context, /chronicle curate to organize memory, /chronicle insights for deep analysis, /chronicle summarize for AI summaries, /chronicle pending for open threads, /chronicle search to find sessions, /chronicle publish for digests, /chronicle ui for dashboard with repo-level views and usage stats.
 license: Apache-2.0
 ---
 
@@ -18,6 +18,8 @@ A persistent journalist tracking your coding sessions.
 /chronicle insights <project> # Analyze specific project
 /chronicle pending            # Show pending threads across sessions
 /chronicle blocks             # List recent memory blocks
+/chronicle catchup            # Restore context for current project
+/chronicle catchup --days=30  # Extend lookback to 30 days
 /chronicle search <query>     # Search sessions by text
 /chronicle publish            # Generate weekly digest (markdown)
 /chronicle publish daily      # Generate daily digest
@@ -178,6 +180,27 @@ Show filename, date, and first line of summary for each.
 
 ---
 
+
+## Catchup (/chronicle catchup)
+
+Restore context when returning to a project:
+
+```bash
+bun ~/.claude/skills/chronicle/scripts/catchup.ts [--days=N]
+```
+
+Options:
+- `--days=N` - Look back N days (default: 7)
+
+Shows:
+1. Current project/branch/worktree context
+2. Last session's summary and pending items
+3. Aggregated pending work (deduplicated, with age)
+4. Patterns: session frequency, focus areas
+
+If no data found, suggests `/chronicle` to capture current session.
+
+---
 ## Search (/chronicle search <query>)
 
 Search across all Chronicle blocks by text:
