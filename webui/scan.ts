@@ -11,15 +11,17 @@ const CLAUDE_DIR = process.env.CLAUDE_DIR || `${process.env.HOME}/.claude`;
 // CLI Arguments
 const args = process.argv.slice(2);
 const skipValidation = args.includes("--skip-validation");
+const includeProject = args.includes("--include-project");
 
 // URL Validation Types
+type UrlSource =
+  | { type: "marketplace"; marketplace: string }
+  | { type: "plugin"; marketplace: string; plugin: string }
+  | { type: "markdown"; location: string; linkText: string };
+
 interface UrlToValidate {
   url: string;
-  type: "marketplace" | "plugin";
-  source: {
-    marketplace: string;
-    plugin?: string;
-  };
+  source: UrlSource;
 }
 
 interface CacheEntry {
@@ -37,17 +39,14 @@ interface ValidationResult {
   url: string;
   status: number;
   ok: boolean;
-  source: UrlToValidate["source"];
-  type: UrlToValidate["type"];
+  source: UrlSource;
   cached: boolean;
 }
 
 interface ValidationError {
   url: string;
   status: number;
-  type: "marketplace" | "plugin";
-  marketplace: string;
-  plugin?: string;
+  source: UrlSource;
   suggestion: string;
 }
 
@@ -96,7 +95,9 @@ interface PluginSourceInfo {
 
 interface Marketplace {
   name: string;
-  repo: string;
+  repo?: string;
+  localPath?: string;
+  sourceType: "github" | "directory";
   lastUpdated: string;
   pluginSources: PluginSourceInfo[];
 }
@@ -107,6 +108,7 @@ interface InstalledPlugin {
   scope: string;
   version: string;
   installedAt: string;
+  projectPath?: string;
 }
 
 interface McpServer {
@@ -415,7 +417,7 @@ async function scanMarketplaces(): Promise<Marketplace[]> {
 
     for (const [name, info] of Object.entries(data)) {
       const mp = info as {
-        source: { repo: string };
+        source: { source: string; repo?: string; path?: string };
         installLocation: string;
         lastUpdated: string;
       };
@@ -449,9 +451,12 @@ async function scanMarketplaces(): Promise<Marketplace[]> {
         // Couldn't read marketplace.json, pluginSources stays empty
       }
 
+      const isDirectory = mp.source.source === "directory";
       marketplaces.push({
         name,
-        repo: mp.source.repo,
+        sourceType: isDirectory ? "directory" : "github",
+        repo: isDirectory ? undefined : mp.source.repo,
+        localPath: isDirectory ? mp.source.path : undefined,
         lastUpdated: mp.lastUpdated,
         pluginSources,
       });
@@ -481,12 +486,16 @@ async function scanInstalledPlugins(): Promise<InstalledPlugin[]> {
       }>;
 
       for (const install of installs) {
+        // Skip project-scoped plugins unless --include-project is set
+        if (install.scope === "project" && !includeProject) continue;
+
         plugins.push({
           name,
           marketplace,
           scope: install.scope,
           version: install.version,
           installedAt: install.installedAt,
+          projectPath: install.projectPath,
         });
       }
     }
@@ -543,18 +552,33 @@ async function scanMcpServers(): Promise<McpServer[]> {
 
 // URL Validation Functions
 
+function extractMarkdownLinks(content: string, location: string): UrlToValidate[] {
+  const urls: UrlToValidate[] = [];
+  // Match [text](url) markdown links - only http/https URLs
+  const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
+  let match;
+  while ((match = linkRegex.exec(content)) !== null) {
+    const [, linkText, url] = match;
+    urls.push({
+      url,
+      source: { type: "markdown", location, linkText },
+    });
+  }
+  return urls;
+}
+
 function collectUrls(data: ConfigData): UrlToValidate[] {
   const urls: UrlToValidate[] = [];
 
   // Build lookup maps from marketplace data
   const mpMap = new Map(data.marketplaces.map((m) => [m.name, m]));
 
-  // Marketplace repo URLs
+  // Marketplace repo URLs (skip local directory sources)
   for (const mp of data.marketplaces) {
+    if (mp.sourceType === "directory" || !mp.repo) continue;
     urls.push({
       url: `https://github.com/${mp.repo}`,
-      type: "marketplace",
-      source: { marketplace: mp.name },
+      source: { type: "marketplace", marketplace: mp.name },
     });
   }
 
@@ -562,6 +586,9 @@ function collectUrls(data: ConfigData): UrlToValidate[] {
   for (const plugin of data.installedPlugins) {
     const mp = mpMap.get(plugin.marketplace);
     if (!mp) continue;
+
+    // Skip plugins from local directory marketplaces (unless they have explicit URLs)
+    const isLocalMarketplace = mp.sourceType === "directory" || !mp.repo;
 
     // Find plugin source info
     let sourceInfo = mp.pluginSources.find((ps) => ps.name === plugin.name);
@@ -575,38 +602,65 @@ function collectUrls(data: ConfigData): UrlToValidate[] {
       }
     }
 
-    let url: string;
+    let url: string | undefined;
     if (sourceInfo) {
       switch (sourceInfo.sourceType) {
         case "url":
-          // Direct URL to separate repo
+          // Direct URL to separate repo (always validate)
           url = sourceInfo.sourceUrl!;
           break;
         case "root":
           // Plugin is the whole marketplace repo
-          url = `https://github.com/${mp.repo}`;
+          if (!isLocalMarketplace) url = `https://github.com/${mp.repo}`;
           break;
         case "path":
           // Relative path within marketplace repo
-          url = `https://github.com/${mp.repo}/tree/main/${sourceInfo.sourcePath}`;
+          if (!isLocalMarketplace) url = `https://github.com/${mp.repo}/tree/main/${sourceInfo.sourcePath}`;
           break;
         default:
           // Fallback to default path
-          url = `https://github.com/${mp.repo}/tree/main/plugins/${plugin.name}`;
+          if (!isLocalMarketplace) url = `https://github.com/${mp.repo}/tree/main/plugins/${plugin.name}`;
       }
-    } else {
+    } else if (!isLocalMarketplace) {
       // No source info found, fallback to default path
       url = `https://github.com/${mp.repo}/tree/main/plugins/${plugin.name}`;
     }
 
-    urls.push({
-      url,
-      type: "plugin",
-      source: { marketplace: plugin.marketplace, plugin: plugin.name },
-    });
+    if (url) {
+      urls.push({
+        url,
+        source: { type: "plugin", marketplace: plugin.marketplace, plugin: plugin.name },
+      });
+    }
   }
 
-  return urls;
+  // Markdown links in README
+  if (data.readme) {
+    urls.push(...extractMarkdownLinks(data.readme, "README.md"));
+  }
+
+  // Markdown links in commands
+  for (const cmd of data.commands) {
+    urls.push(...extractMarkdownLinks(cmd.content, `commands/${cmd.filename}`));
+  }
+
+  // Markdown links in agents
+  for (const agent of data.agents) {
+    urls.push(...extractMarkdownLinks(agent.content, `agents/${agent.filename}`));
+  }
+
+  // Markdown links in skills
+  for (const skill of data.skills) {
+    urls.push(...extractMarkdownLinks(skill.content, `skills/${skill.dirname}/SKILL.md`));
+  }
+
+  // Deduplicate by URL (keep first occurrence)
+  const seen = new Set<string>();
+  return urls.filter((u) => {
+    if (seen.has(u.url)) return false;
+    seen.add(u.url);
+    return true;
+  });
 }
 
 async function loadCache(): Promise<LinkCache> {
@@ -654,7 +708,6 @@ async function validateUrls(
         status: cached.status,
         ok: cached.status >= 200 && cached.status < 400,
         source: item.source,
-        type: item.type,
         cached: true,
       });
     } else {
@@ -677,7 +730,6 @@ async function validateUrls(
           status,
           ok: status >= 200 && status < 400,
           source: item.source,
-          type: item.type,
           cached: false,
         };
       })
@@ -691,18 +743,22 @@ async function validateUrls(
 function formatValidationErrors(failures: ValidationResult[]): ValidationError[] {
   return failures.map((f) => {
     let suggestion: string;
-    if (f.type === "marketplace") {
-      suggestion = `Check if repository "${f.source.marketplace}" exists at the expected location. The repo may have been renamed, moved, or made private.`;
-    } else {
-      suggestion = `Check if plugin "${f.source.plugin}" exists in the "${f.source.marketplace}" marketplace. The plugin path may not match the expected structure (plugins/{name}/).`;
+    switch (f.source.type) {
+      case "marketplace":
+        suggestion = `Check if repository "${f.source.marketplace}" exists. It may have been renamed, moved, or made private.`;
+        break;
+      case "plugin":
+        suggestion = `Check if plugin "${f.source.plugin}" exists in "${f.source.marketplace}". The path may not match the expected structure.`;
+        break;
+      case "markdown":
+        suggestion = `Update or remove the broken link "${f.source.linkText}" in ${f.source.location}.`;
+        break;
     }
 
     return {
       url: f.url,
       status: f.status,
-      type: f.type,
-      marketplace: f.source.marketplace,
-      plugin: f.source.plugin,
+      source: f.source,
       suggestion,
     };
   });
@@ -712,12 +768,24 @@ function printValidationReport(errors: ValidationError[]): void {
   console.error("\n=== URL VALIDATION FAILED ===\n");
 
   for (const err of errors) {
-    console.error(`[ERROR] ${err.type.toUpperCase()}: ${err.url}`);
+    const typeLabel = err.source.type.toUpperCase();
+    console.error(`[ERROR] ${typeLabel}: ${err.url}`);
     console.error(`  Status: ${err.status === 0 ? "Network Error" : err.status}`);
-    console.error(`  Marketplace: ${err.marketplace}`);
-    if (err.plugin) {
-      console.error(`  Plugin: ${err.plugin}`);
+
+    switch (err.source.type) {
+      case "marketplace":
+        console.error(`  Marketplace: ${err.source.marketplace}`);
+        break;
+      case "plugin":
+        console.error(`  Marketplace: ${err.source.marketplace}`);
+        console.error(`  Plugin: ${err.source.plugin}`);
+        break;
+      case "markdown":
+        console.error(`  Location: ${err.source.location}`);
+        console.error(`  Link text: "${err.source.linkText}"`);
+        break;
     }
+
     console.error(`  Suggestion: ${err.suggestion}`);
     console.error("");
   }

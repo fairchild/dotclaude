@@ -204,7 +204,7 @@ myproject fix/branch (3) Opus 4.5 $0.66 +28 -5 (70+210K+1.6M):7K [1:267]
 
 Cache reads are cumulative across turns (not context size).
 
-For implementation details, see [docs/statusline-architecture.md](docs/statusline-architecture.md).
+For implementation details, see [docs/statusline-architecture.md](https://github.com/fairchild/dotclaude/blob/main/docs/statusline-architecture.md).
 
 ---
 
@@ -212,9 +212,9 @@ For implementation details, see [docs/statusline-architecture.md](docs/statuslin
 
 | Doc | Topic |
 |-----|-------|
-| [docs/session-data.md](docs/session-data.md) | Gitignored session data, multi-machine sync |
-| [docs/statusline-architecture.md](docs/statusline-architecture.md) | Status line implementation |
-| [skills/chronicle/docs/chronicle-design.md](skills/chronicle/docs/chronicle-design.md) | Chronicle memory system design |
+| [docs/session-data.md](https://github.com/fairchild/dotclaude/blob/main/docs/session-data.md) | Gitignored session data, multi-machine sync |
+| [docs/statusline-architecture.md](https://github.com/fairchild/dotclaude/blob/main/docs/statusline-architecture.md) | Status line implementation |
+| [skills/chronicle/docs/chronicle-design.md](https://github.com/fairchild/dotclaude/blob/main/skills/chronicle/docs/chronicle-design.md) | Chronicle memory system design |
 
 ---
 
@@ -234,4 +234,4 @@ Skills adapted from [anthropics/skills](https://github.com/anthropics/skills) (A
 
 ## License
 
-Apache 2.0 - See [LICENSE](LICENSE)
+Apache 2.0 - See [LICENSE](https://github.com/fairchild/dotclaude/blob/main/LICENSE)
