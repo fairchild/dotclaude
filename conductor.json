@@ -2,6 +2,6 @@
   "scripts": {
     "setup": "cp $CONDUCTOR_ROOT_PATH/.env .env &&  mise trust",
     "run": "cd $CONDUCTOR_ROOT_PATH",
-    "archive": "cd $CONDUCTOR_ROOT_PATH && git pull"
+    "archive": "cd $CONDUCTOR_ROOT_PATH && (git diff --quiet && git diff --cached --quiet || git stash push -u -m 'conductor-archive') && git pull --rebase && git push && (git stash list | grep -q 'conductor-archive' && git stash pop || true)"
   }
 }
