@@ -91,6 +91,11 @@ function filterByProject(blocks: ChronicleBlock[], project: string): ChronicleBl
   return blocks.filter(b => b.project.toLowerCase() === project.toLowerCase());
 }
 
+function filterByWorktree(blocks: ChronicleBlock[], worktree: string | null): ChronicleBlock[] {
+  if (!worktree) return blocks;
+  return blocks.filter(b => b.worktree === worktree);
+}
+
 function filterByDateRange(blocks: ChronicleBlock[], days: number): ChronicleBlock[] {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
@@ -98,16 +103,15 @@ function filterByDateRange(blocks: ChronicleBlock[], days: number): ChronicleBlo
 }
 
 function getLastSession(blocks: ChronicleBlock[]): ChronicleBlock | null {
-  return blocks.length > 0 ? blocks[0] : null; // Already sorted newest first
+  return blocks.length > 0 ? blocks[0] : null;
 }
 
 function aggregatePending(blocks: ChronicleBlock[]): AggregatedPending[] {
   const seen = new Map<string, AggregatedPending>();
   const now = new Date();
 
-  // Process oldest first so we keep first occurrence
   for (const block of [...blocks].reverse()) {
-    for (const text of block.pending) {
+    for (const text of block.pending || []) {
       const key = text.toLowerCase().trim();
       if (!seen.has(key)) {
         const firstSeen = new Date(block.timestamp);
@@ -117,7 +121,6 @@ function aggregatePending(blocks: ChronicleBlock[]): AggregatedPending[] {
     }
   }
 
-  // Sort by age (oldest first)
   return Array.from(seen.values()).sort((a, b) => b.ageInDays - a.ageInDays);
 }
 
@@ -125,7 +128,7 @@ function detectPatterns(blocks: ChronicleBlock[]): Patterns {
   const focusAreas = new Map<string, number>();
 
   for (const block of blocks) {
-    for (const item of block.accomplished) {
+    for (const item of block.accomplished || []) {
       const lower = item.toLowerCase();
       if (lower.includes("test")) increment(focusAreas, "testing");
       else if (lower.includes("doc") || lower.includes("readme")) increment(focusAreas, "docs");
@@ -172,18 +175,16 @@ function formatCatchup(
 ): string {
   const lines: string[] = [];
 
-  // Header
   lines.push(`📍 ${ctx.project}${ctx.branch ? ` on branch ${ctx.branch}` : ""}`);
   if (ctx.worktree) lines.push(`   worktree: ${ctx.worktree}`);
   lines.push("");
 
-  // Last session
   if (lastSession) {
     const timeAgo = formatTimeAgo(new Date(lastSession.timestamp));
     lines.push(`Last session (${timeAgo}):`);
     lines.push(`• ${lastSession.summary}`);
 
-    if (lastSession.accomplished.length > 0) {
+    if (lastSession.accomplished && lastSession.accomplished.length > 0) {
       lines.push("");
       lines.push("Accomplished:");
       for (const item of lastSession.accomplished.slice(0, 5)) {
@@ -191,7 +192,7 @@ function formatCatchup(
       }
     }
 
-    if (lastSession.pending.length > 0) {
+    if (lastSession.pending && lastSession.pending.length > 0) {
       lines.push("");
       lines.push("Left pending:");
       for (const item of lastSession.pending.slice(0, 3)) {
@@ -199,13 +200,13 @@ function formatCatchup(
       }
     }
   } else {
-    lines.push("No recent sessions found for this project.");
+    lines.push(`No recent sessions found for this worktree.`);
+    lines.push(`(Showing project-wide pending items below)`);
   }
 
-  // Aggregated pending
   if (pending.length > 0) {
     lines.push("");
-    lines.push(`Pending work (last ${days} days, deduplicated):`);
+    lines.push(`Pending work (project-wide, last ${days} days):`);
     for (const item of pending.slice(0, 8)) {
       lines.push(`  [ ] ${item.text} (${formatAge(item.ageInDays)})`);
     }
@@ -214,7 +215,6 @@ function formatCatchup(
     }
   }
 
-  // Patterns
   if (patterns.sessionCount > 1) {
     lines.push("");
     const focusEntries = Array.from(patterns.focusAreas.entries())
@@ -247,17 +247,21 @@ async function main() {
 
   const allBlocks = loadAllBlocks();
   const projectBlocks = filterByProject(allBlocks, ctx.project);
-  const recentBlocks = filterByDateRange(projectBlocks, days);
+  const worktreeBlocks = filterByWorktree(projectBlocks, ctx.worktree);
+  
+  const recentProjectBlocks = filterByDateRange(projectBlocks, days);
+  const recentWorktreeBlocks = filterByDateRange(worktreeBlocks, days);
 
-  const lastSession = getLastSession(recentBlocks);
-  const pending = aggregatePending(recentBlocks);
-  const patterns = detectPatterns(recentBlocks);
+  // Last session: worktree-specific (most relevant)
+  // Pending/patterns: project-wide (don't miss items from other worktrees)
+  const lastSession = getLastSession(recentWorktreeBlocks);
+  const pending = aggregatePending(recentProjectBlocks);
+  const patterns = detectPatterns(recentProjectBlocks);
 
   const output = formatCatchup(ctx, lastSession, pending, patterns, days);
   console.log(output);
 
-  // Helpful hints if no data
-  if (recentBlocks.length === 0) {
+  if (recentWorktreeBlocks.length === 0 && recentProjectBlocks.length === 0) {
     console.log("");
     console.log("Try:");
     console.log("  /chronicle              # Capture current session");
