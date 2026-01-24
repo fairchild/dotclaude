@@ -10,6 +10,7 @@ Parse the user's invocation for these flags:
 - `--test` - Also run test suites for each project
 - `--detail` - Show verbose per-project breakdown instead of compact table
 - `--all` - Skip project selection, check all projects
+- `--pull` - After showing status, pull all clean repos that are behind
 
 ## Step 1: Discover Projects
 
@@ -86,6 +87,27 @@ Show full breakdown per project including:
 - List of uncommitted files if dirty
 - Full ahead/behind details
 - Test output if tests were run
+
+## Step 5: Execute Pull (if --pull)
+
+If `--pull` was specified, for each project that is:
+- Status: clean (no uncommitted changes)
+- Remote: N behind (not diverged)
+
+Run:
+```bash
+cd ~/code/$project
+git pull --ff-only
+```
+
+Report results:
+```
+Pulled 2 repos:
+  - beads (12 commits)
+  - superpowers (3 commits)
+
+Skipped (dirty): jrnlfish-v4
+```
 
 ## Remote Sync Status
 

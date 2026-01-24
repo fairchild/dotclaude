@@ -2,3 +2,8 @@ node_modules/
 test-results/
 bun.lock
 .link-cache.json
+data.json
+
+# Screenshots (only hero.png is committed for docs)
+screenshots/*
+!screenshots/hero.png

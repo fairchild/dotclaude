@@ -86,7 +86,15 @@ _wt() {
 
     case $state in
         cmd)
-            _values 'command' 'cd[Change to worktree]' 'home[Return to main repo]' 'list[List worktrees]' 'ls[List worktrees]' 'tree[Tree view with status]' 'archive[Archive worktree]'
+            _values 'command' \
+                'cd[Change to worktree]' \
+                'home[Return to main repo]' \
+                'list[List worktrees]' \
+                'ls[List worktrees]' \
+                'tree[Tree view with status]' \
+                'status[Show worktrees with session activity]' \
+                'open[Open editor for worktree]' \
+                'archive[Archive worktree]'
             # Also complete branch names for direct create
             if git rev-parse --git-dir &>/dev/null; then
                 local branches
@@ -95,7 +103,7 @@ _wt() {
             fi
             ;;
         branch)
-            if [[ "$words[2]" == "cd" || "$words[2]" == "archive" ]]; then
+            if [[ "$words[2]" == "cd" || "$words[2]" == "archive" || "$words[2]" == "open" ]]; then
                 # Complete with existing worktrees
                 local repo_name
                 if git rev-parse --git-dir &>/dev/null; then

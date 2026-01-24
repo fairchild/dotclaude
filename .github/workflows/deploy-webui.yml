@@ -1,0 +1,45 @@
+name: Deploy WebUI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Direct webui changes
+      - 'webui/index.html'
+      - 'webui/scan.ts'
+      # Content that feeds data.json
+      - 'commands/*.md'
+      - 'agents/*.md'
+      - 'skills/**/SKILL.md'
+      - 'scripts/**'
+      - 'README.md'
+      - '.mcp.json'
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Generate data.json
+        run: bun webui/scan.ts --skip-validation
+        env:
+          CLAUDE_DIR: .
+
+      - name: Deploy to Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: webui
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}

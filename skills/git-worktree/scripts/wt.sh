@@ -21,12 +21,19 @@ usage() {
 Usage: wt <command> [args]
 
 Commands:
-  <branch> [--no-editor]  Create worktree, run setup, open editor
+  <branch> [options]      Create worktree, run setup, open editor
+    --no-editor           Don't open editor after creation
+    --carry               Copy untracked files to new worktree
   cd <branch>             Change to worktree directory (shell function)
   home                    Return to main repository (shell function)
+  apply [branch] [opts]   Merge worktree into branch (default: main)
+    --archive             Archive worktree after merge without prompting
+    --push                Push to remote after merge
   archive [branch]        Run conductor archive, move to .archive
   list, ls                List all worktrees
   tree                    Tree view of worktrees with git status
+  status                  Show all worktrees with session activity
+  open [branch]           Open editor for worktree (current or specified)
 
 Environment:
   WORKTREES_ROOT     Base directory for worktrees (default: ~/.worktrees)
@@ -36,16 +43,20 @@ EOF
 }
 
 detect_editor() {
-    # Return editor command (for execution) and name (for display)
-    # Usage: read -r editor editor_name <<< "$(detect_editor)"
+    # Return "editor_command|editor_name" for parsing
+    # Usage: IFS='|' read -r editor editor_name <<< "$(detect_editor)"
     if [[ -n "${EDITOR:-}" ]]; then
-        echo "$EDITOR $(basename "$EDITOR")"
+        # Handle EDITOR with flags like "zed --wait"
+        local editor_cmd="${EDITOR%% *}"  # First word
+        local editor_name
+        editor_name=$(basename "$editor_cmd")
+        echo "${EDITOR}|${editor_name}"
     elif command -v cursor &>/dev/null; then
-        echo "cursor cursor"
+        echo "cursor|cursor"
     elif command -v zed &>/dev/null; then
-        echo "zed zed"
+        echo "zed|zed"
     elif command -v code &>/dev/null; then
-        echo "code code"
+        echo "code|code"
     else
         echo ""
     fi
@@ -104,16 +115,49 @@ copy_env_files() {
     fi
 }
 
+# --- CARRY MODIFIED FILES (experimental) ---
+# Copies modified tracked files to worktree, overwriting clean versions.
+# Remove this function and its call site to revert to untracked-only behavior.
+carry_modified_files() {
+    local worktree_path="$1"
+    local repo_root="$2"
+    local modified_files
+    modified_files=$(cd "$repo_root" && git diff --name-only --diff-filter=M)
+
+    if [[ -z "$modified_files" ]]; then
+        return 0
+    fi
+
+    local count
+    count=$(echo "$modified_files" | wc -l | tr -d ' ')
+    log_info "Copying $count modified files..."
+
+    local copied=0
+    while IFS= read -r file; do
+        [[ -z "$file" ]] && continue
+        mkdir -p "$worktree_path/$(dirname "$file")"
+        cp "$repo_root/$file" "$worktree_path/$file"
+        ((copied++))
+    done <<< "$modified_files"
+    log_ok "Carried $copied modified files"
+}
+# --- END CARRY MODIFIED FILES ---
+
 cmd_create() {
     local branch=""
     local base_branch="main"
     local open_editor=true
+    local carry_untracked=false
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --no-editor)
                 open_editor=false
+                shift
+                ;;
+            --carry)
+                carry_untracked=true
                 shift
                 ;;
             *)
@@ -144,6 +188,17 @@ cmd_create() {
     local worktree_path="$WORKTREES_ROOT/$repo_name/$branch"
     local conductor_json="$main_repo/conductor.json"
 
+    # Capture untracked files before creating worktree (from repo root for correct paths)
+    local untracked_files=""
+    if [[ "$carry_untracked" == true ]]; then
+        untracked_files=$(cd "$main_repo" && git ls-files --others --exclude-standard)
+        if [[ -n "$untracked_files" ]]; then
+            local file_count
+            file_count=$(echo "$untracked_files" | wc -l | tr -d ' ')
+            log_info "Will carry $file_count untracked files"
+        fi
+    fi
+
     log_info "Creating worktree: $branch"
     log_info "Path: $worktree_path"
 
@@ -167,6 +222,24 @@ cmd_create() {
     fi
 
     log_ok "Worktree created"
+
+    # Copy untracked files if --carry was specified
+    if [[ "$carry_untracked" == true ]] && [[ -n "$untracked_files" ]]; then
+        log_info "Copying untracked files..."
+        local copied=0
+        while IFS= read -r file; do
+            [[ -z "$file" ]] && continue
+            mkdir -p "$worktree_path/$(dirname "$file")"
+            cp "$main_repo/$file" "$worktree_path/$file"
+            ((copied++))
+        done <<< "$untracked_files"
+        log_ok "Carried $copied files"
+    fi
+
+    # Copy modified tracked files (experimental - see carry_modified_files)
+    if [[ "$carry_untracked" == true ]]; then
+        carry_modified_files "$worktree_path" "$main_repo"
+    fi
 
     # Copy env files from main repo
     copy_env_files "$main_repo" "$worktree_path"
@@ -193,7 +266,7 @@ cmd_create() {
     local editor_info editor editor_name
     editor_info=$(detect_editor)
     if [[ -n "$editor_info" ]]; then
-        read -r editor editor_name <<< "$editor_info"
+        IFS='|' read -r editor editor_name <<< "$editor_info"
     fi
 
     if [[ "$open_editor" == true ]] && [[ -n "$editor" ]]; then
@@ -296,6 +369,112 @@ cmd_archive() {
     fi
 }
 
+cmd_apply() {
+    local target_branch="main"
+    local auto_archive=false
+    local push_after=false
+
+    local target_set=false
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --archive)
+                auto_archive=true
+                shift
+                ;;
+            --push)
+                push_after=true
+                shift
+                ;;
+            *)
+                if [[ "$target_set" == true ]]; then
+                    log_error "Too many arguments. Usage: wt apply [branch] [--archive] [--push]"
+                    exit 1
+                fi
+                target_branch="$1"
+                target_set=true
+                shift
+                ;;
+        esac
+    done
+
+    # Must be in a git repo
+    if ! git rev-parse --git-dir &>/dev/null; then
+        log_error "Not in a git repository"
+        exit 1
+    fi
+
+    # Must be in a worktree (not main repo)
+    local git_dir
+    git_dir=$(git rev-parse --git-dir)
+    if [[ ! -f "$git_dir" ]]; then
+        log_error "Not in a worktree. Run from within a worktree directory."
+        exit 1
+    fi
+
+    # Get current branch
+    local current_branch
+    current_branch=$(git branch --show-current)
+    if [[ -z "$current_branch" ]]; then
+        log_error "Cannot determine current branch"
+        exit 1
+    fi
+
+    # Check for uncommitted changes
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+        log_error "Uncommitted changes in worktree. Commit or stash first."
+        exit 1
+    fi
+
+    local main_repo
+    main_repo=$(get_main_repo)
+
+    log_info "Merging $current_branch → $target_branch"
+
+    # Switch to main repo and target branch
+    if ! (cd "$main_repo" && git switch "$target_branch" 2>/dev/null); then
+        log_error "Cannot switch to $target_branch in main repo"
+        exit 1
+    fi
+
+    # Attempt fast-forward merge
+    if ! (cd "$main_repo" && git merge --ff-only -- "$current_branch"); then
+        log_error "Cannot fast-forward. Rebase your branch first:"
+        echo "  cd $PWD && git rebase $target_branch"
+        (cd "$main_repo" && git switch - &>/dev/null)
+        exit 1
+    fi
+
+    log_ok "Merged $current_branch into $target_branch"
+
+    # Push if requested
+    if [[ "$push_after" == true ]]; then
+        log_info "Pushing to remote..."
+        if ! (cd "$main_repo" && git push); then
+            log_error "Push failed (merge completed locally)"
+            exit 1
+        fi
+        log_ok "Pushed to remote"
+    fi
+
+    # Archive handling
+    if [[ "$auto_archive" == true ]]; then
+        cmd_archive "$current_branch"
+    else
+        echo ""
+        read -p "[wt] Archive worktree '$current_branch'? [y/N] " -n 1 -r
+        echo ""
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            cmd_archive "$current_branch"
+        else
+            local repo_name
+            repo_name=$(get_repo_name)
+            log_info "Worktree kept at: $WORKTREES_ROOT/$repo_name/$current_branch"
+        fi
+    fi
+}
+
 cmd_list() {
     local filter_repo="${1:-}"
 
@@ -394,6 +573,126 @@ cmd_tree() {
     done
 }
 
+cmd_status() {
+    if [[ ! -d "$WORKTREES_ROOT" ]]; then
+        echo "No worktrees found."
+        return 0
+    fi
+
+    local YELLOW='\033[0;33m'
+
+    echo ""
+    echo -e "${BLUE}WORKTREES${NC}"
+    echo "════════════════════════════════════════════════════════════"
+
+    for repo_dir in "$WORKTREES_ROOT"/*; do
+        [[ -d "$repo_dir" ]] || continue
+        [[ "$(basename "$repo_dir")" != "."* ]] || continue
+
+        for branch_dir in "$repo_dir"/*; do
+            [[ -d "$branch_dir" ]] || continue
+            [[ -f "$branch_dir/.git" ]] || continue
+
+            local branch_name
+            branch_name=$(basename "$branch_dir")
+            local git_branch
+            git_branch=$(git -C "$branch_dir" branch --show-current 2>/dev/null || echo "unknown")
+
+            # Get git status
+            local changes
+            changes=$(git -C "$branch_dir" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+            local status_text="clean"
+            [[ "$changes" -gt 0 ]] && status_text="${changes} files"
+
+            # Get session activity
+            # Path encoding: /Users/x/.worktrees/y -> -Users-x--worktrees-y
+            # Both / and . become -
+            local encoded_path
+            encoded_path=$(echo "$branch_dir" | sed 's|[/.]|-|g')
+            local claude_dir="$HOME/.claude/projects/$encoded_path"
+            local session_indicator="○"
+            local age_text=""
+
+            if [[ -d "$claude_dir" ]]; then
+                local newest_mtime
+                newest_mtime=$(stat -f %m "$claude_dir"/*.jsonl 2>/dev/null | sort -rn | head -1)
+                if [[ -n "$newest_mtime" ]]; then
+                    local now
+                    now=$(date +%s)
+                    local age_minutes=$(( (now - newest_mtime) / 60 ))
+
+                    if [[ $age_minutes -lt 5 ]]; then
+                        session_indicator="${GREEN}●${NC}"
+                        age_text="${age_minutes}m"
+                    elif [[ $age_minutes -lt 60 ]]; then
+                        session_indicator="${YELLOW}◐${NC}"
+                        age_text="${age_minutes}m"
+                    else
+                        local age_hours=$(( age_minutes / 60 ))
+                        age_text="${age_hours}h"
+                    fi
+                fi
+            fi
+
+            printf "%b %-20s %-20s %8s   %s\n" \
+                "$session_indicator" "$branch_name" "$git_branch" "$age_text" "$status_text"
+        done
+    done
+    echo ""
+}
+
+cmd_open() {
+    local branch="${1:-}"
+
+    # If no branch specified, try current directory
+    if [[ -z "$branch" ]]; then
+        if [[ "$PWD" == "$WORKTREES_ROOT/"* ]]; then
+            local editor_info
+            editor_info=$(detect_editor)
+            if [[ -n "$editor_info" ]]; then
+                local editor editor_name
+                IFS='|' read -r editor editor_name <<< "$editor_info"
+                log_info "Opening $editor_name..."
+                $editor "$PWD"
+            else
+                log_error "No editor found"
+                return 1
+            fi
+            return 0
+        else
+            log_error "Usage: wt open [branch]"
+            return 1
+        fi
+    fi
+
+    # Find worktree by branch name
+    if ! git rev-parse --git-dir &>/dev/null; then
+        log_error "Not in a git repository"
+        return 1
+    fi
+
+    local repo_name
+    repo_name=$(get_repo_name)
+    local worktree_path="$WORKTREES_ROOT/$repo_name/$branch"
+
+    if [[ ! -d "$worktree_path" ]]; then
+        log_error "Worktree not found: $worktree_path"
+        return 1
+    fi
+
+    local editor_info
+    editor_info=$(detect_editor)
+    if [[ -n "$editor_info" ]]; then
+        local editor editor_name
+        IFS='|' read -r editor editor_name <<< "$editor_info"
+        log_info "Opening $editor_name at $worktree_path"
+        $editor "$worktree_path"
+    else
+        log_error "No editor found. Set \$EDITOR or install cursor/zed/code"
+        return 1
+    fi
+}
+
 main() {
     local cmd="${1:-}"
 
@@ -408,9 +707,20 @@ main() {
         tree)
             cmd_tree
             ;;
+        status)
+            cmd_status
+            ;;
+        open)
+            shift
+            cmd_open "${1:-}"
+            ;;
         archive)
             shift
             cmd_archive "${1:-}"
+            ;;
+        apply)
+            shift
+            cmd_apply "$@"
             ;;
         cd|home)
             log_error "wt $cmd requires shell function. Add to ~/.zshrc:"

@@ -13,13 +13,17 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 ├── CLAUDE.md          # Personal context (name, preferences, tool choices)
 ├── settings.json      # Permissions, hooks, model selection
 ├── .mcp.json          # MCP server configs
-└── statusline.sh      # Custom status bar
+├── statusline.sh      # Custom status bar
 ├── commands/          # Slash commands (/bootstrap, /status_line)
 ├── skills/            # Extended capabilities with references
 ├── agents/            # Specialized autonomous agents
 ├── hooks/             # Session lifecycle scripts
 ├── scripts/           # Helper utilities
-├── [generated]        # Gitignored: history, todos, plans, debug, etc.
+├── references/        # Reference documentation
+├── chronicle/         # Chronicle session memory
+├── webui/             # Config Visualizer dashboard
+├── docs/              # Architecture documentation
+└── [session data]     # Gitignored: history, todos, plans, etc. (see docs/session-data.md)
 ```
 
 ## Quick Reference
@@ -29,17 +33,28 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | Command | Purpose |
 |---------|---------|
 | `/bootstrap` | Scaffold new projects with structure |
-| `/status_line` | Explain current session metrics |
+| `/claude-webui` | Launch the Config Visualizer dashboard |
+| `/defer` | Capture explored work as todo for later |
 | `/opensource-precheck` | Audit repo before making public |
-| `/pr-review` | Address PR review feedback and advance toward merge |
+| `/plan_retro` | Append retrospective to current plan |
+| `/pr-review` | Address PR feedback toward merge |
+| `/project-health` | Review ~/code projects health |
+| `/reflect` | Pause to review work with fresh eyes |
+| `/reflection-log` | Log feedback to improve reflection prompt |
+| `/retro` | Review session trajectory and update todos |
+| `/status_line` | Explain current session metrics |
 | `/update-dependencies` | Intelligent dependency updates with batching |
 
 ### Skills (auto-invoked)
 
 | Skill | When it activates |
 |-------|-------------------|
-| **frontend-design** | Building web UIs, components, pages |
+| **ai-coding-usage** | Analyzing AI coding patterns and statistics |
+| **brainstorm-to-brief** | Visual design exploration and design briefs |
+| **image-gen** | Generating images with AI (OpenAI, Imagen, fal.ai) |
 | **canvas-design** | Creating visual art, posters, PDFs |
+| **chronicle** | Capturing and curating session memory |
+| **frontend-design** | Building web UIs, components, pages |
 | **webapp-testing** | Playwright browser automation |
 | **mcp-builder** | Creating MCP servers |
 | **skill-creator** | Building new skills |
@@ -65,7 +80,7 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | **github-notifications-triager** | Prioritize GitHub notifications | "What's important on GitHub today?" |
 | **devcontainer-setup** | Configure dev containers | "Set up a devcontainer for this project" |
 | **project-handoff-auditor** | Pre-handoff quality audit | "Prepare this project for client handoff" |
-| **ai-sdk-agent-architect** | Vercel AI SDK 5 implementations | "Implement a search agent with AI SDK" |
+| **ai-sdk-agent-architect** | Vercel AI SDK 6 agent implementations | "Implement a search agent with AI SDK" |
 | **playwright-test-analyzer** | Visual test analysis | "Run checkout tests and analyze the UI" |
 | **chronicle-curator** | Curate Chronicle memory blocks | Auto-invoked for memory management |
 | **youtube-content** | Extract YouTube transcripts | "Summarize this video: youtube.com/..." |
@@ -131,7 +146,9 @@ The `.mcp.json` in this repo defines shareable servers with env var references:
 {
   "mcpServers": {
     "alcova-perplexity-mcp": {
+      "type": "stdio",
       "command": "perplexity-mcp",
+      "args": ["--model", "sonar-pro", "--reasoning-model", "sonar-reasoning-pro"],
       "env": { "PERPLEXITY_API_KEY": "${PERPLEXITY_API_KEY}" }
     }
   }
@@ -187,6 +204,18 @@ myproject fix/branch (3) Opus 4.5 $0.66 +28 -5 (70+210K+1.6M):7K [1:267]
 
 Cache reads are cumulative across turns (not context size).
 
+For implementation details, see [docs/statusline-architecture.md](https://github.com/fairchild/dotclaude/blob/main/docs/statusline-architecture.md).
+
+---
+
+## Documentation
+
+| Doc | Topic |
+|-----|-------|
+| [docs/session-data.md](https://github.com/fairchild/dotclaude/blob/main/docs/session-data.md) | Gitignored session data, multi-machine sync |
+| [docs/statusline-architecture.md](https://github.com/fairchild/dotclaude/blob/main/docs/statusline-architecture.md) | Status line implementation |
+| [skills/chronicle/docs/chronicle-design.md](https://github.com/fairchild/dotclaude/blob/main/skills/chronicle/docs/chronicle-design.md) | Chronicle memory system design |
+
 ---
 
 ## Model Reference
@@ -205,4 +234,4 @@ Skills adapted from [anthropics/skills](https://github.com/anthropics/skills) (A
 
 ## License
 
-Apache 2.0 - See [LICENSE](LICENSE)
+Apache 2.0 - See [LICENSE](https://github.com/fairchild/dotclaude/blob/main/LICENSE)

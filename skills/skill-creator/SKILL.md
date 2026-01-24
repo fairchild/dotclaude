@@ -1,8 +1,14 @@
 ---
 name: skill-creator
 description: Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.
-license: Complete terms in LICENSE.txt
+license: Apache-2.0
 origin: https://github.com/anthropics/anthropic-agent-skills
+hooks:
+  PostToolUse:
+    - matcher: "Write"
+      hooks:
+        - type: command
+          command: uv run $CLAUDE_PROJECT_DIR/.claude/hooks/validators/skill_frontmatter_validator.py
 ---
 
 # Skill Creator

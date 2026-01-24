@@ -1,7 +1,7 @@
 ---
 name: youtube-content
 description: Extract and analyze YouTube video content (transcripts + metadata). Use when the user explicitly requests to analyze, summarize, extract wisdom from, or get context from a YouTube video. Supports wisdom extraction, summary, Q&A prep, key quotes, and custom analysis. Does NOT auto-trigger on YouTube URLs - only when analysis is explicitly requested.
-license: Apache 2.0
+license: Apache-2.0
 ---
 
 # YouTube Content
@@ -14,7 +14,7 @@ Extract transcripts and metadata from YouTube videos for analysis.
 2. Run fetch script from skill directory
 3. Present metadata summary to user
 4. Apply requested analysis mode to transcript
-5. Save analysis to knowledge base (auto, use `--no-save` to skip)
+5. Save analysis and raw transcript to knowledge base (auto, use `--no-save` to skip)
 
 ## Fetch Script
 
@@ -66,7 +66,7 @@ Check the `errors` array in output for any issues.
 
 ## Knowledge Persistence
 
-Analyses are automatically saved to a knowledge base for future reference.
+Analyses and raw transcripts are automatically saved to a knowledge base for future reference.
 
 ### Configuration
 
@@ -74,10 +74,14 @@ Set `CLAUDE_KNOWLEDGE_DIR` to customize storage location (default: `~/.claude/kn
 
 ### Save Analysis
 
+Saves both the analysis (markdown) and raw transcript (JSON):
+
 ```bash
-echo '{"video_id": "...", "metadata": {...}, "analysis": "..."}' | \
+echo '{"video_id": "...", "metadata": {...}, "transcript": {...}, "analysis": "..."}' | \
   uv run scripts/save_analysis.py --mode wisdom --tags "ai,coding"
 ```
+
+Output: `{"saved": true, "analysis_path": "...", "transcript_path": "..."}`
 
 ### Search Knowledge
 
@@ -91,7 +95,12 @@ uv run scripts/search_knowledge.py --tag ai        # Filter by tag
 
 ```
 $CLAUDE_KNOWLEDGE_DIR/youtube/
+├── .gitignore                  # Ignores transcripts/
 ├── index.md                    # Quick reference
-└── analyses/
-    └── 2025-12-30_VIDEO_ID.md  # Individual analyses
+├── analyses/
+│   └── 2025-12-30_VIDEO_ID.md  # Formatted analysis with frontmatter
+└── transcripts/                # Raw data (gitignored)
+    └── 2025-12-30_VIDEO_ID.json # Full fetch output with transcript
 ```
+
+**Note**: Raw transcripts are gitignored by default as they can be large and re-fetched from YouTube if needed.

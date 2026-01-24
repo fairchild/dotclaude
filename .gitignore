@@ -25,6 +25,8 @@ session-env/
 file-history/
 chronicle/blocks/
 chronicle/digests/
+chronicle/insights/
+chronicle/summaries/
 title-feedback/*.jsonl
 
 # Debug and logs
@@ -69,3 +71,6 @@ tmp/
 *~
 scratch/
 paste-cache/
+
+# claude chrome plugin
+chrome-native-host

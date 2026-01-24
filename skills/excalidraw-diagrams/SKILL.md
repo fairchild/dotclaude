@@ -1,7 +1,7 @@
 ---
 name: excalidraw-diagrams
 description: Create diagrams and visual artifacts using Excalidraw with real-time canvas preview. Use when the user asks to create, draw, or visualize diagrams, flowcharts, architecture diagrams, system designs, or any visual representation. Supports creating elements programmatically, Mermaid diagram conversion, and visual verification via screenshots.
-license: Apache 2.0
+license: Apache-2.0
 ---
 
 # Excalidraw Diagrams

@@ -2,6 +2,9 @@
 description: Explain the current status line with verbose breakdown and ASCII diagram
 scripts:
   - scripts/get-session-tokens.sh
+related:
+  - statusline.sh
+  - docs/statusline-architecture.md
 ---
 
 You are explaining the Claude Code status line to help the user understand session metrics.
