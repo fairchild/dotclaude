@@ -7,6 +7,6 @@ echo "Generating data.json..."
 bun scan.ts --skip-validation
 
 echo "Deploying to Cloudflare Workers..."
-npx wrangler deploy
+bunx wrangler deploy
 
 echo "Done!"
