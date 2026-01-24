@@ -18,6 +18,14 @@ import {
   type ProjectStats,
 } from "./queries.ts";
 import {
+  computeLightweightStats,
+  generateSyncInsights,
+  loadLightweightStats,
+  getSyncHistory,
+  type LightweightStats,
+  type SyncInsights,
+} from "./sync-insights.ts";
+import {
   getGlobalUsage,
   getRepoUsage,
   getToolBreakdown,
@@ -694,6 +702,418 @@ function generateProjectBreakdowns(blocks: ChronicleBlock[], stats: ProjectStats
 
   return breakdowns;
 }
+
+// === SYNC PAGE HTML ===
+const SYNC_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chronicle Sync Preview</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-tertiary: #21262d;
+      --text: #e6edf3;
+      --text-secondary: #c9d1d9;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-subtle: #388bfd26;
+      --border: #30363d;
+      --green: #3fb950;
+      --yellow: #d29922;
+      --red: #f85149;
+      --purple: #a371f7;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 { font-size: 28px; font-weight: 700; }
+    .header-right { display: flex; gap: 12px; }
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+    .btn-primary:hover { background: #4090e0; }
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: var(--bg-secondary); }
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+    @media (max-width: 768px) {
+      .dashboard-grid { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .card-icon {
+      font-size: 20px;
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .card-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+    .stats-row {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 8px;
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .insight-list {
+      list-style: none;
+    }
+    .insight-item {
+      padding: 12px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    .insight-item:last-child { margin-bottom: 0; }
+    .insight-type {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .insight-title {
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .insight-detail {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .stalled { border-left: 3px solid var(--red); }
+    .thread_duration { border-left: 3px solid var(--yellow); }
+    .resolution { border-left: 3px solid var(--green); }
+    .pattern { border-left: 3px solid var(--purple); }
+    .hot_file { border-left: 3px solid var(--yellow); }
+    .tech_debt { border-left: 3px solid var(--red); }
+    .cross_project { border-left: 3px solid var(--purple); }
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .history-table th,
+    .history-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .history-table th {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .history-table td {
+      font-size: 14px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-green { background: rgba(63, 185, 80, 0.2); color: var(--green); }
+    .badge-yellow { background: rgba(210, 153, 34, 0.2); color: var(--yellow); }
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-muted);
+    }
+    .empty-state {
+      text-align: center;
+      padding: 24px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Chronicle Sync Preview</h1>
+    <div class="header-right">
+      <button class="btn btn-secondary" onclick="window.location.href='/'">← Dashboard</button>
+      <button class="btn btn-primary" id="sync-btn">Sync Now</button>
+    </div>
+  </header>
+
+  <div class="dashboard-grid">
+    <!-- Sync Preview Card -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">📊</span>
+        <span class="card-title">SYNC PREVIEW</span>
+        <span class="card-subtitle" id="last-sync">Loading...</span>
+      </div>
+      <div class="stats-row" id="sync-stats">
+        <div class="loading">Loading stats...</div>
+      </div>
+    </div>
+
+    <!-- Continuity Insights Card -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">⚡</span>
+        <span class="card-title">CONTINUITY INSIGHTS</span>
+      </div>
+      <ul class="insight-list" id="continuity-insights">
+        <li class="loading">Loading insights...</li>
+      </ul>
+    </div>
+
+    <!-- Technical Patterns Card -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">🔧</span>
+        <span class="card-title">TECHNICAL PATTERNS</span>
+      </div>
+      <ul class="insight-list" id="technical-patterns">
+        <li class="loading">Loading patterns...</li>
+      </ul>
+    </div>
+
+    <!-- Cross-Project Card -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">🔗</span>
+        <span class="card-title">CROSS-PROJECT CONNECTIONS</span>
+      </div>
+      <ul class="insight-list" id="cross-project">
+        <li class="loading">Loading connections...</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Sync History -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-icon">📅</span>
+      <span class="card-title">SYNC HISTORY</span>
+    </div>
+    <table class="history-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Sessions</th>
+          <th>Status</th>
+          <th>Insights</th>
+        </tr>
+      </thead>
+      <tbody id="sync-history">
+        <tr><td colspan="4" class="loading">Loading history...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    async function loadSyncData() {
+      try {
+        const res = await fetch('/api/sync/preview');
+        const data = await res.json();
+
+        // Update stats
+        const statsEl = document.getElementById('sync-stats');
+        statsEl.innerHTML = \`
+          <div class="stat">
+            <div class="stat-value">\${data.newBlocksSinceSync}</div>
+            <div class="stat-label">Sessions</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">\${data.stats.projectCount}</div>
+            <div class="stat-label">Projects</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">\${data.stats.hotFiles.length}</div>
+            <div class="stat-label">Hot Files</div>
+          </div>
+        \`;
+
+        // Update last sync
+        const lastSyncEl = document.getElementById('last-sync');
+        if (data.lastSyncTime) {
+          const d = new Date(data.lastSyncTime);
+          lastSyncEl.textContent = 'Last sync: ' + d.toLocaleDateString();
+        } else {
+          lastSyncEl.textContent = 'First sync';
+        }
+
+        // Continuity insights
+        const continuityEl = document.getElementById('continuity-insights');
+        if (data.insights.continuity.length === 0) {
+          continuityEl.innerHTML = '<li class="empty-state">No continuity insights</li>';
+        } else {
+          continuityEl.innerHTML = data.insights.continuity.slice(0, 5).map(i => \`
+            <li class="insight-item \${i.type}">
+              <div class="insight-type">\${i.type.replace('_', ' ')}</div>
+              <div class="insight-title">\${i.title}</div>
+              <div class="insight-detail">\${i.detail}</div>
+            </li>
+          \`).join('');
+        }
+
+        // Technical patterns
+        const technicalEl = document.getElementById('technical-patterns');
+        if (data.insights.technical.length === 0) {
+          technicalEl.innerHTML = '<li class="empty-state">No technical patterns</li>';
+        } else {
+          technicalEl.innerHTML = data.insights.technical.slice(0, 5).map(t => \`
+            <li class="insight-item \${t.type}">
+              <div class="insight-type">\${t.type.replace('_', ' ')}</div>
+              <div class="insight-title">\${t.file || t.pattern}</div>
+              <div class="insight-detail">\${t.pattern}</div>
+            </li>
+          \`).join('');
+        }
+
+        // Cross-project
+        const crossEl = document.getElementById('cross-project');
+        if (data.insights.crossProject.length === 0) {
+          crossEl.innerHTML = '<li class="empty-state">No cross-project connections</li>';
+        } else {
+          crossEl.innerHTML = data.insights.crossProject.slice(0, 3).map(c => \`
+            <li class="insight-item cross_project">
+              <div class="insight-type">shared work</div>
+              <div class="insight-title">\${c.projects.join(' ↔ ')}</div>
+              <div class="insight-detail">\${c.description}</div>
+            </li>
+          \`).join('');
+        }
+      } catch (err) {
+        console.error('Failed to load sync data:', err);
+      }
+    }
+
+    async function loadHistory() {
+      try {
+        const res = await fetch('/api/sync/history');
+        const history = await res.json();
+
+        const tbody = document.getElementById('sync-history');
+        if (history.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No sync history</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = history.map(h => \`
+          <tr>
+            <td>\${h.date}</td>
+            <td>\${h.sessions}</td>
+            <td><span class="badge badge-green">✓ synced</span></td>
+            <td>\${h.insights.join(', ') || '-'}</td>
+          </tr>
+        \`).join('');
+      } catch (err) {
+        console.error('Failed to load history:', err);
+      }
+    }
+
+    document.getElementById('sync-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('sync-btn');
+      btn.disabled = true;
+      btn.textContent = 'Syncing...';
+
+      try {
+        const res = await fetch('/api/sync/trigger', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          btn.textContent = 'Synced!';
+          btn.style.background = 'var(--success)';
+          loadSyncData(); // Refresh the preview
+          loadHistory();  // Refresh history
+          setTimeout(() => {
+            btn.textContent = 'Sync Now';
+            btn.style.background = '';
+            btn.disabled = false;
+          }, 2000);
+        } else {
+          btn.textContent = 'Failed';
+          btn.style.background = 'var(--error)';
+          console.error('Sync failed:', data.error);
+          setTimeout(() => {
+            btn.textContent = 'Sync Now';
+            btn.style.background = '';
+            btn.disabled = false;
+          }, 3000);
+        }
+      } catch (err) {
+        btn.textContent = 'Error';
+        btn.style.background = 'var(--error)';
+        console.error('Sync error:', err);
+        setTimeout(() => {
+          btn.textContent = 'Sync Now';
+          btn.style.background = '';
+          btn.disabled = false;
+        }, 3000);
+      }
+    });
+
+    // Load data on page load
+    loadSyncData();
+    loadHistory();
+  </script>
+</body>
+</html>`;
 
 const HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -3059,6 +3479,101 @@ const server = Bun.serve({
       return new Response(JSON.stringify(deepInsights), {
         headers: { "Content-Type": "application/json" },
       });
+    }
+
+    // === SYNC ROUTES ===
+
+    // Sync preview API - lightweight stats and insights
+    if (url.pathname === "/api/sync/preview") {
+      const stats = loadLightweightStats() ?? computeLightweightStats();
+      const insights = generateSyncInsights(stats);
+      const lastSyncFile = `${process.env.HOME}/.claude/.chronicle-last-sync`;
+      let lastSyncTime: string | null = null;
+      if (existsSync(lastSyncFile)) {
+        try {
+          const ts = parseInt(require("fs").readFileSync(lastSyncFile, "utf-8").trim(), 10);
+          lastSyncTime = new Date(ts * 1000).toISOString();
+        } catch {}
+      }
+
+      const newBlocksSinceSync = lastSyncTime
+        ? loadAllBlocks().filter(b => new Date(b.timestamp) > new Date(lastSyncTime!)).length
+        : loadAllBlocks().length;
+
+      return new Response(JSON.stringify({
+        stats,
+        insights,
+        lastSyncTime,
+        newBlocksSinceSync,
+      }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Sync insights API
+    if (url.pathname === "/api/sync/insights") {
+      const stats = loadLightweightStats() ?? computeLightweightStats();
+      const insights = generateSyncInsights(stats);
+      return new Response(JSON.stringify(insights), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Sync history API
+    if (url.pathname === "/api/sync/history") {
+      const history = getSyncHistory();
+      return new Response(JSON.stringify(history), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Sync trigger API - runs ansible sync
+    if (url.pathname === "/api/sync/trigger" && req.method === "POST") {
+      const envPath = `${process.env.HOME}/.claude/.env`;
+      let deployDir = "";
+
+      if (existsSync(envPath)) {
+        const content = readFileSync(envPath, "utf-8");
+        for (const line of content.split("\n")) {
+          if (line.startsWith("CHRONICLE_DEPLOY_DIR=")) {
+            deployDir = line.split("=")[1]?.trim() ?? "";
+          }
+        }
+      }
+
+      if (!deployDir) {
+        return new Response(JSON.stringify({ success: false, error: "CHRONICLE_DEPLOY_DIR not configured" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      try {
+        const { execSync } = await import("child_process");
+        execSync(
+          `cd "${deployDir}" && ansible-playbook claude.yml --tags chronicle-sync -e chronicle_sync_enabled=true`,
+          { stdio: "pipe", timeout: 120000 }
+        );
+
+        // Update last sync time
+        const lastSyncFile = `${process.env.HOME}/.claude/.chronicle-last-sync`;
+        writeFileSync(lastSyncFile, Math.floor(Date.now() / 1000).toString());
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        return new Response(JSON.stringify({ success: false, error: message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // Sync HTML page
+    if (url.pathname === "/sync") {
+      return new Response(SYNC_HTML, { headers: { "Content-Type": "text/html" } });
     }
 
     return new Response(HTML, { headers: { "Content-Type": "text/html" } });
