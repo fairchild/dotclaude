@@ -24,3 +24,9 @@
 - SKILL.md serves as both documentation AND command dispatcher
 - Worktree detection reuses patterns from extract-lib.ts
 - Pending deduplication by normalizing text (lowercase, trim)
+
+### 2026-01-24 — Chronicle catchup bugfix (#56)
+- Worktree filtering is essential for relevant context in multi-worktree workflows
+- Design tradeoff: worktree-specific last session, project-wide pending items
+- /reflect caught a real bug before merge - validates the workflow
+- Centralized storage + worktree metadata is the right architecture
