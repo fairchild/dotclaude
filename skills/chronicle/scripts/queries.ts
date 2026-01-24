@@ -3,41 +3,13 @@
  * Used by both the digest generator and web dashboard.
  */
 import { readdirSync, readFileSync, existsSync } from "fs";
+import type { ChronicleBlock, PendingItem, PendingItemWithAge, Resolution } from "./types.ts";
+import { loadResolved, loadResolvedKeys, generatePendingKey } from "./resolve-lib.ts";
+
+// Re-export types for backward compatibility
+export type { ChronicleBlock, PendingItem, PendingItemWithAge } from "./types.ts";
 
 const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;
-
-export interface ChronicleBlock {
-  timestamp: string;
-  sessionId: string;
-  project: string;
-  worktree?: string;
-  branch: string | null;
-  summary: string;
-  accomplished: string[];
-  pending: string[];
-  filesModified?: string[];
-  messageCount?: number;
-  // Extended fields (manual/curator blocks)
-  goal?: string;
-  challenges?: string[];
-  nextSteps?: string[];
-  notes?: string;
-  relatedSessions?: string[];
-}
-
-export interface PendingItem {
-  text: string;
-  project: string;
-  sessionId: string;
-  timestamp: string;
-  branch: string | null;
-}
-
-export interface PendingItemWithAge extends PendingItem {
-  firstSeen: Date;
-  ageInDays: number;
-  isStale: boolean;
-}
 
 export interface ProjectStats {
   project: string;
@@ -102,20 +74,25 @@ export function getBlocksByProject(project: string): ChronicleBlock[] {
 
 /**
  * Get all pending items across all blocks.
+ * @param includeResolved - If true, includes resolved items (default: false)
  */
-export function getPendingItems(): PendingItem[] {
+export function getPendingItems(includeResolved = false): PendingItem[] {
   const blocks = loadAllBlocks();
+  const resolvedKeys = includeResolved ? new Set<string>() : loadResolvedKeys();
   const items: PendingItem[] = [];
 
   for (const block of blocks) {
     for (const text of block.pending) {
-      items.push({
-        text,
-        project: block.project,
-        sessionId: block.sessionId,
-        timestamp: block.timestamp,
-        branch: block.branch,
-      });
+      const key = generatePendingKey(block.project, text);
+      if (!resolvedKeys.has(key)) {
+        items.push({
+          text,
+          project: block.project,
+          sessionId: block.sessionId,
+          timestamp: block.timestamp,
+          branch: block.branch,
+        });
+      }
     }
   }
 
@@ -124,15 +101,21 @@ export function getPendingItems(): PendingItem[] {
 
 export const STALE_THRESHOLD_DAYS = 14;
 
-export function getPendingWithAge(): PendingItemWithAge[] {
+/**
+ * Get pending items with age tracking.
+ * @param includeResolved - If true, includes resolved items (default: false)
+ */
+export function getPendingWithAge(includeResolved = false): PendingItemWithAge[] {
   const blocks = loadAllBlocks();
+  const resolvedKeys = includeResolved ? new Set<string>() : loadResolvedKeys();
   const seen = new Map<string, PendingItemWithAge>();
   const now = new Date();
 
   for (const block of [...blocks].reverse()) {
     for (const text of block.pending) {
       // Key includes project to avoid cross-project deduplication
-      const key = `${block.project}:${text.toLowerCase().trim()}`;
+      const key = generatePendingKey(block.project, text);
+      if (resolvedKeys.has(key)) continue;
       if (!seen.has(key)) {
         const firstSeen = new Date(block.timestamp);
         const ageInDays = Math.floor(
@@ -153,6 +136,16 @@ export function getPendingWithAge(): PendingItemWithAge[] {
   }
 
   return Array.from(seen.values()).sort((a, b) => b.ageInDays - a.ageInDays);
+}
+
+/**
+ * Get all resolved items.
+ */
+export function getResolvedItems(): Resolution[] {
+  const overlay = loadResolved();
+  return overlay.resolutions.sort(
+    (a, b) => new Date(b.resolvedAt).getTime() - new Date(a.resolvedAt).getTime()
+  );
 }
 
 /**

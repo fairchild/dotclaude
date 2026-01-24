@@ -21,6 +21,9 @@ A persistent journalist tracking your coding sessions.
 /chronicle catchup            # Restore context for current project
 /chronicle catchup --days=30  # Extend lookback to 30 days
 /chronicle stale              # Show stale pending items (>14 days)
+/chronicle resolve "text"     # Mark pending item as resolved
+/chronicle resolve --list     # Show all resolved items
+/chronicle resolve --undo "text"  # Undo a resolution
 /chronicle search <query>     # Search sessions by text
 /chronicle publish            # Generate weekly digest (markdown)
 /chronicle publish daily      # Generate daily digest
@@ -217,6 +220,29 @@ Shows:
 3. Sorted by age (oldest first)
 
 Staleness warnings also appear in `/chronicle catchup` output with ⚠️ markers.
+
+---
+
+## Resolve (/chronicle resolve)
+
+Mark pending items as resolved. Resolutions can happen two ways:
+
+**Auto-detection**: During `/chronicle catchup`, accomplished items are matched against pending items using LLM-based semantic matching. Matches are automatically marked as resolved.
+
+**Explicit resolution**: Manually mark items as complete:
+
+```bash
+bun ~/.claude/skills/chronicle/scripts/resolve.ts "Add unit tests"  # Mark as resolved
+bun ~/.claude/skills/chronicle/scripts/resolve.ts --list            # Show resolved items
+bun ~/.claude/skills/chronicle/scripts/resolve.ts --undo "text"     # Undo a resolution
+```
+
+Resolutions are stored in `~/.claude/chronicle/resolved.json` as an overlay - original blocks remain immutable.
+
+Resolved items:
+- Are excluded from pending lists in catchup and stale
+- Show with ✓ in the "Recently resolved" section of catchup output
+- Can be undone with `--undo` to make them pending again
 
 ---
 ## Search (/chronicle search <query>)
