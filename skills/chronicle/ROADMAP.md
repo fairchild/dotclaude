@@ -42,14 +42,14 @@ Memory blocks    →    /catchup command    →    Ambient intelligence
 
 ---
 
-### Phase 2: Stale Detection
+### Phase 2: Stale Detection (In Progress)
 
 **Goal**: Never forget pending work.
 
 | Feature | Status |
 |---------|--------|
-| Pending item age tracking | 🔲 Planned |
-| Staleness alerts (>14 days) | 🔲 Planned |
+| Pending item age tracking | ✅ `getPendingWithAge()` in queries.ts |
+| Staleness alerts (>14 days) | ✅ `/chronicle stale` + catchup warnings |
 | Resolution detection | 🔲 Planned |
 | Git commit → resolve pending | 🔲 Planned |
 

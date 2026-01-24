@@ -33,6 +33,12 @@ export interface PendingItem {
   branch: string | null;
 }
 
+export interface PendingItemWithAge extends PendingItem {
+  firstSeen: Date;
+  ageInDays: number;
+  isStale: boolean;
+}
+
 export interface ProjectStats {
   project: string;
   sessionCount: number;
@@ -114,6 +120,39 @@ export function getPendingItems(): PendingItem[] {
   }
 
   return items;
+}
+
+export const STALE_THRESHOLD_DAYS = 14;
+
+export function getPendingWithAge(): PendingItemWithAge[] {
+  const blocks = loadAllBlocks();
+  const seen = new Map<string, PendingItemWithAge>();
+  const now = new Date();
+
+  for (const block of [...blocks].reverse()) {
+    for (const text of block.pending) {
+      // Key includes project to avoid cross-project deduplication
+      const key = `${block.project}:${text.toLowerCase().trim()}`;
+      if (!seen.has(key)) {
+        const firstSeen = new Date(block.timestamp);
+        const ageInDays = Math.floor(
+          (now.getTime() - firstSeen.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        seen.set(key, {
+          text,
+          project: block.project,
+          sessionId: block.sessionId,
+          timestamp: block.timestamp,
+          branch: block.branch,
+          firstSeen,
+          ageInDays,
+          isStale: ageInDays > STALE_THRESHOLD_DAYS,
+        });
+      }
+    }
+  }
+
+  return Array.from(seen.values()).sort((a, b) => b.ageInDays - a.ageInDays);
 }
 
 /**

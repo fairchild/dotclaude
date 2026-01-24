@@ -30,3 +30,9 @@
 - Design tradeoff: worktree-specific last session, project-wide pending items
 - /reflect caught a real bug before merge - validates the workflow
 - Centralized storage + worktree metadata is the right architecture
+
+### 2026-01-24 — Chronicle stale detection (#58)
+- Cross-project deduplication was a subtle bug - same text in different projects should be separate items
+- Archive script resilience: error suppression is pragmatic for cleanup workflows
+- STALE_THRESHOLD_DAYS should be a single exported constant, not duplicated
+- /reflect workflow continues to catch bugs before merge

@@ -9,7 +9,7 @@
  *   bun catchup.ts              # Detect project from cwd
  *   bun catchup.ts --days=30    # Look back 30 days instead of 7
  */
-import { loadAllBlocks, type ChronicleBlock } from "./queries.ts";
+import { loadAllBlocks, STALE_THRESHOLD_DAYS, type ChronicleBlock } from "./queries.ts";
 import { execSync } from "child_process";
 import { basename } from "path";
 
@@ -24,6 +24,7 @@ interface AggregatedPending {
   text: string;
   firstSeen: Date;
   ageInDays: number;
+  isStale: boolean;
 }
 
 interface Patterns {
@@ -116,7 +117,7 @@ function aggregatePending(blocks: ChronicleBlock[]): AggregatedPending[] {
       if (!seen.has(key)) {
         const firstSeen = new Date(block.timestamp);
         const ageInDays = Math.floor((now.getTime() - firstSeen.getTime()) / (1000 * 60 * 60 * 24));
-        seen.set(key, { text, firstSeen, ageInDays });
+        seen.set(key, { text, firstSeen, ageInDays, isStale: ageInDays > STALE_THRESHOLD_DAYS });
       }
     }
   }
@@ -205,13 +206,19 @@ function formatCatchup(
   }
 
   if (pending.length > 0) {
+    const staleCount = pending.filter(p => p.isStale).length;
     lines.push("");
     lines.push(`Pending work (project-wide, last ${days} days):`);
     for (const item of pending.slice(0, 8)) {
-      lines.push(`  [ ] ${item.text} (${formatAge(item.ageInDays)})`);
+      const marker = item.isStale ? "⚠️" : "[ ]";
+      lines.push(`  ${marker} ${item.text} (${formatAge(item.ageInDays)})`);
     }
     if (pending.length > 8) {
       lines.push(`  ... and ${pending.length - 8} more`);
+    }
+    if (staleCount > 0) {
+      lines.push("");
+      lines.push(`⚠️  ${staleCount} stale item${staleCount > 1 ? "s" : ""} (>14 days) - run /chronicle stale for details`);
     }
   }
 

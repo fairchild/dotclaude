@@ -20,6 +20,7 @@ A persistent journalist tracking your coding sessions.
 /chronicle blocks             # List recent memory blocks
 /chronicle catchup            # Restore context for current project
 /chronicle catchup --days=30  # Extend lookback to 30 days
+/chronicle stale              # Show stale pending items (>14 days)
 /chronicle search <query>     # Search sessions by text
 /chronicle publish            # Generate weekly digest (markdown)
 /chronicle publish daily      # Generate daily digest
@@ -199,6 +200,23 @@ Shows:
 4. Patterns: session frequency, focus areas
 
 If no data found, suggests `/chronicle` to capture current session.
+
+---
+
+## Stale (/chronicle stale)
+
+Show pending items that have been open for more than 14 days:
+
+```bash
+bun ~/.claude/skills/chronicle/scripts/stale.ts
+```
+
+Shows:
+1. All pending items older than 14 days
+2. Grouped by project
+3. Sorted by age (oldest first)
+
+Staleness warnings also appear in `/chronicle catchup` output with ⚠️ markers.
 
 ---
 ## Search (/chronicle search <query>)
