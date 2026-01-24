@@ -9,7 +9,20 @@
  *   bun catchup.ts              # Detect project from cwd
  *   bun catchup.ts --days=30    # Look back 30 days instead of 7
  */
-import { loadAllBlocks, STALE_THRESHOLD_DAYS, type ChronicleBlock } from "./queries.ts";
+import {
+  loadAllBlocks,
+  getPendingItems,
+  STALE_THRESHOLD_DAYS,
+  type ChronicleBlock,
+} from "./queries.ts";
+import {
+  checkForResolutions,
+  getAccomplishedItems,
+  loadResolved,
+  saveResolved,
+  generatePendingKey,
+  type Resolution,
+} from "./resolve-lib.ts";
 import { execSync } from "child_process";
 import { basename } from "path";
 
@@ -22,9 +35,11 @@ interface Context {
 
 interface AggregatedPending {
   text: string;
+  project: string;
   firstSeen: Date;
   ageInDays: number;
   isStale: boolean;
+  resolution?: Resolution;
 }
 
 interface Patterns {
@@ -108,16 +123,27 @@ function getLastSession(blocks: ChronicleBlock[]): ChronicleBlock | null {
 }
 
 function aggregatePending(blocks: ChronicleBlock[]): AggregatedPending[] {
+  const overlay = loadResolved();
+  const resolvedMap = new Map(
+    overlay.resolutions.map(r => [r.pendingKey, r])
+  );
   const seen = new Map<string, AggregatedPending>();
   const now = new Date();
 
   for (const block of [...blocks].reverse()) {
     for (const text of block.pending || []) {
-      const key = text.toLowerCase().trim();
+      const key = generatePendingKey(block.project, text);
       if (!seen.has(key)) {
         const firstSeen = new Date(block.timestamp);
         const ageInDays = Math.floor((now.getTime() - firstSeen.getTime()) / (1000 * 60 * 60 * 24));
-        seen.set(key, { text, firstSeen, ageInDays, isStale: ageInDays > STALE_THRESHOLD_DAYS });
+        seen.set(key, {
+          text,
+          project: block.project,
+          firstSeen,
+          ageInDays,
+          isStale: ageInDays > STALE_THRESHOLD_DAYS,
+          resolution: resolvedMap.get(key),
+        });
       }
     }
   }
@@ -172,7 +198,8 @@ function formatCatchup(
   lastSession: ChronicleBlock | null,
   pending: AggregatedPending[],
   patterns: Patterns,
-  days: number
+  days: number,
+  newResolutions: Resolution[] = []
 ): string {
   const lines: string[] = [];
 
@@ -205,21 +232,46 @@ function formatCatchup(
     lines.push(`(Showing project-wide pending items below)`);
   }
 
-  if (pending.length > 0) {
-    const staleCount = pending.filter(p => p.isStale).length;
+  // Separate resolved from unresolved
+  const unresolvedPending = pending.filter(p => !p.resolution);
+  const resolvedPending = pending.filter(p => p.resolution);
+
+  if (unresolvedPending.length > 0) {
+    const staleCount = unresolvedPending.filter(p => p.isStale).length;
     lines.push("");
     lines.push(`Pending work (project-wide, last ${days} days):`);
-    for (const item of pending.slice(0, 8)) {
+    for (const item of unresolvedPending.slice(0, 8)) {
       const marker = item.isStale ? "⚠️" : "[ ]";
       lines.push(`  ${marker} ${item.text} (${formatAge(item.ageInDays)})`);
     }
-    if (pending.length > 8) {
-      lines.push(`  ... and ${pending.length - 8} more`);
+    if (unresolvedPending.length > 8) {
+      lines.push(`  ... and ${unresolvedPending.length - 8} more`);
     }
     if (staleCount > 0) {
       lines.push("");
       lines.push(`⚠️  ${staleCount} stale item${staleCount > 1 ? "s" : ""} (>14 days) - run /chronicle stale for details`);
     }
+  }
+
+  // Show recently resolved items
+  if (resolvedPending.length > 0) {
+    lines.push("");
+    lines.push("Recently resolved:");
+    for (const item of resolvedPending.slice(0, 5)) {
+      const evidence = item.resolution!.resolvedBy.substring(0, 50);
+      const suffix = item.resolution!.resolvedBy.length > 50 ? "..." : "";
+      lines.push(`  ✓ ${item.text}`);
+      lines.push(`    → ${evidence}${suffix}`);
+    }
+    if (resolvedPending.length > 5) {
+      lines.push(`  ... and ${resolvedPending.length - 5} more resolved`);
+    }
+  }
+
+  // Highlight new resolutions detected this catchup
+  if (newResolutions.length > 0) {
+    lines.push("");
+    lines.push(`💡 Auto-detected ${newResolutions.length} resolution${newResolutions.length > 1 ? "s" : ""} just now`);
   }
 
   if (patterns.sessionCount > 1) {
@@ -255,9 +307,27 @@ async function main() {
   const allBlocks = loadAllBlocks();
   const projectBlocks = filterByProject(allBlocks, ctx.project);
   const worktreeBlocks = filterByWorktree(projectBlocks, ctx.worktree);
-  
+
   const recentProjectBlocks = filterByDateRange(projectBlocks, days);
   const recentWorktreeBlocks = filterByDateRange(worktreeBlocks, days);
+
+  // Run resolution check against recent accomplished items
+  const pendingForCheck = getPendingItems().filter(
+    p => p.project.toLowerCase() === ctx.project.toLowerCase()
+  );
+  const accomplishedItems = getAccomplishedItems(recentProjectBlocks, days);
+
+  let newResolutions: Resolution[] = [];
+  if (pendingForCheck.length > 0 && accomplishedItems.length > 0) {
+    const result = await checkForResolutions(pendingForCheck, accomplishedItems);
+    newResolutions = result.resolved;
+
+    if (newResolutions.length > 0) {
+      const overlay = loadResolved();
+      overlay.resolutions.push(...newResolutions);
+      saveResolved(overlay);
+    }
+  }
 
   // Last session: worktree-specific (most relevant)
   // Pending/patterns: project-wide (don't miss items from other worktrees)
@@ -265,7 +335,7 @@ async function main() {
   const pending = aggregatePending(recentProjectBlocks);
   const patterns = detectPatterns(recentProjectBlocks);
 
-  const output = formatCatchup(ctx, lastSession, pending, patterns, days);
+  const output = formatCatchup(ctx, lastSession, pending, patterns, days, newResolutions);
   console.log(output);
 
   if (recentWorktreeBlocks.length === 0 && recentProjectBlocks.length === 0) {

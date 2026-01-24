@@ -42,7 +42,7 @@ Memory blocks    →    /catchup command    →    Ambient intelligence
 
 ---
 
-### Phase 2: Stale Detection (In Progress)
+### Phase 2: Stale Detection ✅
 
 **Goal**: Never forget pending work.
 
@@ -50,13 +50,16 @@ Memory blocks    →    /catchup command    →    Ambient intelligence
 |---------|--------|
 | Pending item age tracking | ✅ `getPendingWithAge()` in queries.ts |
 | Staleness alerts (>14 days) | ✅ `/chronicle stale` + catchup warnings |
-| Resolution detection | 🔲 Planned |
-| Git commit → resolve pending | 🔲 Planned |
+| Resolution detection | ✅ Auto-detect via LLM matching |
+| Explicit resolution | ✅ `/chronicle resolve "text"` command |
+| Git commit → resolve pending | 🔲 Future enhancement |
 
 **Resolution signals**:
-- Git commit message matches pending item → auto-resolve
-- Accomplished item matches pending → link & resolve
+- Accomplished item matches pending → auto-resolve on `/chronicle catchup`
 - Explicit `/chronicle resolve <item>` command
+- (Future) Git commit message matches pending item
+
+**Storage**: Resolutions stored in `~/.claude/chronicle/resolved.json` overlay file (blocks stay immutable).
 
 **Metrics**: Zero pending items older than 14 days without conscious decision.
 
@@ -124,6 +127,7 @@ Memory blocks    →    /catchup command    →    Ambient intelligence
 ```
 ~/.claude/chronicle/
 ├── blocks/          # Session memory blocks (JSON)
+├── resolved.json    # Resolution overlay (pending→accomplished links)
 ├── summaries/       # AI-generated summaries
 │   ├── global/      # Cross-project summaries
 │   └── repos/       # Per-repo summaries
