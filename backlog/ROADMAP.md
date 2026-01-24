@@ -2,14 +2,20 @@
 
 ## Direction
 
-**Chronicle**: Build a personal memory system for coding sessions
-- Sync session data between machines
-- Surface pending threads and continuity insights
-- Track patterns to improve future sessions
+**Current focus**: Chronicle continuity and intelligence features
 
-**Skills**: Refine the superpowers skill framework
-- Create reusable, composable skills
-- Build skills that learn from feedback
+### Active
+- Chronicle Phase 2: Stale detection (pending item aging, resolution signals)
+- Chronicle Phase 3: Smart suggestions (session-start context injection)
+
+### Planned
+- Chronicle Phase 4: Cross-project intelligence
+- Thread identity across sessions
+- Native sync popup (see backlog/native-sync-popup.md)
+
+### Deferred
+- Hooks validation system
+- Video generation skill
 
 ## Learnings
 
@@ -18,3 +24,22 @@
 - Structured output (JSON) is UI-agnostic—design for any consumer
 - Terminal preview + dashboard covers 90% of use cases without native UI
 - Feedback loops require click tracking—defer until native UI exists
+
+### 2026-01-24 — Chronicle stale detection (#58)
+- Cross-project deduplication was a subtle bug - same text in different projects should be separate items
+- Archive script resilience: error suppression is pragmatic for cleanup workflows
+- STALE_THRESHOLD_DAYS should be a single exported constant, not duplicated
+- /reflect workflow continues to catch bugs before merge
+
+### 2026-01-24 — Chronicle catchup bugfix (#56)
+- Worktree filtering is essential for relevant context in multi-worktree workflows
+- Design tradeoff: worktree-specific last session, project-wide pending items
+- /reflect caught a real bug before merge - validates the workflow
+- Centralized storage + worktree metadata is the right architecture
+
+### 2026-01-22 — Chronicle catchup command (#56)
+- Brainstorm-to-brief workflow effective for going wide then narrowing
+- Conductor workspace sandbox requires using Bash for writes outside workspace
+- SKILL.md serves as both documentation AND command dispatcher
+- Worktree detection reuses patterns from extract-lib.ts
+- Pending deduplication by normalizing text (lowercase, trim)
