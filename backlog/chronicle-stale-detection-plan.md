@@ -1,10 +1,10 @@
 ---
 status: pending
 category: plan
-pr: null
-branch: null
+pr: 58
+branch: stale-detection
 score: null
-retro_summary: null
+retro_summary: "Phase 1 complete (age tracking, /stale command, catchup warnings). Phases 2-3 (resolution detection, dashboard) remain."
 completed: null
 ---
 
@@ -50,9 +50,9 @@ Pending work items accumulate across sessions and become invisible. Users forget
 - `scripts/stale.ts` - Dedicated stale item report
 
 **Acceptance criteria:**
-- [ ] `/chronicle stale` shows all pending items >14 days
-- [ ] Items sorted by age (oldest first)
-- [ ] Grouped by project
+- [x] `/chronicle stale` shows all pending items >14 days
+- [x] Items sorted by age (oldest first)
+- [x] Grouped by project
 
 ### Phase 2: Resolution Detection
 
@@ -77,7 +77,7 @@ Pending work items accumulate across sessions and become invisible. Users forget
 - `scripts/dashboard.ts` - Visual indicators for stale items
 
 **Acceptance criteria:**
-- [ ] Catchup shows warning for items >14 days
+- [x] Catchup shows warning for items >14 days
 - [ ] Dashboard shows stale items in red/warning color
 - [ ] Optional: Daily digest includes stale item summary
 
