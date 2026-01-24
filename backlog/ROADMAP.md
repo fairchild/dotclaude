@@ -5,8 +5,8 @@
 **Current focus**: Chronicle continuity and intelligence features
 
 ### Active
-- Chronicle Phase 2: Stale detection (pending item aging, resolution signals)
 - Chronicle Phase 3: Smart suggestions (session-start context injection)
+- Chronicle dashboard enhancements (stale indicators, resolution display)
 
 ### Planned
 - Chronicle Phase 4: Cross-project intelligence
@@ -36,3 +36,10 @@
 - Archive script resilience: error suppression is pragmatic for cleanup workflows
 - STALE_THRESHOLD_DAYS should be a single exported constant, not duplicated
 - /reflect workflow continues to catch bugs before merge
+
+### 2026-01-24 — Chronicle resolution detection (#61)
+- Overlay file vs block mutation: blocks are session snapshots, resolutions are cross-session metadata
+- Brainstorming skill invaluable for design decisions (storage model, matching strategy)
+- Circular imports: extract shared types.ts to break the cycle cleanly
+- LLM always decides on match (with matchScore as context) - no magic thresholds
+- Lazy evaluation: run resolution check on /catchup, not at session end
