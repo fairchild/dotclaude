@@ -39,6 +39,8 @@ stats-cache.json
 telemetry/
 
 # Generated/cached
+cache/
+docs/local/
 projects/
 plugins/
 image-cache/
