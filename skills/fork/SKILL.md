@@ -1,37 +1,48 @@
 ---
 name: fork
-description: Fork the current session into a new worktree with context carried over. Use when you want to spin off work into a separate branch/worktree while preserving session context.
+description: Fork the current session with context carried over. Use `/fork <branch>` for a new worktree or `/fork --local` for a new session in the current directory.
 license: Apache-2.0
 requires:
-  - git-worktree  # uses `wt --context` for worktree creation
+  - git-worktree  # uses `wt --context` for worktree creation (when not --local)
 ---
 
-# Fork Session to Worktree
+# Fork Session
 
-Fork the current session into a new git worktree, carrying context for continuity.
+Fork the current session, carrying context for continuity.
 
 ## Usage
 
 ```
-/fork <branch-name>
+/fork <branch>   # Fork to new worktree (requires git-worktree skill)
+/fork --local    # Fork to new session in current directory
 ```
 
-## What It Does
+## Modes
 
-1. **Summarizes current session** - captures what we're working on, decisions made, next steps
-2. **Creates a handoff file** - writes context to a temp file
-3. **Creates worktree** - runs `wt <branch> --context <file>`
-4. **Opens editor** - new session starts with `.context/handoff.md` available
+### Worktree Mode (default)
+
+`/fork <branch>` creates a new git worktree and opens it with context.
+
+1. Generates context summary
+2. Creates worktree via `wt <branch> --context <file>`
+3. New session has `.context/handoff.md`
+
+### Local Mode
+
+`/fork --local` writes context to current directory for a parallel session.
+
+1. Generates context summary
+2. Writes to `.context/handoff.md` in current directory
+3. User opens new terminal and runs `claude`
 
 ## Instructions
 
-### Step 1: Get Branch Name
+### Step 1: Determine Mode
 
-If the user didn't provide a branch name, ask:
-
-> What should we name the new branch?
-
-Use kebab-case, keep it descriptive but short (e.g., `fix-auth-bug`, `add-dark-mode`).
+Check the user's input:
+- `/fork --local` → local mode (no worktree)
+- `/fork <branch>` → worktree mode
+- `/fork` (no args) → ask: "Branch name for new worktree, or `--local` for same directory?"
 
 ### Step 2: Generate Context Summary
 
@@ -75,50 +86,72 @@ Use this template:
 *Forked from session on {date}*
 ```
 
-### Step 3: Create Worktree with Context
+### Step 3: Write Handoff
 
+**Worktree mode:**
 ```bash
-# Write handoff to temp file
 HANDOFF=$(mktemp)
 cat > "$HANDOFF" << 'EOF'
 {generated handoff content}
 EOF
 
-# Create worktree with context
 wt <branch> --context "$HANDOFF"
+```
+
+**Local mode:**
+```bash
+mkdir -p .context
+cat > .context/handoff.md << 'EOF'
+{generated handoff content}
+EOF
 ```
 
 ### Step 4: Confirm
 
-Tell the user:
+**Worktree mode:**
+> Forked to worktree `<branch>` at `~/.worktrees/repo/<branch>`.
+> The new session has context in `.context/handoff.md`.
 
-> Forked to worktree `<branch>`. The new session has context in `.context/handoff.md`.
->
-> In the new session, start by reading the handoff:
-> ```bash
-> cat .context/handoff.md
-> ```
+**Local mode:**
+> Context written to `.context/handoff.md`.
+> Open a new terminal in this directory and run `claude` to start a fresh session.
+> The new session can read the handoff with: `cat .context/handoff.md`
 
-## Example
+## Examples
 
+### Worktree Fork
 ```
 User: /fork feature-dark-mode
 
-Claude: I'll fork this session to a new worktree for the dark mode feature.
+Claude: I'll fork this session to a new worktree.
 
-[Generates handoff summary of current work]
-[Creates worktree with context]
+[Generates handoff summary]
+[Runs: wt feature-dark-mode --context /tmp/handoff.md]
 
 Forked to worktree `feature-dark-mode` at:
   ~/.worktrees/myapp/feature-dark-mode
 
-The new session has context in `.context/handoff.md`. When you start working
-there, read it to pick up where we left off.
+The new session has context in `.context/handoff.md`.
+```
+
+### Local Fork
+```
+User: /fork --local
+
+Claude: I'll prepare a handoff for a new session in this directory.
+
+[Generates handoff summary]
+[Writes to .context/handoff.md]
+
+Context written to `.context/handoff.md`.
+
+Open a new terminal here and run `claude`. The new session can pick up
+context with: cat .context/handoff.md
 ```
 
 ## Notes
 
-- **Requires**: `git-worktree` skill (uses `wt --context` for worktree creation)
+- **Requires**: `git-worktree` skill for worktree mode (not needed for `--local`)
 - The handoff is a snapshot - it won't update if you continue working here
 - Use `/chronicle` if you want persistent cross-session memory instead
-- The new worktree runs setup scripts from `conductor.json` if present
+- Worktree mode runs setup scripts from `conductor.json` if present
