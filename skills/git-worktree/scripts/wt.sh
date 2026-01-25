@@ -26,7 +26,7 @@ Commands:
     --carry               Copy untracked files to new worktree
   cd <branch>             Change to worktree directory (shell function)
   home                    Return to main repository (shell function)
-  apply [branch] [opts]   Merge worktree into branch (default: main)
+  apply [branch] [opts]   Rebase onto branch and merge (default: main)
     --archive             Archive worktree after merge without prompting
     --push                Push to remote after merge
   archive [branch]        Run conductor archive, move to .archive
@@ -241,10 +241,8 @@ cmd_create() {
         carry_modified_files "$worktree_path" "$main_repo"
     fi
 
-    # Copy env files from main repo
-    copy_env_files "$main_repo" "$worktree_path"
-
-    # Run conductor setup if present
+    # Run conductor setup if present, otherwise copy env files
+    # (setup scripts typically handle env files themselves, e.g., via symlinks)
     if [[ -f "$conductor_json" ]]; then
         local setup_script
         setup_script=$(get_conductor_script "setup" "$conductor_json")
@@ -256,7 +254,13 @@ cmd_create() {
                 eval "$setup_script"
             )
             log_ok "Setup complete"
+        else
+            # No setup script, copy env files as fallback
+            copy_env_files "$main_repo" "$worktree_path"
         fi
+    else
+        # No conductor.json, copy env files as fallback
+        copy_env_files "$main_repo" "$worktree_path"
     fi
 
     echo ""
@@ -430,7 +434,17 @@ cmd_apply() {
     local main_repo
     main_repo=$(get_main_repo)
 
-    log_info "Merging $current_branch → $target_branch"
+    log_info "Applying $current_branch → $target_branch"
+
+    # Rebase onto target to ensure ff-merge will work
+    # (no-op if already up to date, otherwise replays commits on top of target)
+    log_info "Rebasing onto $target_branch..."
+    if ! git rebase "$target_branch"; then
+        log_error "Rebase failed. Resolve conflicts, then run:"
+        echo "  git rebase --continue"
+        echo "  wt apply"
+        exit 1
+    fi
 
     # Switch to main repo and target branch
     if ! (cd "$main_repo" && git switch "$target_branch" 2>/dev/null); then
@@ -438,10 +452,9 @@ cmd_apply() {
         exit 1
     fi
 
-    # Attempt fast-forward merge
+    # Fast-forward merge (guaranteed to work after rebase)
     if ! (cd "$main_repo" && git merge --ff-only -- "$current_branch"); then
-        log_error "Cannot fast-forward. Rebase your branch first:"
-        echo "  cd $PWD && git rebase $target_branch"
+        log_error "Unexpected: ff-merge failed after rebase"
         (cd "$main_repo" && git switch - &>/dev/null)
         exit 1
     fi

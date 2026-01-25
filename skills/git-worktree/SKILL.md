@@ -25,7 +25,7 @@ wt <branch> --no-editor  # Create without opening editor
 wt <branch> --carry      # Create and copy work-in-progress files
 wt cd <branch>           # Change to worktree directory
 wt home                  # Return to main repo (or REPOS_ROOT if outside git)
-wt apply [branch]        # Merge worktree into branch (default: main), ff-only
+wt apply [branch]        # Rebase onto branch and merge (default: main)
 wt apply --archive       # Merge and archive without prompting
 wt apply --push          # Merge and push to remote
 wt archive [branch]      # Run archive script, move to ~/.worktrees/.archive
