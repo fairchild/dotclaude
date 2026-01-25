@@ -2,6 +2,8 @@
 name: fork
 description: Fork the current session into a new worktree with context carried over. Use when you want to spin off work into a separate branch/worktree while preserving session context.
 license: Apache-2.0
+requires:
+  - git-worktree  # uses `wt --context` for worktree creation
 ---
 
 # Fork Session to Worktree
@@ -116,6 +118,7 @@ there, read it to pick up where we left off.
 
 ## Notes
 
+- **Requires**: `git-worktree` skill (uses `wt --context` for worktree creation)
 - The handoff is a snapshot - it won't update if you continue working here
 - Use `/chronicle` if you want persistent cross-session memory instead
 - The new worktree runs setup scripts from `conductor.json` if present
