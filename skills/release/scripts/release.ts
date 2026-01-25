@@ -172,14 +172,23 @@ async function updateChangelog(
 
 async function createReleaseWorktree(
   target: string,
-  repoName: string
+  repoName: string,
+  version: string
 ): Promise<string> {
   // Always use ephemeral worktree for predictable, isolated releases
-  // This avoids edge cases with dirty working directories or branch state
+  // Path: ~/.worktrees/<repo>/release-<tag>
   const home = process.env.HOME || "~";
-  const baseDir = join(home, ".worktrees", "release-tmp");
   const shortName = repoName.split("/").pop() || "repo";
-  const releaseDir = join(baseDir, `${shortName}-${Date.now()}`);
+  const baseDir = join(home, ".worktrees", shortName);
+  const releaseDir = join(baseDir, `release-${version}`);
+
+  if (existsSync(releaseDir)) {
+    throw new Error(
+      `Release worktree already exists: ${releaseDir}\n` +
+      `This usually means a previous release of ${version} failed.\n` +
+      `Clean up with: git worktree remove "${releaseDir}" --force`
+    );
+  }
 
   if (!existsSync(baseDir)) {
     mkdirSync(baseDir, { recursive: true });
@@ -259,7 +268,7 @@ async function main() {
     }
     releaseDir = process.cwd();
   } else {
-    releaseDir = await createReleaseWorktree(target, analysis.context.repo);
+    releaseDir = await createReleaseWorktree(target, analysis.context.repo, version);
     cleanupNeeded = true;
   }
 

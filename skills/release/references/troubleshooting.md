@@ -160,7 +160,7 @@ git worktree add /tmp/release origin/main --detach
 
 ### Ephemeral worktree not cleaned up
 
-Release worktrees are created at `~/.worktrees/release-tmp/`.
+Release worktrees are created at `~/.worktrees/<repo>/release-<tag>`.
 
 ```bash
 # List worktrees
@@ -170,11 +170,18 @@ git worktree list
 git worktree prune
 
 # Force remove specific worktree
-git worktree remove ~/.worktrees/release-tmp/REPO-XXXXX --force
+git worktree remove ~/.worktrees/dotclaude/release-v1.0.0 --force
+```
 
-# Or remove all release worktrees
-rm -rf ~/.worktrees/release-tmp/*
-git worktree prune
+### Release worktree already exists
+
+If a previous release failed, the worktree may still exist:
+
+```bash
+# Remove the stale worktree
+git worktree remove ~/.worktrees/<repo>/release-<tag> --force
+
+# Then retry the release
 ```
 
 ## CI Issues

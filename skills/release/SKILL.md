@@ -45,7 +45,7 @@ Release target: origin/main ✓
 
 **How it works:**
 
-- Creates ephemeral worktree at `~/.worktrees/release-tmp/<repo>-<timestamp>`
+- Creates ephemeral worktree at `~/.worktrees/<repo>/release-<tag>`
 - Commits changelog, tags, pushes to origin/main
 - Cleans up worktree after release
 
