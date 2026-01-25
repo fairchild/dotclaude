@@ -24,6 +24,7 @@ Commands:
   <branch> [options]      Create worktree, run setup, open editor
     --no-editor           Don't open editor after creation
     --carry               Copy untracked files to new worktree
+    --context <file>      Copy file to .context/handoff.md (for session forking)
   cd <branch>             Change to worktree directory (shell function)
   home                    Return to main repository (shell function)
   apply [branch] [opts]   Rebase onto branch and merge (default: main)
@@ -148,6 +149,7 @@ cmd_create() {
     local base_branch="main"
     local open_editor=true
     local carry_untracked=false
+    local context_file=""
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -158,6 +160,11 @@ cmd_create() {
                 ;;
             --carry)
                 carry_untracked=true
+                shift
+                ;;
+            --context)
+                shift
+                context_file="$1"
                 shift
                 ;;
             *)
@@ -261,6 +268,13 @@ cmd_create() {
     else
         # No conductor.json, copy env files as fallback
         copy_env_files "$main_repo" "$worktree_path"
+    fi
+
+    # Copy context/handoff file if provided (for session forking)
+    if [[ -n "$context_file" ]] && [[ -f "$context_file" ]]; then
+        mkdir -p "$worktree_path/.context"
+        cp "$context_file" "$worktree_path/.context/handoff.md"
+        log_info "Context: .context/handoff.md"
     fi
 
     echo ""

@@ -23,6 +23,7 @@ source ~/.zshrc
 wt <branch>              # Create worktree, run setup, open editor
 wt <branch> --no-editor  # Create without opening editor
 wt <branch> --carry      # Create and copy work-in-progress files
+wt <branch> --context f  # Copy file to .context/handoff.md (session fork)
 wt cd <branch>           # Change to worktree directory
 wt home                  # Return to main repo (or REPOS_ROOT if outside git)
 wt apply [branch]        # Rebase onto branch and merge (default: main)
