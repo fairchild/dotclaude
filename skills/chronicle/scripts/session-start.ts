@@ -6,7 +6,7 @@
  * Outputs JSON with additionalContext if relevant data exists.
  *
  * Hook input (stdin): { session_id, cwd, ... }
- * Hook output (stdout): { hookSpecificOutput?: { additionalContext: string } }
+ * Hook output (stdout): { systemMessage?: string }
  */
 import { detectContext } from "./context.ts";
 import {
@@ -95,9 +95,7 @@ async function main() {
 
   if (context) {
     console.log(JSON.stringify({
-      hookSpecificOutput: {
-        additionalContext: context,
-      },
+      systemMessage: context,
     }));
   } else {
     console.log("{}");
