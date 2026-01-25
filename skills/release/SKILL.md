@@ -45,8 +45,8 @@ Release target: origin/main ✓
 
 **Strategy (in priority order):**
 
-1. **Reuse main worktree** - If `~/.worktrees/REPO/main` exists and is clean, use it
-2. **Ephemeral worktree** - Create temp worktree, release, cleanup automatically
+1. **Reuse existing checkout** - If any checkout (main clone at `~/code/REPO` or worktree) is on the target branch and clean, use it
+2. **Ephemeral worktree** - Create temp worktree at `/tmp/release-*`, release, cleanup automatically
 3. **Current branch** - With `--current-branch`, release HEAD directly
 
 ## Workflow
