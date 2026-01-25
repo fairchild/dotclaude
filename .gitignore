@@ -44,7 +44,7 @@ plugins/
 image-cache/
 knowledge/
 webui/data.json
-changelog.md
+# changelog.md was removed - we now track CHANGELOG.md for releases
 
 # Scripts (track utilities, ignore generated)
 scripts/node_modules/
