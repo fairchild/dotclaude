@@ -106,6 +106,16 @@
   },
   "model": "opus",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun ~/.claude/skills/chronicle/scripts/session-start.ts"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
