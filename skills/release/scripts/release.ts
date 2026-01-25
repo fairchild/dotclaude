@@ -288,6 +288,19 @@ async function main() {
     // 7. Update CHANGELOG.md (unless --no-changelog)
     if (!options.noChangelog) {
       console.log("\nUpdating CHANGELOG.md...");
+
+      // Check if CHANGELOG.md would be ignored by .gitignore
+      try {
+        const ignored = await exec(`git -C "${releaseDir}" check-ignore CHANGELOG.md`);
+        if (ignored) {
+          console.error("❌ CHANGELOG.md is ignored by .gitignore");
+          console.error("   Remove the pattern from .gitignore (check for 'changelog.md' on case-insensitive systems)");
+          process.exit(1);
+        }
+      } catch {
+        // check-ignore exits non-zero when file is NOT ignored - that's what we want
+      }
+
       await updateChangelog(releaseDir, version, analysis.changelog);
       await exec(`git -C "${releaseDir}" add CHANGELOG.md`);
     }

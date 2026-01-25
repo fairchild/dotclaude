@@ -119,6 +119,20 @@ git add CHANGELOG.md
 git commit --amend
 ```
 
+### CHANGELOG.md ignored by .gitignore
+
+On case-insensitive filesystems (macOS), patterns like `changelog.md` will block `CHANGELOG.md`.
+
+```bash
+# Check if CHANGELOG.md is ignored
+git check-ignore CHANGELOG.md
+
+# If ignored, find the pattern
+git check-ignore -v CHANGELOG.md
+
+# Remove the pattern from .gitignore, then retry
+```
+
 ### Rate limiting
 
 GitHub API rate limits hit.
