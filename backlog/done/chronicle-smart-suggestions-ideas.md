@@ -1,11 +1,11 @@
 ---
-status: pending
+status: done
 category: ideas
-pr: null
-branch: null
-score: null
-retro_summary: null
-completed: null
+pr: 63
+branch: chronicle-phase3-exploration
+score: 4
+retro_summary: Clean implementation; shared context module improves code reuse across Chronicle scripts.
+completed: 2026-01-24
 ---
 
 # Chronicle Smart Suggestions
@@ -22,23 +22,44 @@ Users must explicitly ask Chronicle for context with `/catchup`. Ideally, releva
 | Default behavior | Opt-in initially | Avoid surprising users with new behavior |
 | Matching approach | Start with keyword, evolve to semantic | Ship simple first |
 
-## Ideas to Explore
+## Implementation (Completed)
 
-### 1. Session-Start Hook
+### SessionStart Hook
 
-Add a hook that runs when Claude Code starts a new session:
+Created `skills/chronicle/scripts/session-start.ts`:
+- Reads hook input from stdin (session_id, cwd)
+- Uses shared `context.ts` for project detection
+- Queries Chronicle blocks and pending items
+- Outputs `{}` if no data, or formatted context via `additionalContext`
 
-```bash
-# ~/.claude/hooks/session-start.sh
-if [ -f ~/.claude/skills/chronicle/scripts/auto-brief.ts ]; then
-  bun ~/.claude/skills/chronicle/scripts/auto-brief.ts "$PWD"
-fi
+Output format:
+```
+📋 Chronicle: {project}
+Last session ({N} days ago): {summary}
+Pending: {item1}; {item2}; {item3}
+⚠️ {N} stale items (>14 days)
 ```
 
-Conditions to trigger briefing:
-- Time since last session in this project > 24h
-- Project has pending items
-- User hasn't dismissed briefings recently
+### Shared Context Module
+
+Extracted `context.ts` from catchup.ts for reuse:
+- `detectContext(cwd)` - detects project, worktree, branch
+- Handles worktree spaces (Conductor, ~/.worktrees)
+- Falls back to git remote or directory name
+
+### Hook Registration
+
+Added to `settings.json`:
+```json
+"SessionStart": [{
+  "hooks": [{
+    "type": "command",
+    "command": "bun ~/.claude/skills/chronicle/scripts/session-start.ts"
+  }]
+}]
+```
+
+## Future Ideas (Not Implemented)
 
 ### 2. "You Worked On This" Detection
 
@@ -72,20 +93,6 @@ Use embeddings to find semantically related sessions:
 - "Fix tests" matches "Test coverage improvements"
 
 Requires embedding model integration (OpenAI text-embedding-3-small or similar).
-
-## Questions to Answer
-
-1. How intrusive should suggestions be? Toast notification vs inline?
-2. Should suggestions be in Claude's system prompt or presented to user directly?
-3. How to handle dismissals - per-session or persistent preference?
-4. Performance: Can we query Chronicle fast enough for inline suggestions?
-
-## Prototype Approach
-
-Start minimal:
-1. Session-start hook that runs catchup silently
-2. If interesting context found, append to session's system prompt
-3. Let Claude naturally incorporate context in responses
 
 ## References
 
