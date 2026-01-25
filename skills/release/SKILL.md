@@ -43,11 +43,13 @@ Current branch: feat/my-feature
 Release target: origin/main ✓
 ```
 
-**Strategy (in priority order):**
+**How it works:**
 
-1. **Reuse existing checkout** - If any checkout (main clone at `~/code/REPO` or worktree) is on the target branch and clean, use it
-2. **Ephemeral worktree** - Create temp worktree at `/tmp/release-*`, release, cleanup automatically
-3. **Current branch** - With `--current-branch`, release HEAD directly
+- Creates ephemeral worktree at `~/.worktrees/release-tmp/<repo>-<timestamp>`
+- Commits changelog, tags, pushes to origin/main
+- Cleans up worktree after release
+
+This approach is predictable and never modifies your current working directory. Use `--current-branch` to release from current directory instead (for hotfix branches).
 
 ## Workflow
 

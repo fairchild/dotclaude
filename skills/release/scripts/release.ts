@@ -170,45 +170,25 @@ async function updateChangelog(
   }
 }
 
-async function findOrCreateReleaseDir(
-  target: string
-): Promise<{ dir: string; cleanup: boolean }> {
-  // Check if we're already on the target branch and clean
-  const currentBranch = await exec("git branch --show-current");
-  if (currentBranch === target) {
-    const status = await exec("git status --porcelain");
-    if (!status) {
-      return { dir: process.cwd(), cleanup: false };
-    }
-    throw new Error(`Working directory is dirty. Commit or stash changes first.`);
+async function createReleaseWorktree(
+  target: string,
+  repoName: string
+): Promise<string> {
+  // Always use ephemeral worktree for predictable, isolated releases
+  // This avoids edge cases with dirty working directories or branch state
+  const home = process.env.HOME || "~";
+  const baseDir = join(home, ".worktrees", "release-tmp");
+  const shortName = repoName.split("/").pop() || "repo";
+  const releaseDir = join(baseDir, `${shortName}-${Date.now()}`);
+
+  if (!existsSync(baseDir)) {
+    mkdirSync(baseDir, { recursive: true });
   }
 
-  // Look for existing worktree on target branch
-  const worktrees = await exec("git worktree list");
-  for (const line of worktrees.split("\n")) {
-    const match = line.match(/^(\S+)\s+\S+\s+\[(\S+)\]/);
-    if (match && match[2] === target) {
-      const dir = match[1];
-      // Check if it's clean
-      try {
-        const status = await exec(`git -C "${dir}" status --porcelain`);
-        if (!status) {
-          console.log(`  Using existing worktree: ${dir}`);
-          return { dir, cleanup: false };
-        }
-        console.log(`  Existing worktree ${dir} is dirty, creating ephemeral...`);
-      } catch {
-        // Worktree might be in bad state, skip it
-      }
-    }
-  }
-
-  // Create ephemeral worktree
-  const tmpDir = `/tmp/release-${Date.now()}`;
-  console.log(`  Creating ephemeral worktree: ${tmpDir}`);
+  console.log(`  Creating release worktree: ${releaseDir}`);
   await exec(`git fetch origin ${target}`);
-  await exec(`git worktree add "${tmpDir}" "origin/${target}" --detach`);
-  return { dir: tmpDir, cleanup: true };
+  await exec(`git worktree add "${releaseDir}" "origin/${target}" --detach`);
+  return releaseDir;
 }
 
 async function main() {
@@ -270,7 +250,7 @@ async function main() {
   let cleanupNeeded = false;
 
   if (options.currentBranch) {
-    // Release current branch directly
+    // Release current branch directly (for hotfix branches)
     console.log(`  Releasing current branch: ${target}`);
     const status = await exec("git status --porcelain");
     if (status) {
@@ -279,9 +259,8 @@ async function main() {
     }
     releaseDir = process.cwd();
   } else {
-    const result = await findOrCreateReleaseDir(target);
-    releaseDir = result.dir;
-    cleanupNeeded = result.cleanup;
+    releaseDir = await createReleaseWorktree(target, analysis.context.repo);
+    cleanupNeeded = true;
   }
 
   try {
