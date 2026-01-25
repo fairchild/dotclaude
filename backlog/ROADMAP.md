@@ -5,7 +5,6 @@
 **Current focus**: Chronicle continuity and intelligence features
 
 ### Active
-- Chronicle Phase 3: Smart suggestions (session-start context injection)
 - Chronicle dashboard enhancements (stale indicators, resolution display)
 
 ### Planned
@@ -18,6 +17,12 @@
 - Video generation skill
 
 ## Learnings
+
+### 2026-01-24 — Chronicle Phase 3: Smart Suggestions (#63)
+- SessionStart hook is the right injection point—runs once per session, lightweight
+- Shared context.ts module eliminates duplication between catchup.ts and session-start.ts
+- Output format must be concise—context window is precious
+- Silent failure (output `{}`) is correct for non-Chronicle projects
 
 ### 2026-01-24 — Release skill overhaul (analyze-release-skill)
 - Worktree-aware releases: ephemeral worktree strategy works cleanly from any branch
