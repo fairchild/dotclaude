@@ -19,6 +19,13 @@
 
 ## Learnings
 
+### 2026-01-24 — Release skill overhaul (analyze-release-skill)
+- Worktree-aware releases: ephemeral worktree strategy works cleanly from any branch
+- Shell escaping in scripts is treacherous - use temp files for multi-line content passed to CLI tools
+- Outcome tracking (JSONL) pattern from update-dependencies skill is worth replicating
+- /reflect caught a real shell injection bug before merge
+- Skill structure: scripts/ for automation, references/ for troubleshooting, data/ for learning
+
 ### 2026-01-24 — Chronicle Sync UX Simplification (#59)
 - macOS osascript dialogs are plain text only—rich UI needs native app
 - Structured output (JSON) is UI-agnostic—design for any consumer

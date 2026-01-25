@@ -58,7 +58,7 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | **webapp-testing** | Playwright browser automation |
 | **mcp-builder** | Creating MCP servers |
 | **skill-creator** | Building new skills |
-| **release** | Semantic versioning and changelogs |
+| **release** | Semantic versioned releases from any branch (worktree-aware) |
 | **cloudflare-workers-deploy** | Workers deployment setup |
 | **git-worktree** | Parallel branch development |
 | **web-artifacts-builder** | Complex claude.ai artifacts |

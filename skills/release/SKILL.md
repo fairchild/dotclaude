@@ -1,158 +1,150 @@
 ---
 name: release
-description: Create a semantic versioned release with AI-generated changelog. Use when the user wants to create a new release, cut a release, bump version, update changelog, or publish a new version. Analyzes commits since last release, determines version bump, generates release notes, updates CHANGELOG.md, creates git tag, and publishes GitHub Release.
+description: Create semantic versioned releases with AI-generated changelogs. Worktree-aware - works from any branch. Use when the user wants to create a release, cut a release, bump version, or publish a new version. Supports dry-run preview, pre-releases (alpha/beta/rc), CI status checks, and outcome tracking.
 license: Apache-2.0
 ---
 
 # Release
 
-Create semantic versioned releases with comprehensive, AI-generated changelogs.
+Create semantic versioned releases from any branch or worktree.
+
+## Quick Start
+
+```bash
+# Preview release (no changes)
+bun ~/.claude/skills/release/scripts/analyze.ts
+
+# Execute release
+bun ~/.claude/skills/release/scripts/release.ts
+
+# Dry run
+bun ~/.claude/skills/release/scripts/release.ts --dry-run
+```
+
+## Command Options
+
+| Option | Effect |
+|--------|--------|
+| (none) | Analyze, confirm, release origin/main |
+| `--dry-run` | Preview only, no changes |
+| `--version vX.Y.Z` | Override suggested version |
+| `--no-changelog` | Skip CHANGELOG.md, notes in GitHub release only |
+| `--current-branch` | Release HEAD of current branch (for hotfix branches) |
+| `--prerelease alpha` | Create pre-release (e.g., v1.0.0-alpha.1) |
+| `--skip-ci` | Skip CI status check |
+
+## Worktree-Aware Workflow
+
+The skill releases `origin/main` regardless of your current branch:
+
+```
+You're in:     ~/conductor/workspaces/.claude/casablanca (worktree)
+Current branch: feat/my-feature
+Release target: origin/main ✓
+```
+
+**Strategy (in priority order):**
+
+1. **Reuse existing checkout** - If any checkout (main clone at `~/code/REPO` or worktree) is on the target branch and clean, use it
+2. **Ephemeral worktree** - Create temp worktree at `/tmp/release-*`, release, cleanup automatically
+3. **Current branch** - With `--current-branch`, release HEAD directly
 
 ## Workflow
 
-### 1. Pre-flight Validation
+### 1. Analyze
 
-Run these checks before proceeding. Stop and inform user if any fail:
-
-```bash
-# Must be on main branch
-git branch --show-current  # Should be "main" or "master"
-
-# Working directory must be clean
-git status --porcelain  # Should be empty
-
-# Must be up to date with remote
-git fetch origin
-git status -uno  # Should show "up to date"
-```
-
-If checks fail, inform user:
-- Uncommitted changes → "Commit or stash changes first"
-- Not on main → "Switch to main branch first"
-- Behind remote → "Pull latest changes first"
-
-### 2. Analyze Changes
+Run the analyze script (read-only, safe anytime):
 
 ```bash
-# Find last release tag
-git tag --list 'v*' --sort=-version:refname | head -1
-
-# If no v* tags exist, this is the first release
-# Get commits since last release (or all commits if first release)
-git log <last-tag>..HEAD --oneline
-git log <last-tag>..HEAD --stat
+bun ~/.claude/skills/release/scripts/analyze.ts
 ```
 
-Review each commit to understand:
-- What features were added
-- What bugs were fixed
-- What breaking changes occurred
-- What was refactored or improved
+Shows:
+- Current context (branch, worktree status)
+- Target branch (origin/main)
+- Commits since last tag
+- Suggested version
+- Generated changelog
+- CI status
 
-### 3. Determine Version Bump
+### 2. Review and Confirm
 
-Apply semantic versioning based on changes:
+Check the suggested version and changelog preview. Adjust with:
+- `--version vX.Y.Z` to override version
+- `--prerelease alpha` for alpha/beta/rc
+
+### 3. Execute
+
+```bash
+bun ~/.claude/skills/release/scripts/release.ts
+```
+
+The script:
+1. Checks CI status (fail if broken, unless `--skip-ci`)
+2. Finds or creates release worktree
+3. Updates CHANGELOG.md (unless `--no-changelog`)
+4. Commits: `release: vX.Y.Z`
+5. Creates and pushes tag
+6. Creates GitHub release
+7. Logs outcome to `data/outcomes.jsonl`
+8. Cleans up ephemeral worktree
+
+## Version Bumping
 
 | Change Type | Bump | Example |
 |-------------|------|---------|
-| Breaking changes, major rewrites | Major | 1.2.3 → 2.0.0 |
-| New features, enhancements | Minor | 1.2.3 → 1.3.0 |
-| Bug fixes, minor tweaks, docs | Patch | 1.2.3 → 1.2.4 |
+| Breaking (or `!` suffix) | Major | 1.2.3 → 2.0.0 |
+| `feat:` commits | Minor | 1.2.3 → 1.3.0 |
+| `fix:`, `chore:`, etc. | Patch | 1.2.3 → 1.2.4 |
 
-For pre-1.0 projects, treat minor as major and patch as minor.
+Pre-1.0: Breaking → minor, feat → minor, fix → patch.
 
-### 4. Generate Release Notes
+Pre-releases: `--prerelease alpha` → v1.0.0-alpha.1, v1.0.0-alpha.2, etc.
 
-Create concise, user-focused notes organized by category:
+## Changelog Format
+
+Uses [Keep a Changelog](https://keepachangelog.com/):
 
 ```markdown
-### Added
-- New feature X that enables Y
+## [1.3.0] - 2026-01-24
 
-### Changed
-- Improved Z for better performance
+### Added
+- feature: New capability
 
 ### Fixed
-- Resolved issue where A caused B
+- bug: Resolved issue
 
-### Removed
-- Deprecated feature Q
+### Changed
+- refactor: Improved performance
 ```
-
-Guidelines:
-- Focus on user impact, not implementation details
-- Group related changes together
-- Use active voice and present tense
-- Keep each item to one line when possible
-- Skip empty categories
-
-### 5. Present for Confirmation
-
-Before making any changes, show the user:
-1. Proposed version number
-2. Generated changelog entry (full text)
-3. Summary of what will happen
-
-Ask: "Ready to create release vX.Y.Z? This will update CHANGELOG.md, commit, tag, push, and create a GitHub Release."
-
-Wait for explicit confirmation before proceeding.
-
-### 6. Update CHANGELOG.md
-
-Prepend new entry using [Keep a Changelog](https://keepachangelog.com/) format:
-
-```markdown
-# Changelog
-
-## [X.Y.Z] - YYYY-MM-DD
-
-### Added
-...
-
-## [Previous] - Date
-...
-```
-
-If CHANGELOG.md doesn't exist, create it with header and first entry.
-
-### 7. Commit, Tag, and Push
-
-Execute atomically - if any step fails, inform user:
-
-```bash
-git add CHANGELOG.md
-git commit -m "release: vX.Y.Z"
-git tag vX.Y.Z
-git push origin main --tags
-```
-
-### 8. Create GitHub Release
-
-```bash
-gh release create vX.Y.Z --title "vX.Y.Z" --notes-file - <<'EOF'
-<release-notes-from-changelog>
-EOF
-```
-
-Use the exact content from the new CHANGELOG.md entry.
-
-### 9. Confirm Success
-
-Report to user:
-- Release vX.Y.Z created successfully
-- Link to GitHub Release page
-- Link to CHANGELOG.md
-
-## First Release
-
-For projects without existing releases:
-- Start at v0.1.0 (or v1.0.0 if production-ready)
-- Summarize project capabilities rather than listing every commit
-- Create CHANGELOG.md from scratch
 
 ## Error Recovery
 
-If release fails partway:
-- If commit succeeded but push failed → `git push origin main --tags`
-- If push succeeded but gh release failed → `gh release create vX.Y.Z ...`
-- If tag exists but release doesn't → delete tag and retry, or create release for existing tag
+See [references/troubleshooting.md](references/troubleshooting.md) for:
+- Partial failure recovery (commit/push/release)
+- Undoing a release (delete tag, retract)
+- Worktree cleanup
+- CI issues
+
+Quick fixes:
+```bash
+# Push failed after commit
+git push origin main --tags
+
+# GitHub release failed after push
+gh release create vX.Y.Z --title "vX.Y.Z" --generate-notes
+
+# Delete bad release
+gh release delete vX.Y.Z --yes --cleanup-tag
+```
+
+## Outcome Tracking
+
+Releases are logged to `data/outcomes.jsonl`:
+
+```jsonl
+{"date":"2026-01-24","project":"user/repo","version":"v1.0.0","outcome":"success"}
+{"date":"2026-01-25","project":"user/repo","version":"v1.1.0","outcome":"failed","error":"push rejected"}
+```
+
+Use this to track release history and debug recurring issues.
