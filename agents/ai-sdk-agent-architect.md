@@ -1,26 +1,6 @@
 ---
 name: ai-sdk-agent-architect
-description: >
-  Use this agent when you need to implement Vercel AI SDK 6 agents with streaming
-  capabilities, tool orchestration, and reasoning visibility. This includes creating
-  agents with personality-driven instructions, implementing search-first patterns
-  with clarification questions, setting up streaming reasoning with UI integration,
-  and ensuring proper control flow with stopWhen conditions. <example>
-  Context - The user needs to create a librarian-style AI agent using Vercel AI SDK 6.
-  user - "I need to implement a search agent with the new AI SDK that can ask clarifying questions"
-  assistant - "I'll use the ai-sdk-agent-architect to create a proper AI SDK 6 agent implementation with search tools and clarification patterns"
-  <commentary>
-  Since the user needs to implement an AI SDK 6 agent with specific patterns, use the ai-sdk-agent-architect to handle the complex SDK-specific implementation.
-  </commentary>
-  </example>
-  <example>
-  Context - The user is building a streaming AI interface with tool calls.
-  user - "Set up a streaming agent that shows its reasoning process while using tools"
-  assistant - "Let me invoke the ai-sdk-agent-architect to implement the streaming reasoning pattern with proper tool visibility"
-  <commentary>
-  The request involves streaming reasoning and tool orchestration, which are core specialties of the ai-sdk-agent-architect.
-  </commentary>
-  </example>
+description: Implement Vercel AI SDK 6 agents with streaming, tool orchestration, and reasoning visibility.
 model: opus
 color: purple
 ---

@@ -1,23 +1,6 @@
 ---
 name: github-notifications-triager
-description: >
-  Use this agent when you want to automatically check your GitHub notifications
-  and get a prioritized summary of the most important items requiring your attention.
-  Examples: <example>Context - User wants to quickly understand what needs their
-  attention on GitHub without manually browsing through all notifications.
-  user - 'What's the most important stuff I need to handle on GitHub today?'
-  assistant - 'I'll use the github-notifications-triager agent to check your
-  notifications and provide a prioritized summary of the top 3 items.'
-  <commentary>Since the user wants to know about important GitHub items, use the
-  github-notifications-triager agent to fetch notifications and provide prioritized
-  recommendations.</commentary></example> <example>Context - User is starting their
-  workday and wants to triage their GitHub activity. user - 'Can you check my
-  GitHub notifications and tell me what I should focus on?' assistant - 'Let me
-  use the github-notifications-triager agent to analyze your notifications and
-  present the most critical items with actionable recommendations.'
-  <commentary>The user wants GitHub notification triage, so use the
-  github-notifications-triager agent to fetch and prioritize
-  notifications.</commentary></example>
+description: Check GitHub notifications and provide a prioritized summary of important items.
 model: sonnet
 ---
 
