@@ -1,8 +1,9 @@
 ---
-description: Review recent work against plan and project standards before PR
+description: Review recent work against plan and project standards
 ---
 
-Review your work before creating a PR. Gathers context automatically and dispatches the code-reviewer subagent.
+Review your work before creating a PR. 
+Gathers context automatically and dispatches the code-reviewer subagent.
 
 ## Usage
 
@@ -156,18 +157,3 @@ if [ -f ".github/copilot-instructions.md" ]; then
   echo "Found: .github/copilot-instructions.md"
 fi
 ```
-
-## Comparison with Related Tools
-
-| Tool | When | Purpose |
-|------|------|---------|
-| `/code-review` | Before PR | Catch issues early, local review |
-| `claude-code-review.yml` | On PR | Automated CI review |
-| `/pr-review` | After PR feedback | Address reviewer comments |
-
-## Tips
-
-- Run after completing a logical chunk of work
-- More frequent reviews = smaller fixes
-- If no plan exists, the reviewer uses general best practices
-- Project standards in `.github/copilot-instructions.md` are automatically included
