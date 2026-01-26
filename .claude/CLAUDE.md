@@ -34,7 +34,7 @@ status: wip                      # work in progress (absence = ready)
 ```
 
 ### From Anthropic (untouched)
-- canvas-design, frontend-design, mcp-builder
+- canvas-design, frontend-design
 - skill-creator, web-artifacts-builder, webapp-testing
 
 ## Skill Status Convention
