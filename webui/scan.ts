@@ -1,12 +1,14 @@
 #!/usr/bin/env bun
 /**
- * Scans ~/.claude configuration and generates data.json for the webui
+ * Scans Claude configuration and generates data.json for the webui.
+ * By default scans the repo root (parent of webui/), works in worktrees.
+ * Override with CLAUDE_DIR env var to scan a different location.
  */
 
 import { readdir, readFile, stat } from "fs/promises";
-import { join, basename } from "path";
+import { join, basename, resolve } from "path";
 
-const CLAUDE_DIR = process.env.CLAUDE_DIR || `${process.env.HOME}/.claude`;
+const CLAUDE_DIR = process.env.CLAUDE_DIR || resolve(import.meta.dir, "..");
 
 // CLI Arguments
 const args = process.argv.slice(2);
@@ -79,6 +81,7 @@ interface Skill {
   license?: string;
   author?: string;
   source?: string;
+  status?: string;
   isExternal: boolean;
   hasScripts: boolean;
   hasReferences: boolean;
@@ -259,6 +262,7 @@ async function scanSkills(): Promise<Skill[]> {
 
           const author = frontmatter.author as string | undefined;
           const source = frontmatter.source as string | undefined;
+          const status = frontmatter.status as string | undefined;
 
           skills.push({
             name: (frontmatter.name as string) || entry,
@@ -269,6 +273,7 @@ async function scanSkills(): Promise<Skill[]> {
             license: frontmatter.license as string | undefined,
             author,
             source,
+            status,
             isExternal: !!(author || source),
             hasScripts: subentries.includes("scripts"),
             hasReferences: subentries.includes("references"),
@@ -805,7 +810,7 @@ async function scanReadme(): Promise<string> {
 }
 
 async function main() {
-  console.log("Scanning ~/.claude configuration...\n");
+  console.log(`Scanning ${CLAUDE_DIR}...\n`);
 
   const data: ConfigData = {
     scannedAt: new Date().toISOString(),

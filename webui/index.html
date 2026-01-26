@@ -1034,7 +1034,7 @@ ${skill.content}`);
       document.getElementById('scanTime').textContent = formatDate(data.scannedAt);
       document.getElementById('count-commands').textContent = data.commands.length;
       document.getElementById('count-agents').textContent = data.agents.length;
-      document.getElementById('count-skills').textContent = data.skills.length;
+      document.getElementById('count-skills').textContent = data.skills.filter(s => s.status !== 'wip').length;
       document.getElementById('count-scripts').textContent = data.scripts.length;
       document.getElementById('count-marketplaces').textContent = data.marketplaces.length;
       document.getElementById('count-plugins').textContent = data.installedPlugins.length;
@@ -1261,12 +1261,15 @@ ${skill.content}`);
     }
 
     function renderSkills() {
-      if (!data.skills.length) {
+      const skills = data.skills.filter(s => s.status !== 'wip');
+      if (!skills.length) {
         return '<div class="empty"><div class="empty-icon">★</div><p>No skills found</p></div>';
       }
 
-      return `<div class="cards">${data.skills.map((skill, i) => `
-        <article class="card" data-idx="${i}" data-name="${escapeHtml(skill.name)}">
+      return `<div class="cards">${skills.map((skill) => {
+        const origIdx = data.skills.findIndex(s => s.dirname === skill.dirname);
+        return `
+        <article class="card" data-idx="${origIdx}" data-name="${escapeHtml(skill.name)}">
           <div class="card-header" tabindex="0" role="button" aria-expanded="false" onclick="toggleCard(this.parentElement)" onkeydown="handleCardKeydown(event, this)">
             <span class="card-icon">★</span>
             <div class="card-info">
@@ -1288,14 +1291,14 @@ ${skill.content}`);
             </div>
 ${skill.isExternal && skill.source
               ? `<a class="action-btn" href="${escapeHtml(skill.source)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" aria-label="View source" title="View source">\u2197</a>`
-              : `<button class="action-btn" onclick="event.stopPropagation(); downloadSkillZip(data.skills[${i}])" aria-label="Download skill" title="Download .skill">\u2B73</button>`}
+              : `<button class="action-btn" onclick="event.stopPropagation(); downloadSkillZip(data.skills[${origIdx}])" aria-label="Download skill" title="Download .skill">\u2B73</button>`}
             <span class="card-toggle" aria-hidden="true">▶</span>
           </div>
           <div class="card-body">
             <div class="card-content">${escapeHtml(truncate(skill.content, 1000))}</div>
           </div>
         </article>
-      `).join('')}</div>`;
+      `}).join('')}</div>`;
     }
 
     function renderScripts() {

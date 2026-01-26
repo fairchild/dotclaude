@@ -1,26 +1,6 @@
 ---
 name: project-handoff-auditor
-description: >
-  Use this agent when you need to prepare a codebase for handoff to a client or new
-  team, ensuring it meets professional standards and best practices. This includes
-  verifying code quality, documentation completeness, test coverage, deployment health,
-  and overall project maintainability. Examples -
-  <example>
-  Context - User is preparing to hand off a project to a client.
-  user - "We need to prepare this project for client handoff next week"
-  assistant - "I'll use the project-handoff-auditor agent to ensure everything is ready for a smooth transition"
-  <commentary>
-  Since the user needs to prepare for project handoff, use the Task tool to launch the project-handoff-auditor agent to perform a comprehensive audit.
-  </commentary>
-  </example>
-  <example>
-  Context - User wants to ensure their codebase meets professional standards before delivery.
-  user - "Let's make sure our codebase is in perfect shape for the new team taking over"
-  assistant - "I'm going to use the project-handoff-auditor agent to audit the entire project and ensure it meets all professional standards"
-  <commentary>
-  The user wants to verify project quality before handoff, so use the project-handoff-auditor agent to perform a thorough review.
-  </commentary>
-  </example>
+description: Audit codebase quality, docs, tests, and deployment before client handoff.
 model: inherit
 ---
 
