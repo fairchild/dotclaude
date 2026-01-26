@@ -37,8 +37,18 @@ status: wip                      # work in progress (absence = ready)
 - canvas-design, frontend-design, mcp-builder
 - skill-creator, web-artifacts-builder, webapp-testing
 
-### WIP
-- rate-title, session-title-eval
+## Skill Status Convention
+
+| Prefix | Frontmatter | Meaning |
+|--------|-------------|---------|
+| (none) | (none) | Production-ready, auto-invoked |
+| `wip-` | `status: wip` | Experimental, usable but incomplete |
+
+WIP skills use **both** the directory prefix and frontmatter flag:
+- `skills/wip-rate-title/` with `status: wip` in SKILL.md
+- `skills/wip-session-title-eval/` with `status: wip` in SKILL.md
+
+To promote a skill: remove `wip-` prefix and `status: wip` frontmatter.
 
 ## Conventions
 

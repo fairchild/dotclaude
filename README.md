@@ -42,6 +42,7 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | `/reflect` | Pause to review work with fresh eyes |
 | `/reflection-log` | Log feedback to improve reflection prompt |
 | `/retro` | Review session trajectory and update todos |
+| `/session-wrapup` | Final step before merge, captures learnings |
 | `/status_line` | Explain current session metrics |
 | `/update-dependencies` | Intelligent dependency updates with batching |
 
@@ -66,10 +67,17 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | **verify** | Deployment verification and health checks |
 | **excalidraw-diagrams** | Creating diagrams via Excalidraw |
 | **dotclaude-config** | Editing Claude Code configuration |
-| **session-title-eval** | Evaluating session title generation quality |
 | **update-dependencies** | Dependency analysis and updates |
 | **youtube-content** | Extracting/analyzing YouTube video content |
-| **rate-title** | AI-assisted session title rating |
+
+### Skills (WIP)
+
+Experimental skills use `wip-` prefix and `status: wip` frontmatter. Usable but incomplete.
+
+| Skill | Purpose |
+|-------|---------|
+| **wip-rate-title** | AI-assisted session title rating with human calibration |
+| **wip-session-title-eval** | Batch evaluation of session title generation quality |
 
 ### Agents (background tasks)
 

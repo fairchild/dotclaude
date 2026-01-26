@@ -43,7 +43,7 @@ ls -la ~/.claude/chronicle/blocks/
 # Look for patterns, open threads, related work
 ```
 
-### 1.5 Load Usage Data (ai-coding-files)
+### 1.5 Load Usage Data (ai-coding-usage)
 
 Use the `ai-coding-usage` tool to get rich usage statistics across all projects:
 
