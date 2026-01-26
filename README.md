@@ -57,7 +57,6 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | **chronicle** | Capturing and curating session memory |
 | **frontend-design** | Building web UIs, components, pages |
 | **webapp-testing** | Playwright browser automation |
-| **mcp-builder** | Creating MCP servers |
 | **skill-creator** | Building new skills |
 | **release** | Semantic versioned releases from any branch (worktree-aware) |
 | **cloudflare-workers-deploy** | Workers deployment setup |
