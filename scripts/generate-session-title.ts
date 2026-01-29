@@ -25,7 +25,11 @@ async function main() {
   const dir = `${process.env.HOME}/.claude/session-titles/${projectName}`;
   const titleFile = `${dir}/${session_id}.txt`;
 
-  const currentTitle = existsSync(titleFile) ? readFileSync(titleFile, "utf-8").trim() : null;
+  let currentTitle = existsSync(titleFile) ? readFileSync(titleFile, "utf-8").trim() : null;
+  // Strip existing shift prefix like "(3) " to avoid duplication when re-formatted
+  if (currentTitle) {
+    currentTitle = currentTitle.replace(/^(\(\d+\)\s*)+/, "");
+  }
 
   // Pass projectName for richer context extraction
   await writeTitle(dir, session_id, currentTitle, transcript_path, projectName);
