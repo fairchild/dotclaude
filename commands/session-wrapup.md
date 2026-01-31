@@ -63,17 +63,69 @@ Review `backlog/ROADMAP.md`:
 ```
 
 ### 5. Generate Handoff
-Output a prompt for the next session. The user will copy/paste it to start fresh.
 
-Include:
-- What was completed (PR link)
-- What's next (backlog item or area)
-- Key decisions or context
-- `@filename` references for files that should be loaded in context
+**5a. Write handoff.md**
+
+Write detailed handoff to repo root (`handoff.md`):
+
+```markdown
+# Session Handoff
+
+## Current Task
+{Brief description of what we completed}
+
+## Progress
+- {Key accomplishments}
+- {State of the codebase}
+
+## Key Decisions
+- **{topic}**: {choice} — {rationale}
+- **{topic}**: {choice} — {rationale}
+
+## Next Steps
+1. {Recommended next action}
+2. {Follow-up work}
+
+## Relevant Files
+- `path/to/file` — {why it matters}
+
+## Open Questions
+- {Unresolved decisions or blockers}
+
+---
+*Session completed on {date}*
+*PR: #{number} — {title}*
+```
+
+**5b. Git handling**
+
+Check if `handoff.md` is tracked:
+```bash
+git ls-files --error-unmatch handoff.md 2>/dev/null
+```
+
+- If tracked (exit 0) → include in final commit
+- If untracked (exit 1) → leave untracked
+
+**5c. Output summary**
+
+Output a short, copy-pastable prompt:
+
+```
+Completed: {brief description} (PR #{number})
+Next: {recommended next action}
+See @handoff.md for full context
+```
 
 ### 6. Final Commit
 ```bash
 git add backlog/
+
+# Include handoff.md only if already tracked
+if git ls-files --error-unmatch handoff.md 2>/dev/null; then
+  git add handoff.md
+fi
+
 git commit -m "chore: update backlog for [feature]"
 ```
 
