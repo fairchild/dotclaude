@@ -9,7 +9,6 @@
 
 ### Planned
 - Chronicle Phase 4: Cross-project intelligence
-- Thread identity across sessions
 - Native sync popup (see backlog/native-sync-popup.md)
 
 ### Deferred
@@ -17,6 +16,13 @@
 - Video generation skill
 
 ## Learnings
+
+### 2026-01-31 — Chronicle Thread Identity
+- Simple slug-based threads (no separate threads.jsonl) proved sufficient
+- `pendingThreads` map is sparse and backward compatible with existing blocks
+- Haiku prompt extension for detecting task decomposition works well
+- Thread inheritance via lookup keeps logic simple (exact match first)
+- Sorting threaded items together in catchup output improves readability
 
 ### 2026-01-24 — Chronicle Phase 3: Smart Suggestions (#63)
 - SessionStart hook is the right injection point—runs once per session, lightweight
