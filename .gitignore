@@ -55,6 +55,8 @@ scripts/tsconfig.json
 
 # Skill scripts (track code, ignore generated)
 skills/*/scripts/node_modules/
+skills/*/scripts/test-results/
+.last-run.json
 
 # IDE and config state
 ide/
