@@ -214,19 +214,75 @@ function humanizeBranch(branch: string): string {
     .trim();
 }
 
-async function callHaiku(apiKey: string, prompt: string): Promise<string | null> {
+async function callHaiku(
+  apiKey: string,
+  prompt: string,
+  options: { sanitize?: boolean; systemPrompt?: string } = {}
+): Promise<string | null> {
+  const { sanitize = true, systemPrompt } = options;
   try {
     const client = new Anthropic({ apiKey });
     const res = await client.messages.create({
       model: "claude-3-5-haiku-20241022",
       max_tokens: 30,
+      ...(systemPrompt && { system: systemPrompt }),
       messages: [{ role: "user", content: prompt }],
     });
     const text = res.content[0];
-    return text.type === "text" ? text.text.trim() : null;
+    if (text.type !== "text") return null;
+    return sanitize ? sanitizeTitle(text.text) : text.text.trim();
   } catch {
     return null;
   }
+}
+
+/**
+ * Sanitize a raw title response from the model.
+ * Strips verbose preambles, quotes, and validates length.
+ * Returns null if the title is malformed.
+ */
+export function sanitizeTitle(raw: string): string | null {
+  const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  if (lines.length === 0) return null;
+
+  // Find the actual title - it might be on the first line or a subsequent line
+  // if the first line is just preamble ending with ":"
+  let title = lines[0];
+
+  // If first line ends with ":" and there's a second line, use the second line
+  if (title.endsWith(':') && lines.length > 1) {
+    title = lines[1];
+  }
+
+  // Remove common verbose preambles (patterns that precede the actual title)
+  const preambles = [
+    /^Based on[^,:\n]*[,:]\s*/i,        // "Based on the context," or "Based on X:"
+    /^Here's[^:]*:\s*/i,                 // "Here's a title:" or "Here's the title:"
+    /^Here is[^:]*:\s*/i,                // "Here is a title:"
+    /^The title\s*(is|:)\s*/i,           // "The title is" or "The title:"
+    /^Title:\s*/i,                       // "Title:"
+    /^A title[^:]*:\s*/i,                // "A title for this:"
+    /^Session title:\s*/i,               // "Session title:"
+  ];
+  for (const pattern of preambles) {
+    title = title.replace(pattern, '').trim();
+  }
+
+  // Remove surrounding quotes
+  title = title.replace(/^["'](.+)["']$/, '$1').trim();
+
+  // Validate length (max 10 words, max 60 chars)
+  const words = title.split(/\s+/);
+  if (words.length > 10 || title.length > 60) {
+    return null;  // Reject and use fallback
+  }
+
+  // Must have at least 2 words
+  if (words.length < 2 || title.length < 5) {
+    return null;
+  }
+
+  return title || null;
 }
 
 /**
@@ -414,7 +470,9 @@ export async function evolveTitleWithContext(
 
     if (apiKey) {
       const prompt = buildInitialPrompt(ctx);
-      const polished = await callHaiku(apiKey, prompt);
+      const polished = await callHaiku(apiKey, prompt, {
+        systemPrompt: "Output ONLY the session title. No explanations, no preambles, no quotes. Just the 4-7 word title.",
+      });
       title = polished || fallbackTitle(ctx);
     } else {
       title = fallbackTitle(ctx);
@@ -438,13 +496,14 @@ export async function evolveTitleWithContext(
   }
 
   // Evolution: check for significant shift
+  // Don't sanitize evolution responses - they use "KEEP" / "NEW: <title>" protocol
   if (apiKey && ctx.lastMessage) {
     const prompt = buildEvolutionPrompt(
       currentTitle,
       previousMeta?.lastMessage || null,
       ctx
     );
-    const response = await callHaiku(apiKey, prompt);
+    const response = await callHaiku(apiKey, prompt, { sanitize: false });
 
     if (response) {
       if (response.toUpperCase() === "KEEP") {
@@ -462,8 +521,9 @@ export async function evolveTitleWithContext(
       }
 
       if (response.toUpperCase().startsWith("NEW:")) {
-        // Shift detected!
-        const newTitle = response.substring(4).trim();
+        // Shift detected - sanitize just the title portion
+        const rawTitle = response.substring(4).trim();
+        const newTitle = sanitizeTitle(rawTitle) || rawTitle.substring(0, 60);
         const newShiftCount = (previousMeta?.shiftCount || 0) + 1;
         return {
           title: newTitle,
@@ -478,13 +538,14 @@ export async function evolveTitleWithContext(
       }
 
       // Unexpected response format - treat as new title if it looks valid
-      if (response.length > 5 && response.length < 80 && !response.includes("KEEP")) {
+      const sanitized = sanitizeTitle(response);
+      if (sanitized) {
         const newShiftCount = (previousMeta?.shiftCount || 0) + 1;
         return {
-          title: response,
+          title: sanitized,
           shifted: true,
           meta: {
-            title: response,
+            title: sanitized,
             shiftCount: newShiftCount,
             lastMessageHash: currentHash,
             lastMessage: ctx.lastMessage,

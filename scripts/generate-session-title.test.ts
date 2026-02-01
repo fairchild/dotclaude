@@ -561,3 +561,62 @@ describe("integration", () => {
     expect(meta.shiftCount).toBe(2);
   });
 });
+
+// --- Unit Tests for sanitizeTitle ---
+
+describe("sanitizeTitle", () => {
+  test("returns clean title unchanged", async () => {
+    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+
+    expect(sanitizeTitle("Fix OAuth redirect loop")).toBe("Fix OAuth redirect loop");
+    expect(sanitizeTitle("Add rate limiting to API")).toBe("Add rate limiting to API");
+  });
+
+  test("strips verbose preambles", async () => {
+    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+
+    expect(sanitizeTitle("Based on the context, Fix OAuth Loop")).toBe("Fix OAuth Loop");
+    expect(sanitizeTitle("Here's a title: Debug CI Pipeline")).toBe("Debug CI Pipeline");
+    expect(sanitizeTitle("The title is Add User Auth")).toBe("Add User Auth");
+    expect(sanitizeTitle("Title: Refactor Auth Module")).toBe("Refactor Auth Module");
+  });
+
+  test("strips surrounding quotes", async () => {
+    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+
+    expect(sanitizeTitle('"Fix OAuth redirect loop"')).toBe("Fix OAuth redirect loop");
+    expect(sanitizeTitle("'Add rate limiting to API'")).toBe("Add rate limiting to API");
+  });
+
+  test("takes first line only", async () => {
+    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+
+    const multiline = "Fix OAuth Loop\nThis is extra explanation";
+    expect(sanitizeTitle(multiline)).toBe("Fix OAuth Loop");
+  });
+
+  test("rejects titles that are too long", async () => {
+    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+
+    const longTitle = "This is a very long title with way too many words that should be rejected";
+    expect(sanitizeTitle(longTitle)).toBeNull();
+
+    const tooManyChars = "A".repeat(65);
+    expect(sanitizeTitle(tooManyChars)).toBeNull();
+  });
+
+  test("rejects titles that are too short", async () => {
+    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+
+    expect(sanitizeTitle("Fix")).toBeNull();  // One word
+    expect(sanitizeTitle("OK")).toBeNull();   // Too short
+    expect(sanitizeTitle("")).toBeNull();     // Empty
+  });
+
+  test("handles complex verbose responses", async () => {
+    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+
+    const verbose = 'Based on the context of "Setting Up Self-Hosted Runners", here\'s a precise title:\n"Configure GitHub Self-Hosted Runners"';
+    expect(sanitizeTitle(verbose)).toBe("Configure GitHub Self-Hosted Runners");
+  });
+});

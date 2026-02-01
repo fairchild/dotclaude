@@ -164,7 +164,11 @@ fi
 # Session title (if set)
 title_file=~/.claude/session-titles/$project_name/$session_id.txt
 if [[ -f "$title_file" ]]; then
-    title=$(cat "$title_file")
+    # Read first line only and truncate if too long
+    title=$(head -1 "$title_file")
+    if [[ ${#title} -gt 50 ]]; then
+        title="${title:0:47}..."
+    fi
     # Highlight shift indicator (N) in yellow if present
     if [[ $title =~ ^\(([0-9]+)\)\ (.*)$ ]]; then
         shift_count="${BASH_REMATCH[1]}"
