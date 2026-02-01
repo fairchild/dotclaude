@@ -1311,56 +1311,90 @@ const HTML = `<!DOCTYPE html>
 
     .repo-group { margin-bottom: 16px; }
 
-    .repo-name-text {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--accent);
-    }
-
-    .repo-branches { list-style: none; margin-left: 8px; }
-
-    .worktree-item {
-      padding: 6px 8px;
-      border-radius: 4px;
+    .repo-toggle {
+      width: 14px;
+      height: 14px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
       cursor: pointer;
-      transition: background 0.15s;
       display: flex;
       align-items: center;
-      gap: 6px;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 9px;
+    }
+    .repo-toggle:hover { color: var(--text); }
+
+    .repo-count {
+      font-size: 10px;
+      color: var(--text-muted);
+      background: var(--bg-tertiary);
+      padding: 1px 6px;
+      border-radius: 10px;
+      margin-left: auto;
+    }
+    .repo-group:not(.collapsed) .repo-count { display: none; }
+
+    .repo-group.collapsed .repo-branches { display: none; }
+
+    .repo-name-text {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .repo-branches {
+      list-style: none;
+      margin-left: 14px;
+      padding-left: 12px;
+      border-left: 1px solid var(--border);
+      margin-top: 4px;
+    }
+
+    .worktree-item {
+      padding: 3px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.1s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 24px;
+      margin-left: -1px;
     }
 
     .worktree-item:hover { background: var(--bg-tertiary); }
-    .worktree-item.selected { background: var(--accent-subtle); }
-
-    .tree-connector {
-      color: var(--text-muted);
-      font-family: monospace;
-      font-size: 12px;
-      width: 20px;
-      flex-shrink: 0;
+    .worktree-item.selected {
+      background: var(--accent-subtle);
     }
 
     .worktree-name {
       display: flex;
       align-items: center;
-      gap: 6px;
-      font-size: 13px;
-      color: var(--text);
+      font-size: 12px;
+      color: var(--text-muted);
+      flex: 1;
     }
+    .worktree-item:hover .worktree-name,
+    .worktree-item.selected .worktree-name { color: var(--text); }
 
-    .worktree-name .indicator {
-      width: 6px;
-      height: 6px;
+    .worktree-indicator {
+      width: 5px;
+      height: 5px;
       border-radius: 50%;
       flex-shrink: 0;
+      margin-left: auto;
     }
 
-    .indicator.active { background: var(--green); }
-    .indicator.recent { background: var(--yellow); }
-    .indicator.stale { background: var(--text-muted); }
+    .worktree-indicator.active { background: var(--green); }
+    .worktree-indicator.recent { background: var(--yellow); }
+    .worktree-indicator.stale { background: rgba(110, 118, 129, 0.4); }
 
     .worktree-status {
-      font-size: 11px;
+      font-size: 10px;
       color: var(--text-muted);
       margin-left: auto;
     }
@@ -1397,8 +1431,9 @@ const HTML = `<!DOCTYPE html>
     .repo-name {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      margin-bottom: 4px;
+      gap: 6px;
+      padding: 4px 0;
+      height: 20px;
     }
 
     .repo-create-btn {
@@ -2767,18 +2802,13 @@ const HTML = `<!DOCTYPE html>
       // Sort repos alphabetically
       const sortedRepoNames = Object.keys(unifiedRepos).sort();
 
+      const collapsedRepos = new Set(JSON.parse(localStorage.getItem('collapsedRepos') || '[]'));
+
       let html = '';
       for (const repoName of sortedRepoNames) {
         const { mainRepo, worktrees: repoWorktrees } = unifiedRepos[repoName];
         const mainRepoPath = mainRepo?.path || repoWorktrees[0]?.mainRepoPath || '';
         const repoSelected = selectedRepo === repoName ? 'selected' : '';
-
-        html += \`<li class="repo-group">
-          <div class="repo-name \${repoSelected}" data-repo="\${repoName}">
-            <span class="repo-name-text clickable">\${repoName}</span>
-            <button class="repo-create-btn" data-repo="\${repoName}" data-main-repo-path="\${mainRepoPath}" title="Create new worktree">+</button>
-          </div>
-          <ul class="repo-branches">\`;
 
         // Collect all branches: main repo + worktrees
         const allBranches = [];
@@ -2802,25 +2832,31 @@ const HTML = `<!DOCTYPE html>
           });
         }
 
+        const isCollapsed = collapsedRepos.has(repoName);
+        const worktreeCount = allBranches.length;
+
+        const chevron = isCollapsed ? '›' : '⌄';
+        html += \`<li class="repo-group \${isCollapsed ? 'collapsed' : ''}">
+          <div class="repo-name \${repoSelected}" data-repo="\${repoName}">
+            <button class="repo-toggle" data-repo="\${repoName}">\${chevron}</button>
+            <span class="repo-name-text clickable">\${repoName}</span>
+            <span class="repo-count">\${worktreeCount}</span>
+            <button class="repo-create-btn" data-repo="\${repoName}" data-main-repo-path="\${mainRepoPath}" title="Create new worktree">+</button>
+          </div>
+          <ul class="repo-branches">\`;
+
         allBranches.forEach((item, idx) => {
-          const isLast = idx === allBranches.length - 1;
-          const connector = isLast ? '└──' : '├──';
           const indicator = item.session?.active ? 'active' :
                            item.session?.ageMinutes < 60 ? 'recent' : 'stale';
-          const ageText = item.session ? (item.session.ageMinutes < 60 ? item.session.ageMinutes + 'm' : Math.floor(item.session.ageMinutes / 60) + 'h') : '';
-          const statusMark = item.gitStatus === 'dirty' ? ' *' : '';
+          const statusMark = item.gitStatus === 'dirty' ? '*' : '';
           const selected = selectedWorktree && selectedWorktree.path === item.path ? 'selected' : '';
           const displayName = item.isMainRepo ? item.name : item.name;
           const itemClass = item.isMainRepo ? 'worktree-item main-repo' : 'worktree-item';
 
           html += \`
             <li class="\${itemClass} \${selected}" data-path="\${item.path}" data-repo="\${repoName}" data-branch="\${item.branch}" data-name="\${item.name}" data-main-repo-path="\${item.mainRepoPath || item.path}" data-is-main-repo="\${item.isMainRepo}">
-              <span class="tree-connector">\${connector}</span>
-              <span class="worktree-name">
-                <span class="indicator \${indicator}"></span>
-                \${displayName}\${statusMark}
-              </span>
-              <span class="worktree-status">\${ageText}</span>
+              <span class="worktree-name">\${displayName}\${statusMark}</span>
+              <span class="worktree-indicator \${indicator}"></span>
               \${!item.isMainRepo ? '<button class="worktree-archive-btn" title="Archive worktree">&#128230;</button>' : ''}
             </li>
           \`;
@@ -2945,6 +2981,25 @@ const HTML = `<!DOCTYPE html>
             btn.classList.remove('loading');
             btn.innerHTML = '&#128230;';
           }
+        });
+      });
+
+      // Add click handlers for repo toggle buttons
+      document.querySelectorAll('.repo-toggle').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const repoName = btn.dataset.repo;
+          const group = btn.closest('.repo-group');
+          group.classList.toggle('collapsed');
+          btn.textContent = group.classList.contains('collapsed') ? '›' : '⌄';
+
+          const collapsed = new Set(JSON.parse(localStorage.getItem('collapsedRepos') || '[]'));
+          if (group.classList.contains('collapsed')) {
+            collapsed.add(repoName);
+          } else {
+            collapsed.delete(repoName);
+          }
+          localStorage.setItem('collapsedRepos', JSON.stringify([...collapsed]));
         });
       });
     }
