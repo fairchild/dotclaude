@@ -36,6 +36,7 @@ import { execSync } from "child_process";
 
 const PORT = parseInt(process.env.PORT || "3456");
 const WORKTREES_ROOT = `${process.env.HOME}/.worktrees`;
+const CODE_HOME = process.env.CODE_HOME || `${process.env.HOME}/code`;
 
 // Extended PATH for shell commands (includes homebrew, mise shims, etc.)
 const SHELL_PATH = [
@@ -53,6 +54,26 @@ interface WorktreeStatus {
   path: string;
   branch: string;
   mainRepoPath: string;
+  gitStatus: "clean" | "dirty";
+  uncommittedFiles: number;
+  lastCommitTime: string;
+  session: {
+    active: boolean;
+    lastActivity: string;
+    ageMinutes: number;
+  } | null;
+  chronicle: {
+    latestSummary: string;
+    pendingCount: number;
+    pending: string[];
+  } | null;
+}
+
+// Repo info for CODE_HOME repos (unified sidebar)
+interface RepoInfo {
+  name: string;
+  path: string;
+  branch: string;
   gitStatus: "clean" | "dirty";
   uncommittedFiles: number;
   lastCommitTime: string;
@@ -221,6 +242,61 @@ function getWorktreeStatus(): WorktreeStatus[] {
     if (!a.session?.active && b.session?.active) return 1;
     return (a.session?.ageMinutes ?? Infinity) - (b.session?.ageMinutes ?? Infinity);
   });
+}
+
+// Get all git repos from CODE_HOME (one level scan)
+function getCodeHomeRepos(): RepoInfo[] {
+  const repos: RepoInfo[] = [];
+
+  if (!existsSync(CODE_HOME)) return repos;
+
+  try {
+    for (const name of readdirSync(CODE_HOME)) {
+      if (name.startsWith(".")) continue;
+      const repoPath = `${CODE_HOME}/${name}`;
+
+      // Must be a directory with .git
+      if (!statSync(repoPath).isDirectory()) continue;
+      if (!existsSync(`${repoPath}/.git`)) continue;
+
+      try {
+        const branch = execSync(`git -C "${repoPath}" branch --show-current`, {
+          encoding: "utf-8",
+        }).trim() || "main";
+
+        const gitStatusOutput = execSync(
+          `git -C "${repoPath}" status --porcelain`,
+          { encoding: "utf-8" }
+        );
+        const uncommittedFiles = gitStatusOutput.split("\n").filter(Boolean).length;
+
+        const lastCommitTime = execSync(
+          `git -C "${repoPath}" log -1 --format=%cI 2>/dev/null || echo ""`,
+          { encoding: "utf-8" }
+        ).trim();
+
+        const session = getSessionStatus(repoPath);
+        const chronicle = getChronicleForWorktree(name, branch);
+
+        repos.push({
+          name,
+          path: repoPath,
+          branch,
+          gitStatus: uncommittedFiles === 0 ? "clean" : "dirty",
+          uncommittedFiles,
+          lastCommitTime,
+          session,
+          chronicle,
+        });
+      } catch {
+        // Skip repos with git errors
+      }
+    }
+  } catch {
+    return repos;
+  }
+
+  return repos.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // Archived worktrees info
@@ -2439,6 +2515,7 @@ const HTML = `<!DOCTYPE html>
   <script>
     let allData = { blocks: [], frontPage: null, breakdowns: [], stats: [] };
     let worktrees = [];
+    let repos = [];
     let currentPeriod = 'weekly';
     let searchQuery = '';
     let selectedWorktree = null;
@@ -2641,56 +2718,110 @@ const HTML = `<!DOCTYPE html>
     });
 
     async function loadWorktrees() {
-      const res = await fetch('/api/worktrees');
-      worktrees = await res.json();
+      // Fetch both repos and worktrees in parallel
+      const [reposRes, worktreesRes] = await Promise.all([
+        fetch('/api/repos'),
+        fetch('/api/worktrees')
+      ]);
+      repos = await reposRes.json();
+      worktrees = await worktreesRes.json();
       renderWorktrees();
     }
 
     function renderWorktrees() {
       const list = document.getElementById('worktree-list');
 
-      if (worktrees.length === 0) {
-        list.innerHTML = '<li class="sidebar-empty">No worktrees found.<br><br>Run <code>wt &lt;branch&gt;</code> to create one.</li>';
+      if (repos.length === 0 && worktrees.length === 0) {
+        list.innerHTML = '<li class="sidebar-empty">No repos found in ~/code</li>';
         return;
       }
 
-      // Group by repo
-      const byRepo = {};
+      // Build unified structure: group worktrees by repo name
+      const worktreesByRepo = {};
       for (const wt of worktrees) {
-        if (!byRepo[wt.repo]) byRepo[wt.repo] = [];
-        byRepo[wt.repo].push(wt);
+        if (!worktreesByRepo[wt.repo]) worktreesByRepo[wt.repo] = [];
+        worktreesByRepo[wt.repo].push(wt);
       }
 
+      // Create unified repo list: all repos from ~/code, with worktrees attached
+      const unifiedRepos = {};
+
+      // Add all repos from CODE_HOME
+      for (const repo of repos) {
+        unifiedRepos[repo.name] = {
+          mainRepo: repo,
+          worktrees: worktreesByRepo[repo.name] || []
+        };
+      }
+
+      // Add any worktrees whose repo isn't in CODE_HOME (edge case)
+      for (const [repoName, wts] of Object.entries(worktreesByRepo)) {
+        if (!unifiedRepos[repoName]) {
+          unifiedRepos[repoName] = {
+            mainRepo: null,
+            worktrees: wts
+          };
+        }
+      }
+
+      // Sort repos alphabetically
+      const sortedRepoNames = Object.keys(unifiedRepos).sort();
+
       let html = '';
-      for (const [repo, branches] of Object.entries(byRepo)) {
-        // Get mainRepoPath from first worktree in this repo
-        const mainRepoPath = branches[0]?.mainRepoPath || '';
-        const repoSelected = selectedRepo === repo ? 'selected' : '';
+      for (const repoName of sortedRepoNames) {
+        const { mainRepo, worktrees: repoWorktrees } = unifiedRepos[repoName];
+        const mainRepoPath = mainRepo?.path || repoWorktrees[0]?.mainRepoPath || '';
+        const repoSelected = selectedRepo === repoName ? 'selected' : '';
+
         html += \`<li class="repo-group">
-          <div class="repo-name \${repoSelected}" data-repo="\${repo}">
-            <span class="repo-name-text clickable">\${repo}</span>
-            <button class="repo-create-btn" data-repo="\${repo}" data-main-repo-path="\${mainRepoPath}" title="Create new worktree">+</button>
+          <div class="repo-name \${repoSelected}" data-repo="\${repoName}">
+            <span class="repo-name-text clickable">\${repoName}</span>
+            <button class="repo-create-btn" data-repo="\${repoName}" data-main-repo-path="\${mainRepoPath}" title="Create new worktree">+</button>
           </div>
           <ul class="repo-branches">\`;
 
-        branches.forEach((wt, idx) => {
-          const isLast = idx === branches.length - 1;
+        // Collect all branches: main repo + worktrees
+        const allBranches = [];
+
+        // Add main repo as first entry (if exists)
+        if (mainRepo) {
+          allBranches.push({
+            ...mainRepo,
+            name: mainRepo.branch || 'main',
+            repo: repoName,
+            isMainRepo: true,
+            mainRepoPath: mainRepo.path
+          });
+        }
+
+        // Add worktrees
+        for (const wt of repoWorktrees) {
+          allBranches.push({
+            ...wt,
+            isMainRepo: false
+          });
+        }
+
+        allBranches.forEach((item, idx) => {
+          const isLast = idx === allBranches.length - 1;
           const connector = isLast ? '└──' : '├──';
-          const indicator = wt.session?.active ? 'active' :
-                           wt.session?.ageMinutes < 60 ? 'recent' : 'stale';
-          const ageText = wt.session ? (wt.session.ageMinutes < 60 ? wt.session.ageMinutes + 'm' : Math.floor(wt.session.ageMinutes / 60) + 'h') : '';
-          const statusMark = wt.gitStatus === 'dirty' ? ' *' : '';
-          const selected = selectedWorktree && selectedWorktree.path === wt.path ? 'selected' : '';
+          const indicator = item.session?.active ? 'active' :
+                           item.session?.ageMinutes < 60 ? 'recent' : 'stale';
+          const ageText = item.session ? (item.session.ageMinutes < 60 ? item.session.ageMinutes + 'm' : Math.floor(item.session.ageMinutes / 60) + 'h') : '';
+          const statusMark = item.gitStatus === 'dirty' ? ' *' : '';
+          const selected = selectedWorktree && selectedWorktree.path === item.path ? 'selected' : '';
+          const displayName = item.isMainRepo ? item.name : item.name;
+          const itemClass = item.isMainRepo ? 'worktree-item main-repo' : 'worktree-item';
 
           html += \`
-            <li class="worktree-item \${selected}" data-path="\${wt.path}" data-repo="\${wt.repo}" data-branch="\${wt.branch}" data-name="\${wt.name}" data-main-repo-path="\${wt.mainRepoPath}">
+            <li class="\${itemClass} \${selected}" data-path="\${item.path}" data-repo="\${repoName}" data-branch="\${item.branch}" data-name="\${item.name}" data-main-repo-path="\${item.mainRepoPath || item.path}" data-is-main-repo="\${item.isMainRepo}">
               <span class="tree-connector">\${connector}</span>
               <span class="worktree-name">
                 <span class="indicator \${indicator}"></span>
-                \${wt.name}\${statusMark}
+                \${displayName}\${statusMark}
               </span>
               <span class="worktree-status">\${ageText}</span>
-              <button class="worktree-archive-btn" title="Archive worktree">&#128230;</button>
+              \${!item.isMainRepo ? '<button class="worktree-archive-btn" title="Archive worktree">&#128230;</button>' : ''}
             </li>
           \`;
         });
@@ -2699,14 +2830,33 @@ const HTML = `<!DOCTYPE html>
       }
       list.innerHTML = html;
 
-      // Add click handlers for worktree items
+      // Add click handlers for worktree/repo items
       document.querySelectorAll('.worktree-item').forEach(item => {
         item.addEventListener('click', (e) => {
           // Don't select if clicking archive button
           if (e.target.closest('.worktree-archive-btn')) return;
           const path = item.dataset.path;
-          const wt = worktrees.find(w => w.path === path);
-          selectWorktree(wt);
+          const isMainRepo = item.dataset.isMainRepo === 'true';
+
+          // Find the item in either repos or worktrees
+          let foundItem;
+          if (isMainRepo) {
+            foundItem = repos.find(r => r.path === path);
+            if (foundItem) {
+              // Normalize main repo to have same shape as worktree for selectWorktree
+              foundItem = {
+                ...foundItem,
+                repo: foundItem.name,
+                name: foundItem.branch || 'main',
+                mainRepoPath: foundItem.path,
+                isMainRepo: true
+              };
+            }
+          } else {
+            foundItem = worktrees.find(w => w.path === path);
+          }
+
+          if (foundItem) selectWorktree(foundItem);
         });
       });
 
@@ -3326,6 +3476,13 @@ const server = Bun.serve({
 
     if (url.pathname === "/api/worktrees") {
       return new Response(JSON.stringify(getWorktreeStatus()), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Get all repos from CODE_HOME
+    if (url.pathname === "/api/repos") {
+      return new Response(JSON.stringify(getCodeHomeRepos()), {
         headers: { "Content-Type": "application/json" },
       });
     }
