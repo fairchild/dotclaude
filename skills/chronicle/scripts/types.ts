@@ -14,6 +14,8 @@ export interface ChronicleBlock {
   pending: string[];
   filesModified?: string[];
   messageCount?: number;
+  // Thread grouping: maps pending text → thread slug (sparse, optional)
+  pendingThreads?: Record<string, string>;
   // Extended fields (manual/curator blocks)
   goal?: string;
   challenges?: string[];
@@ -28,6 +30,7 @@ export interface PendingItem {
   sessionId: string;
   timestamp: string;
   branch: string | null;
+  thread?: string;
 }
 
 export interface PendingItemWithAge extends PendingItem {
@@ -45,6 +48,7 @@ export interface Resolution {
   resolvedAt: string;
   project: string;
   sessionId?: string;
+  thread?: string;
 }
 
 export interface ResolvedOverlay {

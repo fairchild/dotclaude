@@ -10,6 +10,7 @@ Every file must start with YAML frontmatter:
 ---
 status: pending          # pending | in-progress | done
 category: plan           # plan | followup | task-list | ideas
+thread: null             # thread slug for grouping (e.g., "chronicle-v2")
 pr: null                 # PR number that implements this
 branch: null             # branch name that implements this
 score: null              # 0-5 effectiveness/efficiency rating

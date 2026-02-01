@@ -204,6 +204,37 @@ Shows:
 
 If no data found, suggests `/chronicle` to capture current session.
 
+### Auto-Resolution via Claude Code
+
+The script can output resolution candidates for semantic matching:
+
+```bash
+bun ~/.claude/skills/chronicle/scripts/catchup.ts --candidates
+```
+
+This outputs JSON with pending/accomplished pairs scored by keyword overlap.
+When running `/chronicle catchup` with resolution checking:
+
+1. Run `catchup.ts --candidates` to get JSON candidates
+2. Spawn a haiku agent to evaluate each candidate semantically:
+
+```
+Task(
+  subagent_type: "general-purpose",
+  model: "haiku",
+  prompt: "For each candidate, determine if the accomplished item resolves the pending item.
+    Return JSON array of resolved items: [{pendingText, accomplishedText, resolved: boolean}]
+
+    Candidates: {candidates JSON}"
+)
+```
+
+3. Save confirmed resolutions:
+
+```bash
+bun ~/.claude/skills/chronicle/scripts/resolve.ts "pending text"
+```
+
 ---
 
 ## Stale (/chronicle stale)
@@ -227,7 +258,7 @@ Staleness warnings also appear in `/chronicle catchup` output with ⚠️ marker
 
 Mark pending items as resolved. Resolutions can happen two ways:
 
-**Auto-detection**: During `/chronicle catchup`, accomplished items are matched against pending items using LLM-based semantic matching. Matches are automatically marked as resolved.
+**Auto-detection**: During `/chronicle catchup`, Claude Code can spawn a haiku agent to semantically match accomplished items against pending items (see Catchup section above).
 
 **Explicit resolution**: Manually mark items as complete:
 

@@ -14,8 +14,8 @@ if [[ ! -d "$backlog_dir" ]]; then
   exit 1
 fi
 
-echo "| File                                | Category   | Status      | PR  | Modified   |"
-echo "|-------------------------------------|------------|-------------|-----|------------|"
+echo "| File                                | Category   | Thread                | Status      | PR  | Modified   |"
+echo "|-------------------------------------|------------|----------------------|-------------|-----|------------|"
 
 for f in "$backlog_dir"/*.md; do
   [[ "$(basename "$f")" == "AGENTS.md" ]] && continue
@@ -30,10 +30,12 @@ for f in "$backlog_dir"/*.md; do
     fm=$(sed -n '2,/^---$/p' "$f" 2>/dev/null | sed '$d')
     status=$(echo "$fm" | grep '^status:' | cut -d: -f2 | tr -d ' ')
     category=$(echo "$fm" | grep '^category:' | cut -d: -f2 | tr -d ' ')
+    thread=$(echo "$fm" | grep '^thread:' | cut -d: -f2 | tr -d ' ')
     pr=$(echo "$fm" | grep '^pr:' | cut -d: -f2 | tr -d ' ')
   else
     status=""
     category=""
+    thread=""
     pr=""
   fi
 
@@ -51,14 +53,15 @@ for f in "$backlog_dir"/*.md; do
     esac
   fi
 
+  [[ "$thread" == "null" || -z "$thread" ]] && thread="-"
   [[ "$pr" == "null" || -z "$pr" ]] && pr="-"
 
   # Get last modified date from git (or filesystem fallback)
   modified=$(git log -1 --format=%cs -- "$f" 2>/dev/null)
   [[ -z "$modified" ]] && modified=$(stat -f %Sm -t %Y-%m-%d "$f" 2>/dev/null || echo "?")
 
-  printf "| %-35s | %-10s | %-11s | %-3s | %-10s |\n" \
-    "$name" "$category" "$status" "$pr" "$modified"
+  printf "| %-35s | %-10s | %-20s | %-11s | %-3s | %-10s |\n" \
+    "$name" "$category" "$thread" "$status" "$pr" "$modified"
 done | sort -t'|' -k6 -r
 
 echo ""

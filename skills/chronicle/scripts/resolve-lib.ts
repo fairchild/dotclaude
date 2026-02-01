@@ -237,6 +237,7 @@ export async function checkForResolutions(
           resolvedAt: new Date().toISOString(),
           project: pending.project,
           sessionId: accomplished.sessionId,
+          ...(pending.thread && { thread: pending.thread }),
         });
         break; // Found resolution, move to next pending item
       }

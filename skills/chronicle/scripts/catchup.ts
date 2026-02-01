@@ -14,14 +14,17 @@ import {
   getPendingItems,
   STALE_THRESHOLD_DAYS,
   type ChronicleBlock,
+  type PendingItem,
 } from "./queries.ts";
 import {
-  checkForResolutions,
   getAccomplishedItems,
   loadResolved,
+  loadResolvedKeys,
   saveResolved,
   generatePendingKey,
+  matchScore,
   type Resolution,
+  type AccomplishedCandidate,
 } from "./resolve-lib.ts";
 import { detectContext, type Context } from "./context.ts";
 
@@ -32,6 +35,13 @@ interface AggregatedPending {
   ageInDays: number;
   isStale: boolean;
   resolution?: Resolution;
+  thread?: string;
+}
+
+interface ResolutionCandidate {
+  pending: { text: string; project: string };
+  accomplished: { text: string; timestamp: string };
+  score: number;
 }
 
 interface Patterns {
@@ -66,12 +76,23 @@ function aggregatePending(blocks: ChronicleBlock[]): AggregatedPending[] {
   const seen = new Map<string, AggregatedPending>();
   const now = new Date();
 
+  // Helper to find thread for a pending item across all blocks
+  const getThread = (text: string, project: string): string | undefined => {
+    for (const b of blocks) {
+      if (b.project.toLowerCase() !== project.toLowerCase()) continue;
+      const thread = b.pendingThreads?.[text];
+      if (thread) return thread;
+    }
+    return undefined;
+  };
+
   for (const block of [...blocks].reverse()) {
     for (const text of block.pending || []) {
       const key = generatePendingKey(block.project, text);
       if (!seen.has(key)) {
         const firstSeen = new Date(block.timestamp);
         const ageInDays = Math.floor((now.getTime() - firstSeen.getTime()) / (1000 * 60 * 60 * 24));
+        const thread = block.pendingThreads?.[text] ?? getThread(text, block.project);
         seen.set(key, {
           text,
           project: block.project,
@@ -79,6 +100,7 @@ function aggregatePending(blocks: ChronicleBlock[]): AggregatedPending[] {
           ageInDays,
           isStale: ageInDays > STALE_THRESHOLD_DAYS,
           resolution: resolvedMap.get(key),
+          ...(thread && { thread }),
         });
       }
     }
@@ -176,9 +198,19 @@ function formatCatchup(
     const staleCount = unresolvedPending.filter(p => p.isStale).length;
     lines.push("");
     lines.push(`Pending work (project-wide, last ${days} days):`);
-    for (const item of unresolvedPending.slice(0, 8)) {
+
+    // Sort by thread (grouped) then by age
+    const sorted = [...unresolvedPending].sort((a, b) => {
+      if (a.thread && b.thread) return a.thread.localeCompare(b.thread);
+      if (a.thread) return -1;
+      if (b.thread) return 1;
+      return b.ageInDays - a.ageInDays;
+    });
+
+    for (const item of sorted.slice(0, 8)) {
       const marker = item.isStale ? "⚠️" : "[ ]";
-      lines.push(`  ${marker} ${item.text} (${formatAge(item.ageInDays)})`);
+      const threadPrefix = item.thread ? `[${item.thread}] ` : "";
+      lines.push(`  ${marker} ${threadPrefix}${item.text} (${formatAge(item.ageInDays)})`);
     }
     if (unresolvedPending.length > 8) {
       lines.push(`  ... and ${unresolvedPending.length - 8} more`);
@@ -222,21 +254,57 @@ function formatCatchup(
   return lines.join("\n");
 }
 
-function parseArgs(): { days: number } {
+function parseArgs(): { days: number; outputCandidates: boolean } {
   const args = process.argv.slice(2);
   let days = 7;
+  let outputCandidates = false;
 
   for (const arg of args) {
     if (arg.startsWith("--days=")) {
       days = parseInt(arg.split("=")[1], 10) || 7;
     }
+    if (arg === "--candidates") {
+      outputCandidates = true;
+    }
   }
 
-  return { days };
+  return { days, outputCandidates };
+}
+
+function findResolutionCandidates(
+  pendingItems: PendingItem[],
+  accomplishedItems: AccomplishedCandidate[],
+  resolvedKeys: Set<string>
+): ResolutionCandidate[] {
+  const candidates: ResolutionCandidate[] = [];
+
+  for (const pending of pendingItems) {
+    const key = generatePendingKey(pending.project, pending.text);
+    if (resolvedKeys.has(key)) continue;
+
+    const projectAccomplished = accomplishedItems.filter(
+      a => a.project.toLowerCase() === pending.project.toLowerCase()
+    );
+
+    for (const accomplished of projectAccomplished) {
+      const score = matchScore(pending.text, accomplished.text);
+      if (score > 0.15) {
+        candidates.push({
+          pending: { text: pending.text, project: pending.project },
+          accomplished: { text: accomplished.text, timestamp: accomplished.timestamp },
+          score,
+        });
+      }
+    }
+  }
+
+  return candidates
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 20); // Top 20 candidates
 }
 
 async function main() {
-  const { days } = parseArgs();
+  const { days, outputCandidates } = parseArgs();
   const cwd = process.cwd();
   const ctx = detectContext(cwd);
 
@@ -247,22 +315,18 @@ async function main() {
   const recentProjectBlocks = filterByDateRange(projectBlocks, days);
   const recentWorktreeBlocks = filterByDateRange(worktreeBlocks, days);
 
-  // Run resolution check against recent accomplished items
+  // Get pending and accomplished items for resolution checking
   const pendingForCheck = getPendingItems().filter(
     p => p.project.toLowerCase() === ctx.project.toLowerCase()
   );
   const accomplishedItems = getAccomplishedItems(recentProjectBlocks, days);
+  const resolvedKeys = loadResolvedKeys();
 
-  let newResolutions: Resolution[] = [];
-  if (pendingForCheck.length > 0 && accomplishedItems.length > 0) {
-    const result = await checkForResolutions(pendingForCheck, accomplishedItems);
-    newResolutions = result.resolved;
-
-    if (newResolutions.length > 0) {
-      const overlay = loadResolved();
-      overlay.resolutions.push(...newResolutions);
-      saveResolved(overlay);
-    }
+  // If --candidates flag, output JSON for Claude Code to process
+  if (outputCandidates) {
+    const candidates = findResolutionCandidates(pendingForCheck, accomplishedItems, resolvedKeys);
+    console.log(JSON.stringify({ ctx, candidates }, null, 2));
+    return;
   }
 
   // Last session: worktree-specific (most relevant)
@@ -271,7 +335,7 @@ async function main() {
   const pending = aggregatePending(recentProjectBlocks);
   const patterns = detectPatterns(recentProjectBlocks);
 
-  const output = formatCatchup(ctx, lastSession, pending, patterns, days, newResolutions);
+  const output = formatCatchup(ctx, lastSession, pending, patterns, days);
   console.log(output);
 
   if (recentWorktreeBlocks.length === 0 && recentProjectBlocks.length === 0) {

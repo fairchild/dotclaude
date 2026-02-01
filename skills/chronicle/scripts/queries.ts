@@ -73,6 +73,18 @@ export function getBlocksByProject(project: string): ChronicleBlock[] {
 }
 
 /**
+ * Look up thread for a pending item by walking blocks newest-first.
+ */
+function getThreadForPending(text: string, project: string, blocks: ChronicleBlock[]): string | undefined {
+  for (const block of blocks) {
+    if (block.project.toLowerCase() !== project.toLowerCase()) continue;
+    const thread = block.pendingThreads?.[text];
+    if (thread) return thread;
+  }
+  return undefined;
+}
+
+/**
  * Get all pending items across all blocks.
  * @param includeResolved - If true, includes resolved items (default: false)
  */
@@ -85,12 +97,14 @@ export function getPendingItems(includeResolved = false): PendingItem[] {
     for (const text of block.pending) {
       const key = generatePendingKey(block.project, text);
       if (!resolvedKeys.has(key)) {
+        const thread = block.pendingThreads?.[text] ?? getThreadForPending(text, block.project, blocks);
         items.push({
           text,
           project: block.project,
           sessionId: block.sessionId,
           timestamp: block.timestamp,
           branch: block.branch,
+          ...(thread && { thread }),
         });
       }
     }
@@ -121,6 +135,7 @@ export function getPendingWithAge(includeResolved = false): PendingItemWithAge[]
         const ageInDays = Math.floor(
           (now.getTime() - firstSeen.getTime()) / (1000 * 60 * 60 * 24)
         );
+        const thread = block.pendingThreads?.[text] ?? getThreadForPending(text, block.project, blocks);
         seen.set(key, {
           text,
           project: block.project,
@@ -130,6 +145,7 @@ export function getPendingWithAge(includeResolved = false): PendingItemWithAge[]
           firstSeen,
           ageInDays,
           isStale: ageInDays > STALE_THRESHOLD_DAYS,
+          ...(thread && { thread }),
         });
       }
     }

@@ -220,21 +220,31 @@ function buildExtractionPrompt(ctx: SessionContext): string {
   parts.push('- "summary": 1-2 sentence summary of what was accomplished');
   parts.push('- "accomplished": array of 2-5 specific completions (past tense)');
   parts.push('- "pending": array of 0-3 unfinished items or next steps (if any)');
+  parts.push('- "threadGroup": (optional) if pending items are sub-tasks of a larger goal, include:');
+  parts.push('    - "slug": short kebab-case identifier (max 30 chars, e.g., "build-auth-system")');
+  parts.push('    - "items": array of pending item texts that belong to this thread');
   parts.push("\nBe specific and actionable. Use past tense for accomplished, imperative for pending.");
+  parts.push("Only include threadGroup if there are 2+ related pending items from a decomposed task.");
   parts.push("If the session was trivial (just questions, no real work), use minimal entries.");
   parts.push("\nOutput ONLY valid JSON, no markdown formatting.");
 
   return parts.join("\n");
 }
 
-/**
- * Call Haiku to analyze the session.
- */
-async function callHaiku(prompt: string): Promise<{
+interface ExtractionResult {
   summary: string;
   accomplished: string[];
   pending: string[];
-} | null> {
+  threadGroup?: {
+    slug: string;
+    items: string[];
+  };
+}
+
+/**
+ * Call Haiku to analyze the session.
+ */
+async function callHaiku(prompt: string): Promise<ExtractionResult | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
 
@@ -264,13 +274,14 @@ async function callHaiku(prompt: string): Promise<{
 
 /**
  * Generate a URL-friendly slug from text.
+ * Max 30 chars for thread slugs, alphanumeric + hyphens.
  */
-function slugify(text: string): string {
+export function slugify(text: string, maxLen = 40): string {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
-    .substring(0, 40);
+    .substring(0, maxLen);
 }
 
 /**
@@ -314,6 +325,22 @@ export async function extractChronicleBlock(
   const prompt = buildExtractionPrompt(ctx);
   const extracted = await callHaiku(prompt) || fallbackEntry(ctx);
 
+  // Build pendingThreads map from threadGroup if present
+  let pendingThreads: Record<string, string> | undefined;
+  if (extracted.threadGroup && extracted.threadGroup.items.length > 0) {
+    const threadSlug = slugify(extracted.threadGroup.slug, 30);
+    pendingThreads = {};
+    for (const item of extracted.threadGroup.items) {
+      if (extracted.pending.includes(item)) {
+        pendingThreads[item] = threadSlug;
+      }
+    }
+    // Only include if we have actual mappings
+    if (Object.keys(pendingThreads).length === 0) {
+      pendingThreads = undefined;
+    }
+  }
+
   // Build the chronicle block
   const block: ChronicleBlock = {
     timestamp: new Date().toISOString(),
@@ -326,6 +353,7 @@ export async function extractChronicleBlock(
     pending: extracted.pending,
     filesModified: ctx.filesModified.slice(0, 10),
     messageCount: ctx.messageCount,
+    ...(pendingThreads && { pendingThreads }),
   };
 
   // Write to file
