@@ -12,6 +12,23 @@ Complete reference for Claude Code settings configuration.
 
 Settings merge hierarchically: global → project → local.
 
+### settings.local.json
+
+The local file (`.claude/settings.local.json`) is gitignored and ideal for:
+- **Personal model preference** when the team uses a different default
+- **Machine-specific paths** in permissions or hooks
+- **Experimental hooks** you're testing before proposing to the team
+- **Additional permissions** for your local workflow
+
+```json
+{
+  "model": "opus",
+  "permissions": {
+    "allow": ["Bash(~/scripts/my-helper.sh:*)"]
+  }
+}
+```
+
 ## Schema
 
 ```json
@@ -232,7 +249,7 @@ Script receives JSON:
     "current_dir": "/path/to/project"
   },
   "model": {
-    "display_name": "Opus 4.5"
+    "display_name": "Opus 4.6"
   },
   "session_id": "abc123",
   "cost": {
@@ -247,7 +264,7 @@ Script receives JSON:
 
 Script prints status line with ANSI colors. Example output:
 ```
-project-name main (3) Opus 4.5 $0.150 +50 -10 (5K+10K+50K):2K [1:32]
+project-name main (3) Opus 4.6 $0.150 +50 -10 (5K+10K+50K):2K [1:32]
 ```
 
 ## Model
@@ -259,10 +276,28 @@ Set the default model:
 ```
 
 Options:
-- `"opus"` - Claude Opus 4.5
-- `"sonnet"` - Claude Sonnet
-- `"haiku"` - Claude Haiku
-- Full model ID (e.g., `"claude-opus-4-5-20251101"`)
+- `"opus"` - Claude Opus 4.6 (most capable)
+- `"sonnet"` - Claude Sonnet 4.5 (balanced)
+- `"haiku"` - Claude Haiku 4.5 (fast, lightweight)
+- Full model ID (e.g., `"claude-opus-4-6"`, `"claude-sonnet-4-5-20250929"`)
+
+## Rules Files
+
+Modular alternative to large CLAUDE.md files. Rules are auto-loaded from `.claude/rules/`:
+
+```
+.claude/rules/
+├── testing.md        # Testing conventions
+├── security.md       # Security requirements
+└── api-patterns.md   # API design rules
+```
+
+Each file is a standalone markdown document loaded into context automatically. Use rules files when:
+- CLAUDE.md is getting long (>200 lines)
+- Different team members maintain different rule sets
+- Rules apply conditionally by topic
+
+See [claude-md-patterns.md](claude-md-patterns.md) for full CLAUDE.md authoring guidance.
 
 ## Environment Variables
 
@@ -280,8 +315,15 @@ Set environment for the session:
 ```json
 {
   "alwaysThinkingEnabled": true,
+  "cleanupPeriodDays": 30,
   "enabledPlugins": {
     "plugin-name@source": true
   }
 }
 ```
+
+| Field | Description |
+|-------|-------------|
+| `alwaysThinkingEnabled` | Enable extended thinking for all prompts |
+| `cleanupPeriodDays` | Auto-cleanup old session data after N days |
+| `enabledPlugins` | Plugin activation (plugin ecosystem is early-stage) |
