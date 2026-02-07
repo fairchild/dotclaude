@@ -75,5 +75,10 @@ tmp/
 scratch/
 paste-cache/
 
+# Session artifacts
+handoff.md
+notes.md
+tasks/
+
 # claude chrome plugin
 chrome-native-host
