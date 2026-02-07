@@ -25,13 +25,13 @@ bun ~/.claude/skills/release/scripts/release.ts --dry-run
 
 | Option | Effect |
 |--------|--------|
-| (none) | Analyze, confirm, release origin/main |
-| `--dry-run` | Preview only, no changes |
-| `--version vX.Y.Z` | Override suggested version |
-| `--no-changelog` | Skip CHANGELOG.md, notes in GitHub release only |
-| `--current-branch` | Release HEAD of current branch (for hotfix branches) |
-| `--prerelease alpha` | Create pre-release (e.g., v1.0.0-alpha.1) |
-| `--skip-ci` | Skip CI status check |
+| no args | Analyze, confirm, release origin/main |
+| --dry-run | Preview only, no changes |
+| --version vX.Y.Z | Override suggested version |
+| --no-changelog | Skip CHANGELOG.md, notes in GitHub release only |
+| --current-branch | Release HEAD of current branch, for hotfix branches |
+| --prerelease alpha | Create pre-release, e.g. v1.0.0-alpha.1 |
+| --skip-ci | Skip CI status check |
 
 ## Worktree-Aware Workflow
 
@@ -95,13 +95,13 @@ The script:
 
 | Change Type | Bump | Example |
 |-------------|------|---------|
-| Breaking (or `!` suffix) | Major | 1.2.3 → 2.0.0 |
-| `feat:` commits | Minor | 1.2.3 → 1.3.0 |
-| `fix:`, `chore:`, etc. | Patch | 1.2.3 → 1.2.4 |
+| Breaking changes | Major | 1.2.3 → 2.0.0 |
+| feat commits | Minor | 1.2.3 → 1.3.0 |
+| fix, chore, etc. | Patch | 1.2.3 → 1.2.4 |
 
 Pre-1.0: Breaking → minor, feat → minor, fix → patch.
 
-Pre-releases: `--prerelease alpha` → v1.0.0-alpha.1, v1.0.0-alpha.2, etc.
+Pre-releases: --prerelease alpha → v1.0.0-alpha.1, v1.0.0-alpha.2, etc.
 
 ## Changelog Format
 
