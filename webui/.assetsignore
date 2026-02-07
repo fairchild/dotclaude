@@ -1,0 +1,7 @@
+node_modules
+screenshots
+*.ts
+*.json
+!data.json
+deploy.sh
+README.md
