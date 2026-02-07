@@ -17,6 +17,13 @@
 
 ## Learnings
 
+### 2026-02-07 — ai-coding-usage Incremental Loading (#76)
+- File mtime comparison via `stat` + DuckDB CSV join is a simple, effective change detection strategy
+- `source_file` column enables file-level delete/reinsert without touching unrelated data
+- JSONL record types have top-level fields (not nested in `message`) — must query raw data to verify structure
+- /reflect caught a real upgrade path bug (v1.1 DB missing v1.2 tables) and excessive backup creation
+- Backup on every incremental run is wrong — active session file always changes, creating unnecessary copies
+
 ### 2026-01-31 — Chronicle Thread Identity
 - Simple slug-based threads (no separate threads.jsonl) proved sufficient
 - `pendingThreads` map is sparse and backward compatible with existing blocks

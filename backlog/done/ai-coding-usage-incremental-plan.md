@@ -1,12 +1,12 @@
 ---
-status: pending
+status: done
 category: plan
 thread: ai-coding-usage
-pr: null
-branch: null
-score: null
-retro_summary: null
-completed: null
+pr: 76
+branch: feat/ai-coding-usage-incremental
+score: 4
+retro_summary: Clean implementation; /reflect caught upgrade path bug and excessive backup before merge
+completed: 2026-02-07
 ---
 
 # ai-coding-usage: Incremental Loading + New Record Types
