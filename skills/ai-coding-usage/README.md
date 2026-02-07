@@ -38,6 +38,7 @@ ai-coding-usage query "SELECT * FROM tool_summary"
 | `ai-coding-usage --schema` | Database schema with example queries |
 | `ai-coding-usage reload` | Force reload all data from source logs |
 | `ai-coding-usage query "SQL"` | Execute a SQL query |
+| `ai-coding-usage search "query"` | Search conversation content |
 | `ai-coding-usage shell` | Open interactive DuckDB shell |
 
 ## For AI Agents
@@ -54,6 +55,38 @@ The `--schema` output includes:
 - Example queries for common use cases
 - Useful SQL patterns
 
+## Search
+
+Search conversation content across all indexed sessions:
+
+```bash
+# ILIKE search (default)
+ai-coding-usage search "memory"
+
+# BM25 full-text search
+ai-coding-usage search "memory" --fts
+
+# Search reasoning traces
+ai-coding-usage search "memory" --thinking
+
+# Search both content and thinking
+ai-coding-usage search "memory" --all
+
+# Filters
+ai-coding-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
+```
+
+| Flag | Description |
+|------|-------------|
+| `--thinking` | Search reasoning traces instead of content |
+| `--all` | Search both content and thinking |
+| `--fts` | BM25 ranked full-text search |
+| `-n N` | Limit results (default 10) |
+| `--user` | User messages only |
+| `--asst` | Assistant messages only |
+| `--repo X` | Filter to repository |
+| `--since T` | Time filter (7d, 4w, or YYYY-MM-DD) |
+
 ## Database Schema (Summary)
 
 ### Tables
@@ -62,6 +95,7 @@ The `--schema` output includes:
 |-------|-------------|
 | `claude_tools` | Claude Code tool invocations (Bash, Edit, Write, Skill, etc.) |
 | `claude_sessions` | Claude Code session metadata |
+| `messages` | Conversation content (user text, assistant text + thinking) |
 | `cursor_prompts` | Cursor user prompts |
 | `cursor_workspaces` | Cursor workspace metadata |
 
@@ -78,6 +112,16 @@ The `--schema` output includes:
 | `peak_hours` | Find your most productive hours |
 | `hourly_activity` | Time-series at hourly granularity |
 | `recent_interactions` | Last 100 interactions for quick review |
+
+### Conversation Views
+
+| View | Description |
+|------|-------------|
+| `conversation_search` | Messages with content/thinking previews |
+| `session_messages` | Per-session aggregation with topic extraction |
+| `recent_conversations` | Last 50 sessions |
+| `conversation_pairs` | User/assistant turns joined on parent_uuid |
+| `message_stats` | Daily message volume by harness/role |
 
 ### Summary Views
 
