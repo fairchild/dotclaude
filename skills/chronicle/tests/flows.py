@@ -105,8 +105,8 @@ def test_sidebar_shows_worktrees():
         assert has_worktrees or has_empty, "Should show worktrees or empty message"
 
         if has_worktrees:
-            # Should have tree connectors
-            expect(page.locator(".tree-connector").first).to_be_visible()
+            # Should have worktree items within repo groups
+            expect(page.locator(".worktree-item").first).to_be_visible()
 
         print("✓ Sidebar displays worktrees correctly")
 

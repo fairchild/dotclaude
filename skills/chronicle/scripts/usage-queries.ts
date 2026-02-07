@@ -5,11 +5,21 @@ import { execSync } from "child_process";
 
 const DB_PATH = `${process.env.HOME}/.local/share/ai-coding-usage/usage.duckdb`;
 
+// Extended PATH for shell commands (includes homebrew, mise shims, etc.)
+const SHELL_PATH = [
+  "/opt/homebrew/bin",
+  "/opt/homebrew/sbin",
+  `${process.env.HOME}/.local/bin`,
+  `${process.env.HOME}/.local/share/mise/shims`,
+  process.env.PATH,
+].filter(Boolean).join(":");
+
 function query(sql: string): unknown[] {
   try {
     const result = execSync(`duckdb "${DB_PATH}" -json -c "${sql.replace(/"/g, '\\"')}"`, {
       encoding: "utf-8",
       maxBuffer: 10 * 1024 * 1024,
+      env: { ...process.env, PATH: SHELL_PATH },
     });
     return JSON.parse(result);
   } catch {

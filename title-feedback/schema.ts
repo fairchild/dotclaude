@@ -10,16 +10,16 @@
 import type { SessionContext } from "../scripts/generate-session-title-testable.ts";
 
 export const PROMPT_VERSION = "v1.0";
-export const MODEL_USED = "claude-3-5-haiku-20241022";
+export const MODEL_USED = "claude-4-5-haiku";
 export const JUDGE_PROMPT_VERSION = "v1.0";
 
 /**
  * AI judge assessment of a title.
  */
 export interface JudgeAssessment {
-  score: number;              // 1-5 rating
-  reasoning: string;          // Why this score
-  proposedTitle: string;      // What the judge thinks would be better
+  score: number; // 1-5 rating
+  reasoning: string; // Why this score
+  proposedTitle: string; // What the judge thinks would be better
   judgePromptVersion: string; // For tracking prompt evolution
 }
 
@@ -27,10 +27,10 @@ export interface JudgeAssessment {
  * Human assessment of a title.
  */
 export interface HumanAssessment {
-  score: number;              // 1-5 rating
-  reasoning?: string;         // Why they agree/disagree with judge
-  proposedTitle?: string;     // Their better title (if any)
-  agreedWithJudge: boolean;   // Quick signal for analysis
+  score: number; // 1-5 rating
+  reasoning?: string; // Why they agree/disagree with judge
+  proposedTitle?: string; // Their better title (if any)
+  agreedWithJudge: boolean; // Quick signal for analysis
 }
 
 /**
@@ -39,8 +39,8 @@ export interface HumanAssessment {
  */
 export interface TitleFeedback {
   // Identity
-  id: string;           // Hash of session ID + project
-  timestamp: string;    // ISO date
+  id: string; // Hash of session ID + project
+  timestamp: string; // ISO date
 
   // Input context (what was extracted from session)
   context: {
@@ -63,12 +63,12 @@ export interface TitleFeedback {
   humanAssessment?: HumanAssessment;
 
   // Legacy fields for backward compatibility
-  humanScore?: number;        // Deprecated: use humanAssessment.score
-  idealTitle?: string;        // Deprecated: use humanAssessment.proposedTitle
+  humanScore?: number; // Deprecated: use humanAssessment.score
+  idealTitle?: string; // Deprecated: use humanAssessment.proposedTitle
 
   // Metadata for analysis
-  promptVersion: string;      // Title generation prompt version
-  modelUsed: string;          // "haiku-3.5" etc.
+  promptVersion: string; // Title generation prompt version
+  modelUsed: string; // "haiku-3.5" etc.
 }
 
 /**
@@ -78,7 +78,7 @@ export function createFeedbackEntry(
   sessionId: string,
   projectName: string,
   ctx: SessionContext,
-  generatedTitle: string
+  generatedTitle: string,
 ): TitleFeedback {
   // Simple hash for ID
   const id = hashString(`${sessionId}:${projectName}`);
@@ -107,7 +107,7 @@ export function createFeedbackEntry(
 function hashString(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash = (hash << 5) - hash + str.charCodeAt(i);
     hash |= 0;
   }
   return Math.abs(hash).toString(36);

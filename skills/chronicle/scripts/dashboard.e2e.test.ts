@@ -10,7 +10,7 @@ import { dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const PORT = 3457; // Use different port to avoid conflicts
+const PORT = 3458; // E2E tests use dedicated port to avoid service conflicts
 const BASE_URL = `http://localhost:${PORT}`;
 
 let server: ChildProcess;
@@ -55,7 +55,7 @@ test.describe("Collapsible Repo Sidebar", () => {
     // Toggle button should exist
     const toggle = repoGroup.locator(".repo-toggle");
     await expect(toggle).toBeVisible();
-    await expect(toggle).toHaveText("▶");
+    await expect(toggle).toHaveText("⌄");
 
     // Count badge should exist but be hidden initially (not collapsed)
     const count = repoGroup.locator(".repo-count");
@@ -84,9 +84,9 @@ test.describe("Collapsible Repo Sidebar", () => {
     await expect(branches).toBeHidden();
     await expect(count).toBeVisible();
 
-    // Count should show a number in parentheses
+    // Count should show a number
     const countText = await count.textContent();
-    expect(countText).toMatch(/\(\d+\)/);
+    expect(countText).toMatch(/\d+/);
   });
 
   test("clicking toggle again expands repo", async ({ page }) => {
