@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 
 # ============================================================================
 # Configuration
@@ -75,6 +75,7 @@ USAGE
     ai-coding-usage --version           Show version
     ai-coding-usage reload              Force reload all data from source logs
     ai-coding-usage query "SQL"         Execute a SQL query against the database
+    ai-coding-usage search "query"      Search conversation content
     ai-coding-usage shell               Open interactive DuckDB shell
 
 COMMANDS
@@ -86,6 +87,17 @@ COMMANDS
 
     query       Execute arbitrary SQL. Results printed to stdout.
                 Use --schema to see available tables and columns.
+
+    search      Search conversation content (messages table).
+                Flags:
+                  --thinking    Search reasoning traces instead of content
+                  --all         Search both content and thinking
+                  --fts         Use BM25 full-text search (covers both)
+                  -n N          Limit results (default 10)
+                  --user        User messages only
+                  --asst        Assistant messages only
+                  --repo X      Filter to repository name
+                  --since T     Time filter (7d, 4w, or YYYY-MM-DD)
 
     shell       Opens an interactive DuckDB REPL connected to the database.
                 Useful for exploratory analysis.
@@ -122,6 +134,15 @@ EXAMPLES
 
     # Search Cursor prompts
     ai-coding-usage query "SELECT * FROM cursor_prompts WHERE prompt_text LIKE '%refactor%'"
+
+    # Search conversation content
+    ai-coding-usage search "memory"
+
+    # BM25-ranked full-text search
+    ai-coding-usage search "memory" --fts
+
+    # Search with filters
+    ai-coding-usage search "refactor" --repo bertram-chat --since 7d --user
 
     # Interactive exploration
     ai-coding-usage shell
@@ -268,6 +289,59 @@ EXAMPLE QUERIES:
     FROM claude_sessions
     GROUP BY project_dir
     ORDER BY total_tools DESC;
+
+================================================================================
+TABLE: messages
+================================================================================
+Conversation content from Claude Code and Cursor. Each row represents one
+message turn (user or assistant) with extracted text and thinking content.
+
+COLUMNS:
+    uuid            VARCHAR     Message UUID (from JSONL or generated)
+    parent_uuid     VARCHAR     For conversation threading
+    session_id      VARCHAR     Session identifier
+    role            VARCHAR     'user' or 'assistant'
+    harness         VARCHAR     'claude_code' or 'cursor'
+    model           VARCHAR     Model used (NULL for user messages)
+    content         VARCHAR     User-facing text (concatenated text blocks)
+    thinking        VARCHAR     Reasoning traces (concatenated thinking blocks)
+    timestamp       TIMESTAMP   When the message was sent
+    project_dir     VARCHAR     Working directory
+    git_branch      VARCHAR     Git branch (if available)
+    repo_name       VARCHAR     Repository name
+    worktree_branch VARCHAR     Branch if worktree
+    is_worktree     BOOLEAN     TRUE if worktree path
+    is_sidechain    BOOLEAN     TRUE if subagent message
+    input_tokens    INTEGER     Input tokens (assistant only)
+    output_tokens   INTEGER     Output tokens (assistant only)
+    cache_write_tokens INTEGER  Cache write tokens
+    cache_read_tokens  INTEGER  Cache read tokens
+    tool_use_count  INTEGER     Number of tool_use blocks in this turn
+
+NOTES:
+    - content = concatenated text blocks (type=text)
+    - thinking = concatenated thinking blocks (type=thinking)
+    - User messages that are only tool_result blocks are skipped
+    - FTS index available for BM25 search on content and thinking
+
+EXAMPLE QUERIES:
+
+    -- Search conversations
+    ai-coding-usage search "memory"
+    ai-coding-usage search "memory" --fts
+
+    -- Recent messages
+    SELECT timestamp, role, repo_name, LEFT(content, 200)
+    FROM messages
+    WHERE content IS NOT NULL
+    ORDER BY timestamp DESC
+    LIMIT 20;
+
+    -- Messages by repo
+    SELECT repo_name, role, COUNT(*) as msgs
+    FROM messages
+    GROUP BY repo_name, role
+    ORDER BY msgs DESC;
 
 ================================================================================
 TABLE: cursor_prompts
@@ -607,6 +681,74 @@ EXAMPLE:
     SELECT * FROM recent_interactions;
 
 ================================================================================
+================================================================================
+                      CONVERSATION VIEWS (Message Search)
+================================================================================
+================================================================================
+
+================================================================================
+VIEW: conversation_search
+================================================================================
+Messages with text content or thinking, with preview columns.
+
+COLUMNS:
+    uuid, parent_uuid, session_id, role, harness, model,
+    content_preview (500 chars), thinking_preview (500 chars),
+    content (full), thinking (full),
+    timestamp, project_dir, git_branch, repo_name, worktree_branch,
+    is_worktree, is_sidechain, input_tokens, output_tokens,
+    cache_write_tokens, cache_read_tokens, tool_use_count
+
+EXAMPLE:
+    SELECT timestamp, role, repo_name, content_preview
+    FROM conversation_search
+    WHERE content ILIKE '%memory%'
+    ORDER BY timestamp DESC LIMIT 10;
+
+================================================================================
+VIEW: session_messages
+================================================================================
+Per-session aggregation with message counts and topic.
+
+COLUMNS:
+    session_id, harness, repo_name, project_dir,
+    started_at, ended_at, message_count, user_messages,
+    assistant_messages, total_input_tokens, total_output_tokens,
+    topic (first user message, 200 chars)
+
+EXAMPLE:
+    SELECT repo_name, message_count, topic
+    FROM session_messages ORDER BY started_at DESC LIMIT 10;
+
+================================================================================
+VIEW: recent_conversations
+================================================================================
+Last 50 sessions from session_messages, ordered by start time.
+
+================================================================================
+VIEW: conversation_pairs
+================================================================================
+User/assistant turns joined on parent_uuid for dialogue analysis.
+
+COLUMNS:
+    user_uuid, assistant_uuid, session_id, repo_name,
+    user_timestamp, assistant_timestamp, user_content,
+    assistant_content, assistant_thinking, model,
+    input_tokens, output_tokens, tool_use_count
+
+================================================================================
+VIEW: message_stats
+================================================================================
+Daily message volume by harness and role.
+
+COLUMNS:
+    date, harness, role, message_count, input_tokens, output_tokens
+
+EXAMPLE:
+    SELECT date, harness, role, message_count
+    FROM message_stats ORDER BY date DESC LIMIT 20;
+
+================================================================================
 TABLE: model_pricing
 ================================================================================
 API pricing per million tokens. Update when Anthropic changes rates.
@@ -845,6 +987,192 @@ EOF
     echo "  Claude Code: Loaded $tool_count tool invocations"
 }
 
+# Load Claude Code messages (conversation content)
+load_claude_messages() {
+    if [ ! -d "$CLAUDE_PROJECTS" ]; then
+        return
+    fi
+
+    local jsonl_count
+    jsonl_count=$(find "$CLAUDE_PROJECTS" -name "*.jsonl" 2>/dev/null | wc -l | tr -d ' ')
+
+    if [ "$jsonl_count" -eq 0 ]; then
+        return
+    fi
+
+    echo "  Claude Code: Loading messages..."
+
+    duckdb "$DB_PATH" << EOF
+-- Create messages table from JSONL conversation content
+CREATE OR REPLACE TABLE messages AS
+WITH raw_logs AS (
+    SELECT * FROM read_json_auto('$CLAUDE_PROJECTS/*/*.jsonl',
+        ignore_errors=true,
+        maximum_object_size=104857600)
+),
+-- User messages where content is a plain string
+user_string AS (
+    SELECT
+        logs.uuid,
+        logs.parentUuid as parent_uuid,
+        logs.sessionId as session_id,
+        'user' as role,
+        'claude_code' as harness,
+        NULL as model,
+        logs.message.content::VARCHAR as content,
+        NULL as thinking,
+        logs.timestamp,
+        logs.cwd as project_dir,
+        NULL as git_branch,
+        logs.isSidechain as is_sidechain,
+        NULL as input_tokens,
+        NULL as output_tokens,
+        NULL as cache_write_tokens,
+        NULL as cache_read_tokens,
+        0 as tool_use_count
+    FROM raw_logs logs
+    WHERE logs.type = 'user'
+    AND json_type(logs.message.content) = 'VARCHAR'
+    AND logs.message.content IS NOT NULL
+    AND LENGTH(logs.message.content::VARCHAR) > 0
+),
+-- User messages where content is an array of blocks
+user_array AS (
+    SELECT
+        logs.uuid,
+        logs.parentUuid as parent_uuid,
+        logs.sessionId as session_id,
+        'user' as role,
+        'claude_code' as harness,
+        NULL as model,
+        STRING_AGG(
+            CASE WHEN json_extract_string(c.value, '\$.type') = 'text'
+                 THEN json_extract_string(c.value, '\$.text')
+            END, E'\n'
+        ) as content,
+        NULL as thinking,
+        logs.timestamp,
+        logs.cwd as project_dir,
+        NULL as git_branch,
+        logs.isSidechain as is_sidechain,
+        NULL as input_tokens,
+        NULL as output_tokens,
+        NULL as cache_write_tokens,
+        NULL as cache_read_tokens,
+        0 as tool_use_count
+    FROM raw_logs logs,
+    LATERAL UNNEST(
+        CASE
+            WHEN json_type(logs.message.content) = 'ARRAY'
+            THEN from_json(logs.message.content::VARCHAR, '["JSON"]')
+            ELSE ['{}']::JSON[]
+        END
+    ) as c(value)
+    WHERE logs.type = 'user'
+    AND json_type(logs.message.content) = 'ARRAY'
+    -- Skip messages that are only tool_result blocks
+    AND EXISTS (
+        SELECT 1 FROM UNNEST(
+            from_json(logs.message.content::VARCHAR, '["JSON"]')
+        ) as chk(v)
+        WHERE json_extract_string(chk.v, '\$.type') = 'text'
+    )
+    GROUP BY logs.uuid, logs.parentUuid, logs.sessionId, logs.timestamp,
+             logs.cwd, logs.isSidechain
+    HAVING content IS NOT NULL
+),
+-- Assistant messages: extract text content and thinking separately
+assistant_msgs AS (
+    SELECT
+        logs.uuid,
+        logs.parentUuid as parent_uuid,
+        logs.sessionId as session_id,
+        'assistant' as role,
+        'claude_code' as harness,
+        logs.message.model as model,
+        STRING_AGG(
+            CASE WHEN json_extract_string(c.value, '\$.type') = 'text'
+                 THEN json_extract_string(c.value, '\$.text')
+            END, E'\n'
+        ) as content,
+        STRING_AGG(
+            CASE WHEN json_extract_string(c.value, '\$.type') = 'thinking'
+                 THEN json_extract_string(c.value, '\$.thinking')
+            END, E'\n'
+        ) as thinking,
+        logs.timestamp,
+        logs.cwd as project_dir,
+        NULL as git_branch,
+        logs.isSidechain as is_sidechain,
+        logs.message.usage.input_tokens as input_tokens,
+        logs.message.usage.output_tokens as output_tokens,
+        COALESCE(logs.message.usage.cache_creation_input_tokens, 0) as cache_write_tokens,
+        COALESCE(logs.message.usage.cache_read_input_tokens, 0) as cache_read_tokens,
+        COUNT(CASE WHEN json_extract_string(c.value, '\$.type') = 'tool_use' THEN 1 END) as tool_use_count
+    FROM raw_logs logs,
+    LATERAL UNNEST(
+        CASE
+            WHEN json_type(logs.message.content) = 'ARRAY'
+            THEN from_json(logs.message.content::VARCHAR, '["JSON"]')
+            ELSE ['{}']::JSON[]
+        END
+    ) as c(value)
+    WHERE logs.type = 'assistant'
+    GROUP BY logs.uuid, logs.parentUuid, logs.sessionId, logs.message.model,
+             logs.timestamp, logs.cwd, logs.isSidechain,
+             logs.message.usage.input_tokens, logs.message.usage.output_tokens,
+             logs.message.usage.cache_creation_input_tokens,
+             logs.message.usage.cache_read_input_tokens
+),
+-- Combine all message types
+all_messages AS (
+    SELECT * FROM user_string
+    UNION ALL
+    SELECT * FROM user_array
+    UNION ALL
+    SELECT * FROM assistant_msgs
+),
+-- Apply worktree detection (same pattern as load_claude_data)
+with_worktree AS (
+    SELECT m.*,
+        CASE
+            WHEN m.project_dir LIKE '%/conductor/workspaces/%' THEN
+                REGEXP_EXTRACT(m.project_dir, '/conductor/workspaces/([^/]+)/', 1)
+            WHEN m.project_dir LIKE '%/.worktrees/%' THEN
+                REGEXP_EXTRACT(m.project_dir, '/\.worktrees/([^/]+)/', 1)
+            WHEN m.project_dir LIKE '%/code/%' THEN
+                REGEXP_EXTRACT(m.project_dir, '/code/([^/]+)', 1)
+            ELSE REGEXP_EXTRACT(m.project_dir, '[^/]+$')
+        END as repo_name,
+        CASE
+            WHEN m.project_dir LIKE '%/conductor/workspaces/%' THEN
+                REGEXP_EXTRACT(m.project_dir, '/conductor/workspaces/[^/]+/([^/]+)', 1)
+            WHEN m.project_dir LIKE '%/.worktrees/%' THEN
+                REGEXP_EXTRACT(m.project_dir, '/\.worktrees/[^/]+/([^/]+)', 1)
+            ELSE NULL
+        END as worktree_branch,
+        CASE
+            WHEN m.project_dir LIKE '%/conductor/workspaces/%' THEN TRUE
+            WHEN m.project_dir LIKE '%/.worktrees/%' THEN TRUE
+            ELSE FALSE
+        END as is_worktree
+    FROM all_messages m
+)
+SELECT
+    uuid, parent_uuid, session_id, role, harness, model,
+    content, thinking, timestamp, project_dir, git_branch,
+    repo_name, worktree_branch, is_worktree, is_sidechain,
+    input_tokens, output_tokens, cache_write_tokens, cache_read_tokens,
+    tool_use_count
+FROM with_worktree
+WHERE timestamp IS NOT NULL;
+EOF
+
+    local msg_count
+    msg_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM messages;" 2>/dev/null || echo "0")
+    echo "  Claude Code: Loaded $msg_count messages"
+}
+
 # Load Cursor data
 load_cursor_data() {
     if [ -z "$CURSOR_WORKSPACE" ] || [ ! -d "$CURSOR_WORKSPACE" ]; then
@@ -920,6 +1248,50 @@ EOF
     local prompt_count
     prompt_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM cursor_prompts;" 2>/dev/null || echo "0")
     echo "  Cursor: Loaded $prompt_count prompts"
+}
+
+# Bridge Cursor prompts into unified messages table
+load_cursor_messages() {
+    local cursor_count
+    cursor_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM cursor_prompts;" 2>/dev/null || echo "0")
+
+    if [ "$cursor_count" -eq 0 ]; then
+        return
+    fi
+
+    echo "  Cursor: Bridging $cursor_count prompts into messages..."
+
+    duckdb "$DB_PATH" << 'EOF'
+INSERT INTO messages
+SELECT
+    MD5(workspace_id || CAST(timestamp AS VARCHAR) || LEFT(prompt_text, 50)) as uuid,
+    NULL as parent_uuid,
+    workspace_id as session_id,
+    'user' as role,
+    'cursor' as harness,
+    NULL as model,
+    prompt_text as content,
+    NULL as thinking,
+    timestamp,
+    workspace_path as project_dir,
+    NULL as git_branch,
+    REGEXP_EXTRACT(workspace_path, '[^/]+$') as repo_name,
+    NULL as worktree_branch,
+    FALSE as is_worktree,
+    FALSE as is_sidechain,
+    NULL as input_tokens,
+    NULL as output_tokens,
+    NULL as cache_write_tokens,
+    NULL as cache_read_tokens,
+    0 as tool_use_count
+FROM cursor_prompts
+WHERE timestamp IS NOT NULL
+AND prompt_text IS NOT NULL;
+EOF
+
+    local cursor_msg_count
+    cursor_msg_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM messages WHERE harness='cursor';" 2>/dev/null || echo "0")
+    echo "  Cursor: Added $cursor_msg_count messages"
 }
 
 # Create summary views
@@ -1232,6 +1604,98 @@ SELECT
 FROM usage_with_cost
 GROUP BY repo_name, model;
 
+-- ============================================================================
+-- CONVERSATION SEARCH VIEW
+-- ============================================================================
+-- Messages with text content or thinking, with preview columns
+
+CREATE OR REPLACE VIEW conversation_search AS
+SELECT
+    uuid, parent_uuid, session_id, role, harness, model,
+    LEFT(content, 500) as content_preview,
+    LEFT(thinking, 500) as thinking_preview,
+    content, thinking,
+    timestamp, project_dir, git_branch,
+    repo_name, worktree_branch, is_worktree, is_sidechain,
+    input_tokens, output_tokens, cache_write_tokens, cache_read_tokens,
+    tool_use_count
+FROM messages
+WHERE content IS NOT NULL OR thinking IS NOT NULL;
+
+-- ============================================================================
+-- SESSION MESSAGES VIEW
+-- ============================================================================
+-- Per-session aggregation with topic extraction
+
+CREATE OR REPLACE VIEW session_messages AS
+SELECT
+    session_id,
+    harness,
+    repo_name,
+    project_dir,
+    MIN(timestamp) as started_at,
+    MAX(timestamp) as ended_at,
+    COUNT(*) as message_count,
+    COUNT(CASE WHEN role = 'user' THEN 1 END) as user_messages,
+    COUNT(CASE WHEN role = 'assistant' THEN 1 END) as assistant_messages,
+    SUM(COALESCE(input_tokens, 0)) as total_input_tokens,
+    SUM(COALESCE(output_tokens, 0)) as total_output_tokens,
+    FIRST(CASE WHEN role = 'user' AND content IS NOT NULL
+          THEN LEFT(content, 200) END ORDER BY timestamp) as topic
+FROM messages
+GROUP BY session_id, harness, repo_name, project_dir;
+
+-- ============================================================================
+-- RECENT CONVERSATIONS VIEW
+-- ============================================================================
+-- Last 50 sessions from session_messages
+
+CREATE OR REPLACE VIEW recent_conversations AS
+SELECT * FROM session_messages
+ORDER BY started_at DESC
+LIMIT 50;
+
+-- ============================================================================
+-- CONVERSATION PAIRS VIEW
+-- ============================================================================
+-- User/assistant turns joined on parent_uuid
+
+CREATE OR REPLACE VIEW conversation_pairs AS
+SELECT
+    u.uuid as user_uuid,
+    a.uuid as assistant_uuid,
+    u.session_id,
+    u.repo_name,
+    u.timestamp as user_timestamp,
+    a.timestamp as assistant_timestamp,
+    u.content as user_content,
+    a.content as assistant_content,
+    a.thinking as assistant_thinking,
+    a.model,
+    a.input_tokens,
+    a.output_tokens,
+    a.tool_use_count
+FROM messages u
+JOIN messages a ON a.parent_uuid = u.uuid
+WHERE u.role = 'user' AND a.role = 'assistant';
+
+-- ============================================================================
+-- MESSAGE STATS VIEW
+-- ============================================================================
+-- Daily message volume by harness/role
+
+CREATE OR REPLACE VIEW message_stats AS
+SELECT
+    DATE_TRUNC('day', TRY_CAST(timestamp AS TIMESTAMP))::DATE as date,
+    harness,
+    role,
+    COUNT(*) as message_count,
+    SUM(COALESCE(input_tokens, 0)) as input_tokens,
+    SUM(COALESCE(output_tokens, 0)) as output_tokens
+FROM messages
+WHERE timestamp IS NOT NULL
+GROUP BY date, harness, role;
+
 -- Metadata table for tracking loads
 CREATE TABLE IF NOT EXISTS _metadata (
     key VARCHAR PRIMARY KEY,
@@ -1242,6 +1706,17 @@ CREATE TABLE IF NOT EXISTS _metadata (
 INSERT OR REPLACE INTO _metadata (key, value, updated_at) 
 VALUES ('last_load', CURRENT_TIMESTAMP::VARCHAR, CURRENT_TIMESTAMP);
 EOF
+}
+
+# Create FTS index on messages for full-text search
+create_fts_index() {
+    echo "  Creating FTS index on messages..."
+    duckdb "$DB_PATH" << 'EOF' 2>/dev/null || true
+INSTALL fts; LOAD fts;
+PRAGMA create_fts_index('messages', 'uuid', 'content', 'thinking',
+    stemmer='porter', stopwords='english', overwrite=1);
+EOF
+    echo "  FTS index created"
 }
 
 # Full load/reload
@@ -1256,16 +1731,25 @@ load_all_data() {
         duckdb "$DB_PATH" << 'EOF' 2>/dev/null || true
 DROP TABLE IF EXISTS claude_tools;
 DROP TABLE IF EXISTS claude_sessions;
+DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS cursor_prompts;
 DROP TABLE IF EXISTS cursor_workspaces;
 DROP VIEW IF EXISTS daily_summary;
 DROP VIEW IF EXISTS tool_summary;
+DROP VIEW IF EXISTS conversation_search;
+DROP VIEW IF EXISTS session_messages;
+DROP VIEW IF EXISTS recent_conversations;
+DROP VIEW IF EXISTS conversation_pairs;
+DROP VIEW IF EXISTS message_stats;
 EOF
     fi
-    
+
     load_claude_data
+    load_claude_messages
     load_cursor_data
+    load_cursor_messages
     create_views
+    create_fts_index
     
     echo ""
     echo "Data loaded to: $DB_PATH"
@@ -1299,6 +1783,183 @@ open_shell() {
 }
 
 # ============================================================================
+# Search
+# ============================================================================
+
+run_search() {
+    if ! db_exists; then
+        echo "Database not found. Run 'ai-coding-usage' first to load data." >&2
+        exit 1
+    fi
+
+    local query=""
+    local search_field="content"
+    local use_fts=false
+    local limit=10
+    local role_filter=""
+    local repo_filter=""
+    local since_filter=""
+
+    # Parse arguments
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --thinking)
+                search_field="thinking"
+                shift
+                ;;
+            --all)
+                search_field="all"
+                shift
+                ;;
+            --fts)
+                use_fts=true
+                shift
+                ;;
+            -n)
+                shift
+                limit="${1:-10}"
+                shift
+                ;;
+            --user)
+                role_filter="user"
+                shift
+                ;;
+            --asst|--assistant)
+                role_filter="assistant"
+                shift
+                ;;
+            --repo)
+                shift
+                repo_filter="${1:-}"
+                shift
+                ;;
+            --since)
+                shift
+                local since_val="${1:-7d}"
+                shift
+                # Parse time filter: 7d, 4w, or date
+                case "$since_val" in
+                    *d)
+                        since_filter="TRY_CAST(timestamp AS TIMESTAMP) >= CURRENT_DATE - INTERVAL '${since_val%d} days'"
+                        ;;
+                    *w)
+                        since_filter="TRY_CAST(timestamp AS TIMESTAMP) >= CURRENT_DATE - INTERVAL '${since_val%w} weeks'"
+                        ;;
+                    *)
+                        since_filter="TRY_CAST(timestamp AS TIMESTAMP) >= '${since_val}'"
+                        ;;
+                esac
+                ;;
+            -*)
+                echo "Unknown flag: $1" >&2
+                echo "Usage: ai-coding-usage search \"query\" [--thinking|--all|--fts] [-n N] [--user|--asst] [--repo X] [--since 7d]" >&2
+                exit 1
+                ;;
+            *)
+                query="$1"
+                shift
+                ;;
+        esac
+    done
+
+    if [ -z "$query" ]; then
+        echo "Usage: ai-coding-usage search \"query\" [--thinking|--all|--fts] [-n N] [--user|--asst] [--repo X] [--since 7d]" >&2
+        exit 1
+    fi
+
+    # Build WHERE clauses
+    local where_parts=()
+
+    if [ "$use_fts" = true ]; then
+        # FTS mode: use BM25 ranking
+        local fts_sql="SELECT m.uuid, m.session_id, m.role, m.harness, m.model,
+    LEFT(m.content, 300) as content_preview,
+    LEFT(m.thinking, 300) as thinking_preview,
+    m.timestamp, m.repo_name, m.project_dir,
+    fts.score
+FROM messages m
+JOIN (
+    SELECT uuid, fts_main_messages.match_bm25(uuid, '${query//\'/\'\'}') as score
+    FROM messages
+    WHERE score IS NOT NULL
+) fts ON m.uuid = fts.uuid"
+
+        if [ -n "$role_filter" ]; then
+            where_parts+=("m.role = '${role_filter}'")
+        fi
+        if [ -n "$repo_filter" ]; then
+            where_parts+=("m.repo_name ILIKE '%${repo_filter//\'/\'\'}%'")
+        fi
+        if [ -n "$since_filter" ]; then
+            local m_since="${since_filter/timestamp/m.timestamp}"
+            where_parts+=("${m_since}")
+        fi
+
+        if [ ${#where_parts[@]} -gt 0 ]; then
+            local where_clause=""
+            for part in "${where_parts[@]}"; do
+                if [ -z "$where_clause" ]; then
+                    where_clause="WHERE ${part}"
+                else
+                    where_clause="${where_clause} AND ${part}"
+                fi
+            done
+            fts_sql="${fts_sql}
+${where_clause}"
+        fi
+
+        fts_sql="${fts_sql}
+ORDER BY fts.score DESC
+LIMIT ${limit};"
+
+        duckdb "$DB_PATH" -c "$fts_sql"
+    else
+        # ILIKE mode
+        local escaped_query="${query//\'/\'\'}"
+
+        case "$search_field" in
+            content)
+                where_parts+=("content ILIKE '%${escaped_query}%'")
+                ;;
+            thinking)
+                where_parts+=("thinking ILIKE '%${escaped_query}%'")
+                ;;
+            all)
+                where_parts+=("(content ILIKE '%${escaped_query}%' OR thinking ILIKE '%${escaped_query}%')")
+                ;;
+        esac
+
+        if [ -n "$role_filter" ]; then
+            where_parts+=("role = '${role_filter}'")
+        fi
+        if [ -n "$repo_filter" ]; then
+            where_parts+=("repo_name ILIKE '%${repo_filter//\'/\'\'}%'")
+        fi
+        if [ -n "$since_filter" ]; then
+            where_parts+=("${since_filter}")
+        fi
+
+        local where_clause=""
+        for part in "${where_parts[@]}"; do
+            if [ -z "$where_clause" ]; then
+                where_clause="WHERE ${part}"
+            else
+                where_clause="${where_clause} AND ${part}"
+            fi
+        done
+
+        duckdb "$DB_PATH" -c "SELECT uuid, session_id, role, harness, model,
+    LEFT(content, 300) as content_preview,
+    LEFT(thinking, 300) as thinking_preview,
+    timestamp, repo_name, project_dir
+FROM messages
+${where_clause}
+ORDER BY timestamp DESC
+LIMIT ${limit};"
+    fi
+}
+
+# ============================================================================
 # Summary Output
 # ============================================================================
 
@@ -1321,9 +1982,14 @@ EOF
     claude_tools=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM claude_tools;" 2>/dev/null || echo "0")
     claude_sessions=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM claude_sessions;" 2>/dev/null || echo "0")
     
+    # Messages stats
+    local searchable_messages
+    searchable_messages=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM messages WHERE content IS NOT NULL OR thinking IS NOT NULL;" 2>/dev/null || echo "0")
+
     echo "Claude Code"
     echo "  Tool invocations: $claude_tools"
     echo "  Sessions: $claude_sessions"
+    echo "  Searchable messages: $searchable_messages"
     echo ""
     
     # Cursor stats
@@ -1348,12 +2014,14 @@ EOF
     echo "Quick start:"
     echo "  ai-coding-usage --schema           Show tables and example queries"
     echo "  ai-coding-usage query \"SQL\"        Run a SQL query"
+    echo "  ai-coding-usage search \"query\"     Search conversation content"
     echo "  ai-coding-usage shell              Interactive SQL shell"
     echo "  ai-coding-usage reload             Reload data from source logs"
     echo ""
     echo "Example queries:"
     echo "  ai-coding-usage query \"SELECT * FROM tool_summary\""
     echo "  ai-coding-usage query \"SELECT * FROM daily_summary ORDER BY date DESC LIMIT 7\""
+    echo "  ai-coding-usage search \"memory\" --fts"
 }
 
 # ============================================================================
@@ -1386,7 +2054,12 @@ case "${1:-}" in
         fi
         run_query "$2"
         ;;
-    
+
+    search|s)
+        shift
+        run_search "$@"
+        ;;
+
     shell|repl)
         open_shell
         ;;

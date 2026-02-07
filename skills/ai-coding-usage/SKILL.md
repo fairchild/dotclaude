@@ -28,9 +28,32 @@ scripts/ai-coding-usage query "SELECT * FROM tool_summary"
 | (default) | Load data if needed, show summary |
 | `reload` | Force reload all data from source logs |
 | `query "SQL"` | Execute SQL query |
+| `search "query"` | Search conversation content |
 | `shell` | Interactive DuckDB shell |
 | `--schema` | Database schema with example queries |
 | `--help` | Full help documentation |
+
+## Search
+
+```bash
+# ILIKE search on conversation content (default)
+scripts/ai-coding-usage search "memory"
+
+# BM25 full-text search (covers content + thinking)
+scripts/ai-coding-usage search "memory" --fts
+
+# Search reasoning traces
+scripts/ai-coding-usage search "memory" --thinking
+
+# Search both content and thinking
+scripts/ai-coding-usage search "memory" --all
+
+# Filter by role, repo, time
+scripts/ai-coding-usage search "refactor" --user --repo bertram-chat --since 7d
+
+# Limit results
+scripts/ai-coding-usage search "deploy" -n 20
+```
 
 ## Common Queries
 
@@ -100,7 +123,13 @@ New columns in `claude_tools` and views:
 
 - `claude_tools` - Individual tool invocations (with model, tokens, repo/branch)
 - `claude_sessions` - Session metadata
+- `messages` - Conversation content (user text, assistant text + thinking)
 - `interactions` - Unified view (Claude + Cursor)
+- `conversation_search` - Messages with content/thinking previews
+- `session_messages` - Per-session aggregation with topic
+- `recent_conversations` - Last 50 sessions
+- `conversation_pairs` - User/assistant turns joined on parent_uuid
+- `message_stats` - Daily message volume by harness/role
 - `repo_activity` - Repository-level summary (aggregates worktrees)
 - `project_activity` - Project-level with worktree info
 - `usage_with_cost` - Tool invocations with pre-calculated `cost_usd`
