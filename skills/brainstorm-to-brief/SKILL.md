@@ -1,5 +1,6 @@
 ---
 name: brainstorm-to-brief
+license: Apache-2.0
 description: Wide→Narrow design workflow taking UI/UX concepts from exploration to polished design brief. Four phases - Context, Explore, Iterate, Refine. Use for visual design exploration, user story mockups, and creating shareable design briefs.
 ---
 
