@@ -1766,14 +1766,20 @@ incremental_load() {
         return 1
     fi
 
-    backup_db
-
     echo "Updating $count changed files..."
     echo ""
 
     # Extract just the file paths (column 0)
     local changed_paths=$(mktemp)
     cut -d',' -f1 "$changed_csv" > "$changed_paths"
+
+    # Ensure v1.2 tables exist (upgrade path from v1.1)
+    duckdb "$DB_PATH" << 'ENSURE'
+CREATE TABLE IF NOT EXISTS system_events (uuid VARCHAR PRIMARY KEY, session_id VARCHAR, subtype VARCHAR, timestamp TIMESTAMP, project_dir VARCHAR, git_branch VARCHAR, duration_ms INTEGER, version VARCHAR, is_sidechain BOOLEAN, source_file VARCHAR, repo_name VARCHAR);
+CREATE TABLE IF NOT EXISTS queue_operations (session_id VARCHAR, timestamp TIMESTAMP, operation VARCHAR, content VARCHAR, source_file VARCHAR);
+CREATE TABLE IF NOT EXISTS pr_links (session_id VARCHAR, timestamp TIMESTAMP, pr_number INTEGER, pr_url VARCHAR, pr_repository VARCHAR, source_file VARCHAR);
+CREATE TABLE IF NOT EXISTS _loaded_files (file_path VARCHAR PRIMARY KEY, mtime_ns BIGINT, loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+ENSURE
 
     # Delete stale rows from changed files
     duckdb "$DB_PATH" << EOF
