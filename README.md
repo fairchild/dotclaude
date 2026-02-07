@@ -45,6 +45,8 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | `/session-wrapup` | Final step before merge, captures learnings |
 | `/status_line` | Explain current session metrics |
 | `/update-dependencies` | Intelligent dependency updates with batching |
+| `/code-review` | Review recent work against plan and standards |
+| `/codex-review` | Code review via non-Claude models |
 
 ### Skills (auto-invoked)
 
@@ -53,7 +55,7 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | **ai-coding-usage** | Analyzing AI coding patterns and statistics |
 | **brainstorm-to-brief** | Visual design exploration and design briefs |
 | **image-gen** | Generating images with AI (OpenAI, Imagen, fal.ai) |
-| **canvas-design** | Creating visual art, posters, PDFs |
+| **backlog** | Capturing explored work for later |
 | **chronicle** | Capturing and curating session memory |
 | **frontend-design** | Building web UIs, components, pages |
 | **webapp-testing** | Playwright browser automation |
@@ -65,6 +67,7 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | **playwright-ts** | TypeScript-based Playwright workflows |
 | **verify** | Deployment verification and health checks |
 | **excalidraw-diagrams** | Creating diagrams via Excalidraw |
+| **fork** | Fork session to new worktree or local session |
 | **dotclaude-config** | Editing Claude Code configuration |
 | **update-dependencies** | Dependency analysis and updates |
 | **youtube-content** | Extracting/analyzing YouTube video content |
@@ -90,6 +93,9 @@ Experimental skills use `wip-` prefix and `status: wip` frontmatter. Usable but 
 | **ai-sdk-agent-architect** | Vercel AI SDK 6 agent implementations | "Implement a search agent with AI SDK" |
 | **playwright-test-analyzer** | Visual test analysis | "Run checkout tests and analyze the UI" |
 | **chronicle-curator** | Curate Chronicle memory blocks | Auto-invoked for memory management |
+| **chronicle-insights** | Deep memory and worktree exploration | "What patterns emerge across my sessions?" |
+| **recall** | Search memory for information | "What do I know about deployment?" |
+| **remember** | Persist items to memory blocks | Auto-invoked for memory management |
 | **youtube-content** | Extract YouTube transcripts | "Summarize this video: youtube.com/..." |
 | **experiment-creator** | Create UI experiments | Project-specific (JrnlFish) |
 
@@ -229,7 +235,7 @@ For implementation details, see [docs/statusline-architecture.md](https://github
 
 | Model | Context | Input | Output |
 |-------|---------|-------|--------|
-| Opus 4.5 | 200K | $5/M | $25/M |
+| Opus 4.6 | 200K | $5/M | $25/M |
 | Sonnet 4.5 | 200K | $3/M | $15/M |
 | Haiku 4.5 | 200K | $1/M | $5/M |
 
