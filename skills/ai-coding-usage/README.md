@@ -24,8 +24,9 @@ ai-coding-usage query "SELECT * FROM tool_summary"
 ## Features
 
 - **Unified**: Loads both Claude Code and Cursor data into one database
+- **Incremental**: Auto-detects new/changed files and updates only what's needed
 - **Persistent**: DuckDB database persists between runs (`~/.local/share/ai-coding-usage/usage.duckdb`)
-- **Idempotent**: Safe to run repeatedly; use `reload` to refresh data
+- **Safe**: Timestamped backup before every load/reload
 - **Agent-friendly**: `--help` and `--schema` provide complete documentation for AI agents
 - **Fast**: DuckDB is extremely fast for analytical queries
 
@@ -33,10 +34,11 @@ ai-coding-usage query "SELECT * FROM tool_summary"
 
 | Command | Description |
 |---------|-------------|
-| `ai-coding-usage` | Load data (if needed) and show summary |
+| `ai-coding-usage` | Auto-detect changes, incremental update, show summary |
+| `ai-coding-usage update` | Explicit incremental update |
+| `ai-coding-usage reload` | Force reload all data (with backup) |
 | `ai-coding-usage --help` | Detailed help documentation |
 | `ai-coding-usage --schema` | Database schema with example queries |
-| `ai-coding-usage reload` | Force reload all data from source logs |
 | `ai-coding-usage query "SQL"` | Execute a SQL query |
 | `ai-coding-usage search "query"` | Search conversation content |
 | `ai-coding-usage shell` | Open interactive DuckDB shell |
@@ -48,12 +50,6 @@ This tool is designed to be used by AI coding agents. To analyze usage:
 1. Run `ai-coding-usage --schema` to get the complete database schema
 2. Write SQL queries based on the schema documentation
 3. Execute queries with `ai-coding-usage query "YOUR SQL"`
-
-The `--schema` output includes:
-- All table and column definitions
-- Column types and descriptions
-- Example queries for common use cases
-- Useful SQL patterns
 
 ## Search
 
@@ -89,15 +85,29 @@ ai-coding-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
 
 ## Database Schema (Summary)
 
-### Tables
+### Core Tables
 
 | Table | Description |
 |-------|-------------|
-| `claude_tools` | Claude Code tool invocations (Bash, Edit, Write, Skill, etc.) |
+| `claude_tools` | Claude Code tool invocations (with source_file for incremental) |
 | `claude_sessions` | Claude Code session metadata |
 | `messages` | Conversation content (user text, assistant text + thinking) |
 | `cursor_prompts` | Cursor user prompts |
 | `cursor_workspaces` | Cursor workspace metadata |
+
+| `system_events` | System records: turn_duration, api_error, stop_hook_summary |
+| `queue_operations` | User inputs queued during assistant responses |
+| `pr_links` | Session-to-PR mappings |
+| `_sessions_index` | Session metadata from sessions-index.json (summary, first_prompt) |
+| `_loaded_files` | File mtime tracking for incremental loading |
+
+### Views
+
+| View | Description |
+|------|-------------|
+| `turn_durations` | Response timing from system events |
+| `api_errors` | API error events |
+| `session_overview` | Sessions joined with index metadata (summary, first_prompt) |
 
 ### Unified Views (Cross-Tool Analysis)
 
@@ -107,6 +117,7 @@ ai-coding-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
 | `daily_by_source` | Daily counts separated by tool |
 | `weekly_summary` | Weekly aggregation by source |
 | `project_activity` | Project-level summary across both tools |
+| `repo_activity` | Repository-level (aggregates worktrees) |
 | `category_breakdown` | Usage by category (tool names / prompts) |
 | `session_summary` | Unified session metrics |
 | `peak_hours` | Find your most productive hours |
@@ -123,12 +134,13 @@ ai-coding-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
 | `conversation_pairs` | User/assistant turns joined on parent_uuid |
 | `message_stats` | Daily message volume by harness/role |
 
-### Summary Views
+### Cost Views
 
 | View | Description |
 |------|-------------|
-| `daily_summary` | Aggregated daily usage across both tools |
-| `tool_summary` | Tool usage statistics with percentages |
+| `model_pricing` | API rates per million tokens (editable) |
+| `usage_with_cost` | Tool invocations with pre-calculated `cost_usd` |
+| `cost_summary` | Pre-aggregated costs by repo/model |
 
 Run `ai-coding-usage --schema` for complete documentation.
 
@@ -142,9 +154,18 @@ GROUP BY tool_name
 ORDER BY uses DESC;
 
 -- Daily usage trend
-SELECT * FROM daily_summary 
-ORDER BY date DESC 
+SELECT * FROM daily_summary
+ORDER BY date DESC
 LIMIT 14;
+
+-- Turn durationsSELECT * FROM turn_durations ORDER BY duration_ms DESC LIMIT 10;
+
+-- Session overview with summariesSELECT session_id, repo_name, summary FROM session_overview
+WHERE summary IS NOT NULL ORDER BY started_at DESC LIMIT 10;
+
+-- API errorsSELECT * FROM api_errors ORDER BY timestamp DESC;
+
+-- PR linksSELECT * FROM pr_links;
 
 -- Skill usage
 SELECT context as skill_name, COUNT(*) as uses
@@ -153,13 +174,8 @@ WHERE tool_name = 'Skill'
 GROUP BY context
 ORDER BY uses DESC;
 
--- Search Cursor prompts
-SELECT timestamp, prompt_text
-FROM cursor_prompts
-WHERE prompt_text ILIKE '%refactor%';
-
 -- Compare Claude vs Cursor usage
-SELECT 
+SELECT
     DATE_TRUNC('week', date) as week,
     SUM(claude_tools) as claude,
     SUM(cursor_prompts) as cursor
@@ -168,49 +184,12 @@ GROUP BY week
 ORDER BY week DESC;
 ```
 
-### Unified Views Examples
-
-```sql
--- All recent interactions across both tools
-SELECT * FROM recent_interactions;
-
--- Interactions per project (both tools combined)
-SELECT project_name, source, COUNT(*) as total
-FROM interactions
-GROUP BY project_name, source
-ORDER BY total DESC;
-
--- Your peak coding hours
-SELECT hour_of_day, SUM(interactions) as total
-FROM peak_hours
-GROUP BY hour_of_day
-ORDER BY total DESC
-LIMIT 5;
-
--- Weekly comparison
-SELECT week_start, source, interactions, active_days
-FROM weekly_summary
-ORDER BY week_start DESC, source;
-
--- Projects where you use both tools
-SELECT project_name,
-       SUM(CASE WHEN source = 'claude_code' THEN interactions END) as claude,
-       SUM(CASE WHEN source = 'cursor' THEN interactions END) as cursor
-FROM project_activity
-GROUP BY project_name
-HAVING claude > 0 AND cursor > 0
-ORDER BY claude + cursor DESC;
-```
-
 ## Data Sources
 
 ### Claude Code
 - **Location**: `~/.claude/projects/*/*.jsonl`
-- **Contents**: Full tool invocation logs including:
-  - Tool name (Bash, Edit, Write, Skill, Task, etc.)
-  - Context (command, file path, etc.)
-  - Timestamps
-  - Token usage
+- **Contents**: Full tool invocation logs, messages, system events, queue operations, PR links
+- **Metadata**: `sessions-index.json` files with session summaries
 
 ### Cursor
 - **Location**: `~/Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb`
@@ -231,18 +210,10 @@ ORDER BY claude + cursor DESC;
 
 ## How It Works
 
-1. On first run (or `reload`), scans source directories for log files
-2. Parses Claude Code JSONL files and Cursor SQLite databases
-3. Loads data into normalized tables in DuckDB
-4. Creates summary views for common queries
+1. On first run, scans source directories and loads all log files
+2. On subsequent runs, auto-detects new/changed files via mtime comparison
+3. Incrementally updates only changed files (delete stale rows by `source_file`, reinsert)
+4. Creates timestamped backup before every load/reload
 5. Database persists at `~/.local/share/ai-coding-usage/usage.duckdb`
 
-Subsequent runs skip loading if data exists. Use `reload` to refresh.
-
-## Tips
-
-- Use `LIMIT` when exploring large result sets
-- Use `ILIKE` for case-insensitive text search
-- The `tool_summary` and `daily_summary` views are pre-computed for fast access
-- Use `ai-coding-usage shell` for interactive exploration
-- DuckDB supports CTEs, window functions, and modern SQL features
+Use `reload` to force a full rebuild from scratch.
