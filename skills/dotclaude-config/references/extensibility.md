@@ -230,6 +230,25 @@ assets/
 └── boilerplate/
 ```
 
+## Context Cost
+
+Different extension types have different context footprints:
+
+| Type | When Loaded | Approximate Cost |
+|------|-------------|-----------------|
+| Agent descriptions | Always (metadata only) | ~100 tokens each |
+| Skill descriptions | Always (metadata only) | ~100 tokens each |
+| Command descriptions | Always (metadata only) | ~50 tokens each |
+| SKILL.md body | On skill activation | <5k words |
+| Skill references | On explicit read | Varies |
+| Agent instructions | On Task invocation | Full file |
+
+Keep descriptions concise — they're always in context. Move detailed instructions to the body or references.
+
+## Agent Teams
+
+Agents can be composed into teams where a lead agent delegates to specialist subagents via the Task tool. Define each agent as a separate file and coordinate through prompts.
+
 ## Global vs Project
 
 | Type | Global Location | Project Location | Behavior |

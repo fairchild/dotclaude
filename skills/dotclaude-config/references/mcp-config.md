@@ -32,10 +32,11 @@ Both use the same format. Project servers supplement global ones.
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `type` | No | Transport type, usually `"stdio"` |
-| `command` | Yes | Executable to run |
+| `type` | No | Transport type: `"stdio"` (default) or `"http"` |
+| `command` | Yes (stdio) | Executable to run |
 | `args` | No | Array of command arguments |
 | `env` | No | Environment variables for the server |
+| `url` | Yes (http) | Server URL for HTTP transport |
 
 ## Environment Variables
 
@@ -147,6 +148,23 @@ claude --mcp-debug
 }
 ```
 
+### HTTP transport
+
+```json
+{
+  "mcpServers": {
+    "remote-server": {
+      "type": "http",
+      "url": "https://mcp.example.com/sse"
+    }
+  }
+}
+```
+
+## Context Cost
+
+MCP tools with tool search enabled load up to 10% of context by default. Monitor per-server token usage with `/mcp` in-session to identify expensive servers.
+
 ## Scope Behavior
 
 | Scope | Storage | Visibility |
@@ -165,7 +183,7 @@ In a Claude Code session:
 /mcp
 ```
 
-Shows connection status for each configured server.
+Shows connection status, available tools, and per-server token costs for each configured server. Use this to identify servers that consume excessive context.
 
 ## Troubleshooting
 

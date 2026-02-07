@@ -1,6 +1,6 @@
 ---
 name: dotclaude-config
-description: Work with Claude Code configuration at global (~/.claude) or project (.claude/) level. Use when editing settings.json (permissions, hooks, statusline, model), managing MCP servers, or creating agents/commands/skills. Determines context automatically and provides guidance on global vs project placement to avoid duplication.
+description: Work with Claude Code configuration at global (~/.claude) or project (.claude/) level. Use when editing settings.json (permissions, hooks, statusline, model), managing MCP servers, creating agents/commands/skills, writing CLAUDE.md, setting up rules files, or configuring a new project. Determines context automatically and provides guidance on global vs project placement to avoid duplication.
 license: Apache-2.0
 ---
 
@@ -158,11 +158,31 @@ Task(subagent_type="Explore", prompt="What MCP servers are configured at each le
 "model": "opus"  // or "sonnet", "haiku"
 ```
 
+## CLAUDE.md Configuration
+
+For authoring and organizing CLAUDE.md files — placement, `@path` imports, rules files, size management — see [references/claude-md-patterns.md](references/claude-md-patterns.md).
+
+Key rules:
+- Keep CLAUDE.md concise (<500 lines); use `@path` imports for detail
+- Use `.claude/rules/*.md` for modular, auto-loaded instructions
+- Put personal preferences in `~/.claude/CLAUDE.md`, project context in project CLAUDE.md
+
+## Working in ~/.claude Itself
+
+When the current directory IS `~/.claude` (e.g., this config is a git repo):
+
+- **Everything is global** — changes affect all Claude Code sessions
+- Skills, agents, commands created here are available everywhere
+- `settings.json` here is the global config, not a project override
+- `CLAUDE.md` at the root is your personal instructions for all projects
+- Treat it as a public repo if published — never commit secrets
+
 ## Detailed Documentation
 
 - **settings.json schema**: See [references/settings-json.md](references/settings-json.md)
 - **MCP configuration**: See [references/mcp-config.md](references/mcp-config.md)
 - **Extensibility (agents/commands/skills)**: See [references/extensibility.md](references/extensibility.md)
+- **CLAUDE.md patterns**: See [references/claude-md-patterns.md](references/claude-md-patterns.md)
 
 ## Example: Project Config Audit
 
