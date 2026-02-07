@@ -43,16 +43,6 @@ ai-coding-usage query "SELECT * FROM tool_summary"
 | `ai-coding-usage search "query"` | Search conversation content |
 | `ai-coding-usage shell` | Open interactive DuckDB shell |
 
-## Incremental Loading (v1.2)
-
-The script now tracks file modification times and only reprocesses changed files:
-
-- **Default behavior**: Auto-detects new/changed JSONL files, incrementally updates
-- **`update` command**: Same as default auto-detect (explicit form)
-- **`reload` command**: Full drop + rebuild (unchanged, always creates backup)
-- **File tracking**: `_loaded_files` table stores path + mtime for each processed file
-- **Delete/reinsert**: Changed files are deleted by `source_file` column, then reloaded
-
 ## For AI Agents
 
 This tool is designed to be used by AI coding agents. To analyze usage:
@@ -105,17 +95,13 @@ ai-coding-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
 | `cursor_prompts` | Cursor user prompts |
 | `cursor_workspaces` | Cursor workspace metadata |
 
-### New Tables (v1.2)
-
-| Table | Description |
-|-------|-------------|
 | `system_events` | System records: turn_duration, api_error, stop_hook_summary |
 | `queue_operations` | User inputs queued during assistant responses |
 | `pr_links` | Session-to-PR mappings |
 | `_sessions_index` | Session metadata from sessions-index.json (summary, first_prompt) |
 | `_loaded_files` | File mtime tracking for incremental loading |
 
-### New Views (v1.2)
+### Views
 
 | View | Description |
 |------|-------------|
@@ -172,18 +158,14 @@ SELECT * FROM daily_summary
 ORDER BY date DESC
 LIMIT 14;
 
--- Turn durations (new in v1.2)
-SELECT * FROM turn_durations ORDER BY duration_ms DESC LIMIT 10;
+-- Turn durationsSELECT * FROM turn_durations ORDER BY duration_ms DESC LIMIT 10;
 
--- Session overview with summaries (new in v1.2)
-SELECT session_id, repo_name, summary FROM session_overview
+-- Session overview with summariesSELECT session_id, repo_name, summary FROM session_overview
 WHERE summary IS NOT NULL ORDER BY started_at DESC LIMIT 10;
 
--- API errors (new in v1.2)
-SELECT * FROM api_errors ORDER BY timestamp DESC;
+-- API errorsSELECT * FROM api_errors ORDER BY timestamp DESC;
 
--- PR links (new in v1.2)
-SELECT * FROM pr_links;
+-- PR linksSELECT * FROM pr_links;
 
 -- Skill usage
 SELECT context as skill_name, COUNT(*) as uses

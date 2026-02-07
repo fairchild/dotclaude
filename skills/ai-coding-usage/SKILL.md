@@ -78,17 +78,17 @@ FROM peak_hours GROUP BY hour_of_day ORDER BY total DESC LIMIT 5;
 SELECT repo_name, SUM(interactions) as total, SUM(worktrees) as branches
 FROM repo_activity GROUP BY repo_name ORDER BY total DESC LIMIT 10;
 
--- Turn durations (new in 1.2)
+-- Turn durations
 SELECT * FROM turn_durations ORDER BY duration_ms DESC LIMIT 10;
 
--- Session overview with summaries (new in 1.2)
+-- Session overview with summaries
 SELECT session_id, repo_name, summary FROM session_overview
 WHERE summary IS NOT NULL ORDER BY started_at DESC LIMIT 10;
 
--- API errors (new in 1.2)
+-- API errors
 SELECT * FROM api_errors ORDER BY timestamp DESC LIMIT 10;
 
--- PR links (new in 1.2)
+-- PR links
 SELECT * FROM pr_links;
 
 -- Cost by repo
@@ -121,20 +121,16 @@ The script tracks tokens and calculates API costs automatically:
 - `claude_tools` - Tool invocations (with model, tokens, repo/branch, source_file)
 - `claude_sessions` - Session metadata
 - `messages` - Conversation content (user text, assistant text + thinking)
-
-### New in v1.2
 - `system_events` - System records (turn_duration, api_error, stop_hook_summary)
 - `queue_operations` - User inputs queued during assistant response
 - `pr_links` - Session-to-PR mappings
 - `_sessions_index` - Session metadata from sessions-index.json (summary, first_prompt)
 - `_loaded_files` - File mtime tracking for incremental loading
 
-### Views (New in v1.2)
+### Views
 - `turn_durations` - Response timing from system events
 - `api_errors` - API error events
 - `session_overview` - Sessions joined with index metadata
-
-### Existing Views
 - `interactions` - Unified view (Claude + Cursor)
 - `conversation_search` - Messages with content/thinking previews
 - `session_messages` - Per-session aggregation with topic

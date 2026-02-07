@@ -143,10 +143,10 @@ EXAMPLES
     # Search with filters
     ai-coding-usage search "refactor" --repo bertram-chat --since 7d --user
 
-    # Turn durations (new in 1.2)
+    # Turn durations
     ai-coding-usage query "SELECT * FROM turn_durations ORDER BY duration_ms DESC LIMIT 10"
 
-    # Session overview with summaries (new in 1.2)
+    # Session overview with summaries
     ai-coding-usage query "SELECT session_id, repo_name, summary FROM session_overview LIMIT 10"
 
     # Interactive exploration
@@ -1256,14 +1256,14 @@ WHERE session_id IS NOT NULL
 GROUP BY session_id, project_dir, repo_name, worktree_branch, is_worktree;
 
 -- ============================================================================
--- TURN DURATIONS VIEW (new in 1.2)
+-- TURN DURATIONS VIEW
 -- ============================================================================
 CREATE OR REPLACE VIEW turn_durations AS
 SELECT session_id, timestamp, duration_ms, repo_name, git_branch
 FROM system_events WHERE subtype = 'turn_duration' AND duration_ms IS NOT NULL;
 
 -- ============================================================================
--- API ERRORS VIEW (new in 1.2)
+-- API ERRORS VIEW
 -- ============================================================================
 CREATE OR REPLACE VIEW api_errors AS
 SELECT * FROM system_events WHERE subtype = 'api_error';
@@ -1589,7 +1589,7 @@ FROM messages
 GROUP BY session_id, harness, repo_name, project_dir;
 
 -- ============================================================================
--- SESSION OVERVIEW VIEW (new in 1.2)
+-- SESSION OVERVIEW VIEW
 -- ============================================================================
 CREATE OR REPLACE VIEW session_overview AS
 SELECT
@@ -2099,10 +2099,10 @@ EOF
     echo "  ai-coding-usage shell              Interactive SQL shell"
     echo "  ai-coding-usage reload             Full reload from source logs"
     echo ""
-    echo "New in v1.2:"
+    echo "Examples:"
     echo "  ai-coding-usage query \"SELECT * FROM turn_durations ORDER BY duration_ms DESC LIMIT 5\""
     echo "  ai-coding-usage query \"SELECT session_id, summary FROM session_overview WHERE summary IS NOT NULL LIMIT 5\""
-    echo "  ai-coding-usage query \"SELECT * FROM api_errors ORDER BY timestamp DESC LIMIT 5\""
+    echo "  ai-coding-usage query \"SELECT * FROM cost_summary ORDER BY cost_usd DESC\""
 }
 
 # ============================================================================
