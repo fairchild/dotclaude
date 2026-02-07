@@ -11,7 +11,7 @@ Unified usage analyzer for Claude Code and Cursor. Loads logs into DuckDB for SQ
 ## Quick Start
 
 ```bash
-# Run the script (loads data on first run)
+# Run the script (loads data on first run, incremental updates after)
 scripts/ai-coding-usage
 
 # Show database schema and example queries
@@ -25,8 +25,9 @@ scripts/ai-coding-usage query "SELECT * FROM tool_summary"
 
 | Command | Description |
 |---------|-------------|
-| (default) | Load data if needed, show summary |
-| `reload` | Force reload all data from source logs |
+| (default) | Auto-detect changes, incremental update, show summary |
+| `update` | Explicit incremental update |
+| `reload` | Force reload all data (with backup) |
 | `query "SQL"` | Execute SQL query |
 | `search "query"` | Search conversation content |
 | `shell` | Interactive DuckDB shell |
@@ -77,12 +78,20 @@ FROM peak_hours GROUP BY hour_of_day ORDER BY total DESC LIMIT 5;
 SELECT repo_name, SUM(interactions) as total, SUM(worktrees) as branches
 FROM repo_activity GROUP BY repo_name ORDER BY total DESC LIMIT 10;
 
--- Worktree branches within a repo
-SELECT worktree_branch, SUM(interactions) as total
-FROM project_activity WHERE repo_name = 'services'
-GROUP BY worktree_branch ORDER BY total DESC;
+-- Turn durations (new in 1.2)
+SELECT * FROM turn_durations ORDER BY duration_ms DESC LIMIT 10;
 
--- Cost by repo (uses pre-calculated cost_usd)
+-- Session overview with summaries (new in 1.2)
+SELECT session_id, repo_name, summary FROM session_overview
+WHERE summary IS NOT NULL ORDER BY started_at DESC LIMIT 10;
+
+-- API errors (new in 1.2)
+SELECT * FROM api_errors ORDER BY timestamp DESC LIMIT 10;
+
+-- PR links (new in 1.2)
+SELECT * FROM pr_links;
+
+-- Cost by repo
 SELECT repo_name, ROUND(SUM(cost_usd), 2) as cost
 FROM usage_with_cost
 WHERE CAST(timestamp AS TIMESTAMP) >= CURRENT_DATE - INTERVAL 7 DAY
@@ -106,24 +115,26 @@ The script tracks tokens and calculates API costs automatically:
 - `usage_with_cost` - Each row has pre-calculated `cost_usd`
 - `cost_summary` - Pre-aggregated by repo/model
 
-## Worktree Detection
-
-The script automatically detects git worktrees and extracts repo/branch info:
-
-- **Conductor worktrees**: `/conductor/workspaces/{repo}/{branch}` → repo_name, worktree_branch
-- **Git worktrees**: `/.worktrees/{repo}/{branch}` → repo_name, worktree_branch
-- **Regular repos**: `/code/{repo}` → repo_name only
-
-New columns in `claude_tools` and views:
-- `repo_name` - Repository name (extracted from path)
-- `worktree_branch` - Branch name if worktree, NULL otherwise
-- `is_worktree` - TRUE if path is a worktree
-
 ## Key Tables/Views
 
-- `claude_tools` - Individual tool invocations (with model, tokens, repo/branch)
+### Core Tables
+- `claude_tools` - Tool invocations (with model, tokens, repo/branch, source_file)
 - `claude_sessions` - Session metadata
 - `messages` - Conversation content (user text, assistant text + thinking)
+
+### New in v1.2
+- `system_events` - System records (turn_duration, api_error, stop_hook_summary)
+- `queue_operations` - User inputs queued during assistant response
+- `pr_links` - Session-to-PR mappings
+- `_sessions_index` - Session metadata from sessions-index.json (summary, first_prompt)
+- `_loaded_files` - File mtime tracking for incremental loading
+
+### Views (New in v1.2)
+- `turn_durations` - Response timing from system events
+- `api_errors` - API error events
+- `session_overview` - Sessions joined with index metadata
+
+### Existing Views
 - `interactions` - Unified view (Claude + Cursor)
 - `conversation_search` - Messages with content/thinking previews
 - `session_messages` - Per-session aggregation with topic
