@@ -20,14 +20,14 @@ credentials/
 history.jsonl
 plans/
 todos/
-session-titles/
+/session-titles/
 session-env/
 file-history/
 chronicle/blocks/
 chronicle/digests/
 chronicle/insights/
 chronicle/summaries/
-title-feedback/*.jsonl
+title-feedback/
 
 # Debug and logs
 debug/
@@ -56,7 +56,14 @@ scripts/tsconfig.json
 # Skill scripts (track code, ignore generated)
 skills/*/scripts/node_modules/
 skills/*/scripts/test-results/
+skills/*/node_modules/
+skills/*/bun.lock
 .last-run.json
+
+# Session titles data (real session data, not tracked)
+skills/session-titles/data/*
+!skills/session-titles/data/README.md
+!skills/session-titles/data/.gitkeep
 
 # IDE and config state
 ide/

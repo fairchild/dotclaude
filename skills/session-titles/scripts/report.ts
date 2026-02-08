@@ -9,7 +9,7 @@ import { readdirSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 
 const HOME = process.env.HOME!;
-const SKILL_DIR = join(HOME, ".claude", "skills", "session-title-eval");
+const SKILL_DIR = join(HOME, ".claude", "skills", "session-titles");
 const RESULTS_DIR = join(SKILL_DIR, "data", "results");
 const GOLDEN_FILE = join(SKILL_DIR, "data", "golden.jsonl");
 

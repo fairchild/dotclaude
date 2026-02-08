@@ -501,10 +501,10 @@ async function mineWeeklyPatterns(): Promise<void> {
 | Component | Location | Reuse |
 |-----------|----------|-------|
 | Session history | `~/.claude/history.jsonl` | Source for episodic memory |
-| Title generation | `scripts/generate-session-title-testable.ts` | Context extraction logic |
-| Feedback schema | `title-feedback/schema.ts` | Extend for chronicle ratings |
+| Title generation | `skills/session-titles/scripts/generate-core.ts` | Context extraction logic |
+| Feedback schema | `skills/session-titles/scripts/schema.ts` | Extend for chronicle ratings |
 | Session titles | `session-titles/` | Compressed session summaries |
-| Evaluation framework | `skills/session-title-eval/` | Quality metrics |
+| Evaluation framework | `skills/session-titles/` | Quality metrics |
 | Status line | `statusline.sh` | Trigger point for updates |
 
 ### New Components
@@ -784,7 +784,7 @@ The Chronicle will integrate with the existing `Stop` hook infrastructure:
 ~/.claude/settings.json
     └── hooks.Stop
         └── ~/.claude/hooks/stop.sh
-            └── ~/.claude/scripts/generate-session-title.ts  ← existing
+            └── ~/.claude/skills/session-titles/scripts/generate.ts  ← existing
             └── ~/.claude/scripts/chronicle-extract.ts       ← NEW
 ```
 
@@ -793,7 +793,7 @@ The Chronicle will integrate with the existing `Stop` hook infrastructure:
 ```bash
 # ~/.claude/hooks/stop.sh (current)
 #!/bin/bash
-~/.claude/scripts/generate-session-title.ts
+~/.claude/skills/session-titles/scripts/generate.ts
 ```
 
 ### Extended Hook
@@ -803,7 +803,7 @@ The Chronicle will integrate with the existing `Stop` hook infrastructure:
 #!/bin/bash
 
 # Existing: Generate session title
-~/.claude/scripts/generate-session-title.ts
+~/.claude/skills/session-titles/scripts/generate.ts
 
 # New: Extract pending threads for Chronicle
 ~/.claude/scripts/chronicle-extract.ts
@@ -881,8 +881,8 @@ Both scripts read the same stdin (session JSON) passed by Claude Code.
 
 | File | Use |
 |------|-----|
-| `scripts/generate-session-title-testable.ts` | Context extraction logic |
-| `title-feedback/schema.ts` | Type patterns |
+| `skills/session-titles/scripts/generate-core.ts` | Context extraction logic |
+| `skills/session-titles/scripts/schema.ts` | Type patterns |
 | `hooks/stop.sh` | Hook entry point |
 | `history.jsonl` | Historical sessions for backfill |
 

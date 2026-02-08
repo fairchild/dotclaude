@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
 const HOME = process.env.HOME!;
-const SKILL_DIR = join(HOME, ".claude", "skills", "session-title-eval");
+const SKILL_DIR = join(HOME, ".claude", "skills", "session-titles");
 const GOLDEN_FILE = join(SKILL_DIR, "data", "golden.jsonl");
 const RESULTS_DIR = join(SKILL_DIR, "data", "results");
 
@@ -154,7 +154,7 @@ Output ONLY valid JSON: {"score": N, "reasoning": "brief explanation"}`;
 
 async function main() {
   const args = process.argv.slice(2);
-  let judgeModel = "claude-3-5-haiku-20241022";
+  let judgeModel = "claude-haiku-4-5-20251001";
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--judge-model" && args[i + 1]) {

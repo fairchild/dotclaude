@@ -12,9 +12,9 @@
 │  • Static examples          • Status line feedback   • Judge calibration    │
 │  • Feedback schema          • Similar session        • Journalist agent     │
 │  • /rate-title skill          retrieval                                     │
-│                                                                              │
-│  Outcome: Titles work      Outcome: Titles learn    Outcome: System        │
-│  TODAY                     from YOUR history        evolves autonomously   │
+│                                                                             │
+│  Outcome: Titles work      Outcome: Titles learn    Outcome: System         │
+│  TODAY                     from YOUR history        evolves autonomously    │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -28,32 +28,32 @@ The key to learning is **calibrated feedback**. When you run `/rate-title`:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         DUAL-PERSPECTIVE FEEDBACK                            │
+│                         DUAL-PERSPECTIVE FEEDBACK                           │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
+│                                                                             │
 │   Generated Title: "Fix OAuth redirect loop"                                │
 │                           │                                                 │
 │                           ▼                                                 │
-│   ┌─────────────────────────────────────────┐                              │
-│   │  AI JUDGE (current session model)       │                              │
-│   │  Score: 4/5                             │                              │
-│   │  Reasoning: Good but could mention      │                              │
-│   │    "callback" since that's the fix      │                              │
-│   │  Proposed: "Fix OAuth callback loop"    │                              │
-│   └─────────────────────────────────────────┘                              │
+│   ┌─────────────────────────────────────────┐                               │
+│   │  AI JUDGE (current session model)       │                               │
+│   │  Score: 4/5                             │                               │
+│   │  Reasoning: Good but could mention      │                               │
+│   │    "callback" since that's the fix      │                               │
+│   │  Proposed: "Fix OAuth callback loop"    │                               │
+│   └─────────────────────────────────────────┘                               │
 │                           │                                                 │
 │                           ▼                                                 │
-│   ┌─────────────────────────────────────────┐                              │
-│   │  HUMAN CALIBRATION                      │                              │
-│   │  Agree? [y/n/score]                     │                              │
-│   │  Your score: 5                          │                              │
-│   │  Reasoning: "callback" is implied       │                              │
-│   │  Better title: (none needed)            │                              │
-│   └─────────────────────────────────────────┘                              │
+│   ┌─────────────────────────────────────────┐                               │
+│   │  HUMAN CALIBRATION                      │                               │
+│   │  Agree? [y/n/score]                     │                               │
+│   │  Your score: 5                          │                               │
+│   │  Reasoning: "callback" is implied       │                               │
+│   │  Better title: (none needed)            │                               │
+│   └─────────────────────────────────────────┘                               │
 │                           │                                                 │
 │                           ▼                                                 │
-│   scored.jsonl: { judgeAssessment, humanAssessment, agreedWithJudge }      │
-│                                                                              │
+│   scored.jsonl: { judgeAssessment, humanAssessment, agreedWithJudge }       │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -97,24 +97,24 @@ From [JetBrains Research](https://blog.jetbrains.com/research/2025/12/efficient-
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                 HIERARCHICAL MEMORY MODEL                    │
+│                 HIERARCHICAL MEMORY MODEL                   │
 ├─────────────────────────────────────────────────────────────┤
-│                                                              │
+│                                                             │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │ TIER 1: Permanent Summary (oldest, compressed)       │   │
 │  │ "Session started with CI fix, pivoted to auth"       │   │
 │  └──────────────────────────────────────────────────────┘   │
-│                          ↓                                   │
+│                          ↓                                  │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │ TIER 2: Sliding Window (middle, summarized)          │   │
 │  │ Last 10-20 messages compressed to key facts          │   │
 │  └──────────────────────────────────────────────────────┘   │
-│                          ↓                                   │
+│                          ↓                                  │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │ TIER 3: Recent Context (newest, full detail)         │   │
 │  │ Last 3-5 messages verbatim                           │   │
 │  └──────────────────────────────────────────────────────┘   │
-│                                                              │
+│                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -126,25 +126,25 @@ From [DSPy Official Docs](https://dspy.ai/learn/optimization/optimizers/) and [P
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    DSPy OPTIMIZATION LOOP                    │
+│                    DSPy OPTIMIZATION LOOP                   │
 ├─────────────────────────────────────────────────────────────┤
-│                                                              │
+│                                                             │
 │   ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
 │   │  Training   │───▶│  Optimizer  │───▶│  Compiled   │     │
 │   │   Dataset   │    │  (MIPROv2)  │    │   Program   │     │
 │   └─────────────┘    └─────────────┘    └─────────────┘     │
-│         │                   │                  │             │
+│         │                   │                 │             │
 │         │            ┌──────┴──────┐          │             │
 │         │            │   Metric    │          │             │
 │         └───────────▶│  Function   │◀─────────┘             │
 │                      │ (eval score)│                        │
 │                      └─────────────┘                        │
-│                                                              │
-│   Key Optimizers:                                            │
+│                                                             │
+│   Key Optimizers:                                           │
 │   • BootstrapFewShot: ~10 examples, generates demos         │
 │   • MIPROv2: 200+ examples, Bayesian prompt search          │
 │   • SIMBA: Identifies hard cases, self-reflective rules     │
-│                                                              │
+│                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -156,34 +156,34 @@ From [LanceDB Continue Case Study](https://lancedb.com/blog/the-future-of-ai-nat
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                   LOCAL VECTOR MEMORY                        │
+│                   LOCAL VECTOR MEMORY                       │
 ├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│   New Session Context                                        │
+│                                                             │
+│   New Session Context                                       │
 │   ┌─────────────────┐                                       │
 │   │ "Fix CI, auth   │                                       │
 │   │  module, pytest"│                                       │
 │   └────────┬────────┘                                       │
-│            │ embed                                           │
-│            ▼                                                 │
+│            │ embed                                          │
+│            ▼                                                │
 │   ┌─────────────────┐     ┌─────────────────────────────┐   │
 │   │  Query Vector   │────▶│      LanceDB (local)        │   │
 │   │  [0.23, -0.45,  │     │  ~/.claude/vectors/         │   │
 │   │   0.12, ...]    │     │                             │   │
 │   └─────────────────┘     │  ┌───────────────────────┐  │   │
 │                           │  │ Similar Past Sessions │  │   │
-│                           │  │ • "Fix pytest CI" (4)  │  │   │
-│                           │  │ • "Debug auth flow"(5) │  │   │
-│                           │  │ • "CI/CD pipeline" (3) │  │   │
+│                           │  │ • "Fix pytest CI" (4) │  │   │
+│                           │  │ • "Debug auth flow"(5)│  │   │
+│                           │  │ • "CI/CD pipeline" (3)│  │   │
 │                           │  └───────────────────────┘  │   │
 │                           └─────────────────────────────┘   │
-│                                        │                     │
-│                                        ▼                     │
+│                                        │                    │
+│                                        ▼                    │
 │                           ┌─────────────────────────────┐   │
 │                           │ Use best titles as examples │   │
 │                           │ in few-shot prompt          │   │
 │                           └─────────────────────────────┘   │
-│                                                              │
+│                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -217,7 +217,7 @@ interface EnhancedContext {
 
 ```
 Session Start ──────────────────────────────────────▶ Now
-│                                                      │
+│                                                     │
 ├─ OLDEST ────────┼─ MIDDLE ──────────┼─ NEWEST ──────┤
 │  Compressed     │  Sliding window   │  Full detail  │
 │  summary        │  of key facts     │  last 3 msgs  │
@@ -269,9 +269,9 @@ const fewShotExamples = similar.map(s => ({
 **What**: Periodically use Sonnet to review and improve
 
 ```
-┌─────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────┐
 │                    QUALITY AUDIT LOOP                        │
-├─────────────────────────────────────────────────────────────┤
+├──────────────────────────────────────────────────────────────┤
 │                                                              │
 │   Every N sessions (or on explicit feedback):                │
 │                                                              │
@@ -281,17 +281,17 @@ const fewShotExamples = similar.map(s => ({
 │   4. Sonnet suggests prompt improvements                     │
 │   5. Update prompt template for next batch                   │
 │                                                              │
-│   ┌─────────┐      ┌─────────┐      ┌─────────┐             │
-│   │ Recent  │─────▶│ Sonnet  │─────▶│ Prompt  │             │
-│   │ Titles  │      │ Review  │      │ Update  │             │
-│   └─────────┘      └─────────┘      └─────────┘             │
+│   ┌─────────┐      ┌─────────┐      ┌─────────┐              │
+│   │ Recent  │─────▶│ Sonnet  │─────▶│ Prompt  │              │
+│   │ Titles  │      │ Review  │      │ Update  │              │
+│   └─────────┘      └─────────┘      └─────────┘              │
 │                                                              │
 │   Trigger conditions:                                        │
 │   • Every 50 sessions                                        │
 │   • User gives explicit feedback (👍/👎)                     │
 │   • Title generation fails 3x in a row                       │
 │                                                              │
-└─────────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────────┘
 ```
 
 **Pros**: Smart oversight without high cost
@@ -331,7 +331,7 @@ compiled = optimizer.compile(TitleGenerator(), trainset=golden_dataset)
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  dotclaude main Opus $0.45 +12 -3 | Fix auth redirect loop  │
-│                                                      ⬆️ ⬇️   │
+│                                                      ⬆️ ⬇️  │
 └─────────────────────────────────────────────────────────────┘
       │                                                  │
       │  Occasionally (1 in 20 renders):                 │
@@ -358,71 +358,71 @@ compiled = optimizer.compile(TitleGenerator(), trainset=golden_dataset)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                     ADAPTIVE TITLE GENERATION SYSTEM                     │
+│                     ADAPTIVE TITLE GENERATION SYSTEM                    │
 ├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  SESSION                                                                 │
+│                                                                         │
+│  SESSION                                                                │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                    CONTEXT EXTRACTION                             │   │
+│  │                    CONTEXT EXTRACTION                            │   │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐               │   │
 │  │  │  Oldest     │  │  Middle     │  │  Newest     │               │   │
 │  │  │  Summary    │  │  Key Facts  │  │  Verbatim   │               │   │
 │  │  │  (Haiku)    │  │  (extracted)│  │  (raw)      │               │   │
 │  │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘               │   │
-│  │         └────────────────┼────────────────┘                       │   │
-│  │                          ▼                                        │   │
-│  │                 ┌─────────────────┐                               │   │
-│  │                 │ Combined Context│                               │   │
-│  │                 └────────┬────────┘                               │   │
-│  └──────────────────────────┼────────────────────────────────────────┘   │
-│                             │                                            │
-│                             ▼                                            │
+│  │         └────────────────┼────────────────┘                      │   │
+│  │                          ▼                                       │   │
+│  │                 ┌─────────────────┐                              │   │
+│  │                 │ Combined Context│                              │   │
+│  │                 └────────┬────────┘                              │   │
+│  └──────────────────────────┼───────────────────────────────────────┘   │
+│                             │                                           │
+│                             ▼                                           │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                    VECTOR MEMORY (LanceDB)                        │   │
-│  │                                                                   │   │
+│  │                    VECTOR MEMORY (LanceDB)                       │   │
+│  │                                                                  │   │
 │  │   Query: embed(context) ──────▶ Top 3 similar sessions           │   │
-│  │                                 with score >= 4                   │   │
-│  │                                                                   │   │
+│  │                                 with score >= 4          ▶       │   │
+│  │                                                                  │   │
 │  │   Result: Few-shot examples for prompt                           │   │
-│  │                                                                   │   │
+│  │                                                                  │   │
 │  └──────────────────────────┬───────────────────────────────────────┘   │
-│                             │                                            │
-│                             ▼                                            │
+│                             │                                           │
+│                             ▼                                           │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                    TITLE GENERATION (Haiku)                       │   │
-│  │                                                                   │   │
+│  │                    TITLE GENERATION (Haiku)                      │   │
+│  │                                                                  │   │
 │  │   Prompt = DSPy-optimized template                               │   │
 │  │          + few-shot from vector memory                           │   │
 │  │          + hierarchical context                                  │   │
-│  │                                                                   │   │
+│  │                                                                  │   │
 │  │   Output: "Fix OAuth redirect in auth module"                    │   │
-│  │                                                                   │   │
+│  │                                                                  │   │
 │  └──────────────────────────┬───────────────────────────────────────┘   │
-│                             │                                            │
-│                             ▼                                            │
+│                             │                                           │
+│                             ▼                                           │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                    FEEDBACK LOOP                                  │   │
-│  │                                                                   │   │
-│  │   Status Line: [title] 👍/👎?                                    │   │
-│  │                    │                                              │   │
-│  │                    ▼                                              │   │
+│  │                    FEEDBACK LOOP                                 │   │
+│  │                                                                  │   │
+│  │   Status Line: [title] 👍/👎?                                   │   │
+│  │                    │                                             │   │
+│  │                    ▼                                             │   │
 │  │   Store: { context, title, score } ──▶ LanceDB                   │   │
-│  │                                           │                       │   │
-│  │                                           ▼                       │   │
+│  │                                           │                      │   │
+│  │                                           ▼                      │   │
 │  │   Every 50 sessions: ┌─────────────────────────┐                 │   │
 │  │                      │  Sonnet Quality Audit   │                 │   │
 │  │                      │  • Review low scores    │                 │   │
 │  │                      │  • Suggest improvements │                 │   │
 │  │                      │  • Update prompt        │                 │   │
 │  │                      └─────────────────────────┘                 │   │
-│  │                                           │                       │   │
+│  │                                           │                      │   │
 │  │   Every 200 sessions: ┌─────────────────────────┐                │   │
 │  │                       │  DSPy Optimization      │                │   │
 │  │                       │  (if enough examples)   │                │   │
 │  │                       └─────────────────────────┘                │   │
-│  │                                                                   │   │
+│  │                                                                  │   │
 │  └──────────────────────────────────────────────────────────────────┘   │
-│                                                                          │
+│                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -813,27 +813,27 @@ Key concepts from [Letta's architecture](https://docs.letta.com/guides/agents/me
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                    LETTA MEMORY BLOCK ARCHITECTURE                       │
+│                    LETTA MEMORY BLOCK ARCHITECTURE                      │
 ├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│   Each BLOCK has:                                                        │
+│                                                                         │
+│   Each BLOCK has:                                                       │
 │   ┌────────────────────────────────────────────────────────────────┐    │
 │   │  label: "session_situation"     // Unique identifier           │    │
 │   │  description: "High-level context about what user is doing"    │    │
-│   │  value: "User is debugging OAuth redirect issues in..."       │    │
+│   │  value: "User is debugging OAuth redirect issues in..."        │    │
 │   │  limit: 500                     // Character budget            │    │
 │   └────────────────────────────────────────────────────────────────┘    │
-│                                                                          │
-│   Agent TOOLS for self-editing:                                          │
+│                                                                         │
+│   Agent TOOLS for self-editing:                                         │
 │   • memory_replace(label, new_value)  — Overwrite block                 │
 │   • memory_insert(label, text)        — Append to block                 │
 │   • memory_rethink(label)             — Summarize/compress block        │
-│                                                                          │
-│   Blocks are:                                                            │
+│                                                                         │
+│   Blocks are:                                                           │
 │   • Persisted in DB (survive restarts)                                  │
 │   • Shareable across agents                                             │
 │   • Optionally read-only                                                │
-│                                                                          │
+│                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -843,39 +843,39 @@ Instead of extracting context and generating titles *after* the fact, what if we
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                     THE JOURNALIST AGENT                                 │
+│                     THE JOURNALIST AGENT                                │
 ├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
+│                                                                         │
 │   "I am a silent observer, keeping notes as the session unfolds.        │
-│    I maintain two memory blocks:"                                        │
-│                                                                          │
+│    I maintain two memory blocks:"                                       │
+│                                                                         │
 │   ┌──────────────────────────────────────────────────────────────────┐  │
-│   │  BLOCK: situation                                                 │  │
+│   │  BLOCK: situation                                                │  │
 │   │  ──────────────────────                                          │  │
 │   │  "The user started this session to fix OAuth redirect issues     │  │
 │   │   in the authentication module. They've identified the root      │  │
 │   │   cause as a missing state parameter. Current focus: updating    │  │
 │   │   the redirect handler."                                         │  │
-│   │                                                                   │  │
+│   │                                                                  │  │
 │   │  [Updated when: major topic shift, goal achieved, new problem]   │  │
 │   └──────────────────────────────────────────────────────────────────┘  │
-│                                                                          │
+│                                                                         │
 │   ┌──────────────────────────────────────────────────────────────────┐  │
-│   │  BLOCK: recent_actions                                            │  │
+│   │  BLOCK: recent_actions                                           │  │
 │   │  ──────────────────────                                          │  │
-│   │  "Last 3 actions:                                                 │  │
+│   │  "Last 3 actions:                                                │  │
 │   │   1. Read auth/redirect.ts to understand flow                    │  │
 │   │   2. Edited redirect handler to preserve state param             │  │
 │   │   3. Running tests to verify fix"                                │  │
-│   │                                                                   │  │
+│   │                                                                  │  │
 │   │  [Updated: every N messages, rotating window]                    │  │
 │   └──────────────────────────────────────────────────────────────────┘  │
-│                                                                          │
-│   When asked for a title:                                                │
+│                                                                         │
+│   When asked for a title:                                               │
 │   → Reads both blocks                                                   │
 │   → Generates title from situation + recent focus                       │
-│   → Example: "Fix OAuth state param in redirect handler"               │
-│                                                                          │
+│   → Example: "Fix OAuth state param in redirect handler"                │
+│                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -888,7 +888,7 @@ The user's insight: prompts should have **two levels** reflecting how a journali
 │  LEVEL 1: Situation & Goal (stable, compressed)                         │
 │  ─────────────────────────────────────────────────────────────────────  │
 │  "What is this session fundamentally about?"                            │
-│                                                                          │
+│                                                                         │
 │  Updates: Rarely (on major pivots)                                      │
 │  Content: 1-2 sentences capturing the core mission                      │
 │  Example: "Debugging authentication flow, specifically OAuth redirect"  │
@@ -896,7 +896,7 @@ The user's insight: prompts should have **two levels** reflecting how a journali
 │  LEVEL 2: Latest Actions (dynamic, sliding)                             │
 │  ─────────────────────────────────────────────────────────────────────  │
 │  "What just happened? What's the current focus?"                        │
-│                                                                          │
+│                                                                         │
 │  Updates: Frequently (every few messages)                               │
 │  Content: Last 3-5 concrete actions                                     │
 │  Example: "Editing redirect.ts, added state parameter validation"       │
