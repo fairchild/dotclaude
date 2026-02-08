@@ -233,6 +233,37 @@ Don't inspect the DOM before waiting for `networkidle` on dynamic apps.
 
 ---
 
+## Writing Testable Frontend Code
+
+When building UI components, follow these patterns so Playwright tests stay stable across refactors.
+
+**Selector priority** (most to least resilient):
+1. `getByRole` / `getByLabel` — semantic, survives styling changes
+2. `getByTestId` — stable, explicit contract between code and tests
+3. `getByText` — readable, but breaks on copy changes
+4. CSS class / XPath — fragile, avoid
+
+**Authoring guidelines:**
+- Use semantic HTML (`<button>`, `<nav>`, `<input>`) over generic `<div>` with click handlers
+- Add `aria-label` to interactive elements that lack visible text
+- Add `data-testid` to elements that are hard to select semantically (dynamic lists, generated UIs)
+- Keep `data-testid` values stable — they're a contract with tests, not implementation detail
+- Use `<label htmlFor="...">` so `getByLabel` works
+- Avoid dynamic classes/IDs as selectors — they break on every build
+
+**Example — testable form:**
+```html
+<form data-testid="login-form">
+  <label for="email">Email</label>
+  <input id="email" type="email" aria-label="Email" />
+  <button type="submit">Sign In</button>
+</form>
+```
+
+Tests can use: `getByLabel('Email')`, `getByRole('button', { name: 'Sign In' })`, or `getByTestId('login-form')`.
+
+---
+
 ## Visual Analysis (Subagent)
 
 For dispatched visual analysis of test screenshots and UI/UX quality assessment:
