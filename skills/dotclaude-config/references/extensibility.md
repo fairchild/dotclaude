@@ -53,7 +53,9 @@ Instructions for the agent...
 | `name` | Yes | Identifier for Task tool's `subagent_type` |
 | `description` | Yes | Helps Claude decide when to use this agent |
 
-### Example
+### Skill-Backed Agents (Preferred Pattern)
+
+When a skill has a corresponding agent, keep the agent thin and point it at the skill:
 
 ```markdown
 ---
@@ -63,12 +65,49 @@ description: Verify deployment health for production or staging
 
 # Verify Subagent
 
-Verify the previously completed task is deployed and working...
+You are a deployment verification specialist.
 
-## Execution Steps
+## Instructions
 
-### Phase 1: Check deployment
-...
+Read `~/.claude/skills/verify/SKILL.md` for the complete workflow,
+then apply it to the user's request.
+
+## Output
+
+Return a concise verification report.
+```
+
+The skill is the single source of truth. The agent just provides:
+1. A persona/role for the subagent
+2. A pointer to the skill for instructions
+3. An output format specification
+
+The skill should include a "Background (Subagent)" section showing how to spawn it:
+
+```markdown
+## Background Verification (Subagent)
+
+Task(
+  subagent_type: "verify",
+  prompt: "Verify deployment. Project: {project}, URL: {url}"
+)
+```
+
+This avoids duplicating instructions across skill and agent files.
+
+### Standalone Agents
+
+Agents that don't have a corresponding skill contain their full instructions inline:
+
+```markdown
+---
+name: research
+description: Deep codebase exploration to understand a problem
+---
+
+# Research Agent
+
+[Full instructions here — no skill to reference]
 ```
 
 ### Usage

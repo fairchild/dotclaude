@@ -64,6 +64,21 @@ The script returns partial results when possible:
 
 Check the `errors` array in output for any issues.
 
+## Background Analysis (Subagent)
+
+For video analysis that shouldn't block the main conversation, spawn as a background subagent:
+
+```
+Task(
+  subagent_type: "youtube-content",
+  prompt: "Analyze this YouTube video: {url}
+    Mode: {wisdom|summary|qa|quotes}
+    Save to knowledge base: {yes|no}"
+)
+```
+
+The subagent reads this skill for instructions and runs independently, reporting back when done.
+
 ## Knowledge Persistence
 
 Analyses and raw transcripts are automatically saved to a knowledge base for future reference.
