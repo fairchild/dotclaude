@@ -34,7 +34,6 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 |---------|---------|
 | `/bootstrap` | Scaffold new projects with structure |
 | `/claude-webui` | Launch the Config Visualizer dashboard |
-| `/defer` | Capture explored work as todo for later |
 | `/opensource-precheck` | Audit repo before making public |
 | `/plan_retro` | Append retrospective to current plan |
 | `/pr-review` | Address PR feedback toward merge |
