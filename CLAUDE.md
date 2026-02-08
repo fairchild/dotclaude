@@ -36,4 +36,4 @@ Test behavior over implementation details
 - `~/.claude/references/permission-templates.md` - Copy-paste permission blocks
 - `~/.claude/references/hook-patterns.md` - Standard hook configurations
 - `~/.claude/references/project-config-checklist.md` - New project setup
-- `bun ~/.claude/scripts/config-inventory.ts` - Scan projects for config status
+- `bun ~/.claude/skills/dotclaude-config/scripts/inventory.ts` - Scan projects for config status

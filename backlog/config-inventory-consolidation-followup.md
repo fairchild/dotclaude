@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 category: followup
 pr: null
 branch: null
