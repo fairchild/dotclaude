@@ -2,13 +2,13 @@
 /**
  * Config Inventory - Scan projects for Claude Code configuration
  *
- * Usage: bun ~/.claude/scripts/config-inventory.ts [path]
+ * Usage: bun ~/.claude/skills/dotclaude-config/scripts/inventory.ts [path]
  *
  * Scans ~/code/ (or specified path) for .claude/ directories
  * Reports what's configured per project and flags potential issues.
  */
 
-import { readdir, stat, readFile } from "fs/promises";
+import { readdir, stat } from "fs/promises";
 import { join, basename } from "path";
 import { homedir } from "os";
 
@@ -22,6 +22,8 @@ interface ProjectConfig {
   hasCommands: boolean;
   skillCount: number;
   commandCount: number;
+  skillNames: string[];
+  overlappingSkills: string[];
   packageManager: string | null;
 }
 
@@ -57,7 +59,19 @@ async function countItems(dirPath: string): Promise<number> {
   }
 }
 
-async function scanProject(projectPath: string): Promise<ProjectConfig> {
+async function getSkillNames(skillsDir: string): Promise<string[]> {
+  try {
+    const entries = await readdir(skillsDir);
+    return entries.filter((e) => !e.startsWith("."));
+  } catch {
+    return [];
+  }
+}
+
+async function scanProject(
+  projectPath: string,
+  globalSkillNames: Set<string>,
+): Promise<ProjectConfig> {
   const name = basename(projectPath);
   const claudeDir = join(projectPath, ".claude");
 
@@ -68,6 +82,7 @@ async function scanProject(projectPath: string): Promise<ProjectConfig> {
   let hasCommands = false;
   let skillCount = 0;
   let commandCount = 0;
+  let skillNames: string[] = [];
 
   try {
     await stat(claudeDir);
@@ -90,7 +105,8 @@ async function scanProject(projectPath: string): Promise<ProjectConfig> {
     try {
       await stat(join(claudeDir, "skills"));
       hasSkills = true;
-      skillCount = await countItems(join(claudeDir, "skills"));
+      skillNames = await getSkillNames(join(claudeDir, "skills"));
+      skillCount = skillNames.length;
     } catch {}
 
     try {
@@ -109,6 +125,7 @@ async function scanProject(projectPath: string): Promise<ProjectConfig> {
   }
 
   const packageManager = await detectPackageManager(projectPath);
+  const overlappingSkills = skillNames.filter((s) => globalSkillNames.has(s));
 
   return {
     name,
@@ -120,11 +137,16 @@ async function scanProject(projectPath: string): Promise<ProjectConfig> {
     hasCommands,
     skillCount,
     commandCount,
+    skillNames,
+    overlappingSkills,
     packageManager,
   };
 }
 
-async function scanProjects(basePath: string): Promise<ProjectConfig[]> {
+async function scanProjects(
+  basePath: string,
+  globalSkillNames: Set<string>,
+): Promise<ProjectConfig[]> {
   const projects: ProjectConfig[] = [];
 
   try {
@@ -137,7 +159,7 @@ async function scanProjects(basePath: string): Promise<ProjectConfig[]> {
       try {
         const stats = await stat(fullPath);
         if (stats.isDirectory()) {
-          const config = await scanProject(fullPath);
+          const config = await scanProject(fullPath, globalSkillNames);
           projects.push(config);
         }
       } catch {}
@@ -190,6 +212,18 @@ function formatTable(projects: ProjectConfig[]): void {
       console.log(`| ${p.name} | ${p.packageManager || "-"} |`);
     }
   }
+
+  const withOverlap = projects.filter((p) => p.overlappingSkills.length > 0);
+  if (withOverlap.length > 0) {
+    console.log("\n## Skill Overlap\n");
+    console.log("| Project | Overlapping Skills | Action |");
+    console.log("|---------|-------------------|--------|");
+    for (const p of withOverlap.sort((a, b) => a.name.localeCompare(b.name))) {
+      console.log(
+        `| ${p.name} | ${p.overlappingSkills.join(", ")} | Review if project versions add value |`
+      );
+    }
+  }
 }
 
 async function main() {
@@ -198,8 +232,8 @@ async function main() {
   console.log(`# Claude Code Configuration Inventory`);
   console.log(`\nScanning: ${basePath}`);
 
-  const projects = await scanProjects(basePath);
   const globalSkills = await loadGlobalSkills();
+  const projects = await scanProjects(basePath, globalSkills);
 
   formatTable(projects);
 

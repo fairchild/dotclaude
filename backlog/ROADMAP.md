@@ -17,6 +17,11 @@
 
 ## Learnings
 
+### 2026-02-08 — Config Inventory Consolidation (#82)
+- Well-scoped backlog plans with verification commands make execution trivial
+- Skill overlap detection immediately surfaced a real shadow (bread-builder/release)
+- `git mv` preserves rename tracking — verify with `git grep` for stale refs after moves
+
 ### 2026-02-07 — Playwright Skill Rationalization (#78)
 - Skill-backed subagent pattern (from PR #77) applies broadly: eliminated agent + merged two skills into one
 - `inspired-by` frontmatter field better than `origin` for heavily modified upstream skills

@@ -1,11 +1,11 @@
 ---
-status: pending
+status: done
 category: followup
-pr: null
-branch: null
-score: null
-retro_summary: null
-completed: null
+pr: 82
+branch: move-config-inventory
+score: 4
+retro_summary: Clean move with overlap detection working on first run; backlog plan was well-scoped
+completed: 2026-02-08
 ---
 
 # Consolidate Config Inventory into dotclaude-config Skill

@@ -109,6 +109,19 @@ For instructions:
 - **Global**: `~/.claude/CLAUDE.md`
 - **Project**: `CLAUDE.md` or `.claude/CLAUDE.md`
 
+## Configuration Inventory
+
+Scan projects for Claude Code configuration status and identify overlap:
+
+```bash
+bun ~/.claude/skills/dotclaude-config/scripts/inventory.ts          # scan ~/code/
+bun ~/.claude/skills/dotclaude-config/scripts/inventory.ts ~/work   # custom path
+```
+
+Reports: configured vs unconfigured projects, skill counts, package managers,
+and flags project skills that shadow global skills (candidates for removal
+or promotion to global).
+
 ## Using Built-in Subagents
 
 ### claude-code-guide
