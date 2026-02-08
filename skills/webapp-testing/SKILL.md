@@ -7,7 +7,49 @@ inspired-by: https://github.com/anthropics/anthropic-agent-skills
 
 # Web Application Testing
 
-Test local web applications with Playwright in Python or TypeScript.
+Test and interact with web applications using Playwright. Supports ad-hoc browser tasks, Python test scripts, and TypeScript E2E patterns.
+
+## Ad-hoc Browser Interaction
+
+For quick one-off tasks — no test framework or codebase required.
+
+```python
+from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page()
+    page.goto('https://example.com')
+    page.wait_for_load_state('networkidle')
+
+    # Screenshot
+    page.screenshot(path='/tmp/screenshot.png', full_page=True)
+
+    # Mobile viewport
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.screenshot(path='/tmp/mobile.png', full_page=True)
+
+    # Read content
+    title = page.title()
+    text = page.locator('main').inner_text()
+
+    # Interact
+    page.fill('[name="email"]', 'test@example.com')
+    page.click('button[type="submit"]')
+
+    browser.close()
+```
+
+Common ad-hoc tasks:
+- **Screenshot a URL**: `page.screenshot(path='/tmp/shot.png', full_page=True)`
+- **Check mobile layout**: Set viewport to 390x844, screenshot
+- **Verify a deploy**: Navigate, check title/content, screenshot
+- **Fill a form**: `page.fill()` + `page.click()`, screenshot result
+- **Read page content**: `page.locator('selector').inner_text()`
+
+Save scripts to `/tmp/` and run with `python /tmp/script.py`. No project setup needed — just `pip install playwright && playwright install chromium`.
+
+---
 
 ## Language Detection
 
