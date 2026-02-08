@@ -66,18 +66,17 @@ Check the `errors` array in output for any issues.
 
 ## Background Analysis (Subagent)
 
-For video analysis that shouldn't block the main conversation, spawn as a background subagent:
+For video analysis that shouldn't block the main conversation, spawn a background subagent:
 
 ```
 Task(
-  subagent_type: "youtube-content",
-  prompt: "Analyze this YouTube video: {url}
+  subagent_type: "general-purpose",
+  prompt: "Read ~/.claude/skills/youtube-content/SKILL.md and follow the workflow.
+    Analyze this YouTube video: {url}
     Mode: {wisdom|summary|qa|quotes}
     Save to knowledge base: {yes|no}"
 )
 ```
-
-The subagent reads this skill for instructions and runs independently, reporting back when done.
 
 ## Knowledge Persistence
 
