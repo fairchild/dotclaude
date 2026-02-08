@@ -29,13 +29,16 @@ All skills are Apache 2.0 - consistent with Anthropic skills.
 
 ```yaml
 license: Apache 2.0              # all skills (root LICENSE applies)
-origin: https://github.com/...   # provenance URL (absence = mine)
+origin: https://github.com/...   # untouched upstream skill
+inspired-by: https://github.com/...  # modified from upstream
 status: wip                      # work in progress (absence = ready)
 ```
 
 ### From Anthropic (untouched)
-- canvas-design, frontend-design
-- skill-creator, web-artifacts-builder, webapp-testing
+- frontend-design, skill-creator, web-artifacts-builder
+
+### Inspired by Anthropic (modified)
+- webapp-testing (merged with our playwright-ts, added ad-hoc + testability sections)
 
 ## Skill Status Convention
 
@@ -67,6 +70,6 @@ bunx playwright test -c webui/           # E2E
 
 See `.github/copilot-instructions.md` for code review style (shared with Copilot).
 
-## Cloning
+## Drawing from This
 
-See README.md - customize CLAUDE.md + settings.json, prune unwanted skills.
+See README.md "Drawing from This" section — cherry-pick rather than clone. Customize CLAUDE.md + settings.json first.
