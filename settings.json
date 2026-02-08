@@ -62,7 +62,6 @@
       "Bash(tree:*)",
       "Bash(mkdir:*)",
       "Bash(touch:*)",
-      "Bash(rm:*)",
       "Bash(mv:*)",
       "Bash(cp:*)",
       "Bash(curl:*)",
