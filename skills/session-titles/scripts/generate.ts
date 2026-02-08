@@ -4,7 +4,7 @@
  * Entry point - delegates to testable module.
  */
 import { existsSync, readFileSync } from "fs";
-import { getProjectName, writeTitle } from "./generate-session-title-testable.ts";
+import { getProjectName, writeTitle } from "./generate-core.ts";
 
 // Load ~/.claude/.env if present
 const envPath = `${process.env.HOME}/.claude/.env`;

@@ -6,8 +6,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync } from "fs";
 import { basename } from "path";
 import { execSync } from "child_process";
-import { createFeedbackEntry, PROMPT_VERSION, MODEL_USED } from "../title-feedback/schema.ts";
-import { savePendingFeedback } from "../title-feedback/store.ts";
+import { createFeedbackEntry, PROMPT_VERSION, MODEL_USED } from "./schema.ts";
+import { savePendingFeedback } from "./store.ts";
 
 // Legacy interface for backwards compatibility
 export interface Messages { first: string | null; last: string | null }
@@ -317,23 +317,15 @@ function buildInitialPrompt(ctx: SessionContext): string {
   }
 
   parts.push("");
-  parts.push("Generate a specific, actionable title (4-7 words) for this coding session.");
-  parts.push("- Use active voice: \"Fix X\", \"Add Y\", \"Debug Z\"");
-  parts.push("- NO meta-language like \"user wants\" or \"working on\"");
-  parts.push("- Focus on the WHAT, not the WHO");
+  parts.push("Generate a 4-7 word title for this coding session.");
   parts.push("");
-  parts.push("Examples of GOOD titles:");
-  parts.push("- \"Fix OAuth redirect loop\" (from session debugging auth flow)");
-  parts.push("- \"Add rate limiting to API\" (from session improving API security)");
-  parts.push("- \"Debug flaky pytest CI\" (from session fixing test failures)");
-  parts.push("- \"Refactor user settings page\" (from session about UI changes)");
-  parts.push("- \"Implement session title eval\" (from session about building evaluation system)");
+  parts.push("Rules:");
+  parts.push("- Active voice: \"Fix X\", \"Add Y\", \"Debug Z\"");
+  parts.push("- NO meta-language (\"user wants\", \"working on\")");
+  parts.push("- Focus on WHAT, not WHO");
   parts.push("");
-  parts.push("BAD titles to avoid:");
-  parts.push("- \"Session about fixing things\" (uses meta-language)");
-  parts.push("- \"Working on code\" (too vague)");
-  parts.push("- \"User wants to update auth\" (uses meta-language + vague)");
-  parts.push("- \"Help with bug\" (too generic)");
+  parts.push("GOOD: \"Fix OAuth redirect loop\", \"Add rate limiting to API\", \"Debug flaky pytest CI\", \"Refactor user settings page\"");
+  parts.push("BAD: \"Session about fixing things\", \"Working on code\", \"User wants to update auth\"");
 
   return parts.join("\n");
 }
@@ -461,24 +453,31 @@ export async function evolveTitleWithContext(
 ): Promise<{ title: string; shifted: boolean; meta: TitleMetadata }> {
   const currentHash = hashMessage(ctx.lastMessage);
 
-  // No messages yet - use fallback
-  if (!ctx.firstMessage && !ctx.lastMessage) {
-    const title = fallbackTitle(ctx);
-    return {
-      title,
-      shifted: false,
-      meta: { title, shiftCount: 0, lastMessageHash: "", lastMessage: null },
-    };
+  // First run or timestamp/fallback title — generate initial title
+  const isFallbackTitle = !currentTitle
+    || currentTitle.startsWith("Session ")
+    || currentTitle.endsWith(" session");
+
+  if (isFallbackTitle) {
+    // Not enough context yet — use deterministic fallback (branch, project, timestamp).
+    // Don't waste an API call until we have a real conversation to summarize.
+    if (ctx.messageCount < 2) {
+      const title = fallbackTitle(ctx);
+      return {
+        title,
+        shifted: false,
+        meta: { title, shiftCount: 0, lastMessageHash: currentHash, lastMessage: ctx.lastMessage },
+      };
+    }
   }
 
-  // First run or timestamp-only title - generate initial title
-  if (!currentTitle || currentTitle.startsWith("Session ") || currentTitle.endsWith(" session")) {
+  if (isFallbackTitle || currentTitle === fallbackTitle(ctx)) {
     let title: string;
 
     if (apiKey) {
       const prompt = buildInitialPrompt(ctx);
       const polished = await callHaiku(apiKey, prompt, {
-        systemPrompt: "Output ONLY the session title. No explanations, no preambles, no quotes. Just the 4-7 word title.",
+        systemPrompt: "Output ONLY a 4-7 word title. Nothing else. No explanations, apologies, preambles, or quotes.",
       });
       title = polished || fallbackTitle(ctx);
     } else {

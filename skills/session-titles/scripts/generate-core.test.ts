@@ -39,7 +39,7 @@ describe("getBookendMessages", () => {
     const path = createTranscript(SAMPLE_TRANSCRIPT);
 
     // Import fresh to avoid caching issues
-    const { getBookendMessages } = await import("./generate-session-title-testable.ts");
+    const { getBookendMessages } = await import("./generate-core.ts");
 
     const result = getBookendMessages(path);
 
@@ -49,7 +49,7 @@ describe("getBookendMessages", () => {
 
   test("skips command messages", async () => {
     const path = createTranscript(SAMPLE_TRANSCRIPT);
-    const { getBookendMessages } = await import("./generate-session-title-testable.ts");
+    const { getBookendMessages } = await import("./generate-core.ts");
 
     const result = getBookendMessages(path);
 
@@ -60,7 +60,7 @@ describe("getBookendMessages", () => {
 
   test("handles array content format", async () => {
     const path = createTranscript(SAMPLE_TRANSCRIPT_ARRAY_CONTENT);
-    const { getBookendMessages } = await import("./generate-session-title-testable.ts");
+    const { getBookendMessages } = await import("./generate-core.ts");
 
     const result = getBookendMessages(path);
 
@@ -69,7 +69,7 @@ describe("getBookendMessages", () => {
   });
 
   test("returns nulls for missing file", async () => {
-    const { getBookendMessages } = await import("./generate-session-title-testable.ts");
+    const { getBookendMessages } = await import("./generate-core.ts");
 
     const result = getBookendMessages("/nonexistent/path.jsonl");
 
@@ -79,7 +79,7 @@ describe("getBookendMessages", () => {
 
   test("returns nulls for empty transcript", async () => {
     const path = createTranscript("");
-    const { getBookendMessages } = await import("./generate-session-title-testable.ts");
+    const { getBookendMessages } = await import("./generate-core.ts");
 
     const result = getBookendMessages(path);
 
@@ -91,7 +91,7 @@ describe("getBookendMessages", () => {
     const longMessage = "A".repeat(200);
     const transcript = `{"message":{"role":"user","content":"${longMessage}"},"type":"user"}`;
     const path = createTranscript(transcript);
-    const { getBookendMessages } = await import("./generate-session-title-testable.ts");
+    const { getBookendMessages } = await import("./generate-core.ts");
 
     const result = getBookendMessages(path);
 
@@ -101,7 +101,7 @@ describe("getBookendMessages", () => {
   test("handles sentence boundaries correctly", async () => {
     const transcript = `{"message":{"role":"user","content":"Check the ~/.claude directory. Then fix it."},"type":"user"}`;
     const path = createTranscript(transcript);
-    const { getBookendMessages } = await import("./generate-session-title-testable.ts");
+    const { getBookendMessages } = await import("./generate-core.ts");
 
     const result = getBookendMessages(path);
 
@@ -114,7 +114,7 @@ describe("getBookendMessages", () => {
 
 describe("getProjectName", () => {
   test("extracts name from git remote URL", async () => {
-    const { getProjectName } = await import("./generate-session-title-testable.ts");
+    const { getProjectName } = await import("./generate-core.ts");
 
     // This will use the actual git repo we're in
     const name = getProjectName(process.env.HOME + "/.claude");
@@ -123,7 +123,7 @@ describe("getProjectName", () => {
   });
 
   test("falls back to basename for non-git directory", async () => {
-    const { getProjectName } = await import("./generate-session-title-testable.ts");
+    const { getProjectName } = await import("./generate-core.ts");
 
     const name = getProjectName("/tmp");
 
@@ -135,7 +135,7 @@ describe("getProjectName", () => {
 
 describe("evolveTitle", () => {
   test("returns project session fallback when no messages", async () => {
-    const { evolveTitle } = await import("./generate-session-title-testable.ts");
+    const { evolveTitle } = await import("./generate-core.ts");
 
     const title = await evolveTitle(null, null, null);
 
@@ -144,7 +144,7 @@ describe("evolveTitle", () => {
   });
 
   test("seeds with first message when no current title", async () => {
-    const { evolveTitle } = await import("./generate-session-title-testable.ts");
+    const { evolveTitle } = await import("./generate-core.ts");
 
     const title = await evolveTitle(null, "Fix the login bug", "Fix the login bug");
 
@@ -153,7 +153,7 @@ describe("evolveTitle", () => {
   });
 
   test("seeds with first message when current title is timestamp", async () => {
-    const { evolveTitle } = await import("./generate-session-title-testable.ts");
+    const { evolveTitle } = await import("./generate-core.ts");
 
     const title = await evolveTitle("Session 10:30 AM", "Fix the login bug", "Now refactoring");
 
@@ -162,7 +162,7 @@ describe("evolveTitle", () => {
   });
 
   test("keeps current title without API when messages differ", async () => {
-    const { evolveTitle } = await import("./generate-session-title-testable.ts");
+    const { evolveTitle } = await import("./generate-core.ts");
 
     const title = await evolveTitle(
       "Fixing login bugs",
@@ -191,7 +191,7 @@ describe("extractSessionContext", () => {
 {"type":"user","message":{"role":"user","content":"Fix the auth bug"},"gitBranch":"feat/add-oauth"}
 `.trim();
     const path = createTranscript(transcript);
-    const { extractSessionContext } = await import("./generate-session-title-testable.ts");
+    const { extractSessionContext } = await import("./generate-core.ts");
 
     const ctx = extractSessionContext(path, "test-project");
 
@@ -205,7 +205,7 @@ describe("extractSessionContext", () => {
 {"type":"user","message":{"role":"user","content":"Continue the refactor"},"gitBranch":"main"}
 `.trim();
     const path = createTranscript(transcript);
-    const { extractSessionContext } = await import("./generate-session-title-testable.ts");
+    const { extractSessionContext } = await import("./generate-core.ts");
 
     const ctx = extractSessionContext(path, "test-project");
 
@@ -218,7 +218,7 @@ describe("extractSessionContext", () => {
 {"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Edit","input":{"file_path":"/src/auth.ts"}},{"type":"tool_use","name":"Write","input":{"file_path":"/src/utils.ts"}}]}}
 `.trim();
     const path = createTranscript(transcript);
-    const { extractSessionContext } = await import("./generate-session-title-testable.ts");
+    const { extractSessionContext } = await import("./generate-core.ts");
 
     const ctx = extractSessionContext(path, "test-project");
 
@@ -228,7 +228,7 @@ describe("extractSessionContext", () => {
 
   test("counts user messages", async () => {
     const path = createTranscript(SAMPLE_TRANSCRIPT);
-    const { extractSessionContext } = await import("./generate-session-title-testable.ts");
+    const { extractSessionContext } = await import("./generate-core.ts");
 
     const ctx = extractSessionContext(path, "test-project");
 
@@ -236,7 +236,7 @@ describe("extractSessionContext", () => {
   });
 
   test("returns empty context for missing file", async () => {
-    const { extractSessionContext } = await import("./generate-session-title-testable.ts");
+    const { extractSessionContext } = await import("./generate-core.ts");
 
     const ctx = extractSessionContext("/nonexistent/path.jsonl", "test-project");
 
@@ -262,7 +262,7 @@ describe("fallback chain", () => {
 {"type":"user","message":{"role":"user","content":"short"},"gitBranch":"feat/add-oauth-flow"}
 `.trim();
     const path = createTranscript(transcript);
-    const { extractSessionContext, evolveTitleWithContext } = await import("./generate-session-title-testable.ts");
+    const { extractSessionContext, evolveTitleWithContext } = await import("./generate-core.ts");
 
     const ctx = extractSessionContext(path, "test-project");
     // "short" is < 10 chars so it's skipped, branch is used
@@ -276,7 +276,7 @@ describe("fallback chain", () => {
 {"type":"user","message":{"role":"user","content":"Help me fix the login bug"},"gitBranch":"main"}
 `.trim();
     const path = createTranscript(transcript);
-    const { extractSessionContext, evolveTitleWithContext } = await import("./generate-session-title-testable.ts");
+    const { extractSessionContext, evolveTitleWithContext } = await import("./generate-core.ts");
 
     const ctx = extractSessionContext(path, "test-project");
     const result = await evolveTitleWithContext(null, ctx, null);
@@ -285,7 +285,7 @@ describe("fallback chain", () => {
   });
 
   test("uses project name session when no other context", async () => {
-    const { extractSessionContext, evolveTitleWithContext } = await import("./generate-session-title-testable.ts");
+    const { extractSessionContext, evolveTitleWithContext } = await import("./generate-core.ts");
 
     const ctx = extractSessionContext(undefined, "my-project");
     const result = await evolveTitleWithContext(null, ctx, null);
@@ -299,7 +299,7 @@ describe("fallback chain", () => {
 {"type":"user","message":{"role":"user","content":"short"},"gitBranch":"feat/something"}
 `.trim();
     const path = createTranscript(transcript);
-    const { extractSessionContext, evolveTitleWithContext } = await import("./generate-session-title-testable.ts");
+    const { extractSessionContext, evolveTitleWithContext } = await import("./generate-core.ts");
 
     const ctx = extractSessionContext(path, "test-project");
     const result = await evolveTitleWithContext(null, ctx, null);
@@ -312,14 +312,14 @@ describe("fallback chain", () => {
 
 describe("extractUserText", () => {
   test("strips system instruction wrappers", async () => {
-    const { extractUserText } = await import("./generate-session-title-testable.ts");
+    const { extractUserText } = await import("./generate-core.ts");
 
     const content = "<system_instruction>Do stuff</system_instruction>Help me fix the login bug";
     expect(extractUserText(content)).toBe("Help me fix the login bug");
   });
 
   test("returns null for confirmation patterns", async () => {
-    const { extractUserText } = await import("./generate-session-title-testable.ts");
+    const { extractUserText } = await import("./generate-core.ts");
 
     expect(extractUserText("yes")).toBeNull();
     expect(extractUserText("yes please")).toBeNull();
@@ -332,27 +332,27 @@ describe("extractUserText", () => {
   });
 
   test("returns null for short messages", async () => {
-    const { extractUserText } = await import("./generate-session-title-testable.ts");
+    const { extractUserText } = await import("./generate-core.ts");
 
     expect(extractUserText("fix it")).toBeNull();  // < 15 chars
     expect(extractUserText("do the thing")).toBeNull();  // < 15 chars
   });
 
   test("returns null for messages starting with <", async () => {
-    const { extractUserText } = await import("./generate-session-title-testable.ts");
+    const { extractUserText } = await import("./generate-core.ts");
 
     expect(extractUserText("<command-name>/status</command-name>")).toBeNull();
   });
 
   test("returns valid substantive messages", async () => {
-    const { extractUserText } = await import("./generate-session-title-testable.ts");
+    const { extractUserText } = await import("./generate-core.ts");
 
     expect(extractUserText("Help me fix the login bug")).toBe("Help me fix the login bug");
     expect(extractUserText("Refactor the authentication module to use OAuth 2.0")).toBe("Refactor the authentication module to use OAuth 2.0");
   });
 
   test("handles array content format", async () => {
-    const { extractUserText } = await import("./generate-session-title-testable.ts");
+    const { extractUserText } = await import("./generate-core.ts");
 
     const content = [{ type: "text", text: "Help me fix the login bug" }];
     expect(extractUserText(content)).toBe("Help me fix the login bug");
@@ -377,7 +377,7 @@ describe("primaryRequest extraction", () => {
 {"type":"user","message":{"role":"user","content":"ok thanks"}}
 `.trim();
     const path = createTranscript(transcript);
-    const { extractSessionContext } = await import("./generate-session-title-testable.ts");
+    const { extractSessionContext } = await import("./generate-core.ts");
 
     const ctx = extractSessionContext(path, "test-project");
 
@@ -395,7 +395,7 @@ describe("primaryRequest extraction", () => {
 {"type":"user","message":{"role":"user","content":"Add a logout button"}}
 `.trim();
     const path = createTranscript(transcript);
-    const { extractSessionContext } = await import("./generate-session-title-testable.ts");
+    const { extractSessionContext } = await import("./generate-core.ts");
 
     const ctx = extractSessionContext(path, "test-project");
 
@@ -409,7 +409,7 @@ describe("primaryRequest extraction", () => {
 {"type":"user","message":{"role":"user","content":"<system_instruction>Context here</system_instruction>Implement the new feature following best practices"}}
 `.trim();
     const path = createTranscript(transcript);
-    const { extractSessionContext } = await import("./generate-session-title-testable.ts");
+    const { extractSessionContext } = await import("./generate-core.ts");
 
     const ctx = extractSessionContext(path, "test-project");
 
@@ -422,7 +422,7 @@ describe("primaryRequest extraction", () => {
 {"type":"user","message":{"role":"user","content":"ok"}}
 `.trim();
     const path = createTranscript(transcript);
-    const { extractSessionContext, evolveTitleWithContext } = await import("./generate-session-title-testable.ts");
+    const { extractSessionContext, evolveTitleWithContext } = await import("./generate-core.ts");
 
     const ctx = extractSessionContext(path, "test-project");
     const result = await evolveTitleWithContext(null, ctx, null);
@@ -458,7 +458,7 @@ describe("integration", () => {
     const titleFile = join(PROJECT_DIR, `${SESSION_ID}.txt`);
     const metaFile = join(PROJECT_DIR, `${SESSION_ID}.meta`);
 
-    const { writeTitle } = await import("./generate-session-title-testable.ts");
+    const { writeTitle } = await import("./generate-core.ts");
     await writeTitle(PROJECT_DIR, SESSION_ID, null, transcriptPath, "test-project");
 
     expect(existsSync(titleFile)).toBe(true);
@@ -477,7 +477,7 @@ describe("integration", () => {
     const transcriptPath = createTranscript(SAMPLE_TRANSCRIPT);
     const logFile = join(PROJECT_DIR, `${SESSION_ID}.log`);
 
-    const { writeTitle } = await import("./generate-session-title-testable.ts");
+    const { writeTitle } = await import("./generate-core.ts");
     await writeTitle(PROJECT_DIR, SESSION_ID, null, transcriptPath, "test-project");
 
     expect(existsSync(logFile)).toBe(true);
@@ -509,7 +509,7 @@ describe("integration", () => {
       lastMessage: lastMessage
     }));
 
-    const { writeTitle } = await import("./generate-session-title-testable.ts");
+    const { writeTitle } = await import("./generate-core.ts");
     await writeTitle(PROJECT_DIR, SESSION_ID, "Help me fix the login bug", transcriptPath, "test-project");
 
     // Log should not exist since context didn't change
@@ -528,7 +528,7 @@ describe("integration", () => {
     }));
 
     const transcriptPath = createTranscript(SAMPLE_TRANSCRIPT);
-    const { writeTitle } = await import("./generate-session-title-testable.ts");
+    const { writeTitle } = await import("./generate-core.ts");
 
     // This should update since message changed, but without API it keeps current title
     await writeTitle(PROJECT_DIR, SESSION_ID, "Initial task", transcriptPath, "test-project");
@@ -543,14 +543,14 @@ describe("integration", () => {
 
 describe("sanitizeTitle", () => {
   test("returns clean title unchanged", async () => {
-    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+    const { sanitizeTitle } = await import("./generate-core.ts");
 
     expect(sanitizeTitle("Fix OAuth redirect loop")).toBe("Fix OAuth redirect loop");
     expect(sanitizeTitle("Add rate limiting to API")).toBe("Add rate limiting to API");
   });
 
   test("strips verbose preambles", async () => {
-    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+    const { sanitizeTitle } = await import("./generate-core.ts");
 
     expect(sanitizeTitle("Based on the context, Fix OAuth Loop")).toBe("Fix OAuth Loop");
     expect(sanitizeTitle("Here's a title: Debug CI Pipeline")).toBe("Debug CI Pipeline");
@@ -559,21 +559,21 @@ describe("sanitizeTitle", () => {
   });
 
   test("strips surrounding quotes", async () => {
-    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+    const { sanitizeTitle } = await import("./generate-core.ts");
 
     expect(sanitizeTitle('"Fix OAuth redirect loop"')).toBe("Fix OAuth redirect loop");
     expect(sanitizeTitle("'Add rate limiting to API'")).toBe("Add rate limiting to API");
   });
 
   test("takes first line only", async () => {
-    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+    const { sanitizeTitle } = await import("./generate-core.ts");
 
     const multiline = "Fix OAuth Loop\nThis is extra explanation";
     expect(sanitizeTitle(multiline)).toBe("Fix OAuth Loop");
   });
 
   test("rejects titles that are too long", async () => {
-    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+    const { sanitizeTitle } = await import("./generate-core.ts");
 
     const longTitle = "This is a very long title with way too many words that should be rejected";
     expect(sanitizeTitle(longTitle)).toBeNull();
@@ -583,7 +583,7 @@ describe("sanitizeTitle", () => {
   });
 
   test("rejects titles that are too short", async () => {
-    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+    const { sanitizeTitle } = await import("./generate-core.ts");
 
     expect(sanitizeTitle("Fix")).toBeNull();  // One word
     expect(sanitizeTitle("OK")).toBeNull();   // Too short
@@ -591,28 +591,28 @@ describe("sanitizeTitle", () => {
   });
 
   test("handles complex verbose responses", async () => {
-    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+    const { sanitizeTitle } = await import("./generate-core.ts");
 
     const verbose = 'Based on the context of "Setting Up Self-Hosted Runners", here\'s a precise title:\n"Configure GitHub Self-Hosted Runners"';
     expect(sanitizeTitle(verbose)).toBe("Configure GitHub Self-Hosted Runners");
   });
 
   test("strips shift-indicator prefixes from model output", async () => {
-    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+    const { sanitizeTitle } = await import("./generate-core.ts");
 
     expect(sanitizeTitle("(2) Master Git Merge Techniques")).toBe("Master Git Merge Techniques");
     expect(sanitizeTitle("(3) (3) Update README Strategy")).toBe("Update README Strategy");
   });
 
   test("strips multiline reasoning after blank line", async () => {
-    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+    const { sanitizeTitle } = await import("./generate-core.ts");
 
     const withReasoning = "Master Git Merge Techniques\n\nRationale:\n- Shifted from licensing\n- Now discussing merge";
     expect(sanitizeTitle(withReasoning)).toBe("Master Git Merge Techniques");
   });
 
   test("strips apology preambles", async () => {
-    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+    const { sanitizeTitle } = await import("./generate-core.ts");
 
     expect(sanitizeTitle("I apologize, but I recommend: Fix Auth Module")).toBe("Fix Auth Module");
     expect(sanitizeTitle("I recommend: Debug Release Pipeline")).toBe("Debug Release Pipeline");

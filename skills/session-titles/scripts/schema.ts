@@ -7,9 +7,9 @@
  * 2. The journalist prompt (learns to generate titles humans rate highly)
  */
 
-import type { SessionContext } from "../scripts/generate-session-title-testable.ts";
+import type { SessionContext } from "./generate-core.ts";
 
-export const PROMPT_VERSION = "v2.0";
+export const PROMPT_VERSION = "v3.0";
 export const MODEL_USED = "claude-haiku-4-5-20251001";
 export const JUDGE_PROMPT_VERSION = "v1.0";
 

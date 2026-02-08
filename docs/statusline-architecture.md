@@ -146,4 +146,4 @@ rm ~/.claude/session-titles/$project/$session_id.tokens
 
 - `README.md` - Quick reference for status line format
 - `hooks/stop.sh` - Generates session titles at session end
-- `scripts/generate-session-title.ts` - AI-powered session titling
+- `skills/session-titles/scripts/generate.ts` - AI-powered session titling

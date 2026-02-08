@@ -129,16 +129,15 @@ knowledge/
 
 ### title-feedback/
 
-Feedback data for session title quality evaluation and DSPy optimization.
+Runtime feedback data for session title quality evaluation and DSPy optimization.
 
 ```
 title-feedback/
-├── pending.jsonl      # Feedback entries awaiting processing
-├── schema.ts          # (tracked) Type definitions
-└── store.ts           # (tracked) Storage utilities
+├── pending.jsonl      # Feedback entries awaiting scoring
+└── scored.jsonl       # Entries with judge + human assessments
 ```
 
-**Why gitignored**: Personal ratings and feedback data. The `.jsonl` files contain training data for improving title generation.
+**Why gitignored**: Personal ratings and feedback data. The `.jsonl` files contain training data for improving title generation. Type definitions and storage utilities live in `skills/session-titles/scripts/`.
 
 ### shell-snapshots/
 
