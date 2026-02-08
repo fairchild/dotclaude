@@ -45,4 +45,4 @@ Ideas to explore, not yet developed into actionable plans.
 
 ## Creating Backlog Items
 
-Use `/defer` or `/backlog` to capture work for later.
+Use `/backlog` to capture work for later.

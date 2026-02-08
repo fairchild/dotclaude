@@ -17,6 +17,13 @@
 
 ## Learnings
 
+### 2026-02-07 — Playwright Skill Rationalization (#78)
+- Skill-backed subagent pattern (from PR #77) applies broadly: eliminated agent + merged two skills into one
+- `inspired-by` frontmatter field better than `origin` for heavily modified upstream skills
+- Over-specified agent personas (86 lines) add no value over concise subagent prompts — Claude already knows UI/UX analysis
+- Skills should cover ad-hoc use, not just structured workflows — "take a screenshot" is as valid as "write E2E tests"
+- Testability guidelines in the testing skill influence code authoring, not just test writing — dual-purpose content
+
 ### 2026-02-07 — ai-coding-usage Incremental Loading (#76)
 - File mtime comparison via `stat` + DuckDB CSV join is a simple, effective change detection strategy
 - `source_file` column enables file-level delete/reinsert without touching unrelated data

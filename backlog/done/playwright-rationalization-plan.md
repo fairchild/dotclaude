@@ -1,11 +1,11 @@
 ---
-status: pending
+status: done
 category: plan
-pr: null
-branch: null
-score: null
-retro_summary: null
-completed: null
+pr: 78
+branch: chore/rationalize-playwright-skills
+score: 4
+retro_summary: Merged 3 Playwright components into 1 unified skill, went further than plan by also eliminating the agent (following PR #77 skill-backed subagent pattern).
+completed: 2026-02-07
 ---
 
 # Rationalize Playwright Skills

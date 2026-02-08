@@ -57,13 +57,12 @@ Personal Claude Code configuration. Clone to `~/.claude/` for global settings ac
 | **backlog** | Capturing explored work for later |
 | **chronicle** | Capturing and curating session memory |
 | **frontend-design** | Building web UIs, components, pages |
-| **webapp-testing** | Playwright browser automation |
+| **webapp-testing** | Playwright testing (Python and TypeScript) |
 | **skill-creator** | Building new skills |
 | **release** | Semantic versioned releases from any branch (worktree-aware) |
 | **cloudflare-workers-deploy** | Workers deployment setup |
 | **git-worktree** | Parallel branch development |
 | **web-artifacts-builder** | Complex claude.ai artifacts |
-| **playwright-ts** | TypeScript-based Playwright workflows |
 | **verify** | Deployment verification and health checks |
 | **excalidraw-diagrams** | Creating diagrams via Excalidraw |
 | **fork** | Fork session to new worktree or local session |
@@ -89,7 +88,6 @@ Experimental skills use `wip-` prefix and `status: wip` frontmatter. Usable but 
 | **devcontainer-setup** | Configure dev containers | "Set up a devcontainer for this project" |
 | **project-handoff-auditor** | Pre-handoff quality audit | "Prepare this project for client handoff" |
 | **ai-sdk-agent-architect** | Vercel AI SDK 6 agent implementations | "Implement a search agent with AI SDK" |
-| **playwright-test-analyzer** | Visual test analysis | "Run checkout tests and analyze the UI" |
 | **chronicle-curator** | Curate Chronicle memory blocks | Auto-invoked for memory management |
 | **chronicle-insights** | Deep memory and worktree exploration | "What patterns emerge across my sessions?" |
 | **recall** | Search memory for information | "What do I know about deployment?" |
