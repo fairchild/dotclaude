@@ -1,6 +1,6 @@
 ---
 name: webapp-testing
-description: Toolkit for interacting with and testing local web applications using Playwright. Supports Python and TypeScript, verifying frontend functionality, debugging UI behavior, capturing browser screenshots, and viewing browser logs.
+description: Interact with and test web applications using Playwright. Supports ad-hoc browser tasks (screenshots, form filling, deploy checks), Python and TypeScript E2E testing, visual debugging, and browser automation.
 license: Apache-2.0
 inspired-by: https://github.com/anthropics/anthropic-agent-skills
 ---
