@@ -53,51 +53,29 @@ Instructions for the agent...
 | `name` | Yes | Identifier for Task tool's `subagent_type` |
 | `description` | Yes | Helps Claude decide when to use this agent |
 
-### Skill-Backed Agents (Preferred Pattern)
+### When to Use an Agent vs. a Skill Subagent Section
 
-When a skill has a corresponding agent, keep the agent thin and point it at the skill:
-
-```markdown
----
-name: verify
-description: Verify deployment health for production or staging
----
-
-# Verify Subagent
-
-You are a deployment verification specialist.
-
-## Instructions
-
-Read `~/.claude/skills/verify/SKILL.md` for the complete workflow,
-then apply it to the user's request.
-
-## Output
-
-Return a concise verification report.
-```
-
-The skill is the single source of truth. The agent just provides:
-1. A persona/role for the subagent
-2. A pointer to the skill for instructions
-3. An output format specification
-
-The skill should include a "Background (Subagent)" section showing how to spawn it:
+**Don't create an agent file** when a skill already covers the workflow. Instead, add a "Background (Subagent)" section to the skill that spawns a `general-purpose` subagent:
 
 ```markdown
 ## Background Verification (Subagent)
 
 Task(
-  subagent_type: "verify",
-  prompt: "Verify deployment. Project: {project}, URL: {url}"
+  subagent_type: "general-purpose",
+  prompt: "Read ~/.claude/skills/verify/SKILL.md and follow the workflow.
+    Project: {project}, URL: {url}
+    Return a concise pass/fail report."
 )
 ```
 
-This avoids duplicating instructions across skill and agent files.
+This avoids duplicating descriptions (agent metadata is always loaded, ~100 tokens each).
 
-### Standalone Agents
+**Create an agent file** when:
+- The agent has no corresponding skill (e.g., `research`, `recall`)
+- The agent needs a distinct persona or specialized behavior beyond the skill
+- The agent orchestrates multiple skills or other subagents (e.g., `chronicle-curator`)
 
-Agents that don't have a corresponding skill contain their full instructions inline:
+### Example (Standalone Agent)
 
 ```markdown
 ---
@@ -114,7 +92,7 @@ description: Deep codebase exploration to understand a problem
 
 Claude invokes agents via Task tool:
 ```
-Task(subagent_type="verify", prompt="Check staging deployment")
+Task(subagent_type="research", prompt="How does auth work in this codebase?")
 ```
 
 ## Slash Commands

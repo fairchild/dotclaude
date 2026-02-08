@@ -86,7 +86,6 @@ Experimental skills use `wip-` prefix and `status: wip` frontmatter. Usable but 
 | Agent | Use case | Example prompt |
 |-------|----------|----------------|
 | **research** | Deep codebase exploration | "Research how auth works in this codebase" |
-| **verify** | Deployment health checks | "Verify the staging deployment is healthy" |
 | **github-notifications-triager** | Prioritize GitHub notifications | "What's important on GitHub today?" |
 | **devcontainer-setup** | Configure dev containers | "Set up a devcontainer for this project" |
 | **project-handoff-auditor** | Pre-handoff quality audit | "Prepare this project for client handoff" |
@@ -96,7 +95,6 @@ Experimental skills use `wip-` prefix and `status: wip` frontmatter. Usable but 
 | **chronicle-insights** | Deep memory and worktree exploration | "What patterns emerge across my sessions?" |
 | **recall** | Search memory for information | "What do I know about deployment?" |
 | **remember** | Persist items to memory blocks | Auto-invoked for memory management |
-| **youtube-content** | Extract YouTube transcripts | "Summarize this video: youtube.com/..." |
 | **experiment-creator** | Create UI experiments | Project-specific (JrnlFish) |
 
 ### MCP Servers

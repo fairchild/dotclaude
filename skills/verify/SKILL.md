@@ -121,20 +121,19 @@ bunx wrangler tail --env production --status error
 
 ## Background Verification (Subagent)
 
-For verification that shouldn't block the main conversation, spawn as a background subagent:
+For verification that shouldn't block the main conversation, spawn a background subagent:
 
 ```
 Task(
-  subagent_type: "verify",
-  prompt: "Verify deployment is healthy.
+  subagent_type: "general-purpose",
+  prompt: "Read ~/.claude/skills/verify/SKILL.md and follow the verification workflow.
     Project: {project}
     Environment: {production|staging}
     URL: {url if known}
-    Previous work: {what was deployed}"
+    Previous work: {what was deployed}
+    Return a concise pass/fail verification report."
 )
 ```
-
-The subagent reads this skill for instructions and runs independently, reporting back when done.
 
 ## Integration with Development Loop
 
