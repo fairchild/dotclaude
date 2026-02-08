@@ -77,6 +77,7 @@ export interface TitleMetadata {
   shiftCount: number;
   lastMessageHash: string;
   lastMessage: string | null;
+  lastUpdated?: string;
 }
 
 /**
@@ -116,8 +117,8 @@ export function extractSessionContext(path: string | undefined, projectName: str
 
       // Extract user messages
       if (entry.type === "user" && entry.message?.role === "user") {
-        // Extract git branch from metadata
-        if (entry.gitBranch && !ctx.gitBranch) {
+        // Extract git branch from metadata (always take latest)
+        if (entry.gitBranch) {
           ctx.gitBranch = entry.gitBranch;
         }
 
@@ -223,7 +224,7 @@ async function callHaiku(
   try {
     const client = new Anthropic({ apiKey });
     const res = await client.messages.create({
-      model: "claude-3-5-haiku-20241022",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 30,
       ...(systemPrompt && { system: systemPrompt }),
       messages: [{ role: "user", content: prompt }],
@@ -242,7 +243,9 @@ async function callHaiku(
  * Returns null if the title is malformed.
  */
 export function sanitizeTitle(raw: string): string | null {
-  const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  // Take only content before any blank line (prevents multiline reasoning leaks)
+  const firstBlock = raw.split(/\n\s*\n/)[0];
+  const lines = firstBlock.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   if (lines.length === 0) return null;
 
   // Find the actual title - it might be on the first line or a subsequent line
@@ -263,6 +266,8 @@ export function sanitizeTitle(raw: string): string | null {
     /^Title:\s*/i,                       // "Title:"
     /^A title[^:]*:\s*/i,                // "A title for this:"
     /^Session title:\s*/i,               // "Session title:"
+    /^I (?:apologize|cannot|recommend)[^.]*[.:]\s*/i, // "I apologize, but..." / "I recommend:"
+    /^(?:Rationale|Reasoning|Updated summary)[^:]*:\s*/i, // "Rationale:" / "Updated summary:"
   ];
   for (const pattern of preambles) {
     title = title.replace(pattern, '').trim();
@@ -270,6 +275,9 @@ export function sanitizeTitle(raw: string): string | null {
 
   // Remove surrounding quotes
   title = title.replace(/^["'](.+)["']$/, '$1').trim();
+
+  // Strip shift-indicator prefixes from model output (prevents duplication)
+  title = title.replace(/^(\(\d+\)\s*)+/, '').trim();
 
   // Validate length (max 10 words, max 60 chars)
   const words = title.split(/\s+/);
@@ -332,6 +340,7 @@ function buildInitialPrompt(ctx: SessionContext): string {
 
 /**
  * Build the evolution prompt for detecting shifts.
+ * Includes branch, files, and compaction context for better shift detection.
  */
 function buildEvolutionPrompt(
   currentTitle: string,
@@ -341,21 +350,28 @@ function buildEvolutionPrompt(
   const parts: string[] = [];
 
   parts.push(`Current title: "${currentTitle}"`);
+  if (ctx.gitBranch && ctx.gitBranch !== "main" && ctx.gitBranch !== "master") {
+    parts.push(`Current branch: ${ctx.gitBranch}`);
+  }
   if (previousLastMessage) {
     parts.push(`Previous focus: "${previousLastMessage}"`);
   }
-  if (ctx.lastMessage) {
-    parts.push(`Latest activity: "${ctx.lastMessage}"`);
+  if (ctx.latestActivity) {
+    parts.push(`Latest activity: "${ctx.latestActivity}"`);
+  }
+  if (ctx.modifiedFiles.length > 0) {
+    const recent = ctx.modifiedFiles.slice(-5);
+    parts.push(`Recent files: ${recent.join(", ")}`);
   }
   parts.push(`Messages in session: ${ctx.messageCount}`);
+  if (ctx.explicitSummary) {
+    parts.push(`Session was compacted. Summary: "${ctx.explicitSummary}"`);
+  }
 
   parts.push("");
-  parts.push("Evaluate if the session focus has SIGNIFICANTLY shifted:");
-  parts.push("- Minor continuation of same work → Output exactly: KEEP");
-  parts.push("- Major topic change or new problem → Output: NEW: <new title>");
-  parts.push("");
-  parts.push("Only generate a new title if the work has fundamentally changed direction.");
-  parts.push("If outputting NEW, use 4-7 words, active voice, no meta-language.");
+  parts.push("Has the session focus SIGNIFICANTLY shifted from the current title?");
+  parts.push("- Same work or minor continuation → KEEP");
+  parts.push("- Different problem, feature, or branch → NEW: <4-7 word title>");
 
   return parts.join("\n");
 }
@@ -408,15 +424,6 @@ function loadMetadata(metaPath: string): TitleMetadata | null {
  */
 function saveMetadata(metaPath: string, meta: TitleMetadata): void {
   writeFileSync(metaPath, JSON.stringify(meta, null, 2));
-}
-
-/**
- * Format title with shift indicator if applicable.
- * Returns "(N) Title" when shiftCount > 0.
- */
-export function formatTitleWithShift(title: string, shiftCount: number): string {
-  if (shiftCount <= 0) return title;
-  return `(${shiftCount}) ${title}`;
 }
 
 /**
@@ -496,14 +503,16 @@ export async function evolveTitleWithContext(
   }
 
   // Evolution: check for significant shift
-  // Don't sanitize evolution responses - they use "KEEP" / "NEW: <title>" protocol
   if (apiKey && ctx.lastMessage) {
     const prompt = buildEvolutionPrompt(
       currentTitle,
       previousMeta?.lastMessage || null,
       ctx
     );
-    const response = await callHaiku(apiKey, prompt, { sanitize: false });
+    const response = await callHaiku(apiKey, prompt, {
+      sanitize: false,
+      systemPrompt: "Output ONLY one of: KEEP or NEW: <4-7 word title>. Nothing else.",
+    });
 
     if (response) {
       if (response.toUpperCase() === "KEEP") {
@@ -523,7 +532,7 @@ export async function evolveTitleWithContext(
       if (response.toUpperCase().startsWith("NEW:")) {
         // Shift detected - sanitize just the title portion
         const rawTitle = response.substring(4).trim();
-        const newTitle = sanitizeTitle(rawTitle) || rawTitle.substring(0, 60);
+        const newTitle = sanitizeTitle(rawTitle) || sanitizeTitle(rawTitle.split('\n')[0]) || fallbackTitle(ctx);
         const newShiftCount = (previousMeta?.shiftCount || 0) + 1;
         return {
           title: newTitle,
@@ -593,11 +602,9 @@ export async function writeTitle(
     apiKey
   );
 
-  // Format title with shift indicator
-  const displayTitle = formatTitleWithShift(title, meta.shiftCount);
-
   mkdirSync(dir, { recursive: true });
-  writeFileSync(`${dir}/${sessionId}.txt`, displayTitle);
+  writeFileSync(`${dir}/${sessionId}.txt`, title);
+  meta.lastUpdated = new Date().toISOString();
   saveMetadata(metaPath, meta);
 
   // Append to evolution log (only if title changed)
@@ -605,7 +612,7 @@ export async function writeTitle(
     const logFile = `${dir}/${sessionId}.log`;
     const ts = new Date().toISOString();
     const shiftMarker = shifted ? " [SHIFT]" : "";
-    appendFileSync(logFile, `${ts}\t${displayTitle}${shiftMarker}\n`);
+    appendFileSync(logFile, `${ts}\t${title}${shiftMarker}\n`);
 
     // Save pending feedback for /rate-title (only on new/changed titles)
     try {
@@ -616,5 +623,5 @@ export async function writeTitle(
     }
   }
 
-  return displayTitle;
+  return title;
 }
