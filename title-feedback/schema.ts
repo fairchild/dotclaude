@@ -9,8 +9,8 @@
 
 import type { SessionContext } from "../scripts/generate-session-title-testable.ts";
 
-export const PROMPT_VERSION = "v1.0";
-export const MODEL_USED = "claude-4-5-haiku";
+export const PROMPT_VERSION = "v2.0";
+export const MODEL_USED = "claude-haiku-4-5-20251001";
 export const JUDGE_PROMPT_VERSION = "v1.0";
 
 /**

@@ -246,29 +246,6 @@ describe("extractSessionContext", () => {
   });
 });
 
-// --- Unit Tests for formatTitleWithShift ---
-
-describe("formatTitleWithShift", () => {
-  test("returns plain title when shiftCount is 0", async () => {
-    const { formatTitleWithShift } = await import("./generate-session-title-testable.ts");
-
-    expect(formatTitleWithShift("Fix auth bug", 0)).toBe("Fix auth bug");
-  });
-
-  test("adds numeric prefix when shiftCount > 0", async () => {
-    const { formatTitleWithShift } = await import("./generate-session-title-testable.ts");
-
-    expect(formatTitleWithShift("Debug CI tests", 1)).toBe("(1) Debug CI tests");
-    expect(formatTitleWithShift("Refactor auth", 3)).toBe("(3) Refactor auth");
-  });
-
-  test("handles negative shiftCount", async () => {
-    const { formatTitleWithShift } = await import("./generate-session-title-testable.ts");
-
-    expect(formatTitleWithShift("Some title", -1)).toBe("Some title");
-  });
-});
-
 // --- Unit Tests for fallback behavior ---
 
 describe("fallback chain", () => {
@@ -618,5 +595,26 @@ describe("sanitizeTitle", () => {
 
     const verbose = 'Based on the context of "Setting Up Self-Hosted Runners", here\'s a precise title:\n"Configure GitHub Self-Hosted Runners"';
     expect(sanitizeTitle(verbose)).toBe("Configure GitHub Self-Hosted Runners");
+  });
+
+  test("strips shift-indicator prefixes from model output", async () => {
+    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+
+    expect(sanitizeTitle("(2) Master Git Merge Techniques")).toBe("Master Git Merge Techniques");
+    expect(sanitizeTitle("(3) (3) Update README Strategy")).toBe("Update README Strategy");
+  });
+
+  test("strips multiline reasoning after blank line", async () => {
+    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+
+    const withReasoning = "Master Git Merge Techniques\n\nRationale:\n- Shifted from licensing\n- Now discussing merge";
+    expect(sanitizeTitle(withReasoning)).toBe("Master Git Merge Techniques");
+  });
+
+  test("strips apology preambles", async () => {
+    const { sanitizeTitle } = await import("./generate-session-title-testable.ts");
+
+    expect(sanitizeTitle("I apologize, but I recommend: Fix Auth Module")).toBe("Fix Auth Module");
+    expect(sanitizeTitle("I recommend: Debug Release Pipeline")).toBe("Debug Release Pipeline");
   });
 });

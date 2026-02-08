@@ -166,15 +166,12 @@ title_file=~/.claude/session-titles/$project_name/$session_id.txt
 if [[ -f "$title_file" ]]; then
     # Read first line only and truncate if too long
     title=$(head -1 "$title_file")
+    # Strip any legacy shift prefix "(N) "
+    title=$(echo "$title" | sed 's/^([0-9]*) //')
     if [[ ${#title} -gt 50 ]]; then
         title="${title:0:47}..."
     fi
-    # Highlight shift indicator (N) in yellow if present
-    if [[ $title =~ ^\(([0-9]+)\)\ (.*)$ ]]; then
-        shift_count="${BASH_REMATCH[1]}"
-        title_text="${BASH_REMATCH[2]}"
-        printf " ${DIM}|${RESET} ${YELLOW}(%s)${RESET} ${MAGENTA}%s${RESET}" "$shift_count" "$title_text"
-    else
+    if [[ -n "$title" ]]; then
         printf " ${DIM}|${RESET} ${MAGENTA}%s${RESET}" "$title"
     fi
 fi
