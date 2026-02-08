@@ -119,6 +119,23 @@ bunx wrangler tail --env production --status error
 | Environment vars missing | `wrangler secret list --env production` |
 | Durable Objects errors | Check DO migrations in wrangler.jsonc |
 
+## Background Verification (Subagent)
+
+For verification that shouldn't block the main conversation, spawn as a background subagent:
+
+```
+Task(
+  subagent_type: "verify",
+  prompt: "Verify deployment is healthy.
+    Project: {project}
+    Environment: {production|staging}
+    URL: {url if known}
+    Previous work: {what was deployed}"
+)
+```
+
+The subagent reads this skill for instructions and runs independently, reporting back when done.
+
 ## Integration with Development Loop
 
 Before starting new work:
