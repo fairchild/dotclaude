@@ -1,10 +1,31 @@
 # dotclaude
 
-Personal Claude Code configuration. Clone to `~/.claude/` for global settings across all projects.
+My working `~/.claude/` configuration for Claude Code. Published for reference — not designed as a drop-in clone.
 
-## Philosophy
+## How I Work
 
-**High autonomy by default.** Common operations (git, file ops, package managers) are pre-approved. Dangerous operations (push, reset, rm -rf) require confirmation. Secrets are denied by default.
+A typical session: `/bootstrap` to scaffold, build with Claude, `/reflect` mid-work to catch bugs or over-engineering, `/code-review` before merge, `/session-wrapup` to close the loop. Deferred work goes to `/backlog` with enough context for a future session to pick it up. Releases via `/release` — worktree-aware, from any branch.
+
+### Reflection Commands
+
+| Command | When | What it does |
+|---------|------|-------------|
+| `/reflect` | Mid-work | Fresh-eyes review for bugs, missed cases, simplifications |
+| `/retro` | End of session | Score trajectory, extract lessons, update todo |
+| `/plan_retro` | After plan execution | Annotate the plan file with what happened vs. planned |
+| `/session-wrapup` | Before merge | Update backlog, write handoff, capture learnings |
+
+The progression: `/reflect` is a quality gate, `/retro` extracts learning, `/plan_retro` annotates the plan artifact, `/session-wrapup` bridges to the next session.
+
+## What I'm Exploring
+
+Sessions are ephemeral but work is not. Most of this config is dedicated to an ongoing experiment: what happens when you treat each session as worth remembering?
+
+**Chronicle** is the centerpiece — a persistent journalist. A hook extracts a memory block at session end (what was accomplished, what's pending, key decisions). At session start, another hook injects relevant context: recent work in this project, pending items, stale threads. Over time: `/chronicle curate` to organize, `/chronicle insights` for cross-session patterns, `/chronicle publish` for digests.
+
+**Supporting pieces:** session-title generation (a stop hook names each session from its content), ai-coding-usage (DuckDB analytics across Claude Code and Cursor logs), recall/remember agents (persistent memory across sessions), `/fork` (carry context into a new worktree or session).
+
+About 60% of this config observes work rather than does it. That ratio is intentional — the "doing work" tooling (testing, deployment, releases) stabilized; the memory system is where the config is still evolving. The WIP skills (`wip-rate-title`, `wip-session-title-eval`) are active experiments on session metadata quality.
 
 ## Directory Structure
 
@@ -102,6 +123,28 @@ Configured in [`.mcp.json`](https://code.claude.com/docs/en/mcp) (merges with pr
 |--------|---------|
 | [**perplexity-mcp**](https://github.com/Alcova-AI/perplexity-mcp) | Web search and reasoning via Perplexity API |
 
+## Drawing from This
+
+This config is personal — `CLAUDE.md` has my name, hooks call my Chronicle scripts, the MCP server needs my API key. To draw from it, cherry-pick rather than clone.
+
+**Copy directly** (self-contained):
+- `settings.json` permissions pattern (allow/ask/deny tiers)
+- `statusline.sh` (needs jq + bc)
+- Individual commands or skills (each is a standalone directory)
+
+**Customize first:**
+- `CLAUDE.md` — personal identity and tool preferences
+- `settings.json` hooks — these call Chronicle scripts; remove or replace with your own session lifecycle
+- `.mcp.json` — requires `PERPLEXITY_API_KEY` environment variable
+
+**Prerequisites for the full config:**
+- `bun` — hooks and scripts are TypeScript
+- `jq`, `bc` — statusline calculations
+- `git` — core operations
+- Optional: `uv` (Python), `mise` (runtimes), Perplexity API key
+
+Project-level `.claude/` directories override global settings. See Claude Code docs for the merge behavior.
+
 ## Permissions Model
 
 Defined in `settings.json`:
@@ -112,27 +155,6 @@ Defined in `settings.json`:
 | **ask** | `git push`, `git reset`, `git rebase`, `rm -rf` | Requires approval |
 | **deny** | `.env*`, `*.pem`, `*.key`, `~/.ssh/`, `~/.aws/`, `*secret*`, `*credential*` | Blocked |
 
-## Installation
-
-```bash
-# Fresh install
-git clone git@github.com:fairchild/dotclaude.git ~/.claude
-
-# Or backup existing first
-mv ~/.claude ~/.claude.backup
-git clone git@github.com:fairchild/dotclaude.git ~/.claude
-```
-
-## Per-Project Overrides
-
-Project `.claude/` directories override global settings:
-
-```bash
-mkdir -p .claude/commands
-cp ~/.claude/CLAUDE.md .claude/          # Customize for project
-cp ~/.claude/commands/bootstrap.md .claude/commands/
-```
-
 ---
 
 ## Status Line
@@ -140,7 +162,7 @@ cp ~/.claude/commands/bootstrap.md .claude/commands/
 Custom status bar: `project branch (uncommitted) Model $cost +add -del (tokens) [ratio]`
 
 ```
-myproject fix/branch (3) Opus 4.5 $0.66 +28 -5 (70+210K+1.6M):7K [1:267]
+myproject fix/branch (3) Opus 4.6 $0.66 +28 -5 (70+210K+1.6M):7K [1:267]
 │           │          │   │       │     │    │                   │
 │           │          │   │       │     │    │                   └── Input:Output ratio
 │           │          │   │       │     │    └── Token breakdown
