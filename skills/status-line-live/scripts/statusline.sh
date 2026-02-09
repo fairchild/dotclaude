@@ -22,10 +22,10 @@
 # Dependencies: jq, bc, git
 #
 # Related files:
-#   commands/status_line.md         /status_line explainer command
-#   scripts/get-session-tokens.sh   Token data extraction
-#   docs/statusline-architecture.md Full system documentation
-#   settings.json:130-133           Hook registration
+#   commands/status_line.md                          /status_line explainer command
+#   skills/status-line-live/scripts/get-session-tokens.sh  Token data extraction
+#   skills/status-line-live/docs/architecture.md     Full system documentation
+#   settings.json statusLine config                  Hook registration
 # ============================================================================
 
 set -euo pipefail
@@ -90,7 +90,7 @@ CACHE_TTL_MINUTES=1
 # Refresh cache in background if stale
 if [[ ! -f "$token_cache" ]] || [[ $(find "$token_cache" -mmin +$CACHE_TTL_MINUTES 2>/dev/null) ]]; then
     mkdir -p ~/.claude/session-titles/$project_name
-    ~/.claude/scripts/get-session-tokens.sh "$session_id" > "$token_cache" 2>/dev/null &
+    ~/.claude/skills/status-line-live/scripts/get-session-tokens.sh "$session_id" > "$token_cache" 2>/dev/null &
 fi
 
 # Read cached token data

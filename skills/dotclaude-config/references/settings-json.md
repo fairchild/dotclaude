@@ -229,14 +229,14 @@ Generate session title on stop:
 
 ## StatusLine
 
-Custom status bar displayed during sessions.
+Custom status line displayed during sessions.
 
 ### Configuration
 
 ```json
 "statusLine": {
   "type": "command",
-  "command": "~/.claude/statusline.sh"
+  "command": "~/.claude/skills/status-line-live/scripts/statusline.sh"
 }
 ```
 

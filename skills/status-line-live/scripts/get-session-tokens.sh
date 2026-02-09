@@ -1,6 +1,6 @@
 #!/bin/bash
 # Extract token usage from session JSONL file
-# Part of statusline ecosystem - see docs/statusline-architecture.md
+# Part of status-line-live skill - see skills/status-line-live/docs/architecture.md
 
 session_id="$1"
 
