@@ -73,7 +73,10 @@
       "Bash(gh repo view:*)",
       "Bash(gh release list:*)",
       "Bash(gh release view:*)",
-      "Bash(wt:*)"
+      "Bash(wt:*)",
+      "Read(~/.bertram/memory/**)",
+      "Write(~/.bertram/memory/**)",
+      "Edit(~/.bertram/memory/**)"
     ],
     "deny": [
       "Read(.env)",

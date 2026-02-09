@@ -1,3 +1,14 @@
+---
+status: pending
+category: plan
+thread: chronicle
+pr: null
+branch: null
+score: null
+retro_summary: null
+completed: null
+---
+
 # Native Sync Popup
 
 > Vision for a rich native macOS sync experience
