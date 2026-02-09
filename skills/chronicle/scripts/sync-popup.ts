@@ -7,10 +7,10 @@
  * JSON (--json): Structured output for other tools/UIs
  *
  * Usage:
- *   bun scripts/chronicle-sync-popup.ts              # Simple popup
- *   bun scripts/chronicle-sync-popup.ts --terminal   # Rich terminal preview
- *   bun scripts/chronicle-sync-popup.ts --json       # JSON output
- *   bun scripts/chronicle-sync-popup.ts --force      # Show even if no changes
+ *   bun skills/chronicle/scripts/sync-popup.ts              # Simple popup
+ *   bun skills/chronicle/scripts/sync-popup.ts --terminal   # Rich terminal preview
+ *   bun skills/chronicle/scripts/sync-popup.ts --json       # JSON output
+ *   bun skills/chronicle/scripts/sync-popup.ts --force      # Show even if no changes
  */
 import {
   loadEnv,
@@ -24,7 +24,7 @@ import {
   updateLastSyncTime,
   generateSuggestions,
   type SyncPreview,
-} from "./chronicle-sync-lib";
+} from "./sync-lib";
 
 const DASHBOARD_PORT = process.env.PORT || "3457";
 const DASHBOARD_SYNC_URL = `http://localhost:${DASHBOARD_PORT}/sync`;

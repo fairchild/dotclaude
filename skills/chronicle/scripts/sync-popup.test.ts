@@ -26,7 +26,7 @@ describe("chronicle-sync-lib", () => {
 
   describe("formatSyncPopupMessage", () => {
     test("formats message with pending threads and sessions", async () => {
-      const { formatSyncPopupMessage } = await import("./chronicle-sync-lib");
+      const { formatSyncPopupMessage } = await import("./sync-lib");
 
       const preview = {
         sessionCount: 3,
@@ -79,7 +79,7 @@ describe("chronicle-sync-lib", () => {
     });
 
     test("formats message with no pending threads", async () => {
-      const { formatSyncPopupMessage } = await import("./chronicle-sync-lib");
+      const { formatSyncPopupMessage } = await import("./sync-lib");
 
       const preview = {
         sessionCount: 1,
@@ -109,7 +109,7 @@ describe("chronicle-sync-lib", () => {
     });
 
     test("truncates long summaries", async () => {
-      const { formatSyncPopupMessage } = await import("./chronicle-sync-lib");
+      const { formatSyncPopupMessage } = await import("./sync-lib");
 
       const preview = {
         sessionCount: 1,
@@ -140,28 +140,28 @@ describe("chronicle-sync-lib", () => {
 
   describe("formatTimeAgo", () => {
     test("formats minutes ago", async () => {
-      const { formatTimeAgo } = await import("./chronicle-sync-lib");
+      const { formatTimeAgo } = await import("./sync-lib");
 
       const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
       expect(formatTimeAgo(tenMinutesAgo)).toBe("10 minutes ago");
     });
 
     test("formats hours ago", async () => {
-      const { formatTimeAgo } = await import("./chronicle-sync-lib");
+      const { formatTimeAgo } = await import("./sync-lib");
 
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
       expect(formatTimeAgo(twoHoursAgo)).toBe("2 hours ago");
     });
 
     test("formats days ago", async () => {
-      const { formatTimeAgo } = await import("./chronicle-sync-lib");
+      const { formatTimeAgo } = await import("./sync-lib");
 
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
       expect(formatTimeAgo(threeDaysAgo)).toBe("3 days ago");
     });
 
     test("formats just now", async () => {
-      const { formatTimeAgo } = await import("./chronicle-sync-lib");
+      const { formatTimeAgo } = await import("./sync-lib");
 
       const justNow = new Date();
       expect(formatTimeAgo(justNow)).toBe("just now");
@@ -170,7 +170,7 @@ describe("chronicle-sync-lib", () => {
 
   describe("aggregatePendingThreads", () => {
     test("groups similar pending items across sessions", async () => {
-      const { aggregatePendingThreads } = await import("./chronicle-sync-lib");
+      const { aggregatePendingThreads } = await import("./sync-lib");
 
       const blocks = [
         {
@@ -213,7 +213,7 @@ describe("chronicle-sync-lib", () => {
     });
 
     test("calculates days active correctly", async () => {
-      const { aggregatePendingThreads } = await import("./chronicle-sync-lib");
+      const { aggregatePendingThreads } = await import("./sync-lib");
 
       const fiveDaysAgo = new Date();
       fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
@@ -239,7 +239,7 @@ describe("chronicle-sync-lib", () => {
 
   describe("generateSuggestions", () => {
     test("prioritizes stalled threads", async () => {
-      const { generateSuggestions } = await import("./chronicle-sync-lib");
+      const { generateSuggestions } = await import("./sync-lib");
 
       const preview = {
         sessionCount: 2,
@@ -278,7 +278,7 @@ describe("chronicle-sync-lib", () => {
     });
 
     test("returns fallback suggestions when no pending", async () => {
-      const { generateSuggestions } = await import("./chronicle-sync-lib");
+      const { generateSuggestions } = await import("./sync-lib");
 
       const preview = {
         sessionCount: 0,
@@ -298,7 +298,7 @@ describe("chronicle-sync-lib", () => {
     });
 
     test("always returns exactly two suggestions", async () => {
-      const { generateSuggestions } = await import("./chronicle-sync-lib");
+      const { generateSuggestions } = await import("./sync-lib");
 
       // Test with many pending threads
       const manyThreads = Array.from({ length: 10 }, (_, i) => ({
@@ -343,7 +343,7 @@ describe("chronicle-sync-lib", () => {
         })
       );
 
-      const { loadAllBlocks } = await import("./chronicle-sync-lib");
+      const { loadAllBlocks } = await import("./sync-lib");
       const blocks = loadAllBlocks();
 
       expect(blocks).toHaveLength(1);
@@ -362,7 +362,7 @@ describe("chronicle-sync-lib", () => {
       }));
       writeFileSync(`${TEST_CHRONICLE_DIR}/invalid.json`, "not valid json");
 
-      const { loadAllBlocks } = await import("./chronicle-sync-lib");
+      const { loadAllBlocks } = await import("./sync-lib");
       const blocks = loadAllBlocks();
 
       expect(blocks).toHaveLength(1);
@@ -372,7 +372,7 @@ describe("chronicle-sync-lib", () => {
     test("returns empty array when directory missing", async () => {
       rmSync(TEST_CHRONICLE_DIR, { recursive: true, force: true });
 
-      const { loadAllBlocks } = await import("./chronicle-sync-lib");
+      const { loadAllBlocks } = await import("./sync-lib");
       const blocks = loadAllBlocks();
 
       expect(blocks).toEqual([]);
@@ -381,7 +381,7 @@ describe("chronicle-sync-lib", () => {
 
   describe("getLastSyncTime", () => {
     test("returns null when no sync file", async () => {
-      const { getLastSyncTime } = await import("./chronicle-sync-lib");
+      const { getLastSyncTime } = await import("./sync-lib");
       const time = getLastSyncTime();
 
       expect(time).toBeNull();
@@ -391,7 +391,7 @@ describe("chronicle-sync-lib", () => {
       const timestamp = Math.floor(Date.now() / 1000);
       writeFileSync(`${TEST_HOME}/.claude/.chronicle-last-sync`, timestamp.toString());
 
-      const { getLastSyncTime } = await import("./chronicle-sync-lib");
+      const { getLastSyncTime } = await import("./sync-lib");
       const time = getLastSyncTime();
 
       expect(time).toBeInstanceOf(Date);

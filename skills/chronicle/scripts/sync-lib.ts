@@ -2,29 +2,15 @@
  * Shared utilities for Chronicle sync features.
  * Used by popup, post-sync notification, and feedback capture.
  */
-import { readFileSync, existsSync, writeFileSync, mkdirSync, statSync, readdirSync } from "fs";
+import { readFileSync, existsSync, writeFileSync } from "fs";
 import { execSync } from "child_process";
+import type { ChronicleBlock } from "./types.ts";
+import { loadAllBlocks } from "./queries.ts";
 
-const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;
+export { loadAllBlocks };
+export type { ChronicleBlock };
+
 const LAST_SYNC_FILE = `${process.env.HOME}/.claude/.chronicle-last-sync`;
-
-export interface ChronicleBlock {
-  timestamp: string;
-  sessionId: string;
-  project: string;
-  worktree?: string;
-  branch: string | null;
-  summary: string;
-  accomplished: string[];
-  pending: string[];
-  filesModified?: string[];
-  messageCount?: number;
-  goal?: string;
-  challenges?: string[];
-  nextSteps?: string[];
-  notes?: string;
-  relatedSessions?: string[];
-}
 
 export interface PendingThread {
   text: string;
@@ -86,26 +72,6 @@ export function getLastSyncTime(): Date | null {
 export function updateLastSyncTime(): void {
   const timestamp = Math.floor(Date.now() / 1000);
   writeFileSync(LAST_SYNC_FILE, timestamp.toString());
-}
-
-export function loadAllBlocks(): ChronicleBlock[] {
-  if (!existsSync(CHRONICLE_DIR)) return [];
-
-  const files = readdirSync(CHRONICLE_DIR).filter(f => f.endsWith(".json"));
-  const blocks: ChronicleBlock[] = [];
-
-  for (const file of files) {
-    try {
-      const content = readFileSync(`${CHRONICLE_DIR}/${file}`, "utf-8");
-      blocks.push(JSON.parse(content));
-    } catch {
-      // Skip malformed files
-    }
-  }
-
-  return blocks.sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  );
 }
 
 export function getBlocksSinceSync(lastSync: Date | null): ChronicleBlock[] {

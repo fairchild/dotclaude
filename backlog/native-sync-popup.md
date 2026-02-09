@@ -48,7 +48,7 @@ Click tracking to improve suggestion ranking:
 Native app consumes `SyncOutput` JSON:
 
 ```bash
-bun scripts/chronicle-sync-popup.ts --json
+bun skills/chronicle/scripts/sync-popup.ts --json
 ```
 
 ```typescript
