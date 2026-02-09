@@ -79,8 +79,10 @@ tmp/
 *.cache
 *.swp
 *~
+*.bak.*
 scratch/
 paste-cache/
+cadence/
 
 # Session artifacts
 handoff.md
