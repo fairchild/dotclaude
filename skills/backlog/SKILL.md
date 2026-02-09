@@ -134,6 +134,18 @@ To see all backlog items, run:
 ~/.claude/skills/backlog/scripts/status.sh
 ```
 
+## Grooming
+
+Detect stale or likely-completed backlog items that were never moved to `done/`.
+
+```bash
+~/.claude/skills/backlog/scripts/groom.sh [path/to/backlog]
+```
+
+The script cross-references pending items against git history (PR numbers, branch names, keyword matches) and the filesystem (files that were supposed to be created). It flags items that look done so you can review and close them.
+
+See `references/grooming.md` for the full grooming workflow and checklist.
+
 ## Example Usage
 
 ```
