@@ -1,11 +1,10 @@
 ---
 name: skills-manager
 description: >-
-  Single entry point for all skill lifecycle operations across Claude Code and Codex.
-  Use when managing, inspecting, validating, searching, installing, removing, updating,
-  or auditing skills. Wraps npx skills CLI for ecosystem operations, provides local
-  inspection and validation via TypeScript, and delegates to skill-creator for new skills.
-  Subsumes find-skills functionality.
+  Use when the user wants to list, search, install, remove, inspect, validate, audit,
+  or update skills. Use when asking "what skills do I have", "is there a skill for X",
+  "check my skills for issues", or "install a skill". Also use when checking skill health
+  across agents (Claude Code, Codex, Agents CLI).
 ---
 
 # Skills Manager
