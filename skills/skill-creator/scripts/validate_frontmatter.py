@@ -7,9 +7,7 @@ from pathlib import Path
 
 REQUIRED_FIELDS = ["name", "description"]
 FORBIDDEN_FILES = [
-    "README.md",
     "INSTALLATION.md",
-    "CHANGELOG.md",
     "QUICK_REFERENCE.md",
     "INSTALLATION_GUIDE.md"
 ]

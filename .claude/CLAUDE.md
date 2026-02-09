@@ -29,16 +29,10 @@ All skills are Apache 2.0 - consistent with Anthropic skills.
 
 ```yaml
 license: Apache 2.0              # all skills (root LICENSE applies)
-origin: https://github.com/...   # untouched upstream skill
-inspired-by: https://github.com/...  # modified from upstream
 status: wip                      # work in progress (absence = ready)
 ```
 
-### From Anthropic (untouched)
-- frontend-design, skill-creator, web-artifacts-builder
-
-### Inspired by Anthropic (modified)
-- webapp-testing (merged with our playwright-ts, added ad-hoc + testability sections)
+Attribution is handled per-skill in each skill's README.md.
 
 ## Skill Status Convention
 

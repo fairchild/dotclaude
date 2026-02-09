@@ -1,27 +1,18 @@
 # Skill Creator
 
-A guide for creating effective Claude Code skills with built-in validation.
+Guide for creating effective skills that extend Claude's capabilities with specialized knowledge, workflows, and tool integrations.
 
-## Origin
+Covers the full lifecycle: understanding use cases, planning resources, initializing structure, writing SKILL.md, packaging for distribution, and iterating from real usage.
 
-This skill is based on the official `skill-creator` skill from [Anthropic's agent skills repository](https://github.com/anthropics/anthropic-agent-skills).
+## Key Concepts
 
-## What It Does
+- **Progressive disclosure**: Metadata always loaded (~100 words), SKILL.md body on trigger (<5k words), references on demand
+- **Description as trigger**: The `description` field determines when the skill activates — write triggering conditions, not workflow summaries
+- **Defensive writing**: Agents optimize for speed and rationalize shortcuts. Good skills anticipate this with explicit steps, verification, and rationalization counters
 
-The skill-creator provides step-by-step guidance for creating high-quality Claude Code skills, including:
+## Self-Validation
 
-- Understanding skill structure (SKILL.md, scripts/, references/, assets/)
-- Planning reusable skill contents
-- Writing effective frontmatter with comprehensive descriptions
-- Organizing content using progressive disclosure patterns
-- Avoiding common pitfalls (extraneous docs, context bloat)
-- Packaging skills for distribution
-
-## Our Modifications
-
-### Added Specialized Self-Validation (v2.1.0 Hooks)
-
-We've enhanced this skill with **scoped hooks** to automatically validate SKILL.md files as they're created:
+A PostToolUse hook automatically validates SKILL.md files as they're written:
 
 ```yaml
 hooks:
@@ -29,39 +20,22 @@ hooks:
     - matcher: "Write"
       hooks:
         - type: command
-          command: uv run $CLAUDE_PROJECT_DIR/.claude/hooks/validators/skill_frontmatter_validator.py
+          command: uv run $CLAUDE_PROJECT_DIR/.claude/skills/skill-creator/scripts/validate_frontmatter.py
 ```
 
-**What gets validated:**
-- ✅ Required frontmatter fields (`name`, `description`)
-- ✅ Description length (50+ chars for comprehensive triggering)
-- ✅ Forbidden files (README.md, INSTALLATION.md, etc. should not exist in skill directories)
-- ✅ Valid YAML structure
+Checks required frontmatter fields, description length, YAML structure, and file organization.
 
-This implements the "specialized self-validating agents" pattern from Claude Code v2.1.0, where validators run automatically after Write operations and provide immediate feedback for auto-correction.
+## References
 
-### Added Testing Methodology Reference
+- `references/testing-methodology.md` — Testing patterns, defensive writing, rationalization prevention
+- `references/workflows.md` — Sequential workflow and conditional logic patterns
+- `references/output-patterns.md` — Template and example output patterns
+- `scripts/init_skill.py` — Scaffold a new skill directory
+- `scripts/package_skill.py` — Validate and package for distribution
 
-Added `references/testing-methodology.md` with TDD-style skill validation, description optimization (CSO), and rationalization countering techniques. Inspired by Jesse Vincent's [obra/superpowers](https://github.com/obra/superpowers) `writing-skills` skill (MIT license).
+## Credits
 
-### Philosophy: Agents Plus Code
+Built on work from:
 
-This modification embodies the principle that **"agents plus code beats agents"** - deterministic validation transforms unreliable workflows into trustworthy systems. The skill-creator now catches structural errors immediately rather than at packaging time.
-
-## Usage
-
-```bash
-/skill-creator
-```
-
-Claude will guide you through the skill creation process and automatically validate the output structure.
-
-## Related
-
-- **Backlog Plan**: See `backlog/hooks-validation-system-plan.md` for the full validation roadmap
-- **Validator**: See `hooks/validators/skill_frontmatter_validator.py` for implementation
-- **Hooks Reference**: See `references/hooks-reference.md` for hooks documentation
-
-## Note on This README
-
-This README exists for human readers browsing the repository on GitHub. Per the skill-creator's own guidelines, skills distributed to AI agents should NOT include extraneous documentation files like READMEs. This file is an exception because it documents the meta-level (the skill about creating skills) for repository contributors.
+- **[anthropic-agent-skills](https://github.com/anthropics/anthropic-agent-skills)** (Anthropic, Apache-2.0) — Original skill-creator framework, anatomy, progressive disclosure patterns, init/package scripts
+- **[superpowers](https://github.com/obra/superpowers)** (Jesse Vincent, MIT) — Defensive writing patterns, rationalization tables, evidence-before-claims, red-green-refactor for skills, testing methodology
