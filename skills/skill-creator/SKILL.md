@@ -2,13 +2,15 @@
 name: skill-creator
 description: Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.
 license: Apache-2.0
-origin: https://github.com/anthropics/anthropic-agent-skills
+metadata:
+  author: Michael Fairchild
+  version: "2.0"
 hooks:
   PostToolUse:
     - matcher: "Write"
       hooks:
         - type: command
-          command: uv run $CLAUDE_PROJECT_DIR/.claude/hooks/validators/skill_frontmatter_validator.py
+          command: uv run $CLAUDE_PROJECT_DIR/.claude/skills/skill-creator/scripts/validate_frontmatter.py
 ---
 
 # Skill Creator
@@ -106,17 +108,28 @@ Files not intended to be loaded into context, but rather used within the output 
 - **Use cases**: Templates, images, icons, boilerplate code, fonts, sample documents that get copied or modified
 - **Benefits**: Separates output resources from documentation, enables Claude to use files without loading them into context
 
+#### README.md (optional, recommended)
+
+A README.md is for humans, not the agent. It is never loaded into the context window. Include one when it helps a person understand, evaluate, troubleshoot, or set up the skill.
+
+Good README content:
+- What the skill does and why it exists
+- Screenshots, diagrams, or links to demos
+- Setup or configuration instructions
+- Architecture overview for maintainers
+- Status, known limitations, future direction
+
+The README is not a substitute for SKILL.md — it complements it. SKILL.md tells the agent how to act; README.md tells the human what they're looking at.
+
 #### What to Not Include in a Skill
 
-A skill should only contain essential files that directly support its functionality. Do NOT create extraneous documentation or auxiliary files, including:
+Do NOT create auxiliary documentation files beyond README.md and CHANGELOG.md:
 
-- README.md
-- INSTALLATION_GUIDE.md
-- QUICK_REFERENCE.md
-- CHANGELOG.md
+- INSTALLATION_GUIDE.md (fold into README)
+- QUICK_REFERENCE.md (fold into SKILL.md or references/)
 - etc.
 
-The skill should only contain the information needed for an AI agent to do the job at hand. It should not contain auxilary context about the process that went into creating it, setup and testing procedures, user-facing documentation, etc. Creating additional documentation files just adds clutter and confusion.
+The skill should only contain files that serve a clear purpose: SKILL.md for the agent, README.md for the human, scripts/ for deterministic execution, references/ for on-demand context, and assets/ for output resources.
 
 ### Progressive Disclosure Design Principle
 
@@ -289,13 +302,11 @@ When editing the (newly-generated or existing) skill, remember that the skill is
 
 #### Learn Proven Design Patterns
 
-Consult these helpful guides based on your skill's needs:
+Consult these guides based on your skill's needs:
 
 - **Multi-step processes**: See references/workflows.md for sequential workflows and conditional logic
-- **Specific output formats or quality standards**: See references/output-patterns.md for template and example patterns
-- **Testing and bulletproofing**: See references/testing-methodology.md for TDD-style skill validation, description optimization, and countering agent rationalizations
-
-These files contain established best practices for effective skill design.
+- **Specific output formats**: See references/output-patterns.md for template and example patterns
+- **Testing and resilience**: See references/testing-methodology.md for skill validation, defensive writing, and rationalization prevention
 
 #### Start with Reusable Skill Contents
 
@@ -324,6 +335,14 @@ Do not include any other fields in YAML frontmatter.
 ##### Body
 
 Write instructions for using the skill and its bundled resources.
+
+**Writing for resilience**: Agents optimize for speed and rationalize shortcuts. Good skills anticipate this:
+
+- Name each step explicitly — vague ordering is where steps get dropped
+- Include verification after any step that produces output ("Run X and verify Y")
+- Prefer real examples from actual usage over hypothetical scenarios
+- For discipline-enforcing skills, add a rationalization table: common excuses agents produce and explicit counters (see references/testing-methodology.md)
+- For skills with scripts, test them by running them — not by reading the code
 
 ### Step 5: Packaging a Skill
 
@@ -354,11 +373,21 @@ If validation fails, the script will report the errors and exit without creating
 
 ### Step 6: Iterate
 
-After testing the skill, users may request improvements. Often this happens right after using the skill, with fresh context of how the skill performed.
+Skills improve through use, not through speculation. The best time to iterate is right after using a skill, while the gaps are fresh.
 
 **Iteration workflow:**
 
-1. Use the skill on real tasks
-2. Notice struggles or inefficiencies
-3. Identify how SKILL.md or bundled resources should be updated
-4. Implement changes and test again
+1. Use the skill on a real task
+2. Notice where the agent struggled, skipped steps, or produced weak output
+3. Identify root cause: missing context? ambiguous instruction? wrong degree of freedom?
+4. Apply the RED-GREEN-REFACTOR cycle (see references/testing-methodology.md): observe failure, write the minimal fix, verify improvement
+5. When an agent rationalizes skipping a step, add that rationalization and its counter to the skill
+
+**What to capture from real usage:**
+
+- Scenarios where the skill failed — add as examples so the same class of failure is prevented
+- Agent excuses for shortcuts — add to a rationalization table
+- Steps that consistently get dropped — make ordering explicit or add verification
+- Context the agent needed but didn't have — add to references/
+
+Over time, a well-iterated skill accumulates examples from real sessions that serve as both documentation and immune system.
