@@ -209,10 +209,6 @@ For implementation details, see [skills/status-line-live/docs/architecture.md](h
 
 ---
 
-## Credits
-
-Skills adapted from [anthropics/skills](https://github.com/anthropics/skills) (Apache 2.0).
-
 ## License
 
 Apache 2.0 - See [LICENSE](https://github.com/fairchild/dotclaude/blob/main/LICENSE)
