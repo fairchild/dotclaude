@@ -1,10 +1,10 @@
 ---
 description: Explain the current status line with verbose breakdown and ASCII diagram
 scripts:
-  - scripts/get-session-tokens.sh
+  - skills/status-line-live/scripts/get-session-tokens.sh
 related:
-  - statusline.sh
-  - docs/statusline-architecture.md
+  - skills/status-line-live/scripts/statusline.sh
+  - skills/status-line-live/docs/architecture.md
 ---
 
 You are explaining the Claude Code status line to help the user understand session metrics.
@@ -13,7 +13,7 @@ You are explaining the Claude Code status line to help the user understand sessi
 
 1. **Read current token data** by running:
    ```bash
-   ~/.claude/scripts/get-session-tokens.sh "$SESSION_ID"
+   ~/.claude/skills/status-line-live/scripts/get-session-tokens.sh "$SESSION_ID"
    ```
    (Get SESSION_ID from context or use the most recent session file)
 

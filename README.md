@@ -34,7 +34,6 @@ About 60% of this config observes work rather than does it. That ratio is intent
 ├── CLAUDE.md          # Personal context (name, preferences, tool choices)
 ├── settings.json      # Permissions, hooks, model selection
 ├── .mcp.json          # MCP server configs
-├── statusline.sh      # Custom status bar
 ├── commands/          # Slash commands (/bootstrap, /status_line)
 ├── skills/            # Extended capabilities with references
 ├── agents/            # Specialized autonomous agents
@@ -88,6 +87,7 @@ About 60% of this config observes work rather than does it. That ratio is intent
 | **excalidraw-diagrams** | Creating diagrams via Excalidraw |
 | **fork** | Fork session to new worktree or local session |
 | **dotclaude-config** | Editing Claude Code configuration |
+| **status-line-live** | Customizing or troubleshooting the live status line |
 | **update-dependencies** | Dependency analysis and updates |
 | **youtube-content** | Extracting/analyzing YouTube video content |
 
@@ -129,7 +129,7 @@ This config is personal — `CLAUDE.md` has my name, hooks call my Chronicle scr
 
 **Copy directly** (self-contained):
 - `settings.json` permissions pattern (allow/ask/deny tiers)
-- `statusline.sh` (needs jq + bc)
+- `skills/status-line-live/` (needs jq + bc)
 - Individual commands or skills (each is a standalone directory)
 
 **Customize first:**
@@ -159,7 +159,7 @@ Defined in `settings.json`:
 
 ## Status Line
 
-Custom status bar: `project branch (uncommitted) Model $cost +add -del (tokens) [ratio]`
+Custom status line: `project branch (uncommitted) Model $cost +add -del (tokens) [ratio]`
 
 ```
 myproject fix/branch (3) Opus 4.6 $0.66 +28 -5 (70+210K+1.6M):7K [1:267]
@@ -185,7 +185,7 @@ myproject fix/branch (3) Opus 4.6 $0.66 +28 -5 (70+210K+1.6M):7K [1:267]
 
 Cache reads are cumulative across turns (not context size).
 
-For implementation details, see [docs/statusline-architecture.md](https://github.com/fairchild/dotclaude/blob/main/docs/statusline-architecture.md).
+For implementation details, see [skills/status-line-live/docs/architecture.md](https://github.com/fairchild/dotclaude/blob/main/skills/status-line-live/docs/architecture.md).
 
 ---
 
@@ -194,7 +194,7 @@ For implementation details, see [docs/statusline-architecture.md](https://github
 | Doc | Topic |
 |-----|-------|
 | [docs/session-data.md](https://github.com/fairchild/dotclaude/blob/main/docs/session-data.md) | Gitignored session data, multi-machine sync |
-| [docs/statusline-architecture.md](https://github.com/fairchild/dotclaude/blob/main/docs/statusline-architecture.md) | Status line implementation |
+| [skills/status-line-live/docs/architecture.md](https://github.com/fairchild/dotclaude/blob/main/skills/status-line-live/docs/architecture.md) | Status line implementation |
 | [skills/chronicle/docs/chronicle-design.md](https://github.com/fairchild/dotclaude/blob/main/skills/chronicle/docs/chronicle-design.md) | Chronicle memory system design |
 
 ---
