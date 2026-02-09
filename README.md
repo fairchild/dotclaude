@@ -123,6 +123,19 @@ Configured in [`.mcp.json`](https://code.claude.com/docs/en/mcp) (merges with pr
 |--------|---------|
 | [**perplexity-mcp**](https://github.com/Alcova-AI/perplexity-mcp) | Web search and reasoning via Perplexity API |
 
+## Install via Skills
+
+```bash
+# Install all skills
+npx skills add fairchild/dotclaude
+
+# Install a single skill
+npx skills add fairchild/dotclaude --skill <skill-name>
+
+# Check for updates and apply them
+npx skills check && npx skills update
+```
+
 ## Drawing from This
 
 This config is personal — `CLAUDE.md` has my name, hooks call my Chronicle scripts, the MCP server needs my API key. To draw from it, cherry-pick rather than clone.
