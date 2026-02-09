@@ -90,7 +90,20 @@ CACHE_TTL_MINUTES=1
 # Refresh cache in background if stale
 if [[ ! -f "$token_cache" ]] || [[ $(find "$token_cache" -mmin +$CACHE_TTL_MINUTES 2>/dev/null) ]]; then
     mkdir -p ~/.claude/session-titles/$project_name
-    ~/.claude/skills/status-line-live/scripts/get-session-tokens.sh "$session_id" > "$token_cache" 2>/dev/null &
+    (
+        base=$(~/.claude/skills/status-line-live/scripts/get-session-tokens.sh "$session_id")
+        tmp=$(mktemp "$token_cache.XXXXXX")
+        echo "$base" | jq \
+            --arg model "${model:-}" \
+            --argjson cost "${total_cost:-0}" \
+            --argjson added "${lines_added:-0}" \
+            --argjson removed "${lines_removed:-0}" \
+            '.input_tokens //= 0 | .output_tokens //= 0 |
+             .cache_creation_input_tokens //= 0 | .cache_read_input_tokens //= 0 |
+             .total_tokens //= 0 | .total_input //= 0 |
+             . + {model: $model, cost_usd: $cost, lines_added: $added, lines_removed: $removed}' \
+            > "$tmp" 2>/dev/null && mv "$tmp" "$token_cache" || rm -f "$tmp"
+    ) &
 fi
 
 # Read cached token data

@@ -17,6 +17,12 @@
 
 ## Learnings
 
+### 2026-02-08 — Token Cache Enrichment (#88)
+- Detailed backlog plans with exact line numbers and code snippets make implementation trivial — this was a single-edit session
+- Atomic writes (mktemp + mv) should be default for any background job writing to shared files
+- /reflect caught a pre-existing concern (jq -s memory pressure) that wouldn't have been filed otherwise — validates doing reflection even on small changes
+- `${var:-0}` defaults for `--argjson` and `//= 0` in jq are complementary defenses — shell prevents jq parse errors, jq prevents null propagation
+
 ### 2026-02-08 — Config Inventory Consolidation (#82)
 - Well-scoped backlog plans with verification commands make execution trivial
 - Skill overlap detection immediately surfaced a real shadow (bread-builder/release)
