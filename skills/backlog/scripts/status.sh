@@ -19,6 +19,8 @@ echo "|-------------------------------------|------------|----------------------
 
 for f in "$backlog_dir"/*.md; do
   [[ "$(basename "$f")" == "AGENTS.md" ]] && continue
+  [[ "$(basename "$f")" == "CLAUDE.md" ]] && continue
+  [[ "$(basename "$f")" == "ROADMAP.md" ]] && continue
   [[ ! -f "$f" ]] && continue
   [[ ! -r "$f" ]] && continue
 
@@ -28,10 +30,10 @@ for f in "$backlog_dir"/*.md; do
   first_line=$(head -1 "$f" 2>/dev/null)
   if [[ "$first_line" == "---" ]]; then
     fm=$(sed -n '2,/^---$/p' "$f" 2>/dev/null | sed '$d')
-    status=$(echo "$fm" | grep '^status:' | cut -d: -f2 | tr -d ' ')
-    category=$(echo "$fm" | grep '^category:' | cut -d: -f2 | tr -d ' ')
-    thread=$(echo "$fm" | grep '^thread:' | cut -d: -f2 | tr -d ' ')
-    pr=$(echo "$fm" | grep '^pr:' | cut -d: -f2 | tr -d ' ')
+    status=$(echo "$fm" | { grep '^status:' || true; } | cut -d: -f2 | tr -d ' ')
+    category=$(echo "$fm" | { grep '^category:' || true; } | cut -d: -f2 | tr -d ' ')
+    thread=$(echo "$fm" | { grep '^thread:' || true; } | cut -d: -f2 | tr -d ' ')
+    pr=$(echo "$fm" | { grep '^pr:' || true; } | cut -d: -f2 | tr -d ' ')
   else
     status=""
     category=""
@@ -65,7 +67,7 @@ for f in "$backlog_dir"/*.md; do
 done | sort -t'|' -k6 -r
 
 echo ""
-done_count=$(ls "$backlog_dir"/done/*.md 2>/dev/null | grep -cv AGENTS.md || echo 0)
+done_count=$(ls "$backlog_dir"/done/*.md 2>/dev/null | grep -cvE '(AGENTS|CLAUDE|ROADMAP)\.md' || true)
 echo "Done: $done_count files in $backlog_dir/done/"
 
 # Show git creation dates for context
@@ -73,6 +75,8 @@ echo ""
 echo "## Provenance (git creation dates)"
 for f in "$backlog_dir"/*.md; do
   [[ "$(basename "$f")" == "AGENTS.md" ]] && continue
+  [[ "$(basename "$f")" == "CLAUDE.md" ]] && continue
+  [[ "$(basename "$f")" == "ROADMAP.md" ]] && continue
   [[ ! -f "$f" ]] && continue
   created=$(git log --diff-filter=A --format=%cs -- "$f" 2>/dev/null | tail -1)
   [[ -n "$created" ]] && printf "  %-35s created %s\n" "$(basename "$f")" "$created"
