@@ -5,7 +5,7 @@
  * Usage: bun skills/skills-manager/scripts/manage.ts <command> [args]
  *
  * Commands:
- *   status              Quick overview: counts, agents, issues
+ *   status              Quick overview: counts, agents
  *   list                All skills with origin, description, agents
  *   inspect <name>      Deep-read a skill: frontmatter, body, scripts, references
  *   validate [path]     Validate skill structure and frontmatter
@@ -21,13 +21,9 @@ const HOME = homedir();
 // --- Types ---
 
 interface Frontmatter {
-  [key: string]: string | boolean | number | Record<string, unknown> | undefined;
-  name?: string;
-  description?: string;
-  license?: string;
-  "allowed-tools"?: string;
-  metadata?: Record<string, unknown>;
-  compatibility?: Record<string, unknown>;
+  name: string;
+  description: string;
+  [key: string]: unknown;
 }
 
 interface SkillInfo {
@@ -35,29 +31,14 @@ interface SkillInfo {
   path: string;
   origin: "local" | "ecosystem" | "symlink";
   agent: string;
-  frontmatter: Frontmatter;
+  frontmatter: Record<string, unknown>;
   description: string;
   symlinkTarget?: string;
 }
 
-interface ValidationResult {
-  errors: string[];
-  warnings: string[];
-}
-
-interface LockEntry {
-  source: string;
-  sourceType: string;
-  sourceUrl: string;
-  skillPath: string;
-  skillFolderHash: string;
-  installedAt: string;
-  updatedAt: string;
-}
-
 interface LockFile {
   version: number;
-  skills: Record<string, LockEntry>;
+  skills: Record<string, { source: string; sourceUrl: string; updatedAt: string }>;
 }
 
 // --- Skill discovery dirs ---
@@ -76,13 +57,13 @@ const REQUIRED_FIELDS = ["name", "description"] as const;
 
 // --- Frontmatter parsing ---
 
-function parseFrontmatter(content: string): Frontmatter | null {
+function parseFrontmatter(content: string): Record<string, unknown> | null {
   if (!content.startsWith("---")) return null;
   const end = content.indexOf("\n---", 3);
   if (end === -1) return null;
 
   const raw = content.slice(4, end);
-  const fm: Frontmatter = {};
+  const fm: Record<string, unknown> = {};
   let currentKey = "";
   let multiline = false;
 
@@ -106,10 +87,8 @@ function parseFrontmatter(content: string): Frontmatter | null {
       multiline = true;
       fm[key] = "";
     } else if (value === "" || value === "|") {
-      // Could be a map — simplified: store empty string
       fm[key] = "";
     } else {
-      // Strip surrounding quotes
       fm[key] = value.replace(/^["']|["']$/g, "").trim();
     }
   }
@@ -127,9 +106,8 @@ function getBodyAfterFrontmatter(content: string): string {
 // --- Lock file ---
 
 async function readLockFile(): Promise<LockFile | null> {
-  const lockPath = join(HOME, ".agents", ".skill-lock.json");
   try {
-    const raw = await readFile(lockPath, "utf-8");
+    const raw = await readFile(join(HOME, ".agents", ".skill-lock.json"), "utf-8");
     return JSON.parse(raw) as LockFile;
   } catch {
     return null;
@@ -142,15 +120,6 @@ async function exists(p: string): Promise<boolean> {
   try {
     await stat(p);
     return true;
-  } catch {
-    return false;
-  }
-}
-
-async function isSymlink(p: string): Promise<boolean> {
-  try {
-    const s = await lstat(p);
-    return s.isSymbolicLink();
   } catch {
     return false;
   }
@@ -184,10 +153,15 @@ async function discoverSkills(): Promise<SkillInfo[]> {
       let origin: SkillInfo["origin"] = "local";
       let symlinkTarget: string | undefined;
 
-      if (await isSymlink(skillPath)) {
-        origin = "symlink";
-        symlinkTarget = await readlink(skillPath);
-      } else if (ecosystemNames.has(entry)) {
+      try {
+        const s = await lstat(skillPath);
+        if (s.isSymbolicLink()) {
+          origin = "symlink";
+          symlinkTarget = await readlink(skillPath);
+        }
+      } catch {}
+
+      if (origin === "local" && ecosystemNames.has(entry)) {
         origin = "ecosystem";
       }
 
@@ -208,7 +182,7 @@ async function discoverSkills(): Promise<SkillInfo[]> {
 
 // --- Validation ---
 
-async function validateSkill(skillPath: string): Promise<ValidationResult> {
+async function validateSkill(skillPath: string): Promise<{ errors: string[]; warnings: string[] }> {
   const errors: string[] = [];
   const warnings: string[] = [];
   const dir = resolve(skillPath);
@@ -221,7 +195,6 @@ async function validateSkill(skillPath: string): Promise<ValidationResult> {
 
   const content = await readFile(skillMd, "utf-8");
 
-  // Frontmatter exists
   if (!content.startsWith("---")) {
     errors.push("Missing YAML frontmatter (must start with '---')");
     return { errors, warnings };
@@ -243,7 +216,7 @@ async function validateSkill(skillPath: string): Promise<ValidationResult> {
   }
 
   // Name validation
-  const name = (fm.name as string)?.trim() ?? "";
+  const name = ((fm.name as string) ?? "").trim();
   if (name) {
     if (!/^[a-z0-9-]+$/.test(name)) {
       errors.push(`Name '${name}' should be hyphen-case (lowercase letters, digits, hyphens only)`);
@@ -257,7 +230,7 @@ async function validateSkill(skillPath: string): Promise<ValidationResult> {
   }
 
   // Description validation
-  const desc = (fm.description as string)?.trim() ?? "";
+  const desc = ((fm.description as string) ?? "").trim();
   if (desc) {
     if (desc.length < 50) {
       errors.push(`Description too short (${desc.length} chars). Should be 50+ chars with what it does AND when to use it.`);
@@ -303,9 +276,8 @@ async function validateSkill(skillPath: string): Promise<ValidationResult> {
         if (s.startsWith(".")) continue;
         const ext = s.includes(".") ? "." + s.split(".").pop() : "";
         if (!SCRIPT_EXTENSIONS.has(ext)) continue;
-        const scriptPath = join(scriptsDir, s);
         try {
-          const st = await stat(scriptPath);
+          const st = await stat(join(scriptsDir, s));
           if (st.isFile() && !(st.mode & 0o111)) {
             warnings.push(`Script not executable: scripts/${s}`);
           }
@@ -321,8 +293,7 @@ async function validateSkill(skillPath: string): Promise<ValidationResult> {
   while ((refMatch = refPattern.exec(body)) !== null) {
     const ref = refMatch[1];
     if (ref.startsWith("#")) continue;
-    const refPath = join(dir, ref);
-    if (!(await exists(refPath))) {
+    if (!(await exists(join(dir, ref)))) {
       warnings.push(`Broken reference: ${ref}`);
     }
   }
@@ -332,17 +303,13 @@ async function validateSkill(skillPath: string): Promise<ValidationResult> {
 
 // --- Formatting ---
 
-function padRight(s: string, n: number): string {
-  return s.length >= n ? s.slice(0, n) : s + " ".repeat(n - s.length);
-}
-
 function formatTable(headers: string[], rows: string[][]): string {
   const widths = headers.map((h, i) =>
     Math.max(h.length, ...rows.map((r) => (r[i] || "").length))
   );
   const sep = widths.map((w) => "-".repeat(w)).join(" | ");
-  const head = headers.map((h, i) => padRight(h, widths[i])).join(" | ");
-  const body = rows.map((r) => r.map((c, i) => padRight(c || "", widths[i])).join(" | ")).join("\n");
+  const head = headers.map((h, i) => h.padEnd(widths[i])).join(" | ");
+  const body = rows.map((r) => r.map((c, i) => (c || "").padEnd(widths[i])).join(" | ")).join("\n");
   return `${head}\n${sep}\n${body}`;
 }
 
@@ -357,13 +324,6 @@ async function cmdStatus() {
   for (const s of skills) {
     byAgent.set(s.agent, (byAgent.get(s.agent) || 0) + 1);
     byOrigin.set(s.origin, (byOrigin.get(s.origin) || 0) + 1);
-  }
-
-  // Quick validation pass
-  let issueCount = 0;
-  for (const s of skills) {
-    const { errors } = await validateSkill(s.path);
-    if (errors.length > 0) issueCount++;
   }
 
   console.log("# Skills Status\n");
@@ -381,11 +341,7 @@ async function cmdStatus() {
     console.log(`\nLock file: ${Object.keys(lock.skills).length} tracked`);
   }
 
-  if (issueCount > 0) {
-    console.log(`\nIssues: ${issueCount} skill(s) with validation errors — run 'audit' for details`);
-  } else {
-    console.log("\nNo validation issues found");
-  }
+  console.log("\nRun 'audit' for validation details");
 }
 
 async function cmdList() {
@@ -418,14 +374,13 @@ async function cmdInspect(name: string) {
   const content = await readFile(skillMd, "utf-8");
   const fm = parseFrontmatter(content) ?? {};
   const body = getBodyAfterFrontmatter(content);
-  const lineCount = content.split("\n").length;
 
   console.log(`# ${skill.name}\n`);
   console.log(`Path: ${skill.path}`);
   console.log(`Origin: ${skill.origin}`);
   console.log(`Agent: ${skill.agent}`);
   if (skill.symlinkTarget) console.log(`Symlink: → ${skill.symlinkTarget}`);
-  console.log(`Lines: ${lineCount}`);
+  console.log(`Lines: ${content.split("\n").length}`);
 
   console.log("\n## Frontmatter\n");
   for (const [k, v] of Object.entries(fm)) {
@@ -433,12 +388,10 @@ async function cmdInspect(name: string) {
     console.log(`  ${k}: ${val}`);
   }
 
-  // Scripts
   const scriptsDir = join(skill.path, "scripts");
   if (await exists(scriptsDir)) {
     console.log("\n## Scripts\n");
-    const scripts = await readdir(scriptsDir);
-    for (const s of scripts.filter((s) => !s.startsWith("."))) {
+    for (const s of (await readdir(scriptsDir)).filter((s) => !s.startsWith("."))) {
       const st = await stat(join(scriptsDir, s));
       const exec = st.mode & 0o111 ? "x" : "-";
       const size = st.size < 1024 ? `${st.size}B` : `${(st.size / 1024).toFixed(1)}K`;
@@ -446,27 +399,18 @@ async function cmdInspect(name: string) {
     }
   }
 
-  // References dir
   const refsDir = join(skill.path, "references");
   if (await exists(refsDir)) {
     console.log("\n## References\n");
-    const refs = await readdir(refsDir);
-    for (const r of refs.filter((r) => !r.startsWith("."))) {
+    for (const r of (await readdir(refsDir)).filter((r) => !r.startsWith("."))) {
       console.log(`  ${r}`);
     }
   }
 
-  // Body summary (first 20 lines or first heading sections)
-  const bodyLines = body.split("\n");
-  const headings = bodyLines
-    .map((l, i) => ({ line: l, idx: i }))
-    .filter((x) => x.line.startsWith("#"));
-
+  const headings = body.split("\n").filter((l) => l.startsWith("#"));
   if (headings.length > 0) {
     console.log("\n## Structure\n");
-    for (const h of headings.slice(0, 15)) {
-      console.log(`  ${h.line}`);
-    }
+    for (const h of headings.slice(0, 15)) console.log(`  ${h}`);
     if (headings.length > 15) console.log(`  ... and ${headings.length - 15} more sections`);
   }
 }
@@ -485,13 +429,11 @@ async function cmdValidate(pathArg: string) {
   if (dirStat.isDirectory() && (await exists(join(dir, "SKILL.md")))) {
     targets = [dir];
   } else if (dirStat.isDirectory()) {
-    // Scan for skills inside
     const entries = await readdir(dir);
     targets = [];
     for (const e of entries) {
       if (e.startsWith(".")) continue;
-      const p = join(dir, e);
-      if (await exists(join(p, "SKILL.md"))) targets.push(p);
+      if (await exists(join(dir, e, "SKILL.md"))) targets.push(join(dir, e));
     }
   } else {
     console.error("Path must be a skill directory or a directory containing skills");
@@ -630,7 +572,7 @@ switch (cmd) {
     console.log(`Usage: manage.ts <command> [args]
 
 Commands:
-  status              Quick overview: counts, agents, issues
+  status              Quick overview: counts, agents
   list                All skills with origin, description
   inspect <name>      Deep-read a specific skill
   validate <path>     Validate skill structure and frontmatter
