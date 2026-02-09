@@ -1,11 +1,11 @@
 ---
-status: pending
+status: done
 category: followup
-pr: null
+pr: 83
 branch: null
 score: null
-retro_summary: null
-completed: null
+retro_summary: Merged alongside status-line consolidation in PR #83
+completed: 2026-02-08
 ---
 
 # Consolidate Chronicle Sync Scripts into Chronicle Skill
