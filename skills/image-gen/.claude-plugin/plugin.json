@@ -1,0 +1,8 @@
+{
+  "name": "image-gen",
+  "description": "Generate images using AI APIs (OpenAI gpt-image-1, Google Imagen 4, Nano Banana Pro, fal.ai Flux)",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "author": { "name": "Michael Fairchild" },
+  "keywords": ["images", "creative", "openai", "imagen", "fal", "ai"]
+}

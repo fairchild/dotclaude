@@ -1,0 +1,27 @@
+{
+  "name": "dotclaude",
+  "owner": {
+    "name": "Michael Fairchild"
+  },
+  "metadata": {
+    "description": "Claude Code skills for design workflows and image generation"
+  },
+  "plugins": [
+    {
+      "name": "brainstorm-to-brief",
+      "source": "./skills/brainstorm-to-brief",
+      "description": "Wide-to-narrow design workflow from exploration to polished design brief. Works best with image-gen plugin for generating mockups.",
+      "version": "1.0.0",
+      "license": "Apache-2.0",
+      "tags": ["design", "ux", "brainstorming"]
+    },
+    {
+      "name": "image-gen",
+      "source": "./skills/image-gen",
+      "description": "Generate images using AI APIs (OpenAI, Google Imagen 4, Nano Banana Pro, fal.ai Flux)",
+      "version": "1.0.0",
+      "license": "Apache-2.0",
+      "tags": ["creative", "images", "ai"]
+    }
+  ]
+}
