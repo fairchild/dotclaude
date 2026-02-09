@@ -454,7 +454,7 @@ Run the dashboard on a remote server with periodic data sync from your Mac.
 
 **Manual sync:**
 ```bash
-~/.claude/scripts/chronicle-sync-reminder.sh           # Interactive
+~/.claude/skills/chronicle/scripts/sync-reminder.sh           # Interactive
 ansible-playbook claude.yml --tags chronicle-sync -e chronicle_sync_enabled=true  # Direct
 ```
 
