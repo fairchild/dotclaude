@@ -83,7 +83,9 @@ tmp/
 scratch/
 paste-cache/
 cadence/
-skills/subconscious/
+# Subconscious event logs (real session data, not tracked)
+skills/subconscious/data/*
+!skills/subconscious/data/.gitkeep
 
 # Session artifacts
 handoff.md
