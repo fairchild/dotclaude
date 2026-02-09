@@ -1,0 +1,9 @@
+{
+  "name": "web-artifacts-builder",
+  "description": "Suite of tools for creating elaborate, multi-component claude.ai HTML artifacts using React, Tailwind CSS, and shadcn/ui.",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "author": { "name": "Michael Fairchild" },
+  "keywords": ["frontend", "react", "artifacts", "shadcn", "tailwind"],
+  "repository": "https://github.com/anthropics/anthropic-agent-skills"
+}
