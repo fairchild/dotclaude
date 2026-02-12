@@ -2,30 +2,15 @@
 
 My working `~/.claude/` configuration for Claude Code. Published for reference — not designed as a drop-in clone.
 
-## How I Work
-
-A typical session: `/bootstrap` to scaffold, build with Claude, `/reflect` mid-work to catch bugs or over-engineering, `/code-review` before merge, `/session-wrapup` to close the loop. Deferred work goes to `/backlog` with enough context for a future session to pick it up. Releases via `/release` — worktree-aware, from any branch.
-
-### Reflection Commands
-
-| Command | When | What it does |
-|---------|------|-------------|
-| `/reflect` | Mid-work | Fresh-eyes review for bugs, missed cases, simplifications |
-| `/retro` | End of session | Score trajectory, extract lessons, update todo |
-| `/plan_retro` | After plan execution | Annotate the plan file with what happened vs. planned |
-| `/session-wrapup` | Before merge | Update backlog, write handoff, capture learnings |
-
-The progression: `/reflect` is a quality gate, `/retro` extracts learning, `/plan_retro` annotates the plan artifact, `/session-wrapup` bridges to the next session.
-
 ## What I'm Exploring
 
 Sessions are ephemeral but work is not. Most of this config is dedicated to an ongoing experiment: what happens when you treat each session as worth remembering?
 
-**Chronicle** is the centerpiece — a persistent journalist. A hook extracts a memory block at session end (what was accomplished, what's pending, key decisions). At session start, another hook injects relevant context: recent work in this project, pending items, stale threads. Over time: `/chronicle curate` to organize, `/chronicle insights` for cross-session patterns, `/chronicle publish` for digests.
+**Chronicle** a persistent journalist. A hook extracts a memory block at session end (what was accomplished, what's pending, key decisions). At session start, another hook injects relevant context: recent work in this project, pending items, stale threads. Over time: `/chronicle curate` to organize, `/chronicle insights` for cross-session patterns, `/chronicle publish` for digests.
 
 **Supporting pieces:** session-title generation (a stop hook names each session from its content), ai-coding-usage (DuckDB analytics across Claude Code and Cursor logs), recall/remember agents (persistent memory across sessions), `/fork` (carry context into a new worktree or session).
 
-About 60% of this config observes work rather than does it. That ratio is intentional — the "doing work" tooling (testing, deployment, releases) stabilized; the memory system is where the config is still evolving. The WIP skills (`wip-rate-title`, `wip-session-title-eval`) are active experiments on session metadata quality.
+Much of this config observes work rather than does it. The memory system is where the config is still evolving. 
 
 ## Directory Structure
 
