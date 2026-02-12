@@ -1,4 +1,4 @@
-# Skill Creator
+# Skill Builder
 
 Guide for creating effective skills that extend Claude's capabilities with specialized knowledge, workflows, and tool integrations.
 
@@ -20,7 +20,7 @@ hooks:
     - matcher: "Write"
       hooks:
         - type: command
-          command: uv run $CLAUDE_PROJECT_DIR/.claude/skills/skill-creator/scripts/validate_frontmatter.py
+          command: uv run $CLAUDE_PROJECT_DIR/.claude/skills/skill-builder/scripts/validate_frontmatter.py
 ```
 
 Checks required frontmatter fields, description length, YAML structure, and file organization.
