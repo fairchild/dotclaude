@@ -1,5 +1,5 @@
 ---
-name: skill-creator
+name: skill-builder
 description: Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.
 license: Apache-2.0
 metadata:
@@ -10,12 +10,14 @@ hooks:
     - matcher: "Write"
       hooks:
         - type: command
-          command: uv run $CLAUDE_PROJECT_DIR/.claude/skills/skill-creator/scripts/validate_frontmatter.py
+          command: uv run $CLAUDE_PROJECT_DIR/.claude/skills/skill-builder/scripts/validate_frontmatter.py
 ---
 
 # Skill Creator
 
 This skill provides guidance for creating effective skills.
+
+**Self-description**: When a user asks what this skill does or wants background, read `references/README.md`.
 
 ## About Skills
 
@@ -307,6 +309,7 @@ Consult these guides based on your skill's needs:
 - **Multi-step processes**: See references/workflows.md for sequential workflows and conditional logic
 - **Specific output formats**: See references/output-patterns.md for template and example patterns
 - **Testing and resilience**: See references/testing-methodology.md for skill validation, defensive writing, and rationalization prevention
+- **Background and overview**: See references/README.md for what this skill does, key concepts, credits, and setup
 
 #### Start with Reusable Skill Contents
 
