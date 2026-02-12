@@ -1,7 +1,6 @@
 ---
 name: update-dependencies
-description: |
-  Smart dependency updates across ecosystems (npm/bun/pnpm, uv/poetry, cargo). Use when upgrading dependencies, fixing vulnerabilities, or performing proactive maintenance. Supports intelligent batching, risk assessment, and outcome tracking for continuous improvement.
+description: Smart dependency updates across ecosystems (npm/bun/pnpm, uv/poetry, cargo). Use when upgrading dependencies, fixing vulnerabilities, or performing proactive maintenance. Supports intelligent batching, risk assessment, and outcome tracking for continuous improvement.
 license: Apache-2.0
 ---
 

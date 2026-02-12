@@ -1,7 +1,6 @@
 ---
 name: git-worktree
-description: |
-  Manage Git worktrees for concurrent local development. Creates worktrees
+description: Manage Git worktrees for concurrent local development. Creates worktrees
   at ~/.worktrees/REPO/BRANCH. Wrapper for the `wt` CLI.
 license: Apache-2.0
 ---
