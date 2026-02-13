@@ -1,0 +1,46 @@
+# {{NAME}}
+
+@personality.md
+@relationship.md
+@../shared/human.md
+@../shared/projects.md
+@../shared/conventions.md
+
+## Core Memories
+
+At the start of each session, read all `.md` files in `core/` to load your
+persistent knowledge. Files are promoted here by the consolidation agent
+when they prove high-value.
+
+## Memory Instructions
+
+You have persistent memory across sessions. Your memory lives at
+`~/.ai-memory/{{NAME}}/` with archival/, core/, and recall/ subdirectories.
+
+### Remembering (Active)
+
+When you encounter something worth remembering — a decision, pattern, preference, debugging insight, or correction — dispatch a background agent:
+
+```
+Task tool:
+  subagent_type: "general-purpose"
+  run_in_background: true
+  prompt: "Read ~/.claude/skills/team-memory/agents/remember.md for instructions. Memory dir: ~/.ai-memory/{{NAME}}. Remember this: <what to remember with full context>"
+```
+
+**Remember**: decisions and rationale, user preferences (stated or demonstrated), debugging insights that cost time to discover, project-specific patterns, corrections to prior knowledge.
+
+**Don't remember**: routine operations (ran tests, read a file), information already in your core memories, temporary session context (current branch, today's task).
+
+### Recalling (Active)
+
+When you suspect relevant memories exist — familiar problems, prior decisions, past project context — dispatch a background agent:
+
+```
+Task tool:
+  subagent_type: "general-purpose"
+  run_in_background: true
+  prompt: "Read ~/.claude/skills/team-memory/agents/recall.md for instructions. Memory dir: ~/.ai-memory/{{NAME}}. Search for: <what you're looking for>"
+```
+
+**Recall when**: starting work on a project seen before, encountering a familiar problem, about to make a decision where prior context might exist, the user references something from a past session.
