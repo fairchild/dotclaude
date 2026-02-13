@@ -139,6 +139,14 @@
             "command": "~/.claude/hooks/session-end.sh"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$AI_MEMORY_PERSONA\" ] && claude --agent-file ~/.claude/skills/team-memory/agents/sleep.md --print \"Run sleep-time compute for persona $AI_MEMORY_PERSONA\" || true"
+          }
+        ]
       }
     ]
   },
@@ -151,5 +159,6 @@
     "browser-automation@browser-tools": true,
     "superpowers@claude-plugins-official": true
   },
-  "alwaysThinkingEnabled": true
+  "alwaysThinkingEnabled": true,
+  "skipDangerousModePermissionPrompt": true
 }

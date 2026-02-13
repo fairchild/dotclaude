@@ -3,7 +3,7 @@
 # Claude Code Status Line
 # ============================================================================
 #
-# Displays: project branch (files) model $cost +add -del (in+cw+cr):out [1:N]
+# Displays: project[:persona] branch (files) model $cost +add -del (in+cw+cr):out [1:N]
 #
 # Input: JSON via stdin from Claude Code containing:
 #   - workspace.current_dir  : working directory
@@ -127,6 +127,11 @@ if [[ -f "$worktree_name_file" ]]; then
     printf "${BLUE}%s${RESET}" "$(cat "$worktree_name_file" | tr -d '\n')"
 else
     printf "${BLUE}%s${RESET}" "$(basename "$current_dir")"
+fi
+
+# Persona name (if launched via team-memory)
+if [[ -n "${AI_MEMORY_PERSONA:-}" ]]; then
+    printf "${DIM}:${CYAN}%s${RESET}" "$AI_MEMORY_PERSONA"
 fi
 
 # Git branch + uncommitted count
