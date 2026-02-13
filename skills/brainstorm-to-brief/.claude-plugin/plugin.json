@@ -1,8 +1,0 @@
-{
-  "name": "brainstorm-to-brief",
-  "description": "Wide-to-narrow design workflow taking UI/UX concepts from exploration to polished design brief. Four phases: Context, Explore, Iterate, Refine.",
-  "version": "1.0.0",
-  "license": "Apache-2.0",
-  "author": { "name": "Michael Fairchild" },
-  "keywords": ["design", "ux", "brainstorming", "wireframes", "design-brief"]
-}

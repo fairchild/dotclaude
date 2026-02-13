@@ -1,8 +1,0 @@
-{
-  "name": "verify",
-  "description": "Verify deployment health for production or staging. Works with Cloudflare Workers, GitHub Actions, and generic HTTP endpoints.",
-  "version": "1.0.0",
-  "license": "Apache-2.0",
-  "author": { "name": "Michael Fairchild" },
-  "keywords": ["deployment", "testing", "ci-cd", "smoke-tests"]
-}
