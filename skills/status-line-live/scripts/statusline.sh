@@ -164,6 +164,11 @@ else
     printf "${BLUE}%s${RESET}" "$(basename "$current_dir")"
 fi
 
+# Persona name (if launched via team-memory)
+if [[ -n "${AI_MEMORY_PERSONA:-}" ]]; then
+    printf "${DIM}:${CYAN}%s${RESET}" "$AI_MEMORY_PERSONA"
+fi
+
 # Git branch + uncommitted count
 if git -C "$current_dir" rev-parse --git-dir >/dev/null 2>&1; then
     branch=$(git -C "$current_dir" branch --show-current 2>/dev/null || echo 'HEAD')
