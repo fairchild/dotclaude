@@ -23,6 +23,33 @@
       "description": "Generate images via OpenAI, Google Imagen 4, Nano Banana Pro, fal.ai Flux",
       "license": "Apache-2.0",
       "category": "creative"
+    },
+    {
+      "name": "dotclaude-config",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/dotclaude-config"],
+      "description": "Claude Code configuration management for global and project settings",
+      "license": "Apache-2.0",
+      "category": "meta"
+    },
+    {
+      "name": "release",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/release"],
+      "description": "Semantic versioned releases with AI changelogs, worktree-aware",
+      "license": "Apache-2.0",
+      "category": "workflow"
+    },
+    {
+      "name": "skill-creator",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/skill-creator"],
+      "description": "Guide for creating effective Claude Code skills with validation",
+      "license": "Apache-2.0",
+      "category": "meta"
     }
   ]
 }
