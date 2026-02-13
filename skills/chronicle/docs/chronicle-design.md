@@ -41,44 +41,44 @@ Inspired by Letta's memory blocks and sleep-time compute, this agent **thinks wh
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           THE CHRONICLE SYSTEM                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
+│                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                    DURING SESSION (Real-time)                        │    │
-│  │                                                                      │    │
+│  │                    DURING SESSION (Real-time)                       │    │
+│  │                                                                     │    │
 │  │   Claude Code ──────▶ Status Line ──────▶ Session Tracker           │    │
-│  │        │                   │                    │                    │    │
-│  │        │                   │                    ▼                    │    │
+│  │        │                   │                    │                   │    │
+│  │        │                   │                    ▼                   │    │
 │  │        │                   │           ┌──────────────────┐         │    │
 │  │        │                   │           │ EPISODIC MEMORY  │         │    │
 │  │        │                   │           │ (Raw session log)│         │    │
 │  │        │                   │           └──────────────────┘         │    │
 │  │        │                   │                                        │    │
 │  └────────┼───────────────────┼────────────────────────────────────────┘    │
-│           │                   │                                              │
-│           │                   │                                              │
+│           │                   │                                             │
+│           │                   │                                             │
 │  ┌────────┼───────────────────┼────────────────────────────────────────┐    │
-│  │        │   BETWEEN SESSIONS (Sleep-time compute)                     │    │
-│  │        ▼                   ▼                                         │    │
+│  │        │   BETWEEN SESSIONS (Sleep-time compute)                    │    │
+│  │        ▼                   ▼                                        │    │
 │  │   ┌─────────────────────────────────────────────────────────────┐   │    │
-│  │   │                  CHRONICLE AGENT (Haiku)                     │   │    │
-│  │   │                                                              │   │    │
-│  │   │   Runs asynchronously on:                                    │   │    │
-│  │   │   • Session end (process latest session)                     │   │    │
-│  │   │   • Scheduled (daily digest, pattern mining)                 │   │    │
-│  │   │   • Triggered (explicit /chronicle command)                  │   │    │
-│  │   │                                                              │   │    │
-│  │   │   Tasks:                                                     │   │    │
-│  │   │   ✦ Compress session → semantic memory                       │   │    │
+│  │   │                  CHRONICLE AGENT (Haiku)                    │   │    │
+│  │   │                                                             │   │    │
+│  │   │   Runs asynchronously on:                                   │   │    │
+│  │   │   • Session end (process latest session)                    │   │    │
+│  │   │   • Scheduled (daily digest, pattern mining)                │   │    │
+│  │   │   • Triggered (explicit /chronicle command)                 │   │    │
+│  │   │                                                             │   │    │
+│  │   │   Tasks:                                                    │   │    │
+│  │   │   ✦ Compress session → semantic memory                      │   │    │
 │  │   │   ✦ Update preference observations                          │   │    │
-│  │   │   ✦ Consolidate related memories                             │   │    │
-│  │   │   ✦ Mine patterns across sessions                            │   │    │
-│  │   │   ✦ Prepare daily/weekly digests                             │   │    │
+│  │   │   ✦ Consolidate related memories                            │   │    │
+│  │   │   ✦ Mine patterns across sessions                           │   │    │
+│  │   │   ✦ Prepare daily/weekly digests                            │   │    │
 │  │   └─────────────────────────────────────────────────────────────┘   │    │
-│  │                              │                                       │    │
-│  │                              ▼                                       │    │
+│  │                              │                                      │    │
+│  │                              ▼                                      │    │
 │  │   ┌─────────────────────────────────────────────────────────────┐   │    │
-│  │   │                    MEMORY BLOCKS                             │   │    │
-│  │   │                                                              │   │    │
+│  │   │                    MEMORY BLOCKS                            │   │    │
+│  │   │                                                             │   │    │
 │  │   │   ┌────────────────┐  ┌────────────────┐  ┌──────────────┐  │   │    │
 │  │   │   │ SEMANTIC       │  │ PROCEDURAL     │  │ PREFERENCES  │  │   │    │
 │  │   │   │ (Facts/Skills) │  │ (Workflows)    │  │ (Style)      │  │   │    │
@@ -86,33 +86,33 @@ Inspired by Letta's memory blocks and sleep-time compute, this agent **thinks wh
 │  │   │   │ "Knows OAuth"  │  │ "Debugs by..." │  │ "Prefers..." │  │   │    │
 │  │   │   │ "Uses Bun"     │  │ "Tests after"  │  │ "Minimal"    │  │   │    │
 │  │   │   └────────────────┘  └────────────────┘  └──────────────┘  │   │    │
-│  │   │                                                              │   │    │
+│  │   │                                                             │   │    │
 │  │   │   ┌───────────────────────────────────────────────────────┐ │   │    │
-│  │   │   │ VECTOR INDEX (LanceDB)                                 │ │   │    │
-│  │   │   │ Embeddings of session summaries for semantic search    │ │   │    │
+│  │   │   │ VECTOR INDEX (LanceDB)                                │ │   │    │
+│  │   │   │ Embeddings of session summaries for semantic search   │ │   │    │
 │  │   │   └───────────────────────────────────────────────────────┘ │   │    │
 │  │   └─────────────────────────────────────────────────────────────┘   │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                              │
+│                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                    ON DEMAND (Query interface)                       │    │
-│  │                                                                      │    │
-│  │   User: "/chronicle catch me up"                                     │    │
-│  │   User: "/chronicle what was that OAuth session?"                    │    │
-│  │   User: "/chronicle how do I usually debug auth?"                    │    │
-│  │   User: "/chronicle what patterns do you see in my work?"            │    │
-│  │                                                                      │    │
-│  │          ▼                                                           │    │
+│  │                    ON DEMAND (Query interface)                      │    │
+│  │                                                                     │    │
+│  │   User: "/chronicle catch me up"                                    │    │
+│  │   User: "/chronicle what was that OAuth session?"                   │    │
+│  │   User: "/chronicle how do I usually debug auth?"                   │    │
+│  │   User: "/chronicle what patterns do you see in my work?"           │    │
+│  │                                                                     │    │
+│  │          ▼                                                          │    │
 │  │   ┌─────────────────────────────────────────────────────────────┐   │    │
-│  │   │             CHRONICLE QUERY AGENT (Sonnet/Haiku)             │   │    │
-│  │   │                                                              │   │    │
-│  │   │   • Semantic search over session embeddings                  │   │    │
-│  │   │   • Read memory blocks for context                           │   │    │
-│  │   │   • Can request episodic detail if needed                    │   │    │
-│  │   │   • Generates focused, actionable response                   │   │    │
+│  │   │             CHRONICLE QUERY AGENT (Sonnet/Haiku)            │   │    │
+│  │   │                                                             │   │    │
+│  │   │   • Semantic search over session embeddings                 │   │    │
+│  │   │   • Read memory blocks for context                          │   │    │
+│  │   │   • Can request episodic detail if needed                   │   │    │
+│  │   │   • Generates focused, actionable response                  │   │    │
 │  │   └─────────────────────────────────────────────────────────────┘   │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                              │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -204,38 +204,38 @@ const CHRONICLE_BLOCKS = {
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                          SLEEP-TIME TRIGGERS                                │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│   1. SESSION END                                                             │
+│                                                                             │
+│   1. SESSION END                                                            │
 │      ─────────────                                                          │
 │      Trigger: Claude Code session closes (hook or manual)                   │
 │      Task: Process latest session → episodic memory                         │
 │      Cost: 1 Haiku call (~$0.001)                                           │
-│                                                                              │
+│                                                                             │
 │   2. DAILY CONSOLIDATION (Cron or launchd)                                  │
 │      ─────────────────────────────────────────                              │
 │      Trigger: 3 AM daily (or first session of day)                          │
-│      Tasks:                                                                  │
+│      Tasks:                                                                 │
 │        • Compress yesterday's sessions into semantic memory                 │
 │        • Update preference observations                                     │
 │        • Consolidate related memories                                       │
 │        • Prepare "morning briefing"                                         │
 │      Cost: 1-2 Haiku calls (~$0.005)                                        │
-│                                                                              │
-│   3. WEEKLY PATTERN MINING                                                   │
+│                                                                             │
+│   3. WEEKLY PATTERN MINING                                                  │
 │      ────────────────────────                                               │
 │      Trigger: Sunday night                                                  │
-│      Tasks:                                                                  │
+│      Tasks:                                                                 │
 │        • Analyze week's work for patterns                                   │
 │        • Update procedural memory                                           │
 │        • Identify emerging preferences                                      │
 │        • Generate weekly retrospective                                      │
 │      Cost: 1 Sonnet call (~$0.03)                                           │
-│                                                                              │
-│   4. EXPLICIT TRIGGER                                                        │
+│                                                                             │
+│   4. EXPLICIT TRIGGER                                                       │
 │      ────────────────                                                       │
 │      Command: /chronicle consolidate                                        │
 │      Runs full consolidation cycle on demand                                │
-│                                                                              │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -353,32 +353,32 @@ async function dailyConsolidation(): Promise<void> {
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                          CHRONICLE QUERY FLOW                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
+│                                                                             │
 │   User: "/chronicle what was that OAuth session?"                           │
-│                             │                                                │
-│                             ▼                                                │
+│                             │                                               │
+│                             ▼                                               │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
 │   │  1. INTENT CLASSIFICATION (Fast, Haiku)                             │   │
 │   │     → Query type: SEARCH                                            │   │
 │   │     → Key terms: "OAuth", "session"                                 │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
-│                             │                                                │
-│                             ▼                                                │
+│                             │                                               │
+│                             ▼                                               │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │  2. MEMORY RETRIEVAL                                                 │   │
+│   │  2. MEMORY RETRIEVAL                                                │   │
 │   │     → Embed query: "OAuth session"                                  │   │
 │   │     → Search LanceDB for similar sessions                           │   │
 │   │     → Pull top 3 matches with summaries                             │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
-│                             │                                                │
-│                             ▼                                                │
+│                             │                                               │
+│                             ▼                                               │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │  3. CONTEXT AUGMENTATION                                             │   │
+│   │  3. CONTEXT AUGMENTATION                                            │   │
 │   │     → Load relevant memory blocks (developer_profile, preferences)  │   │
 │   │     → If high importance match, offer to load full episodic log     │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
-│                             │                                                │
-│                             ▼                                                │
+│                             │                                               │
+│                             ▼                                               │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
 │   │  4. RESPONSE GENERATION (Haiku or Sonnet for complex)               │   │
 │   │     "I found 2 OAuth-related sessions:                              │   │
@@ -388,7 +388,7 @@ async function dailyConsolidation(): Promise<void> {
 │   │        Status: Shipped, using Google provider.                      │   │
 │   │      Want me to dig into either one?"                               │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                              │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -587,29 +587,29 @@ The first release focuses on **knowing what was left undone** and **picking up w
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         CONTINUITY THREADS MVP                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│   SESSION N                              SESSION N+1                         │
+│                                                                             │
+│   SESSION N                              SESSION N+1                        │
 │   ─────────                              ───────────                        │
-│                                                                              │
+│                                                                             │
 │   Working on OAuth...                    "What was I doing?"                │
-│   Fixed redirect issue                              │                        │
-│   Started state validation                          ▼                        │
-│   ⚠️ Left incomplete: tests            ┌──────────────────────┐             │
-│           │                            │  CHRONICLE BRIEFING   │             │
-│           │                            │                        │             │
-│           ▼                            │  "Last session you     │             │
-│   ┌──────────────────────┐            │  were working on OAuth │             │
-│   │  SESSION END HOOK    │            │  in jrnlfish.          │             │
-│   │                      │            │                        │             │
-│   │  Extract:            │            │  Pending:              │             │
-│   │  • What was done     │───────────▶│  • State validation    │             │
-│   │  • What's pending    │            │    tests not written   │             │
-│   │  • Open questions    │            │  • Error handling      │             │
-│   │                      │            │    needs review        │             │
-│   └──────────────────────┘            │                        │             │
-│                                        │  Continue? [y/n]"      │             │
-│                                        └──────────────────────┘             │
-│                                                                              │
+│   Fixed redirect issue                              │                       │
+│   Started state validation                          ▼                       │
+│   ⚠️ Left incomplete: tests           ┌────────────────────────┐            │
+│           │                           │  CHRONICLE BRIEFING    │            │
+│           │                           │                        │            │
+│           ▼                           │  "Last session you     │            │
+│   ┌──────────────────────┐            │  were working on OAuth │            │
+│   │  SESSION END HOOK    │            │  in jrnlfish.          │            │
+│   │                      │            │                        │            │
+│   │  Extract:            │            │  Pending:              │            │
+│   │  • What was done     │───────────▶│  • State validation    │            │
+│   │  • What's pending    │            │    tests not written   │            │
+│   │  • Open questions    │            │  • Error handling      │            │
+│   │                      │            │    needs review        │            │
+│   └──────────────────────┘            │                        │            │
+│                                       │  Continue? [y/n]"      │            │
+│                                       └────────────────────────┘            │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -662,8 +662,8 @@ interface PendingThread {
        │  NEW    │   │ UPDATE  │   │ RESOLVE │
        │ THREAD  │   │ THREAD  │   │ THREAD  │
        └────┬────┘   └────┬────┘   └────┬────┘
-            │             │              │
-            └──────────────┼──────────────┘
+            │             │             │
+            └─────────────┼─────────────┘
                           │
                           ▼
                    ┌─────────────┐
@@ -726,10 +726,10 @@ When starting a new session, the Chronicle can provide context:
 $ claude
 ┌─────────────────────────────────────────────────────────────────┐
 │  Chronicle: You have 2 pending threads from yesterday:          │
-│                                                                  │
+│                                                                 │
 │  [HIGH] Add state validation tests for OAuth (jrnlfish)         │
 │  [MED]  Review error handling in redirect.ts                    │
-│                                                                  │
+│                                                                 │
 │  Continue with these? [y/n/details]                             │
 └─────────────────────────────────────────────────────────────────┘
 

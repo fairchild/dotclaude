@@ -38,7 +38,7 @@ Much of this config observes work rather than does it. The memory system is wher
 | Command | Purpose |
 |---------|---------|
 | `/bootstrap` | Scaffold new projects with structure |
-| `/claude-webui` | Launch the Config Visualizer dashboard |
+| `/claude-webui` | Launch the web dashboard for this dotclaude repo |
 | `/opensource-precheck` | Audit repo before making public |
 | `/plan_retro` | Append retrospective to current plan |
 | `/pr-review` | Address PR feedback toward merge |

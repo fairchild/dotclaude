@@ -1,11 +1,6 @@
 ---
 name: session-titles
-description: >-
-  Session title generation, evaluation, and optimization.
-  Auto-generates context-aware titles via Stop hook.
-  Includes quality evaluation (pattern checks, LLM judge),
-  GEPA-inspired prompt evolution, golden dataset tooling,
-  and interactive title rating for training data collection.
+description: "Session title generation, evaluation, and optimization. Auto-generates context-aware titles via Stop hook. Includes quality evaluation (pattern checks, LLM judge), GEPA-inspired prompt evolution, golden dataset tooling, and interactive title rating for training data collection."
 license: Apache-2.0
 ---
 
