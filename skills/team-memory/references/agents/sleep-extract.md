@@ -18,8 +18,8 @@ The calling prompt provides:
 
 ### 1. Get the session transcript
 
-The calling prompt includes a `Session transcript:` path — use that exact path.
-If no path was provided, fall back to finding the most recent transcript:
+The calling prompt includes the session transcript path. Use that exact path.
+If not provided, check `$AI_MEMORY_TRANSCRIPT` env var, then fall back to:
 
 ```bash
 ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1

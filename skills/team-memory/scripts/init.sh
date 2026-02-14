@@ -128,7 +128,7 @@ if command -v jq &>/dev/null; then
     echo "Wiring SessionEnd hook for sleep-time compute..."
     HOOK_JSON=$(mktemp)
     cat > "$HOOK_JSON" << 'HOOKEOF'
-{"hooks":[{"type":"command","command":"TRANSCRIPT=$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1); [ -n \"$AI_MEMORY_PERSONA\" ] && [ -n \"$TRANSCRIPT\" ] && CLAUDECODE= claude --agent team-memory-sleep --print \"Run sleep-time compute for persona $AI_MEMORY_PERSONA. Session transcript: $TRANSCRIPT\" || true"}]}
+{"hooks":[{"type":"command","command":"TRANSCRIPT=$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1); [ -n \"$AI_MEMORY_PERSONA\" ] && [ -n \"$TRANSCRIPT\" ] && CLAUDECODE= AI_MEMORY_TRANSCRIPT=\"$TRANSCRIPT\" claude --agent team-memory-sleep --print \"Run sleep-time compute for persona $AI_MEMORY_PERSONA\" || true"}]}
 HOOKEOF
     jq --slurpfile hook "$HOOK_JSON" '.hooks.SessionEnd += $hook' "$SETTINGS" > "${SETTINGS}.tmp"
     mv "${SETTINGS}.tmp" "$SETTINGS"

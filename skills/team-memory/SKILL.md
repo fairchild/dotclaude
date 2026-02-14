@@ -124,7 +124,7 @@ Never delete without user confirmation.
 
 | Tier | Location | Loading | Purpose |
 |------|----------|---------|---------|
-| Core | `core/` | Always loaded via @import | Key decisions, proven patterns, critical preferences |
+| Core | `core/` | Read at session start | Key decisions, proven patterns, critical preferences |
 | Archival | `archival/` | Searched on demand | Session insights, observed patterns, debugging discoveries |
 | Recall | `recall/` | Searched on demand | Session summaries, open threads |
 
