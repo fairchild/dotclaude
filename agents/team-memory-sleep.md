@@ -10,13 +10,11 @@ You run the sleep-time memory pipeline after a session ends. This is the "subcon
 
 ## First Step: Resolve Environment
 
-The SessionEnd hook provides env vars and the session transcript path in the prompt. Resolve them first:
+The SessionEnd hook provides env vars. Resolve them first:
 
 ```bash
-echo "PERSONA=$AI_MEMORY_PERSONA DIR=$AI_MEMORY_DIR"
+echo "PERSONA=$AI_MEMORY_PERSONA DIR=$AI_MEMORY_DIR TRANSCRIPT=$AI_MEMORY_TRANSCRIPT"
 ```
-
-Extract the `Session transcript:` path from your prompt — pass it to extract and reflect agents.
 
 Use these concrete values in all sub-agent prompts below.
 
@@ -29,7 +27,7 @@ Run these three stages **sequentially**. Each must complete before the next begi
 ```
 Task tool:
   subagent_type: "general-purpose"
-  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-extract.md for instructions, then execute them. Memory dir: ~/.ai-memory/<PERSONA>. Persona name: <PERSONA>. Session transcript: <TRANSCRIPT_PATH>"
+  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-extract.md for instructions, then execute them. Memory dir: ~/.ai-memory/<PERSONA>. Persona name: <PERSONA>. Session transcript: <AI_MEMORY_TRANSCRIPT>"
 ```
 
 ### Stage 2: Consolidate
@@ -45,7 +43,7 @@ Task tool:
 ```
 Task tool:
   subagent_type: "general-purpose"
-  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-reflect.md for instructions, then execute them. Memory dir: ~/.ai-memory/<PERSONA>. Persona name: <PERSONA>. Session transcript: <TRANSCRIPT_PATH>"
+  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-reflect.md for instructions, then execute them. Memory dir: ~/.ai-memory/<PERSONA>. Persona name: <PERSONA>. Session transcript: <AI_MEMORY_TRANSCRIPT>"
 ```
 
 ## Output
