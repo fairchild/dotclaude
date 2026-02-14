@@ -1,0 +1,26 @@
+{
+  "decisions.md": [
+    "Use deterministic harness as required PR gate",
+    "Run live smoke tests on nightly schedule",
+    "Keep live-AI tests non-blocking for PR merges",
+    "Require deterministic CI under 45 seconds target"
+  ],
+  "preferences.md": [
+    "Prefer concise diffs with explicit risk notes",
+    "Prefer deterministic checks before merge",
+    "Prefer explicit JSON envelopes for script outputs"
+  ],
+  "active-threads.md": [
+    "Resolve stale journal sync thread",
+    "Investigate login token rotation edge case",
+    "Publish live evaluation artifacts in CI"
+  ],
+  "user-profile.md": [
+    "Michael uses Bun for TypeScript tooling",
+    "Primary code host is GitHub"
+  ],
+  "relationships.md": [
+    "Treat the assistant as a proactive teammate",
+    "High assertiveness is acceptable for low-risk tasks"
+  ]
+}
