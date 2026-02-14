@@ -46,6 +46,19 @@ cd /Users/fairchild/.claude/skills/persona-memory
 bun scripts/capture-dashboard.ts
 ```
 
+Theme control for screenshots:
+```bash
+# time-aware default (auto): dark at night, light in daytime, plus opposite-theme sanity capture
+bun scripts/capture-dashboard.ts --theme auto
+
+# force one theme only
+bun scripts/capture-dashboard.ts --theme dark
+bun scripts/capture-dashboard.ts --theme light
+
+# force full matrix
+bun scripts/capture-dashboard.ts --theme both
+```
+
 Optional port override:
 ```bash
 bun scripts/serve-eval-dashboard.ts --port 9090

@@ -250,6 +250,52 @@
       border-radius: 6px;
     }
 
+    .workflow-rail {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .workflow-step {
+      border: 1px solid var(--guide-border);
+      border-radius: 12px;
+      background: var(--guide-bg);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 132px;
+    }
+
+    .workflow-step .kicker {
+      font-family: var(--mono);
+      color: var(--ink-muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .workflow-step .title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .workflow-step .desc {
+      color: var(--ink-muted);
+      font-size: 0.82rem;
+      line-height: 1.35;
+      flex: 1;
+    }
+
+    .workflow-step a,
+    .workflow-step button {
+      align-self: flex-start;
+      padding: 8px 10px;
+      font-size: 0.78rem;
+    }
+
     .pill {
       border-radius: 999px;
       padding: 7px 10px;
@@ -575,6 +621,10 @@
         grid-template-columns: 1fr;
       }
 
+      .workflow-rail {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
       .inline-form {
         grid-template-columns: 1fr;
       }
@@ -588,6 +638,12 @@
       .span-8,
       .span-12 {
         grid-column: span 12;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .workflow-rail {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -644,10 +700,36 @@
           </p>
         </div>
       </div>
+      <div class="workflow-rail">
+        <div class="workflow-step">
+          <div class="kicker">Step 1</div>
+          <div class="title">Run</div>
+          <div class="desc">Execute deterministic gate first to refresh artifacts and assert baseline quality.</div>
+          <button id="railRunDeterministic" class="primary">Run Deterministic Gate</button>
+        </div>
+        <div class="workflow-step">
+          <div class="kicker">Step 2</div>
+          <div class="title">Review</div>
+          <div class="desc">Inspect overall score, thresholds, and event/query outcomes to spot weak rows.</div>
+          <a class="file-btn" href="#section-review">Jump To Review</a>
+        </div>
+        <div class="workflow-step">
+          <div class="kicker">Step 3</div>
+          <div class="title">Curate</div>
+          <div class="desc">Label rows with rationale, assign score (1-5), and edit synthetic seeds when needed.</div>
+          <a class="file-btn" href="#section-curation">Jump To Curation</a>
+        </div>
+        <div class="workflow-step">
+          <div class="kicker">Step 4</div>
+          <div class="title">Rebuild</div>
+          <div class="desc">Compile effective evalset so deterministic runs include your latest curation changes.</div>
+          <button id="railRebuildEvalset">Rebuild Evalset</button>
+        </div>
+      </div>
     </section>
 
     <section class="grid">
-      <article class="card span-12">
+      <article id="section-run" class="card span-12">
         <h2>Run Activity</h2>
         <div class="meta" id="runMeta">No run has been triggered in this browser session.</div>
         <div id="runDetails" class="empty">
@@ -669,7 +751,7 @@
         <div id="overallNotes" class="empty">Load artifacts to compute a quality score.</div>
       </article>
 
-      <article class="card span-8">
+      <article id="section-review" class="card span-8">
         <h2>Deterministic Eval Metrics</h2>
         <div class="meta" id="evalMeta">Waiting for eval-report.json</div>
         <div id="metricList"></div>
@@ -698,7 +780,7 @@
         <div id="datasetTables"></div>
       </article>
 
-      <article class="card span-12">
+      <article id="section-curation" class="card span-12">
         <h3>Evalset Curation</h3>
         <div class="meta" id="curationMeta">Use this panel to hand-label rows and rebuild compiled evalset.</div>
         <div class="curation-controls">
@@ -914,6 +996,8 @@
       loadLatest: document.getElementById("loadLatest"),
       runEval: document.getElementById("runEval"),
       runLive: document.getElementById("runLive"),
+      railRunDeterministic: document.getElementById("railRunDeterministic"),
+      railRebuildEvalset: document.getElementById("railRebuildEvalset"),
       runMeta: document.getElementById("runMeta"),
       runDetails: document.getElementById("runDetails"),
       datasetMeta: document.getElementById("datasetMeta"),
@@ -2017,10 +2101,16 @@
       });
     }
 
-    async function triggerRun(kind) {
+    async function triggerRun(kind, triggerButton = null) {
       const preset = runPresets[kind] || runPresets.eval;
       const endpoint = preset.endpoint;
-      const button = kind === "live" ? elements.runLive : elements.runEval;
+      const button =
+        triggerButton ||
+        (kind === "live"
+          ? elements.runLive
+          : kind === "deterministic"
+            ? elements.railRunDeterministic || elements.runEval
+            : elements.runEval);
 
       if (window.location.protocol === "file:") {
         state.runActivity = {
@@ -2041,9 +2131,16 @@
         return;
       }
 
-      const originalLabel = button.textContent;
-      button.disabled = true;
-      button.textContent = kind === "live" ? "Running live..." : "Running eval...";
+      const originalLabel = button ? button.textContent : "";
+      if (button) {
+        button.disabled = true;
+        button.textContent =
+          kind === "live"
+            ? "Running live..."
+            : kind === "deterministic"
+              ? "Running gate..."
+              : "Running eval...";
+      }
       state.runActivity = {
         kind,
         phase: "running",
@@ -2103,8 +2200,10 @@
         render();
         appendStatus(`${kind} run failed: ${message}`, "bad");
       } finally {
-        button.disabled = false;
-        button.textContent = originalLabel;
+        if (button) {
+          button.disabled = false;
+          button.textContent = originalLabel;
+        }
       }
     }
 
@@ -2113,6 +2212,8 @@
     bindFileInput(elements.liveFile, (json) => { state.liveReport = json; });
     elements.runEval.addEventListener("click", () => triggerRun("eval"));
     elements.runLive.addEventListener("click", () => triggerRun("live"));
+    elements.railRunDeterministic.addEventListener("click", () => triggerRun("deterministic", elements.railRunDeterministic));
+    elements.railRebuildEvalset.addEventListener("click", () => rebuildEvalset(true));
     elements.viewBase.addEventListener("click", async () => {
       state.curation.source = "base";
       await loadCurationData();
@@ -2148,6 +2249,8 @@
       elements.rebuildEvalset.disabled = true;
       elements.submitAnnotation.disabled = true;
       elements.submitRowEdit.disabled = true;
+      elements.railRunDeterministic.disabled = true;
+      elements.railRebuildEvalset.disabled = true;
     }
 
     render();
