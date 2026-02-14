@@ -140,3 +140,27 @@ If transcription fails with permission errors:
 - `say: command not found`: install or restore macOS command line tools
 - `mlx-whisper import error`: run command via `uv run` so dependencies install
 - `API key invalid`: regenerate key and ensure no whitespace
+
+## Self-Validation
+
+Run fast provider checks:
+
+```bash
+uv run ~/.claude/skills/voice/tests/test_voice.py
+```
+
+Run file-based ask/listen/respond loop (no microphone required):
+
+```bash
+uv run ~/.claude/skills/voice/tests/test_voice_loop.py
+```
+
+Include cloud loop validation (requires ElevenLabs key):
+
+```bash
+uv run ~/.claude/skills/voice/tests/test_voice_loop.py --cloud
+```
+
+Fixture files for loop validation:
+- `tests/fixtures/loop_prompt.txt`
+- `tests/fixtures/expected_keyword.txt`
