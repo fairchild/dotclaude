@@ -1,6 +1,6 @@
 ---
-name: sleep
-description: "Sleep-time compute orchestrator. Dispatched by SessionEnd hook. Runs extract → consolidate → reflect pipeline sequentially."
+name: team-memory-sleep
+description: "Sleep-time compute orchestrator for team-memory skill. Dispatched by SessionEnd hook. Runs extract → consolidate → reflect pipeline sequentially."
 tools: [Read, Write, Edit, Glob, Grep, Bash, Task]
 ---
 
@@ -27,7 +27,7 @@ Run these three stages **sequentially**. Each must complete before the next begi
 ```
 Task tool:
   subagent_type: "general-purpose"
-  prompt: "Read ~/.claude/skills/team-memory/agents/sleep-extract.md for instructions, then execute them. Memory dir: ~/.ai-memory/<PERSONA>. Persona name: <PERSONA>"
+  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-extract.md for instructions, then execute them. Memory dir: ~/.ai-memory/<PERSONA>. Persona name: <PERSONA>"
 ```
 
 ### Stage 2: Consolidate
@@ -35,7 +35,7 @@ Task tool:
 ```
 Task tool:
   subagent_type: "general-purpose"
-  prompt: "Read ~/.claude/skills/team-memory/agents/sleep-consolidate.md for instructions, then execute them. Memory dir: ~/.ai-memory/<PERSONA>. Persona name: <PERSONA>"
+  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-consolidate.md for instructions, then execute them. Memory dir: ~/.ai-memory/<PERSONA>. Persona name: <PERSONA>"
 ```
 
 ### Stage 3: Reflect
@@ -43,7 +43,7 @@ Task tool:
 ```
 Task tool:
   subagent_type: "general-purpose"
-  prompt: "Read ~/.claude/skills/team-memory/agents/sleep-reflect.md for instructions, then execute them. Memory dir: ~/.ai-memory/<PERSONA>. Persona name: <PERSONA>"
+  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-reflect.md for instructions, then execute them. Memory dir: ~/.ai-memory/<PERSONA>. Persona name: <PERSONA>"
 ```
 
 ## Output

@@ -105,7 +105,7 @@ Dispatch the sleep-consolidate agent:
 ```
 Task tool:
   subagent_type: "general-purpose"
-  prompt: "Read ~/.claude/skills/team-memory/agents/sleep-consolidate.md and execute. Persona: <name>, Memory dir: ~/.ai-memory"
+  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-consolidate.md and execute. Persona: <name>, Memory dir: ~/.ai-memory"
 ```
 
 ## Forget (`/team-memory forget <query>`)

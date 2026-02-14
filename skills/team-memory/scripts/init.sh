@@ -115,11 +115,11 @@ fi
 # Wire SessionEnd hook if not already present
 if command -v jq &>/dev/null; then
   # Check if hook already exists
-  if ! jq -e '.hooks.SessionEnd[]? | select(.hooks[]?.command | test("team-memory/agents/sleep"))' "$SETTINGS" &>/dev/null; then
+  if ! jq -e '.hooks.SessionEnd[]? | select(.hooks[]?.command | test("team-memory-sleep"))' "$SETTINGS" &>/dev/null; then
     echo "Wiring SessionEnd hook for sleep-time compute..."
     HOOK_JSON=$(mktemp)
     cat > "$HOOK_JSON" << 'HOOKEOF'
-{"hooks":[{"type":"command","command":"[ -n \"$AI_MEMORY_PERSONA\" ] && claude --agent-file ~/.claude/skills/team-memory/agents/sleep.md --print \"Run sleep-time compute for persona $AI_MEMORY_PERSONA\" || true"}]}
+{"hooks":[{"type":"command","command":"[ -n \"$AI_MEMORY_PERSONA\" ] && claude --agent team-memory-sleep --print \"Run sleep-time compute for persona $AI_MEMORY_PERSONA\" || true"}]}
 HOOKEOF
     jq --slurpfile hook "$HOOK_JSON" '.hooks.SessionEnd += $hook' "$SETTINGS" > "${SETTINGS}.tmp"
     mv "${SETTINGS}.tmp" "$SETTINGS"

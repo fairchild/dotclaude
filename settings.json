@@ -144,7 +144,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -n \"$AI_MEMORY_PERSONA\" ] && claude --agent-file ~/.claude/skills/team-memory/agents/sleep.md --print \"Run sleep-time compute for persona $AI_MEMORY_PERSONA\" || true"
+            "command": "[ -n \"$AI_MEMORY_PERSONA\" ] && claude --agent team-memory-sleep --print \"Run sleep-time compute for persona $AI_MEMORY_PERSONA\" || true"
           }
         ]
       }
