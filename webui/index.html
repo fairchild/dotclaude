@@ -785,6 +785,177 @@
         transform: translateY(0);
       }
     }
+
+    /* Blog */
+    .blog-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .blog-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      animation: cardIn 0.3s ease forwards;
+      opacity: 0;
+    }
+
+    .blog-card-header {
+      padding: 1.5rem 2rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .blog-card-header:hover {
+      background: var(--bg-hover);
+    }
+
+    .blog-card-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .blog-card-meta time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      letter-spacing: 0.02em;
+    }
+
+    .blog-card-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.15rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      line-height: 1.4;
+    }
+
+    .blog-card-desc {
+      margin-top: 0.4rem;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .blog-card-body {
+      display: none;
+    }
+
+    .blog-card.open .blog-card-body {
+      display: block;
+      padding: 0 2rem 2rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .blog-content {
+      font-size: 0.9rem;
+      line-height: 1.75;
+      color: var(--text-primary);
+      max-width: 72ch;
+      margin: 0 auto;
+    }
+
+    .blog-content h1 { display: none; }
+
+    .blog-content h2 {
+      margin-top: 1.8rem;
+      margin-bottom: 0.6rem;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .blog-content h3 {
+      margin-top: 1.2rem;
+      margin-bottom: 0.4rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .blog-content p {
+      margin-bottom: 1rem;
+    }
+
+    .blog-content img {
+      display: block;
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 1.5rem auto;
+    }
+
+    .blog-content pre {
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+      font-size: 0.8rem;
+    }
+
+    .blog-content code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82em;
+      background: var(--bg-elevated);
+      padding: 0.15em 0.35em;
+      border-radius: 3px;
+    }
+
+    .blog-content pre code {
+      background: none;
+      padding: 0;
+    }
+
+    .blog-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.82rem;
+    }
+
+    .blog-content th,
+    .blog-content td {
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+
+    .blog-content th {
+      background: var(--bg-elevated);
+      font-weight: 600;
+    }
+
+    .blog-content ul, .blog-content ol {
+      margin: 0.5rem 0 1rem 1.5rem;
+    }
+
+    .blog-content li {
+      margin-bottom: 0.3rem;
+    }
+
+    .blog-content a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .blog-content a:hover {
+      text-decoration: underline;
+    }
+
+    .blog-content em {
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+
+    .blog-content hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 2rem 0;
+    }
   </style>
 </head>
 <body>
@@ -835,6 +1006,10 @@
         <div class="stat-count" id="count-mcp">--</div>
         <div class="stat-label">MCP Servers</div>
       </div>
+      <div class="stat" data-section="blog" tabindex="0" role="button" aria-label="View blog posts">
+        <div class="stat-count" id="count-blog">--</div>
+        <div class="stat-label">Blog</div>
+      </div>
     </div>
 
     <nav class="tabs" id="tabs" role="tablist" aria-label="Configuration sections">
@@ -846,6 +1021,7 @@
       <button id="tab-plugins" class="tab" data-section="plugins" role="tab" aria-selected="false" aria-controls="plugins">/plugins</button>
       <button id="tab-mcp" class="tab" data-section="mcp" role="tab" aria-selected="false" aria-controls="mcp">/mcp</button>
       <button id="tab-scripts" class="tab" data-section="scripts" role="tab" aria-selected="false" aria-controls="scripts">$scripts</button>
+      <button id="tab-blog" class="tab" data-section="blog" role="tab" aria-selected="false" aria-controls="blog">blog</button>
     </nav>
 
     <main id="content">
@@ -916,7 +1092,7 @@
 
     function navigateToHash() {
       const { section, card } = parseHash();
-      const validSections = ['readme', 'commands', 'agents', 'skills', 'marketplaces', 'plugins', 'mcp', 'scripts'];
+      const validSections = ['readme', 'commands', 'agents', 'skills', 'marketplaces', 'plugins', 'mcp', 'scripts', 'blog'];
       const targetSection = validSections.includes(section) ? section : 'readme';
 
       // Update UI
@@ -937,10 +1113,19 @@
       // Expand card if specified
       if (card) {
         setTimeout(() => {
-          const cardEl = document.querySelector(`.card[data-name="${CSS.escape(card)}"]`);
-          if (cardEl) {
-            cardEl.classList.add('expanded');
-            cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Blog posts use .blog-card, everything else uses .card
+          if (targetSection === 'blog') {
+            const blogEl = document.querySelector(`.blog-card[data-name="${CSS.escape(card)}"]`);
+            if (blogEl) {
+              blogEl.classList.add('open');
+              blogEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+          } else {
+            const cardEl = document.querySelector(`.card[data-name="${CSS.escape(card)}"]`);
+            if (cardEl) {
+              cardEl.classList.add('expanded');
+              cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
           }
         }, 50);
       }
@@ -1041,6 +1226,7 @@ ${skill.content}`);
       document.getElementById('count-marketplaces').textContent = data.marketplaces.length;
       document.getElementById('count-plugins').textContent = data.installedPlugins.length;
       document.getElementById('count-mcp').textContent = data.mcpServers.length;
+      document.getElementById('count-blog').textContent = (data.blog || []).length;
     }
 
     function renderSection(section) {
@@ -1072,12 +1258,15 @@ ${skill.content}`);
         case 'scripts':
           html = renderScripts();
           break;
+        case 'blog':
+          html = renderBlog();
+          break;
       }
 
       content.innerHTML = `<section id="${section}" class="section active" role="tabpanel" aria-labelledby="tab-${section}">${html}</section>`;
 
       // Stagger card animations (capped at 500ms total)
-      const cards = content.querySelectorAll('.card');
+      const cards = content.querySelectorAll('.card, .blog-card');
       const maxDelay = 0.5; // 500ms total
       const delayPerCard = cards.length > 0 ? Math.min(0.05, maxDelay / cards.length) : 0.05;
       cards.forEach((card, i) => {
@@ -1409,6 +1598,51 @@ ${skill.isExternal && skill.source
           </div>
         </article>
       `).join('')}</div>`;
+    }
+
+    function renderBlog() {
+      const posts = data.blog || [];
+      if (!posts.length) {
+        return '<div class="empty"><div class="empty-icon">&#9998;</div><p>No blog posts yet</p><p style="color:var(--text-muted)">Add .md files to ~/.claude/blog/</p></div>';
+      }
+
+      return `<div class="blog-list">${posts.map((post, i) => {
+        // Replace local image paths with inlined base64
+        let content = post.content;
+        for (const [path, dataUri] of Object.entries(post.images || {})) {
+          content = content.split(path).join(dataUri);
+        }
+        const rendered = renderMarkdown(content);
+        const dateStr = new Date(post.date + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+        return `
+        <article class="blog-card" data-idx="${i}" data-name="${escapeHtml(post.name)}">
+          <div class="blog-card-header" onclick="toggleBlogPost(this.parentElement)">
+            <div class="blog-card-meta">
+              <time>${dateStr}</time>
+              ${post.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}
+            </div>
+            <h2 class="blog-card-title">${escapeHtml(post.title)}</h2>
+            ${post.description ? `<p class="blog-card-desc">${escapeHtml(post.description)}</p>` : ''}
+          </div>
+          <div class="blog-card-body">
+            <div class="blog-content">${rendered}</div>
+          </div>
+        </article>`;
+      }).join('')}</div>`;
+    }
+
+    function toggleBlogPost(article) {
+      const wasOpen = article.classList.contains('open');
+      // Close all
+      document.querySelectorAll('.blog-card.open').forEach(c => c.classList.remove('open'));
+      if (!wasOpen) {
+        article.classList.add('open');
+        updateHash('blog', article.dataset.name);
+        setTimeout(() => article.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+      } else {
+        updateHash('blog');
+      }
     }
 
     // Tab navigation
