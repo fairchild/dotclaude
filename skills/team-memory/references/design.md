@@ -292,7 +292,7 @@ Added to `settings.json` by the init command:
         "hooks": [
           {
             "type": "command",
-            "command": "claude --agent-file ~/.claude/skills/team-memory/agents/sleep.md --print 'Run sleep-time compute for persona $AI_MEMORY_PERSONA'"
+            "command": "claude --agent team-memory-sleep --print 'Run sleep-time compute for persona $AI_MEMORY_PERSONA'"
           }
         ]
       }

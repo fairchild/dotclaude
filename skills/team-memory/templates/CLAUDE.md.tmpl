@@ -25,7 +25,7 @@ When you encounter something worth remembering — a decision, pattern, preferen
 Task tool:
   subagent_type: "general-purpose"
   run_in_background: true
-  prompt: "Read ~/.claude/skills/team-memory/agents/remember.md for instructions. Memory dir: ~/.ai-memory/{{NAME}}. Remember this: <what to remember with full context>"
+  prompt: "Read ~/.claude/skills/team-memory/references/agents/remember.md for instructions. Memory dir: ~/.ai-memory/{{NAME}}. Remember this: <what to remember with full context>"
 ```
 
 **Remember**: decisions and rationale, user preferences (stated or demonstrated), debugging insights that cost time to discover, project-specific patterns, corrections to prior knowledge.
@@ -40,7 +40,7 @@ When you suspect relevant memories exist — familiar problems, prior decisions,
 Task tool:
   subagent_type: "general-purpose"
   run_in_background: true
-  prompt: "Read ~/.claude/skills/team-memory/agents/recall.md for instructions. Memory dir: ~/.ai-memory/{{NAME}}. Search for: <what you're looking for>"
+  prompt: "Read ~/.claude/skills/team-memory/references/agents/recall.md for instructions. Memory dir: ~/.ai-memory/{{NAME}}. Search for: <what you're looking for>"
 ```
 
 **Recall when**: starting work on a project seen before, encountering a familiar problem, about to make a decision where prior context might exist, the user references something from a past session.
