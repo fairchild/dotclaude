@@ -143,7 +143,10 @@ def check_config(model: str, device: int | None) -> None:
             "Grant microphone access and verify an input device is available.",
         )
 
-    temp_path = record_audio(duration=0.25, device=device)
+    temp = tempfile.NamedTemporaryFile(prefix="voice-stt-local-check-", suffix=".wav", delete=False)
+    temp_path = Path(temp.name)
+    temp.close()
+    write_wav(temp_path, np.zeros(16000, dtype=np.float32), 16000)
     try:
         _ = transcribe(temp_path, model)
     finally:
