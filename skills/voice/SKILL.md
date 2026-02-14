@@ -47,6 +47,12 @@ uv run ~/.claude/skills/voice/scripts/stt_local.py --duration 5
 
 # Transcribe an existing file
 uv run ~/.claude/skills/voice/scripts/stt_local.py --file ./meeting.wav
+
+# List input devices
+uv run ~/.claude/skills/voice/scripts/stt_local.py --list-devices
+
+# Use a specific device
+uv run ~/.claude/skills/voice/scripts/stt_local.py --duration 5 --device 1
 ```
 
 ### ElevenLabs TTS (cloud)
@@ -73,6 +79,12 @@ uv run ~/.claude/skills/voice/scripts/stt_elevenlabs.py --duration 5
 
 # Transcribe an existing audio file
 uv run ~/.claude/skills/voice/scripts/stt_elevenlabs.py --file ./call.wav
+
+# List input devices
+uv run ~/.claude/skills/voice/scripts/stt_elevenlabs.py --list-devices
+
+# Use a specific device
+uv run ~/.claude/skills/voice/scripts/stt_elevenlabs.py --duration 5 --device 1
 ```
 
 ### Provider checks

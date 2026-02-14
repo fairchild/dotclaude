@@ -65,14 +65,56 @@ def check_api_key(api_key: str) -> None:
         error_exit(f"Cannot connect to ElevenLabs API: {exc}")
 
 
-def ensure_microphone() -> None:
+def ensure_microphone(device: int | None = None) -> None:
     try:
-        sd.check_input_settings(samplerate=16000, channels=1)
+        sd.check_input_settings(samplerate=16000, channels=1, device=device)
     except Exception as exc:
         error_exit(
             f"Microphone input check failed: {exc}",
             "Grant microphone access in System Settings -> Privacy & Security -> Microphone.",
         )
+
+
+def list_input_devices() -> list[tuple[int, str, int]]:
+    devices = []
+    for index, device in enumerate(sd.query_devices()):
+        max_inputs = int(device["max_input_channels"])
+        if max_inputs > 0:
+            devices.append((index, str(device["name"]), max_inputs))
+    return devices
+
+
+def resolve_device(device: str | None) -> int | None:
+    if device is None:
+        return None
+
+    try:
+        return int(device)
+    except ValueError:
+        pass
+
+    lowered = device.lower()
+    matches = [index for index, name, _ in list_input_devices() if lowered in name.lower()]
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        error_exit(
+            f"Device name is ambiguous: {device}",
+            "Use --list-devices and pass a numeric device index.",
+        )
+    error_exit(
+        f"Input device not found: {device}",
+        "Use --list-devices to see available microphones.",
+    )
+    raise AssertionError("unreachable")
+
+
+def print_input_devices() -> None:
+    devices = list_input_devices()
+    if not devices:
+        error_exit("No input devices found")
+    for index, name, channels in devices:
+        print(f"{index}\t{name}\tchannels={channels}")
 
 
 def write_wav(path: Path, audio: np.ndarray, sample_rate: int) -> None:
@@ -85,14 +127,24 @@ def write_wav(path: Path, audio: np.ndarray, sample_rate: int) -> None:
         wf.writeframes(pcm.tobytes())
 
 
-def record_audio(duration: float, sample_rate: int = 16000) -> Path:
+def ensure_audio_signal(audio: np.ndarray) -> None:
+    rms = float(np.sqrt(np.mean(np.square(audio)))) if audio.size else 0.0
+    peak = float(np.max(np.abs(audio))) if audio.size else 0.0
+    if rms < 1e-6 and peak < 1e-5:
+        error_exit(
+            "Captured audio is silent (all zeros)",
+            "Microphone audio is not reaching this process. Check app microphone permissions and selected input device.",
+        )
+
+
+def record_audio(duration: float, sample_rate: int = 16000, device: int | None = None) -> Path:
     if duration <= 0:
         error_exit("--duration must be greater than 0")
 
-    ensure_microphone()
+    ensure_microphone(device=device)
     frames = int(duration * sample_rate)
     try:
-        audio = sd.rec(frames, samplerate=sample_rate, channels=1, dtype="float32")
+        audio = sd.rec(frames, samplerate=sample_rate, channels=1, dtype="float32", device=device)
         sd.wait()
     except Exception as exc:
         error_exit(
@@ -101,6 +153,7 @@ def record_audio(duration: float, sample_rate: int = 16000) -> Path:
         )
 
     mono = np.squeeze(audio)
+    ensure_audio_signal(mono)
     temp = tempfile.NamedTemporaryFile(prefix="voice-stt-elevenlabs-", suffix=".wav", delete=False)
     temp_path = Path(temp.name)
     temp.close()
@@ -137,10 +190,10 @@ def transcribe(audio_path: Path, model: str, api_key: str) -> str:
     return extract_text(result)
 
 
-def check_config() -> None:
+def check_config(device: int | None) -> None:
     api_key = get_api_key()
     check_api_key(api_key)
-    ensure_microphone()
+    ensure_microphone(device=device)
     print("OK: ElevenLabs STT configuration is valid")
 
 
@@ -149,6 +202,11 @@ def main() -> None:
     parser.add_argument("--duration", "-d", type=float, help="Record from microphone for N seconds")
     parser.add_argument("--file", "-f", type=Path, help="Transcribe existing audio file")
     parser.add_argument(
+        "--device",
+        help="Input device index or name substring (use --list-devices to inspect)",
+    )
+    parser.add_argument("--list-devices", action="store_true", help="List available microphone devices")
+    parser.add_argument(
         "--model",
         default="scribe_v2",
         help="Model ID (default: scribe_v2)",
@@ -156,8 +214,15 @@ def main() -> None:
     parser.add_argument("--check", action="store_true", help="Validate API key and microphone access")
     args = parser.parse_args()
 
+    if args.list_devices:
+        print_input_devices()
+        if not args.check and args.duration is None and args.file is None:
+            return
+
+    device = resolve_device(args.device)
+
     if args.check:
-        check_config()
+        check_config(device)
         return
 
     if bool(args.duration is not None) == bool(args.file is not None):
@@ -172,7 +237,7 @@ def main() -> None:
         if not audio_path.exists():
             error_exit(f"Audio file does not exist: {audio_path}")
     else:
-        temp_path = record_audio(args.duration if args.duration is not None else 10.0)
+        temp_path = record_audio(args.duration if args.duration is not None else 10.0, device=device)
         audio_path = temp_path
 
     try:
