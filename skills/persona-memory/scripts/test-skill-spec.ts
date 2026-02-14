@@ -6,6 +6,7 @@ interface CliOptions {
   report: "text" | "json";
   full: boolean;
   skillDir: string;
+  requireMetadataStatus: boolean;
 }
 
 interface CheckResult {
@@ -43,10 +44,12 @@ function parseOptions(): CliOptions {
   const report = reportRaw === "json" ? "json" : "text";
   const full = hasFlag("full");
   const skillDir = getArg("skill-dir") || join(import.meta.dir, "..");
+  const requireMetadataStatus = hasFlag("require-metadata-status");
   return {
     report,
     full,
     skillDir,
+    requireMetadataStatus,
   };
 }
 
@@ -64,7 +67,7 @@ function runCommand(cwd: string, args: string[]): { ok: boolean; stdout: string;
   };
 }
 
-function parseSkillFrontmatter(content: string): Record<string, string> {
+function parseSkillFrontmatter(content: string): Record<string, unknown> {
   const lines = content.split("\n");
   if (lines[0]?.trim() !== "---") {
     throw new Error("SKILL.md must start with YAML frontmatter delimiter ---");
@@ -74,16 +77,36 @@ function parseSkillFrontmatter(content: string): Record<string, string> {
     throw new Error("SKILL.md frontmatter closing delimiter --- is missing");
   }
 
-  const map: Record<string, string> = {};
+  const map: Record<string, unknown> = {};
+  let nestedKey: string | null = null;
   for (const line of lines.slice(1, endIdx)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const match = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_-]*):\s*(.*)$/);
-    if (!match) {
-      throw new Error(`Invalid frontmatter line: '${trimmed}'`);
+    if (!line.trim() || line.trim().startsWith("#")) continue;
+
+    const topMatch = line.match(/^([a-zA-Z_][a-zA-Z0-9_-]*):\s*(.*)$/);
+    if (topMatch) {
+      const [, key, rawValue] = topMatch;
+      const value = rawValue.trim();
+      if (value.length === 0) {
+        map[key] = {};
+        nestedKey = key;
+      } else {
+        map[key] = value;
+        nestedKey = null;
+      }
+      continue;
     }
-    const [, key, value] = match;
-    map[key] = value.trim();
+
+    const nestedMatch = line.match(/^\s{2}([a-zA-Z_][a-zA-Z0-9_-]*):\s*(.*)$/);
+    if (nestedMatch) {
+      if (!nestedKey || typeof map[nestedKey] !== "object" || map[nestedKey] === null) {
+        throw new Error(`Unexpected nested key without parent: '${line.trim()}'`);
+      }
+      const [, key, rawValue] = nestedMatch;
+      (map[nestedKey] as Record<string, unknown>)[key] = rawValue.trim();
+      continue;
+    }
+
+    throw new Error(`Invalid frontmatter line: '${line.trim()}'`);
   }
 
   return map;
@@ -121,19 +144,21 @@ function requiredSkillFiles(skillDir: string): { path: string; executable?: bool
   ];
 }
 
-function validateFrontmatter(checks: CheckResult[], skillDir: string): void {
+function validateFrontmatter(checks: CheckResult[], skillDir: string, requireMetadataStatus: boolean): void {
   const skillPath = join(skillDir, "SKILL.md");
   const content = readFileSync(skillPath, "utf-8");
   try {
     const fm = parseSkillFrontmatter(content);
     const keys = Object.keys(fm).sort();
-    const expected = ["description", "name"];
-    const keyMatch = keys.length === expected.length && keys.every((k, i) => k === expected[i]);
+    const allowed = ["description", "metadata", "name"];
+    const keyMatch = keys.every((key) => allowed.includes(key)) && keys.includes("name") && keys.includes("description");
     addCheck(
       checks,
       "frontmatter keys",
       keyMatch,
-      keyMatch ? `keys=${keys.join(",")}` : `Expected only name,description; got ${keys.join(",") || "(none)"}`,
+      keyMatch
+        ? `keys=${keys.join(",")}`
+        : `Expected name,description (+ optional metadata); got ${keys.join(",") || "(none)"}`,
     );
 
     const hasName = typeof fm.name === "string" && fm.name.trim().length > 0;
@@ -155,6 +180,24 @@ function validateFrontmatter(checks: CheckResult[], skillDir: string): void {
       nameMatchesDir,
       nameMatchesDir ? `name=${fm.name}` : `name=${fm.name} dir=${expectedName}`,
     );
+
+    if (Object.prototype.hasOwnProperty.call(fm, "metadata")) {
+      const metadata = fm.metadata as Record<string, unknown>;
+      const hasStatus = metadata && typeof metadata.status === "string" && metadata.status.trim().length > 0;
+      addCheck(
+        checks,
+        "frontmatter metadata.status (optional)",
+        hasStatus,
+        hasStatus ? `status=${metadata.status}` : "metadata.status missing/empty",
+      );
+    } else {
+      addCheck(
+        checks,
+        "frontmatter metadata.status (optional)",
+        !requireMetadataStatus,
+        requireMetadataStatus ? "metadata.status missing" : "metadata.status not set (allowed)",
+      );
+    }
   } catch (err) {
     addCheck(
       checks,
@@ -201,7 +244,15 @@ function validatePackageScripts(checks: CheckResult[], skillDir: string): void {
   try {
     const pkg = JSON.parse(readFileSync(packagePath, "utf-8")) as { scripts?: Record<string, string> };
     const scripts = pkg.scripts || {};
-    const required = ["test", "test:deterministic", "evalset:rebuild", "dashboard:serve", "dashboard:capture"];
+    const required = [
+      "test",
+      "test:deterministic",
+      "test:skill-spec",
+      "test:skill-spec:full",
+      "evalset:rebuild",
+      "dashboard:serve",
+      "dashboard:capture",
+    ];
     const missing = required.filter((key) => !scripts[key]);
     addCheck(
       checks,
@@ -256,7 +307,7 @@ function main(): void {
   }
 
   if (existsSync(join(opts.skillDir, "SKILL.md"))) {
-    validateFrontmatter(checks, opts.skillDir);
+    validateFrontmatter(checks, opts.skillDir, opts.requireMetadataStatus);
     validateReferencesLinked(checks, opts.skillDir);
   }
 
