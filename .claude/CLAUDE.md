@@ -29,23 +29,21 @@ All skills are Apache 2.0 - consistent with Anthropic skills.
 
 ```yaml
 license: Apache 2.0              # all skills (root LICENSE applies)
-status: wip                      # work in progress (absence = ready)
+status: experimental              # optional — absent means production-ready
 ```
 
 Attribution is handled per-skill in each skill's README.md.
 
 ## Skill Status Convention
 
-| Prefix | Frontmatter | Meaning |
-|--------|-------------|---------|
-| (none) | (none) | Production-ready, auto-invoked |
-| `wip-` | `status: wip` | Experimental, usable but incomplete |
+Skills use a top-level `status` key in SKILL.md frontmatter. No directory prefix needed.
 
-WIP skills use **both** the directory prefix and frontmatter flag:
-- `skills/wip-rate-title/` with `status: wip` in SKILL.md
-- `skills/wip-session-title-eval/` with `status: wip` in SKILL.md
+| Frontmatter | Meaning |
+|-------------|---------|
+| (none) | Production-ready, auto-invoked |
+| `status: experimental` | Usable but incomplete |
 
-To promote a skill: remove `wip-` prefix and `status: wip` frontmatter.
+To promote a skill: remove the `status` field from frontmatter.
 
 ## Conventions
 

@@ -204,4 +204,4 @@ All agents share the same lock file. The `npx skills` CLI auto-detects which age
 - **Structure**: SKILL.md + optional scripts/, references/, assets/
 - **Forbidden**: README.md, CHANGELOG.md, INSTALLATION.md, QUICK_REFERENCE.md
 - **Non-spec keys**: origin, inspired-by, status, hooks — should migrate to metadata:
-- **WIP skills**: `wip-` directory prefix + `status: wip` in frontmatter
+- **Experimental skills**: `status: experimental` in frontmatter (no directory prefix)
