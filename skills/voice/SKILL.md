@@ -164,3 +164,8 @@ uv run ~/.claude/skills/voice/tests/test_voice_loop.py --cloud
 Fixture files for loop validation:
 - `tests/fixtures/loop_prompt.txt`
 - `tests/fixtures/expected_keyword.txt`
+
+## References
+
+- **Architecture & research**: See [references/architecture.md](references/architecture.md) — three-tier design, ElevenLabs API details, Claude Code background communication research, CLI programmatic modes
+- **Voice bridge backlog**: See `backlog/voice-bridge-plan.md` — standalone process for continuous voice conversation with self-eval loop
