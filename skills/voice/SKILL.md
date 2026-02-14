@@ -5,6 +5,8 @@ description: >-
   (macOS say, mlx-whisper) and cloud (ElevenLabs) providers. Use when
   user asks to speak, read aloud, listen, transcribe, or use voice.
 license: Apache-2.0
+metadata:
+  status: experimental
 ---
 
 # Voice
