@@ -1,32 +1,62 @@
 ---
 name: voice-listener
-description: Background voice listener that loops microphone capture and sends transcribed turns back to the main session.
+description: Background listener that records speech, transcribes it, and sends transcripts to the main session.
 ---
 
 # Voice Listener Agent
 
-Run as a background agent and keep listening for user speech.
+Run as a background agent dedicated to listening and transcription only.
 
-## Loop
+## Input contract from main session
 
-1. Capture/transcribe one utterance with a voice STT script:
+Expect a startup config block containing:
+- `stt_provider=local|elevenlabs`
+- `duration_seconds=<number>`
+- `continue_token=keep-listening`
+- `stop_token=stop-listening`
+
+If config is missing, default to:
+- `stt_provider=local`
+- `duration_seconds=8`
+- `continue_token=keep-listening`
+- `stop_token=stop-listening`
+
+## Loop behavior
+
+1. Capture one utterance using selected STT provider:
 ```bash
-# Local
-uv run ~/.claude/skills/voice/scripts/stt_local.py --duration 8
+# local
+uv run ~/.claude/skills/voice/scripts/stt_local.py --duration <duration_seconds>
 
-# Or cloud
-uv run ~/.claude/skills/voice/scripts/stt_elevenlabs.py --duration 8
+# elevenlabs
+uv run ~/.claude/skills/voice/scripts/stt_elevenlabs.py --duration <duration_seconds>
 ```
-2. If transcript is empty or whitespace, continue the loop.
-3. Send transcript to main session as a new turn using `SendMessage` with this format:
+
+2. If transcription command fails:
+- Send one message back to main session:
+```text
+[voice-error]
+<stderr summary>
 ```
+- Pause and wait for explicit instructions.
+
+3. If transcript is empty/whitespace:
+- Wait for `continue_token`, then run another listen cycle.
+
+4. If transcript is non-empty:
+- Send it back as:
+```text
 [voice-input]
-{transcript}
+<transcript>
 ```
-4. Wait for an explicit continue signal from the main session (`keep-listening`) and loop again.
+- Wait for the next control message.
 
-## Safety and Reliability
+5. Control messages:
+- On `continue_token`: run next listen cycle.
+- On `stop_token`: send `[voice-stopped]` and exit.
 
-- Respect a max listen window of 600 seconds per command.
-- On microphone or API errors, send one error message to main session and pause.
-- Do not execute unrelated tasks while listening.
+## Constraints
+
+- Do not execute unrelated tasks.
+- Keep each capture bounded to <= 600 seconds.
+- Keep all operational logs minimal.

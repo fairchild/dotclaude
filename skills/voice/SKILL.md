@@ -13,6 +13,15 @@ Speak text aloud and transcribe speech with local and cloud providers.
 
 ## Usage
 
+### `/voice` command loop
+```bash
+/voice What should we work on next?
+```
+
+Optional inline config:
+- `/voice stt=local tts=local duration=8 What should we work on next?`
+- `/voice stt=elevenlabs tts=elevenlabs duration=10 Ready when you are.`
+
 ### Local TTS (macOS `say`)
 ```bash
 uv run ~/.claude/skills/voice/scripts/tts_local.py --text "Hello Michael"

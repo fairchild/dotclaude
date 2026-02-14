@@ -1,36 +1,52 @@
 ---
-description: Start turn-based voice mode using a background listener agent plus TTS responses
+description: Run an automatic turn-based voice loop (ask aloud, listen, respond, keep listening)
 ---
 
-Start voice mode using the `voice-listener` background agent and the `voice` skill.
+Run voice mode with the `voice` skill and `voice-listener` background agent.
 
-## Workflow
+## Command behavior
 
-1. Choose STT provider:
-- `local` -> `stt_local.py`
-- `elevenlabs` -> `stt_elevenlabs.py`
+1. Parse optional inline config from the command text:
+- `stt=local|elevenlabs` (default: `local`)
+- `tts=local|elevenlabs` (default: match `stt`)
+- `duration=<seconds>` (default: `8`)
+- Remaining text becomes the first spoken prompt.
 
-2. Create or reuse a team named `voice`.
-3. Launch background task with agent `voice-listener`.
-4. Listener captures speech and sends transcript turns prefixed with:
-```
-[voice-input]
-```
-5. For each received voice turn:
-- Process it as user input
-- Generate assistant response
-- Speak response with TTS:
+2. Validate selected providers before starting:
 ```bash
-# Local playback
-uv run ~/.claude/skills/voice/scripts/tts_local.py --text "<assistant response>"
+# STT
+uv run ~/.claude/skills/voice/scripts/stt_local.py --check
+uv run ~/.claude/skills/voice/scripts/stt_elevenlabs.py --check
 
-# Cloud playback
-uv run ~/.claude/skills/voice/scripts/tts_elevenlabs.py --text "<assistant response>"
+# TTS
+uv run ~/.claude/skills/voice/scripts/tts_local.py --check
+uv run ~/.claude/skills/voice/scripts/tts_elevenlabs.py --check
 ```
-- Send `keep-listening` back to the listener agent
+Run only the checks needed for selected providers.
 
-## Notes
+3. Create or reuse a team named `voice` and launch `voice-listener` as a background task with config:
+```text
+stt_provider=<local|elevenlabs>
+duration_seconds=<duration>
+continue_token=keep-listening
+stop_token=stop-listening
+```
 
-- This is turn-based voice mode, not full duplex.
-- Each listen cycle is a separate agent turn.
-- If a provider check fails, run the script `--check` command and resolve setup before retrying.
+4. Speak the first prompt aloud (if provided). If none is provided, speak:
+`Voice mode active. I'm listening.`
+
+5. For every listener message that starts with `[voice-input]`:
+- Treat transcript as the user turn.
+- Produce a concise assistant response.
+- Speak the response with selected TTS provider.
+- Send `keep-listening` to the listener agent.
+
+6. Stop conditions:
+- If transcript asks to stop (for example: "stop voice mode", "goodbye", "exit voice"), speak confirmation and send `stop-listening`.
+- If listener reports `[voice-error]`, surface the error and pause voice mode.
+
+## Runtime Notes
+
+- This is turn-based, not full-duplex realtime.
+- Each listen cycle is a separate background agent turn.
+- Keep spoken responses short unless user asks for detail.
