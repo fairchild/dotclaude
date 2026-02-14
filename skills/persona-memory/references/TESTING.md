@@ -20,6 +20,11 @@ cd /Users/fairchild/.claude/skills/persona-memory
 bun scripts/test-skill-spec.ts --report text
 ```
 
+Require `metadata.status` in frontmatter:
+```bash
+bun scripts/test-skill-spec.ts --require-metadata-status --report text
+```
+
 Skill-spec + runtime verification (rebuild + deterministic harness):
 ```bash
 cd /Users/fairchild/.claude/skills/persona-memory
@@ -63,6 +68,14 @@ Automated dashboard screenshots (desktop/mobile, light/dark):
 ```bash
 cd /Users/fairchild/.claude/skills/persona-memory
 bun scripts/capture-dashboard.ts
+```
+
+Port behavior:
+- Dashboard server default port: `8787`
+- Capture script default port: `8799` (chosen to avoid common local conflicts)
+- To use an already-running dashboard server on a custom port:
+```bash
+bun scripts/capture-dashboard.ts --no-server --port 8787
 ```
 
 Theme control for screenshots:

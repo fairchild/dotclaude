@@ -1,6 +1,8 @@
 ---
 name: persona-memory
 description: Build and operate a persistent persona and memory framework for Claude Code. Use when setting up personality.md injection, durable memory blocks in ~/.ai-memory, session start/end memory workflows, recall/remember/consolidate scripts, or packaging a distributable memory skill profile.
+metadata:
+  status: experimental
 ---
 
 # Persona Memory
@@ -8,6 +10,20 @@ description: Build and operate a persistent persona and memory framework for Cla
 General memory framework for teammate-style agents.
 
 This skill is framework-first: any specific persona (for example Bertram) should be implemented as a profile by providing `personality.md` and using the shared memory store.
+
+## Current Scope (Experimental)
+
+- Local-first memory store in `~/.ai-memory`.
+- Personality/profile loading via launcher and appended prompt context.
+- Scripted remember/recall/consolidate/session lifecycle hooks.
+- Deterministic + live-smoke test harness and curation dashboard.
+
+## Not Yet Implemented
+
+- Continuous background memory agents (always-on consolidation/recall loops).
+- Autonomous cross-project relationship learning and long-horizon planning.
+- Production-stability guarantees or backward-compatibility promises.
+- Full interactive Claude session integration testing in CI.
 
 ## Quick Start
 
