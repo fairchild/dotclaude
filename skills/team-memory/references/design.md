@@ -292,7 +292,7 @@ Added to `settings.json` by the init command:
         "hooks": [
           {
             "type": "command",
-            "command": "claude --agent team-memory-sleep --print 'Run sleep-time compute for persona $AI_MEMORY_PERSONA'"
+            "command": "TRANSCRIPT=$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1); [ -n \"$AI_MEMORY_PERSONA\" ] && [ -n \"$TRANSCRIPT\" ] && CLAUDECODE= claude --agent team-memory-sleep --print \"Run sleep-time compute for persona $AI_MEMORY_PERSONA. Session transcript: $TRANSCRIPT\" || true"
           }
         ]
       }

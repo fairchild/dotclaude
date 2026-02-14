@@ -144,7 +144,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -n \"$AI_MEMORY_PERSONA\" ] && CLAUDECODE= claude --agent team-memory-sleep --print \"Run sleep-time compute for persona $AI_MEMORY_PERSONA\" || true"
+            "command": "TRANSCRIPT=$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1); [ -n \"$AI_MEMORY_PERSONA\" ] && [ -n \"$TRANSCRIPT\" ] && CLAUDECODE= claude --agent team-memory-sleep --print \"Run sleep-time compute for persona $AI_MEMORY_PERSONA. Session transcript: $TRANSCRIPT\" || true"
           }
         ]
       }

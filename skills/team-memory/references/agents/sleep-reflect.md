@@ -25,7 +25,7 @@ Read these files:
 
 ### 2. Find session context
 
-Read the latest session transcript (same approach as sleep-extract):
+Use the session transcript path from the calling prompt. If not provided, fall back:
 ```bash
 ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1
 ```

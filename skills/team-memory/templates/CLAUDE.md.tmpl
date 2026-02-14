@@ -29,6 +29,7 @@ When you encounter something worth remembering — a decision, pattern, preferen
 ```
 Task tool:
   subagent_type: "general-purpose"
+  model: "haiku"
   run_in_background: true
   prompt: "Read ~/.claude/skills/team-memory/references/agents/remember.md for instructions. Memory dir: ~/.ai-memory/{{NAME}}. Remember this: <what to remember with full context>"
 ```
@@ -44,6 +45,7 @@ When you suspect relevant memories exist — familiar problems, prior decisions,
 ```
 Task tool:
   subagent_type: "general-purpose"
+  model: "haiku"
   run_in_background: true
   prompt: "Read ~/.claude/skills/team-memory/references/agents/recall.md for instructions. Memory dir: ~/.ai-memory/{{NAME}}. Search for: <what you're looking for>"
 ```
