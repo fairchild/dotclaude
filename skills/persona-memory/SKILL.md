@@ -44,6 +44,11 @@ Persistent memory root:
 Profile-based personalities:
 - `~/.ai-memory/profiles/<profile>/personality.md`
 
+## Dev Search Standard
+
+- Prefer `rg`/`rg --files` for codebase search and file discovery.
+- Use `grep` only when strict POSIX portability is required.
+
 ## Hook Setup
 
 Read:

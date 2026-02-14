@@ -2,9 +2,28 @@
 
 ## Test Harness Commands
 
+Search convention:
+```bash
+# preferred
+rg "pattern" /Users/fairchild/.claude/skills/persona-memory
+rg --files /Users/fairchild/.claude/skills/persona-memory
+```
+
 Deterministic suite (required gate):
 ```bash
 bun /Users/fairchild/.claude/skills/persona-memory/tests/harness.ts --suite deterministic
+```
+
+Skill-spec compatibility checks (structure/frontmatter/required files):
+```bash
+cd /Users/fairchild/.claude/skills/persona-memory
+bun scripts/test-skill-spec.ts --report text
+```
+
+Skill-spec + runtime verification (rebuild + deterministic harness):
+```bash
+cd /Users/fairchild/.claude/skills/persona-memory
+bun scripts/test-skill-spec.ts --full --report text
 ```
 
 Synthetic evaluation only:
