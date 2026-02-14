@@ -7,3 +7,4 @@ data.json
 # Screenshots (only hero.png is committed for docs)
 screenshots/*
 !screenshots/hero.png
+previews/
