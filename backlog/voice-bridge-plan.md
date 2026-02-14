@@ -173,13 +173,17 @@ CLI interface:
 - `--voice George` — TTS voice selection
 - `--check` — verify all components work
 
-**Acceptance criteria:**
-- [ ] Speaks a greeting on startup
-- [ ] Listens to mic, detects speech, transcribes
-- [ ] Sends transcript to Claude via stream-json
-- [ ] Receives response, speaks it aloud
-- [ ] Loops back to listening automatically
-- [ ] Ctrl+C gracefully shuts down
+**Required test-support flags** (for self-eval, see eval loop below):
+- `--check` — validate all components, report per-component status, exit 0/1
+- `--input-file FILE` — use audio file instead of mic (enables automated testing)
+- `--single-shot` — process one utterance then exit (no loop)
+- `--no-play` — print response text to stdout instead of TTS playback
+
+**Acceptance criteria** (verified by self-eval Layers 1-5):
+- [ ] `--check` passes (Layer 4) — all components report ok
+- [ ] e2e test with `--input-file --single-shot --no-play` returns correct response (Layer 5)
+- [ ] Interactive mode: listens → transcribes → sends to Claude → speaks response → loops (Layer 6, human)
+- [ ] Ctrl+C gracefully shuts down (kills Claude subprocess, closes audio streams)
 
 ### Phase 2: Streaming & Sentence-Level TTS
 
@@ -250,25 +254,152 @@ async for message in agent.query(transcript):
 
 **Recommendation**: Start with CLI stream-json (simpler, uses existing auth), evaluate SDK if we need more control.
 
-## Verification Commands
+## Self-Eval Loop
+
+The implementing agent should verify each layer **bottom-up** before moving to the next. Each step has a concrete command and expected output the agent can check programmatically. Do not move to the next step until the current one passes.
+
+### Layer 1: stream-json protocol works
+
+Verify Claude CLI accepts stream-json input and returns structured output.
 
 ```bash
-# Check all dependencies
-uv run ~/.claude/skills/voice/scripts/voice_bridge.py --check
+# Send a simple message, capture output
+OUTPUT=$(echo '{"type":"user_message","content":"Reply with exactly: VOICE_TEST_OK"}' | \
+  claude --print --input-format stream-json --output-format stream-json 2>/dev/null)
 
-# Start voice bridge with local providers (free)
-uv run ~/.claude/skills/voice/scripts/voice_bridge.py --provider local
-
-# Start with ElevenLabs (needs API key)
-uv run ~/.claude/skills/voice/scripts/voice_bridge.py --provider elevenlabs --voice George
-
-# Resume previous session
-uv run ~/.claude/skills/voice/scripts/voice_bridge.py --session last
-
-# Test stream-json protocol manually
-echo '{"type":"user_message","content":"Say hello"}' | \
-  claude --print --input-format stream-json --output-format stream-json
+# Verify we got JSON back containing the expected response
+echo "$OUTPUT" | python3 -c "
+import sys, json
+for line in sys.stdin:
+    line = line.strip()
+    if not line: continue
+    msg = json.loads(line)
+    if 'VOICE_TEST_OK' in msg.get('content', '') or 'VOICE_TEST_OK' in json.dumps(msg):
+        print('PASS: stream-json round-trip works')
+        sys.exit(0)
+print('FAIL: did not find expected response')
+sys.exit(1)
+"
 ```
+
+**Pass**: prints `PASS: stream-json round-trip works`, exit 0
+**Fail**: the stream-json protocol format may have changed — read `claude --help` output and adjust message format
+
+### Layer 2: mic capture produces valid audio
+
+Verify the STT prerequisite scripts capture audio that can be read back.
+
+```bash
+# Record 2 seconds of silence to a file (non-interactive, no transcription)
+uv run ~/.claude/skills/voice/scripts/stt_local.py --duration 2 --file /tmp/voice_bridge_test.wav 2>/dev/null
+
+# Verify the file exists and has audio data (>1KB means real audio, not empty)
+python3 -c "
+import os, sys
+f = '/tmp/voice_bridge_test.wav'
+if not os.path.exists(f):
+    print('FAIL: audio file not created'); sys.exit(1)
+size = os.path.getsize(f)
+if size < 1000:
+    print(f'FAIL: audio file too small ({size} bytes)'); sys.exit(1)
+print(f'PASS: audio capture works ({size} bytes)')
+" && rm -f /tmp/voice_bridge_test.wav
+```
+
+**Pass**: file exists, >1KB
+**Fail**: mic permissions issue — check System Settings > Privacy > Microphone
+
+### Layer 3: TTS playback completes without error
+
+Verify TTS scripts produce audio and `afplay` returns exit 0.
+
+```bash
+# Local TTS — should complete in <2 seconds
+timeout 5 uv run ~/.claude/skills/voice/scripts/tts_local.py --text "test" --output /tmp/voice_bridge_tts.aiff 2>/dev/null
+EXIT=$?
+[ $EXIT -eq 0 ] && [ -f /tmp/voice_bridge_tts.aiff ] && echo "PASS: local TTS works" || echo "FAIL: local TTS exit=$EXIT"
+rm -f /tmp/voice_bridge_tts.aiff
+
+# Verify afplay works (macOS audio subsystem)
+echo -n "." | say -o /tmp/voice_bridge_afplay.aiff 2>/dev/null
+timeout 5 afplay /tmp/voice_bridge_afplay.aiff 2>/dev/null
+[ $? -eq 0 ] && echo "PASS: afplay works" || echo "FAIL: afplay broken"
+rm -f /tmp/voice_bridge_afplay.aiff
+```
+
+### Layer 4: voice_bridge.py --check passes
+
+The bridge script itself should have a `--check` that validates all components:
+
+```bash
+uv run ~/.claude/skills/voice/scripts/voice_bridge.py --check
+```
+
+**Expected output** (one line per component):
+```
+stream-json: ok
+mic-capture: ok
+tts-local: ok
+stt-local: ok
+tts-elevenlabs: ok (or: skip — ELEVENLABS_API_KEY not set)
+stt-elevenlabs: ok (or: skip — ELEVENLABS_API_KEY not set)
+```
+
+**Implementation requirement**: `--check` must run each of Layers 1-3 above internally and report per-component status. Exit 0 only if all non-skip components pass. This is the agent's single command to validate the full stack.
+
+### Layer 5: end-to-end non-interactive test
+
+Test the full pipeline without a real mic by feeding a pre-recorded audio file:
+
+```bash
+# Create a test audio file with macOS say
+say -o /tmp/voice_bridge_e2e.aiff "What is two plus two"
+
+# Run bridge in single-shot mode (process one utterance, then exit)
+OUTPUT=$(uv run ~/.claude/skills/voice/scripts/voice_bridge.py \
+  --provider local \
+  --input-file /tmp/voice_bridge_e2e.aiff \
+  --single-shot \
+  --no-play 2>/dev/null)
+
+# Verify Claude responded with something containing "four" or "4"
+echo "$OUTPUT" | python3 -c "
+import sys
+text = sys.stdin.read().lower()
+if 'four' in text or '4' in text:
+    print('PASS: end-to-end pipeline works')
+    sys.exit(0)
+print(f'FAIL: unexpected response: {text[:200]}')
+sys.exit(1)
+"
+rm -f /tmp/voice_bridge_e2e.aiff
+```
+
+**Implementation requirement**: The bridge must support `--input-file` (use audio file instead of mic), `--single-shot` (process one utterance then exit), and `--no-play` (print response text to stdout instead of speaking). These flags exist specifically for automated testing.
+
+### Layer 6: interactive smoke test (human required)
+
+Only after Layers 1-5 pass. This cannot be automated.
+
+```bash
+uv run ~/.claude/skills/voice/scripts/voice_bridge.py --provider local
+# Say "Hello" into mic
+# Expected: Claude responds verbally
+# Ctrl+C to exit
+```
+
+### Eval Summary
+
+| Layer | What | Automated? | Gate for |
+|-------|------|-----------|----------|
+| 1 | stream-json protocol | Yes | Everything |
+| 2 | Mic capture | Yes | STT, e2e |
+| 3 | TTS playback | Yes | Speaking |
+| 4 | `--check` (all components) | Yes | Phase 1 complete |
+| 5 | e2e with test audio file | Yes | Phase 1 merge |
+| 6 | Interactive smoke test | No (human) | Phase 1 ship |
+
+**The implementing agent must pass Layers 1-5 before claiming Phase 1 is complete.** Layer 6 requires the user.
 
 ## Rollback Plan
 
