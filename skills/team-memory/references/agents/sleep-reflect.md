@@ -27,7 +27,7 @@ Read these files:
 
 Read the latest session transcript (same approach as sleep-extract):
 ```bash
-ls -t ~/.claude/projects/*/session-*.jsonl 2>/dev/null | head -1
+ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1
 ```
 
 Scan for relationship signals:
