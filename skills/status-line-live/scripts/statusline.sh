@@ -130,14 +130,6 @@ fi
 # Render Status Line
 # ----------------------------------------------------------------------------
 
-# Project name (blue)
-worktree_name_file="$current_dir/.worktree-name"
-if [[ -f "$worktree_name_file" ]]; then
-    printf "${BLUE}%s${RESET}" "$(cat "$worktree_name_file" | tr -d '\n')"
-else
-    printf "${BLUE}%s${RESET}" "$(basename "$current_dir")"
-fi
-
 # Persona identity (icon + name in theme color, or fallback to cyan)
 if [[ -n "${AI_MEMORY_PERSONA:-}" ]]; then
     MEMORY_DIR="${AI_MEMORY_DIR:-$HOME/.ai-memory}"
@@ -151,13 +143,21 @@ if [[ -n "${AI_MEMORY_PERSONA:-}" ]]; then
             PERSONA_COLOR="$CYAN"
         fi
         if [[ -n "$theme_icon" ]]; then
-            printf " %s ${PERSONA_COLOR}%s${RESET}" "$theme_icon" "$AI_MEMORY_PERSONA"
+            printf "%s ${PERSONA_COLOR}%s${RESET} " "$theme_icon" "$AI_MEMORY_PERSONA"
         else
-            printf "${DIM}:${PERSONA_COLOR}%s${RESET}" "$AI_MEMORY_PERSONA"
+            printf "${PERSONA_COLOR}%s${RESET} " "$AI_MEMORY_PERSONA"
         fi
     else
-        printf "${DIM}:${CYAN}%s${RESET}" "$AI_MEMORY_PERSONA"
+        printf "${CYAN}%s${RESET} " "$AI_MEMORY_PERSONA"
     fi
+fi
+
+# Project name (blue)
+worktree_name_file="$current_dir/.worktree-name"
+if [[ -f "$worktree_name_file" ]]; then
+    printf "${BLUE}%s${RESET}" "$(cat "$worktree_name_file" | tr -d '\n')"
+else
+    printf "${BLUE}%s${RESET}" "$(basename "$current_dir")"
 fi
 
 # Git branch + uncommitted count
