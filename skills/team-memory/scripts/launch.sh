@@ -42,5 +42,12 @@ fi
 
 export AI_MEMORY_PERSONA="$PERSONA"
 export AI_MEMORY_DIR="$MEMORY_DIR"
-CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 \
-  exec claude --add-dir "$PERSONA_DIR" "$@"
+
+if [[ $# -eq 0 ]]; then
+  # No args — greet first so the persona speaks immediately
+  CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 \
+    exec claude --add-dir "$PERSONA_DIR" "hi, how's it goin"
+else
+  CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 \
+    exec claude --add-dir "$PERSONA_DIR" "$@"
+fi
