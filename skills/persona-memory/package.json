@@ -13,6 +13,8 @@
     "dashboard:capture": "bun scripts/capture-dashboard.ts",
     "dashboard:serve": "bun scripts/serve-eval-dashboard.ts",
     "evalset:rebuild": "bun scripts/evalset-rebuild.ts",
+    "test:skill-spec": "bun scripts/test-skill-spec.ts --report text",
+    "test:skill-spec:full": "bun scripts/test-skill-spec.ts --full --report text",
     "test:deterministic": "bun tests/harness.ts --suite deterministic",
     "test:eval": "bun tests/eval.ts --report text",
     "test:live": "bun tests/harness.ts --suite live",

@@ -12,9 +12,9 @@ Go wide, then narrow. Explore many options freely, then converge to one polished
 WIDE                                    NARROW
 ┌──────────────────────────────────────────────┐
 │  Context   Explore     Iterate      Refine   │
-│    ↓         ↓↓↓         ↓↓          ↓      │
-│  [doc]    [many]      [fewer]      [one]    │
-│           options     options      brief    │
+│    ↓         ↓↓↓         ↓↓          ↓       │
+│  [doc]    [many]      [fewer]      [one]     │
+│           options     options      brief     │
 └──────────────────────────────────────────────┘
 ```
 
