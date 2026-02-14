@@ -78,7 +78,6 @@ hex_to_ansi() {
 is_valid_hex_color() {
     [[ "$1" =~ ^#[0-9A-Fa-f]{6}$ ]]
 }
-
 # ----------------------------------------------------------------------------
 # Parse Input
 # ----------------------------------------------------------------------------
@@ -162,11 +161,6 @@ if [[ -f "$worktree_name_file" ]]; then
     printf "${BLUE}%s${RESET}" "$(cat "$worktree_name_file" | tr -d '\n')"
 else
     printf "${BLUE}%s${RESET}" "$(basename "$current_dir")"
-fi
-
-# Persona name (if launched via team-memory)
-if [[ -n "${AI_MEMORY_PERSONA:-}" ]]; then
-    printf "${DIM}:${CYAN}%s${RESET}" "$AI_MEMORY_PERSONA"
 fi
 
 # Git branch + uncommitted count
