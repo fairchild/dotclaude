@@ -44,6 +44,15 @@ echo "Creating teammate: $NAME"
 # Create directory structure
 mkdir -p "$PERSONA_DIR/core" "$PERSONA_DIR/archival" "$PERSONA_DIR/recall"
 
+# Generate default theme.json
+cat > "$PERSONA_DIR/theme.json" << 'EOF'
+{
+  "icon": "🤖",
+  "color": "#36B5A0",
+  "tagline": ""
+}
+EOF
+
 # Copy and interpolate templates
 interpolate "$TEMPLATE_DIR/CLAUDE.md.tmpl" > "$PERSONA_DIR/CLAUDE.md"
 interpolate "$TEMPLATE_DIR/personality.md.tmpl" > "$PERSONA_DIR/personality.md"
@@ -135,7 +144,8 @@ echo ""
 echo "Teammate '$NAME' created at $PERSONA_DIR"
 echo ""
 echo "Next steps:"
-echo "  1. Edit $PERSONA_DIR/personality.md to define identity"
-echo "  2. Edit $MEMORY_DIR/shared/human.md with your info"
-echo "  3. Launch: ~/.claude/skills/team-memory/scripts/launch.sh --persona $NAME"
-echo "  4. Or alias: alias claude-$NAME='~/.claude/skills/team-memory/scripts/launch.sh --persona $NAME'"
+echo "  1. Edit $PERSONA_DIR/theme.json to set icon, color, tagline"
+echo "  2. Edit $PERSONA_DIR/personality.md to define identity"
+echo "  3. Edit $MEMORY_DIR/shared/human.md with your info"
+echo "  4. Launch: ~/.claude/skills/team-memory/scripts/launch.sh --persona $NAME"
+echo "  5. Or alias: alias claude-$NAME='~/.claude/skills/team-memory/scripts/launch.sh --persona $NAME'"
