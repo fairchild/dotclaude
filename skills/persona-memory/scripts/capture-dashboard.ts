@@ -8,6 +8,9 @@ interface CaptureVariant {
   context: BrowserContextOptions;
 }
 
+type ThemeMode = "auto" | "light" | "dark" | "both";
+type ThemeChoice = "light" | "dark";
+
 interface CaptureReport {
   ok: boolean;
   code: string;
@@ -15,6 +18,10 @@ interface CaptureReport {
     base_url: string;
     output_dir: string;
     deterministic_status: string | null;
+    theme_mode: ThemeMode;
+    primary_theme: ThemeChoice;
+    local_time: string;
+    captured_variants: string[];
     files: string[];
   };
 }
@@ -37,6 +44,66 @@ function sleep(ms: number): Promise<void> {
 
 function nowStamp(): string {
   return new Date().toISOString().replace(/[.:]/g, "-");
+}
+
+function parseThemeMode(raw: string | null): ThemeMode {
+  if (!raw) return "auto";
+  if (raw === "auto" || raw === "light" || raw === "dark" || raw === "both") return raw;
+  throw new Error(`Invalid --theme '${raw}'. Expected auto|light|dark|both.`);
+}
+
+function chooseThemeByLocalTime(now: Date): ThemeChoice {
+  const hour = now.getHours();
+  return hour >= 18 || hour < 7 ? "dark" : "light";
+}
+
+function oppositeTheme(theme: ThemeChoice): ThemeChoice {
+  return theme === "dark" ? "light" : "dark";
+}
+
+function buildVariants(themeMode: ThemeMode, primaryTheme: ThemeChoice): CaptureVariant[] {
+  const desktop = (scheme: ThemeChoice, suffix = ""): CaptureVariant => ({
+    name: `desktop-${scheme}${suffix}`,
+    context: {
+      viewport: { width: 1440, height: 1080 },
+      colorScheme: scheme,
+      deviceScaleFactor: 2,
+    },
+  });
+
+  const mobile = (scheme: ThemeChoice, suffix = ""): CaptureVariant => ({
+    name: `mobile-${scheme}${suffix}`,
+    context: {
+      viewport: { width: 390, height: 844 },
+      colorScheme: scheme,
+      deviceScaleFactor: 3,
+      isMobile: true,
+      hasTouch: true,
+    },
+  });
+
+  if (themeMode === "both") {
+    return [
+      desktop("light"),
+      desktop("dark"),
+      mobile("light"),
+      mobile("dark"),
+    ];
+  }
+
+  if (themeMode === "light" || themeMode === "dark") {
+    return [
+      desktop(themeMode),
+      mobile(themeMode),
+    ];
+  }
+
+  const sanityTheme = oppositeTheme(primaryTheme);
+  return [
+    desktop(primaryTheme),
+    mobile(primaryTheme),
+    desktop(sanityTheme, "-sanity"),
+  ];
 }
 
 async function waitForHealth(baseUrl: string, timeoutMs = 20000): Promise<void> {
@@ -136,47 +203,13 @@ const outDirArg = getArg("out-dir");
 const outputDir = outDirArg || join(skillDir, "assets", "eval-dashboard", "screenshots", nowStamp());
 const startServer = !hasFlag("no-server");
 const skipRun = hasFlag("skip-run");
+const themeMode = parseThemeMode(getArg("theme"));
+const localNow = new Date();
+const localTime = localNow.toLocaleString();
+const primaryTheme = chooseThemeByLocalTime(localNow);
 
 mkdirSync(outputDir, { recursive: true });
-
-const variants: CaptureVariant[] = [
-  {
-    name: "desktop-light",
-    context: {
-      viewport: { width: 1440, height: 1080 },
-      colorScheme: "light",
-      deviceScaleFactor: 2,
-    },
-  },
-  {
-    name: "desktop-dark",
-    context: {
-      viewport: { width: 1440, height: 1080 },
-      colorScheme: "dark",
-      deviceScaleFactor: 2,
-    },
-  },
-  {
-    name: "mobile-light",
-    context: {
-      viewport: { width: 390, height: 844 },
-      colorScheme: "light",
-      deviceScaleFactor: 3,
-      isMobile: true,
-      hasTouch: true,
-    },
-  },
-  {
-    name: "mobile-dark",
-    context: {
-      viewport: { width: 390, height: 844 },
-      colorScheme: "dark",
-      deviceScaleFactor: 3,
-      isMobile: true,
-      hasTouch: true,
-    },
-  },
-];
+const variants: CaptureVariant[] = buildVariants(themeMode, primaryTheme);
 
 let serverProc: Bun.Subprocess | null = null;
 let deterministicStatus: string | null = null;
@@ -210,6 +243,10 @@ try {
       base_url: baseUrl,
       output_dir: outputDir,
       deterministic_status: deterministicStatus,
+      theme_mode: themeMode,
+      primary_theme: primaryTheme,
+      local_time: localTime,
+      captured_variants: variants.map((variant) => variant.name),
       files,
     },
   };
@@ -224,6 +261,10 @@ try {
       base_url: baseUrl,
       output_dir: outputDir,
       deterministic_status: deterministicStatus,
+      theme_mode: themeMode,
+      primary_theme: primaryTheme,
+      local_time: localTime,
+      captured_variants: variants.map((variant) => variant.name),
       files: [],
     },
   };
