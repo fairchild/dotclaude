@@ -20,7 +20,7 @@ The calling prompt provides:
 
 ```bash
 # Find the most recent .jsonl transcript
-ls -t ~/.claude/projects/*/session-*.jsonl 2>/dev/null | head -1
+ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1
 ```
 
 If no transcript is found, report "no transcript available" and exit.
