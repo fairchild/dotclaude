@@ -76,14 +76,14 @@ Much of this config observes work rather than does it. The memory system is wher
 | **update-dependencies** | Dependency analysis and updates |
 | **youtube-content** | Extracting/analyzing YouTube video content |
 
-### Skills (WIP)
+### Skills (Experimental)
 
-Experimental skills use `wip-` prefix and `status: wip` frontmatter. Usable but incomplete.
+Experimental skills have `status: experimental` in frontmatter. Usable but incomplete.
 
 | Skill | Purpose |
 |-------|---------|
-| **wip-rate-title** | AI-assisted session title rating with human calibration |
-| **wip-session-title-eval** | Batch evaluation of session title generation quality |
+| **rate-title** | AI-assisted session title rating with human calibration |
+| **session-title-eval** | Batch evaluation of session title generation quality |
 
 ### Agents (background tasks)
 
