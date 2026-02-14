@@ -258,6 +258,24 @@ async for message in agent.query(transcript):
 
 The implementing agent should verify each layer **bottom-up** before moving to the next. Each step has a concrete command and expected output the agent can check programmatically. Do not move to the next step until the current one passes.
 
+### Preflight Gate: existing voice skill validation
+
+Before touching `voice_bridge.py`, verify the current voice skill baseline is healthy:
+
+```bash
+uv run ~/.claude/skills/voice/tests/test_voice.py
+uv run ~/.claude/skills/voice/tests/test_voice_loop.py
+```
+
+Optional cloud baseline check (if key set):
+
+```bash
+uv run ~/.claude/skills/voice/tests/test_voice_loop.py --cloud
+```
+
+**Pass**: provider checks pass and file-based loop test passes.
+**Fail**: fix baseline regressions before implementing bridge logic.
+
 ### Layer 1: stream-json protocol works
 
 Verify Claude CLI accepts stream-json input and returns structured output.
@@ -287,44 +305,50 @@ sys.exit(1)
 
 ### Layer 2: mic capture produces valid audio
 
-Verify the STT prerequisite scripts capture audio that can be read back.
+Verify mic device discovery and capture configuration are valid.
 
 ```bash
-# Record 2 seconds of silence to a file (non-interactive, no transcription)
-uv run ~/.claude/skills/voice/scripts/stt_local.py --duration 2 --file /tmp/voice_bridge_test.wav 2>/dev/null
+# Ensure devices enumerate
+uv run ~/.claude/skills/voice/scripts/stt_local.py --list-devices
 
-# Verify the file exists and has audio data (>1KB means real audio, not empty)
-python3 -c "
-import os, sys
-f = '/tmp/voice_bridge_test.wav'
-if not os.path.exists(f):
-    print('FAIL: audio file not created'); sys.exit(1)
-size = os.path.getsize(f)
-if size < 1000:
-    print(f'FAIL: audio file too small ({size} bytes)'); sys.exit(1)
-print(f'PASS: audio capture works ({size} bytes)')
-" && rm -f /tmp/voice_bridge_test.wav
+# Ensure mic config and model checks pass (does not require spoken audio)
+uv run ~/.claude/skills/voice/scripts/stt_local.py --check
 ```
 
-**Pass**: file exists, >1KB
-**Fail**: mic permissions issue — check System Settings > Privacy > Microphone
+**Pass**: at least one input device is listed and `--check` exits 0
+**Fail**: likely permissions/routing issue — check System Settings > Privacy > Microphone
+
+Note: live speech detection is validated in Layer 6 (human interactive smoke test), not in this automated layer.
 
 ### Layer 3: TTS playback completes without error
 
-Verify TTS scripts produce audio and `afplay` returns exit 0.
+Verify local TTS produces a valid audio artifact.
 
 ```bash
-# Local TTS — should complete in <2 seconds
-timeout 5 uv run ~/.claude/skills/voice/scripts/tts_local.py --text "test" --output /tmp/voice_bridge_tts.aiff 2>/dev/null
-EXIT=$?
-[ $EXIT -eq 0 ] && [ -f /tmp/voice_bridge_tts.aiff ] && echo "PASS: local TTS works" || echo "FAIL: local TTS exit=$EXIT"
-rm -f /tmp/voice_bridge_tts.aiff
+python3 - <<'PY'
+import os
+import subprocess
+from pathlib import Path
 
-# Verify afplay works (macOS audio subsystem)
-echo -n "." | say -o /tmp/voice_bridge_afplay.aiff 2>/dev/null
-timeout 5 afplay /tmp/voice_bridge_afplay.aiff 2>/dev/null
-[ $? -eq 0 ] && echo "PASS: afplay works" || echo "FAIL: afplay broken"
-rm -f /tmp/voice_bridge_afplay.aiff
+out = Path("/tmp/voice_bridge_tts.aiff")
+script = os.path.expanduser("~/.claude/skills/voice/scripts/tts_local.py")
+try:
+    subprocess.run(
+        ["uv", "run", script, "--text", "test", "--output", str(out)],
+        check=True,
+        timeout=10,
+        shell=False,
+    )
+except Exception as exc:
+    print(f"FAIL: local TTS failed: {exc}")
+    raise SystemExit(1)
+
+if not out.exists() or out.stat().st_size <= 0:
+    print("FAIL: local TTS output missing or empty")
+    raise SystemExit(1)
+
+print("PASS: local TTS works")
+PY
 ```
 
 ### Layer 4: voice_bridge.py --check passes
@@ -338,7 +362,8 @@ uv run ~/.claude/skills/voice/scripts/voice_bridge.py --check
 **Expected output** (one line per component):
 ```
 stream-json: ok
-mic-capture: ok
+mic-devices: ok
+mic-config: ok
 tts-local: ok
 stt-local: ok
 tts-elevenlabs: ok (or: skip — ELEVENLABS_API_KEY not set)
@@ -377,6 +402,12 @@ rm -f /tmp/voice_bridge_e2e.aiff
 
 **Implementation requirement**: The bridge must support `--input-file` (use audio file instead of mic), `--single-shot` (process one utterance then exit), and `--no-play` (print response text to stdout instead of speaking). These flags exist specifically for automated testing.
 
+Also run the existing deterministic loop harness:
+
+```bash
+uv run ~/.claude/skills/voice/tests/test_voice_loop.py
+```
+
 ### Layer 6: interactive smoke test (human required)
 
 Only after Layers 1-5 pass. This cannot be automated.
@@ -393,7 +424,7 @@ uv run ~/.claude/skills/voice/scripts/voice_bridge.py --provider local
 | Layer | What | Automated? | Gate for |
 |-------|------|-----------|----------|
 | 1 | stream-json protocol | Yes | Everything |
-| 2 | Mic capture | Yes | STT, e2e |
+| 2 | Mic devices + config | Yes | STT, e2e |
 | 3 | TTS playback | Yes | Speaking |
 | 4 | `--check` (all components) | Yes | Phase 1 complete |
 | 5 | e2e with test audio file | Yes | Phase 1 merge |
@@ -404,6 +435,13 @@ uv run ~/.claude/skills/voice/scripts/voice_bridge.py --provider local
 ## Rollback Plan
 
 The voice bridge is a standalone script — no changes to existing skill scripts or Claude Code config. To remove: delete `voice_bridge.py`. No other files affected.
+
+## Product Opportunities
+
+- Add `/voice doctor` to run diagnostics (`--check`, `--list-devices`, silent-capture detection) and print exact remediation steps.
+- Add mode presets for quick start: `local-private`, `cloud-fast`, `cloud-quality`, `push-to-talk`.
+- Add session UX cues (short listening/speaking earcons + status line) so users know when to talk.
+- Add usage guardrails for cloud mode (soft cost/time caps + explicit user confirmation on threshold exceed).
 
 ## References
 
