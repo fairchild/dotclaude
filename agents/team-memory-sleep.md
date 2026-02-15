@@ -27,6 +27,7 @@ Run these three stages **sequentially**. Each must complete before the next begi
 ```
 Task tool:
   subagent_type: "general-purpose"
+  model: "haiku"
   prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-extract.md for instructions, then execute them. Memory dir: ~/.ai-memory/<PERSONA>. Persona name: <PERSONA>. Session transcript: <AI_MEMORY_TRANSCRIPT>"
 ```
 
@@ -35,6 +36,7 @@ Task tool:
 ```
 Task tool:
   subagent_type: "general-purpose"
+  model: "haiku"
   prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-consolidate.md for instructions, then execute them. Memory dir: ~/.ai-memory/<PERSONA>. Persona name: <PERSONA>"
 ```
 
@@ -43,6 +45,7 @@ Task tool:
 ```
 Task tool:
   subagent_type: "general-purpose"
+  model: "haiku"
   prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-reflect.md for instructions, then execute them. Memory dir: ~/.ai-memory/<PERSONA>. Persona name: <PERSONA>. Session transcript: <AI_MEMORY_TRANSCRIPT>"
 ```
 
