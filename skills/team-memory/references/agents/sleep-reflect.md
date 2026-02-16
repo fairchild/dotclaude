@@ -30,6 +30,8 @@ Use the session transcript path from the calling prompt or `$AI_MEMORY_TRANSCRIP
 ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1
 ```
 
+**Check for automated sessions**: Read the first few lines of the transcript. If the user message contains "Run sleep-time compute" or "sleep-pipeline", this is an automated pipeline session with no human interaction. Report "automated session, skipping" and exit immediately — there is nothing to reflect on.
+
 Scan for relationship signals:
 - How the human communicated (terse? detailed? frustrated? collaborative?)
 - Any rapport markers (humor, trust, pushback, corrections)
