@@ -27,6 +27,8 @@ ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1
 
 If no transcript is found, report "no transcript available" and exit.
 
+**Check for automated sessions**: Read the first few lines of the transcript. If the user message contains "Run sleep-time compute" or "sleep-pipeline", this is an automated pipeline session with no human interaction. Report "automated session, skipping" and exit immediately — there is nothing to extract.
+
 ### 2. Read existing memories
 
 Glob all archival/ and core/ blocks to understand what's already stored:
