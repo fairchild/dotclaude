@@ -399,6 +399,7 @@
       color: var(--info);
     }
 
+    .tag.experimental { border-color: #c4842a; color: #c4842a; }
     .tag.has-scripts { border-color: #9e6b9e; color: #9e6b9e; }
     .tag.has-refs { border-color: #6b9e9e; color: #6b9e9e; }
     .tag.has-assets { border-color: #9e8a6b; color: #9e8a6b; }
@@ -1272,11 +1273,12 @@ ${skill.content}`);
         return `
         <article class="card" data-idx="${origIdx}" data-name="${escapeHtml(skill.name)}">
           <div class="card-header" tabindex="0" role="button" aria-expanded="false" onclick="toggleCard(this.parentElement)" onkeydown="handleCardKeydown(event, this)">
-            <span class="card-icon">★</span>
+            <span class="card-icon">${skill.status === 'experimental' ? '\u{1F9EA}' : '\u2605'}</span>
             <div class="card-info">
               <div class="card-name">${escapeHtml(skill.name)}</div>
               <div class="card-desc">${escapeHtml(skill.description)}</div>
               <div class="card-meta">
+                ${skill.status === 'experimental' ? '<span class="tag experimental">experimental</span>' : ''}
                 ${skill.model ? `<span class="tag model">${skill.model}</span>` : ''}
                 ${skill.isExternal ? '<span class="tag external">external</span>' : ''}
                 ${skill.hasScripts ? '<span class="tag has-scripts">scripts</span>' : ''}
