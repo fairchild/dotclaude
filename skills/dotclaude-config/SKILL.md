@@ -196,6 +196,10 @@ When the current directory IS `~/.claude` (e.g., this config is a git repo):
 - **MCP configuration**: See [references/mcp-config.md](references/mcp-config.md)
 - **Extensibility (agents/commands/skills)**: See [references/extensibility.md](references/extensibility.md)
 - **CLAUDE.md patterns**: See [references/claude-md-patterns.md](references/claude-md-patterns.md)
+- **Hooks reference**: See [references/hooks-reference.md](references/hooks-reference.md)
+- **Hook patterns**: See [references/hook-patterns.md](references/hook-patterns.md)
+- **Permission templates**: See [references/permission-templates.md](references/permission-templates.md)
+- **Project config checklist**: See [references/project-config-checklist.md](references/project-config-checklist.md)
 
 ## Example: Project Config Audit
 
