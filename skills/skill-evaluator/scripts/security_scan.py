@@ -14,7 +14,7 @@ PATTERNS: dict[str, list[dict]] = {
         {"pattern": r"\.\./", "severity": "MEDIUM", "desc": "Path traversal"},
         {"pattern": r"chmod\s", "severity": "MEDIUM", "desc": "Permission modification"},
         {"pattern": r"os\.remove|os\.unlink", "severity": "MEDIUM", "desc": "File deletion"},
-        {"pattern": r"open\(.*(w|a)\b", "severity": "LOW", "desc": "File write operation"},
+        {"pattern": r"open\(.*['\"][wa][+]?['\"]", "severity": "LOW", "desc": "File write operation"},
     ],
     "network": [
         {"pattern": r"requests\.(post|put|patch|delete)", "severity": "CRITICAL", "desc": "Outbound HTTP mutation"},

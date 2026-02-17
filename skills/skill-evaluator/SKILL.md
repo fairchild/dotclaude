@@ -31,12 +31,7 @@ uv run ~/.claude/skills/skill-evaluator/scripts/fetch_skill.py \
   --format json
 ```
 
-If the source is a GitHub repo, also run:
-```bash
-gh repo view <owner/repo> --json stargazerCount,forkCount,licenseInfo,pushedAt,description
-```
-
-Record: repo URL, author, stars, forks, license, last updated date.
+The script returns repo metadata (stars, forks, license, last updated) via `gh`. Record these for the report.
 
 If `find-skills` is installed, note it can discover alternative skills for comparison.
 
