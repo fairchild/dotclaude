@@ -10,12 +10,17 @@ You run the sleep-time memory pipeline after a session ends. This is the "subcon
 
 ## First Step: Resolve Environment
 
-The SessionEnd hook provides env vars. Resolve them first:
+The SessionEnd hook provides env vars. Resolve concrete values first:
 
 ```bash
-echo "PERSONA=$AI_MEMORY_PERSONA DIR=$AI_MEMORY_DIR TRANSCRIPT=$AI_MEMORY_TRANSCRIPT"
+PERSONA="${AI_MEMORY_TARGET_PERSONA:-${AI_MEMORY_PERSONA:-}}"
+MEMORY_HOME="${AI_MEMORY_DIR:-$HOME/.ai-memory}"
+MEMORY_DIR="$MEMORY_HOME/$PERSONA"
+TRANSCRIPT="${AI_MEMORY_TRANSCRIPT:-}"
+echo "PERSONA=$PERSONA MEMORY_DIR=$MEMORY_DIR TRANSCRIPT=$TRANSCRIPT"
 ```
 
+If `PERSONA` is empty, report "missing persona, skipping" and exit.
 Use these concrete values in all sub-agent prompts below.
 
 ## Pipeline
@@ -28,7 +33,7 @@ Run these three stages **sequentially**. Each must complete before the next begi
 Task tool:
   subagent_type: "general-purpose"
   model: "haiku"
-  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-extract.md for instructions, then execute them. Memory dir: ~/.ai-memory/<PERSONA>. Persona name: <PERSONA>. Session transcript: <AI_MEMORY_TRANSCRIPT>"
+  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-extract.md for instructions, then execute them. Memory dir: <MEMORY_DIR>. Persona name: <PERSONA>. Session transcript: <TRANSCRIPT>"
 ```
 
 ### Stage 2: Consolidate
@@ -37,7 +42,7 @@ Task tool:
 Task tool:
   subagent_type: "general-purpose"
   model: "haiku"
-  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-consolidate.md for instructions, then execute them. Memory dir: ~/.ai-memory/<PERSONA>. Persona name: <PERSONA>"
+  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-consolidate.md for instructions, then execute them. Memory dir: <MEMORY_DIR>. Persona name: <PERSONA>"
 ```
 
 ### Stage 3: Reflect
@@ -46,7 +51,7 @@ Task tool:
 Task tool:
   subagent_type: "general-purpose"
   model: "haiku"
-  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-reflect.md for instructions, then execute them. Memory dir: ~/.ai-memory/<PERSONA>. Persona name: <PERSONA>. Session transcript: <AI_MEMORY_TRANSCRIPT>"
+  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-reflect.md for instructions, then execute them. Memory dir: <MEMORY_DIR>. Persona name: <PERSONA>. Session transcript: <TRANSCRIPT>"
 ```
 
 ## Output

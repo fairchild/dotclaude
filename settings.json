@@ -143,7 +143,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "TRANSCRIPT=$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1); PERSONA=\"$AI_MEMORY_PERSONA\"; [ -n \"$PERSONA\" ] && [ -n \"$TRANSCRIPT\" ] && CLAUDECODE= AI_MEMORY_PERSONA= AI_MEMORY_TRANSCRIPT=\"$TRANSCRIPT\" claude --agent team-memory-sleep --model haiku --print \"Run sleep-time compute for persona $PERSONA\" || true"
+            "command": "~/.claude/skills/team-memory/scripts/session-end.sh"
           }
         ]
       }

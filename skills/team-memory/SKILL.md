@@ -20,6 +20,14 @@ Persistent memory and evolving personality for AI teammates.
 /team-memory forget <query>    # Find and remove matching memories
 ```
 
+## Verification
+
+Run regression smoke checks:
+
+```bash
+bash ~/.claude/skills/team-memory/tests/regression.sh
+```
+
 ## Init (`/team-memory init <name>`)
 
 Bootstrap a new AI teammate:
@@ -105,7 +113,7 @@ Dispatch the sleep-consolidate agent:
 ```
 Task tool:
   subagent_type: "general-purpose"
-  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-consolidate.md and execute. Persona: <name>, Memory dir: ~/.ai-memory"
+  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-consolidate.md and execute. Persona: <name>, Memory dir: <MEMORY_DIR>/<name>"
 ```
 
 ## Forget (`/team-memory forget <query>`)

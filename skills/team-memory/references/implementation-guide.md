@@ -4,6 +4,8 @@
 
 You are implementing the **team-memory** skill — a persistent AI teammate memory framework for Claude Code. The full design has been brainstormed, approved, and documented.
 
+> Historical handoff note: team-memory is now implemented. Use this file as architecture context, not as current task status.
+
 **Read the design first:**
 ```
 Read ~/.claude/skills/team-memory/references/design.md
@@ -13,7 +15,7 @@ Read ~/.claude/skills/team-memory/references/design.md
 
 - `~/.claude/skills/team-memory/references/design.md` — the complete approved design
 - The skill directory has been created at `~/.claude/skills/team-memory/`
-- No implementation code exists yet
+- Implementation now exists in `scripts/`, `templates/`, `references/agents/`, and `~/.claude/agents/team-memory-sleep.md`
 
 ## What You're Building
 
@@ -44,13 +46,13 @@ A Claude Code skill with these components (in implementation order):
 
 ### Phase 2: Active Memory (frontal cortex agents)
 
-5. **agents/remember.md** — Background agent that writes memory blocks to archival/:
+5. **references/agents/remember.md** — Background agent that writes memory blocks to archival/:
    - Receives content + context from the main agent
    - Infers type, confidence, tags from content
    - Writes properly formatted markdown with YAML frontmatter
    - Checks for duplicates before writing (grep existing blocks)
 
-6. **agents/recall.md** — Background agent that searches memories:
+6. **references/agents/recall.md** — Background agent that searches memories:
    - Searches archival/ and recall/ using Grep
    - Reads matching blocks
    - Returns relevant memories to the main agent
@@ -58,18 +60,18 @@ A Claude Code skill with these components (in implementation order):
 
 ### Phase 3: Sleep-Time Compute (subconscious pipeline)
 
-7. **agents/sleep.md** — Orchestrator agent dispatched by SessionEnd hook:
+7. **~/.claude/agents/team-memory-sleep.md** — Orchestrator agent dispatched by SessionEnd hook:
    - Dispatches sleep-extract, sleep-consolidate, sleep-reflect in sequence
    - Each runs as a sub-task
 
-8. **agents/sleep-extract.md** — Extract memories the active loop missed:
+8. **references/agents/sleep-extract.md** — Extract memories the active loop missed:
    - Read session transcript (find latest .jsonl in ~/.claude/projects/)
    - Read existing archival/ blocks
    - Identify genuinely new memories not already captured
    - Focus on patterns across the session, not individual moments
    - Write new blocks to archival/
 
-9. **agents/sleep-consolidate.md** — Consolidate the memory store:
+9. **references/agents/sleep-consolidate.md** — Consolidate the memory store:
    - Read all archival/ blocks
    - Identify overlapping/duplicate entries, merge them
    - Resolve contradictions (newer wins unless lower confidence)
@@ -78,7 +80,7 @@ A Claude Code skill with these components (in implementation order):
    - Demote stale core/ blocks back to archival/
    - Prune blocks below 0.3 confidence threshold
 
-10. **agents/sleep-reflect.md** — Evolve personality and relationship:
+10. **references/agents/sleep-reflect.md** — Evolve personality and relationship:
     - Read recent session context + relationship.md + personality.md
     - Update relationship.md (communication style, rapport, shared history)
     - Update mutable personality sections if warranted
@@ -97,7 +99,7 @@ A Claude Code skill with these components (in implementation order):
 - **Markdown with frontmatter**: All memory blocks use YAML frontmatter for metadata (type, confidence, tags, timestamps). Git-friendly, Claude-native.
 - **CLAUDE.md @imports**: The per-teammate CLAUDE.md uses @import syntax to load personality, shared knowledge, and core memories.
 - **`--add-dir` loading**: The launcher sets `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1` so the persona's CLAUDE.md is loaded as system prompt.
-- **Env var gating**: `AI_MEMORY_PERSONA` env var is set by launcher. SessionEnd hook uses matcher to only fire sleep compute when this var is present.
+- **Env var gating**: `AI_MEMORY_PERSONA` env var is set by launcher. `scripts/session-end.sh` exits immediately when it is missing and prevents recursion by clearing it before spawning sleep compute.
 - **No external dependencies**: Pure markdown files + shell scripts + agent markdown files. No bun, no API keys, no databases.
 
 ## Important References

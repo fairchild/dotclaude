@@ -89,6 +89,7 @@ Role: Software engineer
 Also consider populating:
 - `~/.ai-memory/shared/projects.md` — active projects and their context
 - `~/.ai-memory/shared/conventions.md` — coding standards, workflow patterns
+- `~/.ai-memory/shared/platform.md` — shell, OS, and infrastructure defaults
 
 These files are @imported by every teammate's CLAUDE.md, so all teammates
 share this knowledge without re-teaching.

@@ -73,17 +73,17 @@ This is why **promotion to `core/` matters** — a memory block in `core/` gets 
 ~/.claude/skills/team-memory/
 ├── SKILL.md                        # Skill definition, triggers, commands
 ├── references/
-│   └── design.md                   # This file
+│   ├── design.md                   # This file
+│   └── agents/
+│       ├── remember.md             # Background agent instructions
+│       ├── recall.md               # Background agent instructions
+│       ├── sleep-extract.md        # Sleep stage instructions
+│       ├── sleep-consolidate.md    # Sleep stage instructions
+│       └── sleep-reflect.md        # Sleep stage instructions
 ├── scripts/
 │   ├── launch.sh                   # Launcher: resolves persona, sets --add-dir
-│   └── init.sh                     # Bootstrap new teammate from templates
-├── agents/
-│   ├── remember.md                 # Background agent: write memory block
-│   ├── recall.md                   # Background agent: search memories
-│   ├── sleep.md                    # Sleep orchestrator: dispatches pipeline
-│   ├── sleep-extract.md            # Extract missed memories from transcript
-│   ├── sleep-consolidate.md        # Deduplicate, merge, decay, promote/demote
-│   └── sleep-reflect.md            # Update relationship + personality evolution
+│   ├── init.sh                     # Bootstrap new teammate from templates
+│   └── session-end.sh              # SessionEnd dispatcher for sleep pipeline
 └── templates/
     ├── CLAUDE.md.tmpl              # Entry point template with @imports
     ├── personality.md.tmpl         # Starter personality scaffold
@@ -95,7 +95,7 @@ This is why **promotion to `core/` matters** — a memory block in `core/` gets 
 
 ### Tier 1: Core Memory (always loaded)
 
-Files in `<teammate>/core/` are `@imported` by the teammate's CLAUDE.md and loaded into the system prompt every session. This is the most valuable, distilled knowledge.
+Files in `<teammate>/core/` are read at session start per the teammate CLAUDE.md instructions. This is the most valuable, distilled knowledge.
 
 Includes: key decisions, proven patterns, critical preferences, important project context.
 
@@ -307,11 +307,10 @@ Added to `settings.json` by the init command:
   "hooks": {
     "SessionEnd": [
       {
-        "matcher": { "env": { "AI_MEMORY_PERSONA": "*" } },
         "hooks": [
           {
             "type": "command",
-            "command": "TRANSCRIPT=$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1); PERSONA=\"$AI_MEMORY_PERSONA\"; [ -n \"$PERSONA\" ] && [ -n \"$TRANSCRIPT\" ] && CLAUDECODE= AI_MEMORY_PERSONA= AI_MEMORY_TRANSCRIPT=\"$TRANSCRIPT\" claude --agent team-memory-sleep --model haiku --print \"Run sleep-time compute for persona $PERSONA\" || true"
+            "command": "~/.claude/skills/team-memory/scripts/session-end.sh"
           }
         ]
       }
@@ -320,7 +319,7 @@ Added to `settings.json` by the init command:
 }
 ```
 
-The matcher ensures sleep-time compute only fires when launched via the memory launcher (which sets the env var), not on vanilla `claude` sessions.
+`session-end.sh` parses `transcript_path` from hook JSON input, falls back to the latest transcript if needed, and invokes `team-memory-sleep` with explicit env vars (`AI_MEMORY_TARGET_PERSONA`, `AI_MEMORY_TRANSCRIPT`, `AI_MEMORY_DIR`) while clearing `AI_MEMORY_PERSONA` to prevent recursive cascades.
 
 ## SKILL.md Commands
 
@@ -345,14 +344,14 @@ The per-teammate CLAUDE.md that gets loaded via `--add-dir`:
 @../shared/human.md
 @../shared/projects.md
 @../shared/conventions.md
+@../shared/platform.md
 
 ## Core Memories
-@core/decisions.md
-@core/patterns.md
+At the start of each session, read all `.md` files in `core/`.
 
 ## Memory Instructions
 
-You have persistent memory. Use it.
+Resolve `MEMORY_DIR = ${AI_MEMORY_DIR:-$HOME/.ai-memory}/{name}` and use it in memory tasks.
 
 ### Remembering (Active)
 When you encounter something worth remembering — a decision, pattern,

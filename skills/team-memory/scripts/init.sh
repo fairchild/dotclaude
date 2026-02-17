@@ -7,6 +7,7 @@ SKILL_DIR="$(dirname "$SCRIPT_DIR")"
 TEMPLATE_DIR="$SKILL_DIR/templates"
 MEMORY_DIR="${AI_MEMORY_DIR:-$HOME/.ai-memory}"
 SETTINGS="$HOME/.claude/settings.json"
+TEAM_MEMORY_HOOK_COMMAND="~/.claude/skills/team-memory/scripts/session-end.sh"
 
 usage() {
   echo "Usage: $0 <teammate-name>"
@@ -155,16 +156,20 @@ fi
 
 # Wire SessionEnd hook if not already present
 if command -v jq &>/dev/null; then
-  # Check if hook already exists
-  if ! jq -e '.hooks.SessionEnd[]? | select(.hooks[]?.command | test("team-memory-sleep"))' "$SETTINGS" &>/dev/null; then
+  # Migrate legacy inline team-memory hook to dedicated script.
+  jq --arg cmd "$TEAM_MEMORY_HOOK_COMMAND" \
+    '(.hooks //= {}) | (.hooks.SessionEnd //= []) |
+     (.hooks.SessionEnd[]?.hooks[]? | select((.command // "") | contains("team-memory-sleep")).command) = $cmd' \
+    "$SETTINGS" > "${SETTINGS}.tmp"
+  mv "${SETTINGS}.tmp" "$SETTINGS"
+
+  # Check if hook already exists.
+  if ! jq -e --arg cmd "$TEAM_MEMORY_HOOK_COMMAND" '.hooks.SessionEnd[]? | any(.hooks[]?; (.command // "") == $cmd)' "$SETTINGS" &>/dev/null; then
     echo "Wiring SessionEnd hook for sleep-time compute..."
-    HOOK_JSON=$(mktemp)
-    cat > "$HOOK_JSON" << 'HOOKEOF'
-{"hooks":[{"type":"command","command":"TRANSCRIPT=$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1); PERSONA=\"$AI_MEMORY_PERSONA\"; [ -n \"$PERSONA\" ] && [ -n \"$TRANSCRIPT\" ] && CLAUDECODE= AI_MEMORY_PERSONA= AI_MEMORY_TRANSCRIPT=\"$TRANSCRIPT\" claude --agent team-memory-sleep --model haiku --print \"Run sleep-time compute for persona $PERSONA\" || true"}]}
-HOOKEOF
-    jq --slurpfile hook "$HOOK_JSON" '(.hooks //= {}) | (.hooks.SessionEnd //= []) | .hooks.SessionEnd += $hook' "$SETTINGS" > "${SETTINGS}.tmp"
+    jq --arg cmd "$TEAM_MEMORY_HOOK_COMMAND" \
+      '(.hooks //= {}) | (.hooks.SessionEnd //= []) | .hooks.SessionEnd += [{"hooks":[{"type":"command","command":$cmd}]}]' \
+      "$SETTINGS" > "${SETTINGS}.tmp"
     mv "${SETTINGS}.tmp" "$SETTINGS"
-    rm -f "$HOOK_JSON"
   fi
 else
   echo ""

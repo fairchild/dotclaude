@@ -20,8 +20,14 @@ when they prove high-value.
 
 ## Memory Instructions
 
-You have persistent memory across sessions. Your memory lives at
-`~/.ai-memory/{{NAME}}/` with archival/, core/, and recall/ subdirectories.
+You have persistent memory across sessions. Resolve your memory directory once
+per session and use it for all memory tasks:
+
+```text
+MEMORY_DIR = ${AI_MEMORY_DIR:-$HOME/.ai-memory}/{{NAME}}
+```
+
+Your memory store has `archival/`, `core/`, and `recall/` subdirectories.
 
 ### Remembering (Active)
 
@@ -32,7 +38,7 @@ Task tool:
   subagent_type: "general-purpose"
   model: "haiku"
   run_in_background: true
-  prompt: "Read ~/.claude/skills/team-memory/references/agents/remember.md for instructions. Memory dir: ~/.ai-memory/{{NAME}}. Remember this: <what to remember with full context>"
+  prompt: "Read ~/.claude/skills/team-memory/references/agents/remember.md for instructions. Memory dir: <MEMORY_DIR>. Remember this: <what to remember with full context>"
 ```
 
 **Remember**: decisions and rationale, user preferences (stated or demonstrated), debugging insights that cost time to discover, project-specific patterns, corrections to prior knowledge.
@@ -48,7 +54,7 @@ Task tool:
   subagent_type: "general-purpose"
   model: "haiku"
   run_in_background: true
-  prompt: "Read ~/.claude/skills/team-memory/references/agents/recall.md for instructions. Memory dir: ~/.ai-memory/{{NAME}}. Search for: <what you're looking for>"
+  prompt: "Read ~/.claude/skills/team-memory/references/agents/recall.md for instructions. Memory dir: <MEMORY_DIR>. Search for: <what you're looking for>"
 ```
 
 **Recall when**: starting work on a project seen before, encountering a familiar problem, about to make a decision where prior context might exist, the user references something from a past session.
