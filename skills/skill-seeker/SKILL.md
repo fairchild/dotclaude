@@ -1,11 +1,10 @@
 ---
 name: skill-seeker
 description: >-
-  Generate Claude Code skills from documentation websites, GitHub repos,
-  or local codebases using Skill Seekers. Use when the user says "create
-  a skill for X", "make me an expert on X", "learn X docs", "generate a
-  skill from this repo", "turn these docs into a skill", or wants to
-  convert any knowledge source into an installable Claude Code skill.
+  EXPERIMENTAL — only use when explicitly requested. Generate Claude Code
+  skills from docs sites, GitHub repos, or local codebases using Skill Seekers.
+metadata:
+  status: experimental
 ---
 
 # Skill Seeker
