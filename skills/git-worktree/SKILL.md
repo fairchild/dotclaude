@@ -20,7 +20,9 @@ source ~/.zshrc
 
 ```bash
 wt <branch>              # Create worktree, run setup, open editor
+wt <branch> --base ref   # Create from a specific base branch (default: main)
 wt <branch> --no-editor  # Create without opening editor
+wt <branch> --open       # Also open terminal tab with claude session (macOS)
 wt <branch> --carry      # Create and copy work-in-progress files
 wt <branch> --context f  # Copy file to .context/handoff.md (session fork)
 wt cd <branch>           # Change to worktree directory
@@ -37,11 +39,21 @@ wt open [branch]         # Open editor for worktree (current dir if no branch)
 wt install               # Add wt to ~/.zshrc (one-time setup)
 ```
 
+## Worktree Path Convention
+
+Worktrees are created at `~/.worktrees/<repo>/<branch>` where `<repo>` is the **origin remote name** (not the local directory name). This is derived from `git remote get-url origin`.
+
+```
+~/.claude  (remote: dotclaude.git)  →  ~/.worktrees/dotclaude/<branch>
+~/code/services  (remote: services.git)  →  ~/.worktrees/services/<branch>
+```
+
 ## Environment
 
 ```bash
 WORKTREES_ROOT=~/.worktrees  # Where worktrees are created
 REPOS_ROOT=~/code            # Fallback for `wt home` outside git
+WT_TERMINAL=ghostty          # Terminal for --open (auto-detects from TERM_PROGRAM)
 ```
 
 ## Example
