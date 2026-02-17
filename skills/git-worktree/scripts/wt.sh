@@ -22,9 +22,12 @@ Usage: wt <command> [args]
 
 Commands:
   <branch> [options]      Create worktree, run setup, open editor
+    --base <branch>       Base branch (default: main)
     --no-editor           Don't open editor after creation
     --carry               Copy untracked files to new worktree
     --context <file>      Copy file to .context/handoff.md (for session forking)
+    --open                Open new terminal tab with claude session (macOS)
+    --launch-cmd <cmd>    Open new terminal tab and run command (macOS)
   cd <branch>             Change to worktree directory (shell function)
   home                    Return to main repository (shell function)
   apply [branch] [opts]   Rebase onto branch and merge (default: main)
@@ -61,6 +64,32 @@ detect_editor() {
     else
         echo ""
     fi
+}
+
+open_terminal_tab() {
+    local dir="$1"
+    local cmd="${2:-}"
+
+    if [[ "$(uname)" != "Darwin" ]]; then
+        log_error "Terminal tabs: macOS only"
+        return 1
+    fi
+
+    local full_cmd="cd '$dir'"
+    [[ -n "$cmd" ]] && full_cmd="$full_cmd && $cmd"
+
+    case "${TERM_PROGRAM:-Terminal}" in
+        iTerm*)
+            osascript \
+                -e 'tell application "iTerm" to tell current window to create tab with default profile' \
+                -e "tell application \"iTerm\" to tell current session of current window to write text \"$full_cmd\""
+            ;;
+        *)
+            osascript \
+                -e 'tell application "Terminal" to activate' \
+                -e "tell application \"Terminal\" to do script \"$full_cmd\" in front window"
+            ;;
+    esac
 }
 
 get_repo_name() {
@@ -150,6 +179,8 @@ cmd_create() {
     local open_editor=true
     local carry_untracked=false
     local context_file=""
+    local launch_cmd=""
+    local open_session=false
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -165,6 +196,20 @@ cmd_create() {
             --context)
                 shift
                 context_file="$1"
+                shift
+                ;;
+            --base)
+                shift
+                base_branch="$1"
+                shift
+                ;;
+            --open)
+                open_session=true
+                shift
+                ;;
+            --launch-cmd)
+                shift
+                launch_cmd="$1"
                 shift
                 ;;
             *)
@@ -291,11 +336,29 @@ cmd_create() {
         log_info "Opening $editor_name..."
         $editor "$worktree_path"
     else
-        echo ""
-        echo "  wt cd $branch"
-        if [[ -n "$editor" ]]; then
-            echo "  $editor $worktree_path"
+        # Skip hints if --launch-cmd will handle the transition
+        if [[ -z "$launch_cmd" ]]; then
+            echo ""
+            echo "  wt cd $branch"
+            if [[ -n "$editor" ]]; then
+                echo "  $editor $worktree_path"
+            fi
         fi
+    fi
+
+    # --open: build launch_cmd for an interactive claude session
+    if [[ "$open_session" == true ]] && [[ -z "$launch_cmd" ]]; then
+        if [[ -f "$worktree_path/.context/handoff.md" ]]; then
+            launch_cmd="claude 'Read .context/handoff.md and continue the work described there.'"
+        else
+            launch_cmd="claude"
+        fi
+    fi
+
+    # Launch command in new terminal tab if specified
+    if [[ -n "$launch_cmd" ]]; then
+        log_info "Opening terminal tab..."
+        open_terminal_tab "$worktree_path" "$launch_cmd"
     fi
 }
 

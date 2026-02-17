@@ -20,7 +20,9 @@ source ~/.zshrc
 
 ```bash
 wt <branch>              # Create worktree, run setup, open editor
+wt <branch> --base ref   # Create from a specific base branch (default: main)
 wt <branch> --no-editor  # Create without opening editor
+wt <branch> --open       # Also open terminal tab with claude session (macOS)
 wt <branch> --carry      # Create and copy work-in-progress files
 wt <branch> --context f  # Copy file to .context/handoff.md (session fork)
 wt cd <branch>           # Change to worktree directory
