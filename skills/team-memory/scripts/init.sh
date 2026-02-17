@@ -95,8 +95,13 @@ sed -i "s/DATEPLACEHOLDER/$DATE/g" "$PERSONA_DIR/core/patterns.md"
 if [ ! -d "$MEMORY_DIR/shared" ]; then
   echo "Creating shared knowledge directory..."
   mkdir -p "$MEMORY_DIR/shared"
-  interpolate "$TEMPLATE_DIR/human.md.tmpl" > "$MEMORY_DIR/shared/human.md"
+fi
 
+if [ ! -f "$MEMORY_DIR/shared/human.md" ]; then
+  interpolate "$TEMPLATE_DIR/human.md.tmpl" > "$MEMORY_DIR/shared/human.md"
+fi
+
+if [ ! -f "$MEMORY_DIR/shared/projects.md" ]; then
   cat > "$MEMORY_DIR/shared/projects.md" << 'EOF'
 # Shared Project Context
 
@@ -104,13 +109,28 @@ Projects and context shared across all teammates.
 
 (Add project notes here as you work together.)
 EOF
+fi
 
+if [ ! -f "$MEMORY_DIR/shared/conventions.md" ]; then
   cat > "$MEMORY_DIR/shared/conventions.md" << 'EOF'
 # Shared Conventions
 
 Coding and workflow conventions shared across all teammates.
 
 (Add conventions here as you discover them.)
+EOF
+fi
+
+if [ ! -f "$MEMORY_DIR/shared/platform.md" ]; then
+  cat > "$MEMORY_DIR/shared/platform.md" << 'EOF'
+# Shared Platform Context
+
+Platform-level details shared across all teammates.
+
+- OS:
+- Shell:
+- Toolchain:
+- Infrastructure:
 EOF
 fi
 
@@ -121,6 +141,18 @@ if [ "$EXISTING" -le 1 ] || [ ! -L "$MEMORY_DIR/active" ]; then
   ln -sfn "$NAME" "$MEMORY_DIR/active"
 fi
 
+# Ensure settings file exists so hook wiring works in fresh environments
+mkdir -p "$(dirname "$SETTINGS")"
+if [ ! -f "$SETTINGS" ]; then
+  cat > "$SETTINGS" << 'EOF'
+{
+  "hooks": {
+    "SessionEnd": []
+  }
+}
+EOF
+fi
+
 # Wire SessionEnd hook if not already present
 if command -v jq &>/dev/null; then
   # Check if hook already exists
@@ -128,9 +160,9 @@ if command -v jq &>/dev/null; then
     echo "Wiring SessionEnd hook for sleep-time compute..."
     HOOK_JSON=$(mktemp)
     cat > "$HOOK_JSON" << 'HOOKEOF'
-{"hooks":[{"type":"command","command":"TRANSCRIPT=$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1); [ -n \"$AI_MEMORY_PERSONA\" ] && [ -n \"$TRANSCRIPT\" ] && CLAUDECODE= AI_MEMORY_TRANSCRIPT=\"$TRANSCRIPT\" claude --agent team-memory-sleep --print \"Run sleep-time compute for persona $AI_MEMORY_PERSONA\" || true"}]}
+{"hooks":[{"type":"command","command":"TRANSCRIPT=$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1); PERSONA=\"$AI_MEMORY_PERSONA\"; [ -n \"$PERSONA\" ] && [ -n \"$TRANSCRIPT\" ] && CLAUDECODE= AI_MEMORY_PERSONA= AI_MEMORY_TRANSCRIPT=\"$TRANSCRIPT\" claude --agent team-memory-sleep --model haiku --print \"Run sleep-time compute for persona $PERSONA\" || true"}]}
 HOOKEOF
-    jq --slurpfile hook "$HOOK_JSON" '.hooks.SessionEnd += $hook' "$SETTINGS" > "${SETTINGS}.tmp"
+    jq --slurpfile hook "$HOOK_JSON" '(.hooks //= {}) | (.hooks.SessionEnd //= []) | .hooks.SessionEnd += $hook' "$SETTINGS" > "${SETTINGS}.tmp"
     mv "${SETTINGS}.tmp" "$SETTINGS"
     rm -f "$HOOK_JSON"
   fi

@@ -11,6 +11,10 @@ MEMORY_DIR="${AI_MEMORY_DIR:-$HOME/.ai-memory}"
 PERSONA=""
 SKIP_PERMS="--dangerously-skip-permissions"
 
+is_valid_hex_color() {
+  [[ "$1" =~ ^#[0-9A-Fa-f]{6}$ ]]
+}
+
 # Parse flags
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -62,7 +66,7 @@ if [[ -f "$theme_file" ]] && command -v jq &>/dev/null; then
   icon=$(jq -r '.icon // ""' "$theme_file")
   color=$(jq -r '.color // ""' "$theme_file")
   tagline=$(jq -r '.tagline // ""' "$theme_file")
-  if [[ -n "$color" ]]; then
+  if [[ -n "$color" ]] && is_valid_hex_color "$color"; then
     hex="${color#\#}"
     r=$((16#${hex:0:2})); g=$((16#${hex:2:2})); b=$((16#${hex:4:2}))
     C=$(printf '\033[38;2;%d;%d;%dm' "$r" "$g" "$b")

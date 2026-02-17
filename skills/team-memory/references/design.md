@@ -311,7 +311,7 @@ Added to `settings.json` by the init command:
         "hooks": [
           {
             "type": "command",
-            "command": "TRANSCRIPT=$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1); [ -n \"$AI_MEMORY_PERSONA\" ] && [ -n \"$TRANSCRIPT\" ] && CLAUDECODE= AI_MEMORY_TRANSCRIPT=\"$TRANSCRIPT\" claude --agent team-memory-sleep --print \"Run sleep-time compute for persona $AI_MEMORY_PERSONA\" || true"
+            "command": "TRANSCRIPT=$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1); PERSONA=\"$AI_MEMORY_PERSONA\"; [ -n \"$PERSONA\" ] && [ -n \"$TRANSCRIPT\" ] && CLAUDECODE= AI_MEMORY_PERSONA= AI_MEMORY_TRANSCRIPT=\"$TRANSCRIPT\" claude --agent team-memory-sleep --model haiku --print \"Run sleep-time compute for persona $PERSONA\" || true"
           }
         ]
       }
