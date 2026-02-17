@@ -29,7 +29,10 @@ If the user provides a source inline (e.g., "create a skill for Hono"), infer th
 
 ## Phase 2: Generate
 
-Run the create script:
+Run the create script. Use a timeout appropriate for the preset — scraping takes real time:
+- `quick`: 2 minutes
+- `standard`: 10 minutes
+- `comprehensive`: 60 minutes
 
 ```bash
 uv run ~/.claude/skills/skill-seeker/scripts/create.py \
@@ -39,9 +42,9 @@ uv run ~/.claude/skills/skill-seeker/scripts/create.py \
   --output-dir "/tmp/skill-seeker/<skill-name>"
 ```
 
-Wait for completion. The script runs `skill-seekers create` with `--enhance-level 0` (Claude handles quality review instead of the keyword-based enhancer).
+The script runs `skill-seekers create` with `--enhance-level 0` (Claude handles quality review instead of the keyword-based enhancer). Note the actual output path printed by the script — skill-seekers may nest output in a subdirectory.
 
-On success, read the generated SKILL.md from the output directory.
+On success, read the generated SKILL.md from the path printed by the script. On failure, report the error and suggest trying `quick` preset or a different source.
 
 ## Phase 3: Review + Refine
 
@@ -100,6 +103,8 @@ Rewrite the generated SKILL.md applying these fixes:
 6. **Add verification steps** after key procedures
 
 Write the refined SKILL.md and any new reference files back to the output directory.
+
+Run review.py again on the refined output to verify improvements (token budget, warnings resolved).
 
 ## Phase 4: Summarize + Eval Suggestions
 
