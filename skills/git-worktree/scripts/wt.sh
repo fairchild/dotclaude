@@ -42,6 +42,8 @@ Commands:
 Environment:
   WORKTREES_ROOT     Base directory for worktrees (default: ~/.worktrees)
   REPOS_ROOT         Home for repos when outside git (default: ~/code)
+  WT_TERMINAL        Terminal app for --open/--launch-cmd (default: auto-detect)
+                     Values: ghostty, iTerm2, Terminal (auto-detects from TERM_PROGRAM)
 EOF
     exit 1
 }
@@ -78,7 +80,22 @@ open_terminal_tab() {
     local full_cmd="cd '$dir'"
     [[ -n "$cmd" ]] && full_cmd="$full_cmd && $cmd"
 
-    case "${TERM_PROGRAM:-Terminal}" in
+    # WT_TERMINAL overrides auto-detection from TERM_PROGRAM
+    local terminal="${WT_TERMINAL:-${TERM_PROGRAM:-Terminal}}"
+
+    case "$terminal" in
+        ghostty)
+            osascript <<ASCRIPT
+tell application "Ghostty" to activate
+delay 0.3
+tell application "System Events" to tell process "Ghostty"
+    keystroke "n" using command down
+    delay 0.5
+    keystroke "$full_cmd"
+    key code 36
+end tell
+ASCRIPT
+            ;;
         iTerm*)
             osascript \
                 -e 'tell application "iTerm" to tell current window to create tab with default profile' \
@@ -87,7 +104,7 @@ open_terminal_tab() {
         *)
             osascript \
                 -e 'tell application "Terminal" to activate' \
-                -e "tell application \"Terminal\" to do script \"$full_cmd\" in front window"
+                -e "tell application \"Terminal\" to do script \"$full_cmd\""
             ;;
     esac
 }
@@ -332,26 +349,26 @@ cmd_create() {
         IFS='|' read -r editor editor_name <<< "$editor_info"
     fi
 
+    # --open: build launch_cmd for an interactive claude session (before hints block)
+    if [[ "$open_session" == true ]] && [[ -z "$launch_cmd" ]]; then
+        if [[ -f "$worktree_path/.context/handoff.md" ]]; then
+            launch_cmd="claude 'Read .context/handoff.md and continue the work described there.'"
+        else
+            launch_cmd="claude"
+        fi
+    fi
+
     if [[ "$open_editor" == true ]] && [[ -n "$editor" ]]; then
         log_info "Opening $editor_name..."
         $editor "$worktree_path"
     else
-        # Skip hints if --launch-cmd will handle the transition
+        # Skip hints if launch_cmd will handle the transition
         if [[ -z "$launch_cmd" ]]; then
             echo ""
             echo "  wt cd $branch"
             if [[ -n "$editor" ]]; then
                 echo "  $editor $worktree_path"
             fi
-        fi
-    fi
-
-    # --open: build launch_cmd for an interactive claude session
-    if [[ "$open_session" == true ]] && [[ -z "$launch_cmd" ]]; then
-        if [[ -f "$worktree_path/.context/handoff.md" ]]; then
-            launch_cmd="claude 'Read .context/handoff.md and continue the work described there.'"
-        else
-            launch_cmd="claude"
         fi
     fi
 

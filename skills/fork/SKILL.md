@@ -280,5 +280,5 @@ Open a new terminal here and run `claude`.
 - The handoff is a snapshot - it won't update if you continue working here
 - Use `/chronicle` if you want persistent cross-session memory instead
 - Worktree mode runs setup scripts from `conductor.json` if present
-- Terminal mode uses `wt --launch-cmd` which requires macOS (osascript)
+- Terminal mode uses `wt --open` which requires macOS (osascript)
 - `--base` defaults to `main` if not specified (same as `wt` default)

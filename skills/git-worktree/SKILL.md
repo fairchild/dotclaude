@@ -53,6 +53,7 @@ Worktrees are created at `~/.worktrees/<repo>/<branch>` where `<repo>` is the **
 ```bash
 WORKTREES_ROOT=~/.worktrees  # Where worktrees are created
 REPOS_ROOT=~/code            # Fallback for `wt home` outside git
+WT_TERMINAL=ghostty          # Terminal for --open (auto-detects from TERM_PROGRAM)
 ```
 
 ## Example
