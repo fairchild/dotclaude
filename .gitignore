@@ -74,6 +74,7 @@ config/notification_states.json
 Thumbs.db
 
 # Temporary files
+.trash
 tmp/
 *.tmp
 *.cache
