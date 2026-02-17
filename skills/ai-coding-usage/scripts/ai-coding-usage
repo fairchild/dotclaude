@@ -654,6 +654,7 @@ WITH raw_logs AS (
     SELECT * FROM read_json_auto('${file_pattern}',
         ignore_errors=true,
         maximum_object_size=104857600,
+        union_by_name=true,
         filename=true)
 ),
 expanded AS (
@@ -755,6 +756,7 @@ WITH raw_logs AS (
     SELECT * FROM read_json_auto('${file_pattern}',
         ignore_errors=true,
         maximum_object_size=104857600,
+        union_by_name=true,
         filename=true)
 ),
 -- User messages where content is a plain string
@@ -935,6 +937,7 @@ WITH raw_logs AS (
     SELECT * FROM read_json_auto('${file_pattern}',
         ignore_errors=true,
         maximum_object_size=104857600,
+        union_by_name=true,
         filename=true)
 )
 SELECT
@@ -982,6 +985,7 @@ WITH raw_logs AS (
     SELECT * FROM read_json_auto('${file_pattern}',
         ignore_errors=true,
         maximum_object_size=104857600,
+        union_by_name=true,
         filename=true)
 )
 SELECT
@@ -1024,6 +1028,7 @@ WITH raw_logs AS (
     SELECT * FROM read_json_auto('${file_pattern}',
         ignore_errors=true,
         maximum_object_size=104857600,
+        union_by_name=true,
         filename=true)
 )
 SELECT
@@ -1779,6 +1784,10 @@ CREATE TABLE IF NOT EXISTS system_events (uuid VARCHAR PRIMARY KEY, session_id V
 CREATE TABLE IF NOT EXISTS queue_operations (session_id VARCHAR, timestamp TIMESTAMP, operation VARCHAR, content VARCHAR, source_file VARCHAR);
 CREATE TABLE IF NOT EXISTS pr_links (session_id VARCHAR, timestamp TIMESTAMP, pr_number INTEGER, pr_url VARCHAR, pr_repository VARCHAR, source_file VARCHAR);
 CREATE TABLE IF NOT EXISTS _loaded_files (file_path VARCHAR PRIMARY KEY, mtime_ns BIGINT, loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+
+-- Add source_file column to tables that may predate v1.2
+ALTER TABLE claude_tools ADD COLUMN IF NOT EXISTS source_file VARCHAR;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS source_file VARCHAR;
 ENSURE
 
     # Delete stale rows from changed files
