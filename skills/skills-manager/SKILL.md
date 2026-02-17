@@ -4,6 +4,8 @@ description: Use when the user wants to list, search, install, remove, inspect, 
   or update skills. Use when asking "what skills do I have", "is there a skill for X",
   "check my skills for issues", or "install a skill". Also use when checking skill health
   across agents (Claude Code, Codex, Agents CLI).
+metadata:
+  status: experimental
 ---
 
 # Skills Manager
