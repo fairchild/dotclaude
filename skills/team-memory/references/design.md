@@ -13,9 +13,28 @@ The framework is **general-purpose**. A specific personality (like Bertram) is o
 
 - **Local-first** — markdown files on disk, no databases, no external services
 - **AI-only pipeline** — memory operations handled by subagents, not TypeScript scripts
-- **Claude Code native** — uses `--add-dir`, CLAUDE.md `@imports`, hooks, background agents
+- **Claude Code native** — exploits the CLAUDE.md `@import` → system prompt pipeline for durable memory injection (see [Key Insight](#key-insight-memory-as-system-prompt))
 - **Distributable as a skill** — ships as `~/.claude/skills/team-memory/`, data lives in `~/.ai-memory/`
 - **Two memory loops** — conscious (active remember/recall) + subconscious (sleep-time compute)
+
+## Key Insight: Memory as System Prompt
+
+The entire architecture hinges on one Claude Code behavior: **CLAUDE.md files and their `@imports` are loaded into the system prompt as "Memory files"**, not as conversation messages.
+
+This matters because:
+
+- **System prompt is durable** — it survives autocompaction. As conversations grow long, Claude Code compresses older messages to stay within context limits. System prompt content is never compressed.
+- **Zero message cost** — reading a file with the Read tool creates a message turn that counts against context and eventually gets compacted away. `@imports` load the same content for free (it's already in the system prompt).
+- **Categorized cleanly** — Claude Code's `/context` command shows Memory files as a distinct budget category, separate from messages, tools, and skills.
+
+The mechanism:
+
+1. `launch.sh` passes `--add-dir ~/.ai-memory/<persona>` to Claude Code
+2. Claude Code discovers `~/.ai-memory/<persona>/CLAUDE.md` as a project instruction file
+3. The `@` directives in that CLAUDE.md transitively include personality.md, relationship.md, shared/*.md, and core/*.md
+4. All included content lands in the "Memory files" category of the system prompt
+
+This is why **promotion to `core/` matters** — a memory block in `core/` gets `@imported` and becomes part of the system prompt every session. A block in `archival/` must be actively recalled (Read tool → message context → subject to compaction). The three-tier hierarchy maps directly to context durability: core = system prompt (permanent), archival = on-demand read (ephemeral), recall = session history (reference only).
 
 ## Directory Structure
 
