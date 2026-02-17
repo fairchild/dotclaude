@@ -34,7 +34,7 @@ When setting up Claude Code for a new project.
 
 ### 2. Permissions (.claude/settings.json)
 
-Copy from `~/.claude/references/permission-templates.md`:
+Copy from `~/.claude/skills/dotclaude-config/references/permission-templates.md`:
 - [ ] Pick base template (minimal/standard/full)
 - [ ] Add package manager permissions
 - [ ] Add deployment permissions if needed
@@ -57,7 +57,7 @@ Add hooks for:
 - [ ] Custom status line
 - [ ] Pre-compact priming
 
-See `~/.claude/references/hook-patterns.md`.
+See `~/.claude/skills/dotclaude-config/references/hook-patterns.md`.
 
 ### 5. Skills (Optional)
 
