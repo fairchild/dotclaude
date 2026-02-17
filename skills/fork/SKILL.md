@@ -123,7 +123,7 @@ EOF
 wt <branch> --no-editor --context "$HANDOFF"  # add --base <ref> if specified
 ```
 
-After the worktree is created, use Bash to `cd` into `~/.worktrees/<origin-repo>/<branch>`, then read `.context/handoff.md` and continue working from there. The user's session moves into the worktree.
+After the worktree is created, use Bash to `cd` into `~/.worktrees/<repo>/<branch>`, then read `.context/handoff.md` and continue working from there. The user's session moves into the worktree.
 
 #### Team mode
 
@@ -158,7 +158,7 @@ Task(
   team_name: "fork-<branch>",
   name: "<branch>-worker",
   subagent_type: "general-purpose",
-  prompt: "You are working in a forked worktree at ~/.worktrees/<origin-repo>/<branch>.
+  prompt: "You are working in a forked worktree at ~/.worktrees/<repo>/<branch>.
     Use absolute paths for all file operations.
     Read .context/handoff.md at that path for full context.
 
@@ -192,7 +192,7 @@ wt <branch> --no-editor --context "$HANDOFF"  # add --base <ref> if specified
 After the worktree is created, run claude in the background:
 
 ```bash
-cd ~/.worktrees/<origin-repo>/<branch> && claude --print 'Read .context/handoff.md and complete the work described there. Commit with conventional commits.' > /tmp/fork-<branch>.log 2>&1
+cd ~/.worktrees/<repo>/<branch> && claude --print 'Read .context/handoff.md and complete the work described there. Commit with conventional commits.' > /tmp/fork-<branch>.log 2>&1
 ```
 
 Use `run_in_background: true` on the Bash tool call.
@@ -212,7 +212,7 @@ No worktree created. User opens a new terminal and runs `claude`.
 
 Mode-specific confirmation messages:
 
-- **Terminal**: "Forked to `<branch>`. New terminal tab opened with interactive Claude session. Handoff at `~/.worktrees/<origin-repo>/<branch>/.context/handoff.md`."
+- **Terminal**: "Forked to `<branch>`. New terminal tab opened with interactive Claude session. Handoff at `~/.worktrees/<repo>/<branch>/.context/handoff.md`."
 - **Move**: "Moved into worktree `<branch>`. To return: `cd <original_path>`"
 - **Team**: "Forked to `<branch>`. Teammate `<branch>-worker` is working in the worktree. Messages will arrive here when they need input or finish."
 - **Background**: "Forked to `<branch>`. Monitor: `tail -f /tmp/fork-<branch>.log`"
@@ -275,7 +275,7 @@ Open a new terminal here and run `claude`.
 
 ## Notes
 
-- **Worktree naming**: `<origin-repo>` is the repo name from `git remote get-url origin` (e.g., `~/.claude` with remote `dotclaude.git` creates worktrees at `~/.worktrees/dotclaude/<branch>`)
+- **Worktree naming**: `<repo>` is derived from `git remote get-url origin` (e.g., `~/.claude` with remote `dotclaude.git` → `~/.worktrees/dotclaude/<branch>`)
 - **Requires**: `git-worktree` skill for all modes except `--local`
 - The handoff is a snapshot - it won't update if you continue working here
 - Use `/chronicle` if you want persistent cross-session memory instead
