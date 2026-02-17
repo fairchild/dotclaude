@@ -28,6 +28,10 @@ Run regression smoke checks:
 bash ~/.claude/skills/team-memory/tests/regression.sh
 ```
 
+Transcript fallback behavior:
+- Default: SessionEnd requires hook-provided `transcript_path` (safer under concurrency)
+- Optional fallback: set `AI_MEMORY_ALLOW_TRANSCRIPT_FALLBACK=1`
+
 ## Init (`/team-memory init <name>`)
 
 Bootstrap a new AI teammate:

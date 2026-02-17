@@ -8,6 +8,8 @@ TEMPLATE_DIR="$SKILL_DIR/templates"
 MEMORY_DIR="${AI_MEMORY_DIR:-$HOME/.ai-memory}"
 SETTINGS="$HOME/.claude/settings.json"
 TEAM_MEMORY_HOOK_COMMAND="~/.claude/skills/team-memory/scripts/session-end.sh"
+TEAM_MEMORY_AGENT_SOURCE="$SKILL_DIR/agents/team-memory-sleep.md"
+TEAM_MEMORY_AGENT_DEST="$HOME/.claude/agents/team-memory-sleep.md"
 
 usage() {
   echo "Usage: $0 <teammate-name>"
@@ -154,15 +156,16 @@ if [ ! -f "$SETTINGS" ]; then
 EOF
 fi
 
+# Install/update the global sleep orchestrator from the skill-local copy.
+if [ -f "$TEAM_MEMORY_AGENT_SOURCE" ]; then
+  mkdir -p "$(dirname "$TEAM_MEMORY_AGENT_DEST")"
+  if ! cmp -s "$TEAM_MEMORY_AGENT_SOURCE" "$TEAM_MEMORY_AGENT_DEST" 2>/dev/null; then
+    cp "$TEAM_MEMORY_AGENT_SOURCE" "$TEAM_MEMORY_AGENT_DEST"
+  fi
+fi
+
 # Wire SessionEnd hook if not already present
 if command -v jq &>/dev/null; then
-  # Migrate legacy inline team-memory hook to dedicated script.
-  jq --arg cmd "$TEAM_MEMORY_HOOK_COMMAND" \
-    '(.hooks //= {}) | (.hooks.SessionEnd //= []) |
-     (.hooks.SessionEnd[]?.hooks[]? | select((.command // "") | contains("team-memory-sleep")).command) = $cmd' \
-    "$SETTINGS" > "${SETTINGS}.tmp"
-  mv "${SETTINGS}.tmp" "$SETTINGS"
-
   # Check if hook already exists.
   if ! jq -e --arg cmd "$TEAM_MEMORY_HOOK_COMMAND" '.hooks.SessionEnd[]? | any(.hooks[]?; (.command // "") == $cmd)' "$SETTINGS" &>/dev/null; then
     echo "Wiring SessionEnd hook for sleep-time compute..."

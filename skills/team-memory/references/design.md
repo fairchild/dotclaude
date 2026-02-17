@@ -72,6 +72,8 @@ This is why **promotion to `core/` matters** — a memory block in `core/` gets 
 ```
 ~/.claude/skills/team-memory/
 ├── SKILL.md                        # Skill definition, triggers, commands
+├── agents/
+│   └── team-memory-sleep.md        # Orchestrator source (synced to ~/.claude/agents/)
 ├── references/
 │   ├── design.md                   # This file
 │   └── agents/
@@ -319,7 +321,7 @@ Added to `settings.json` by the init command:
 }
 ```
 
-`session-end.sh` parses `transcript_path` from hook JSON input, falls back to the latest transcript if needed, and invokes `team-memory-sleep` with explicit env vars (`AI_MEMORY_TARGET_PERSONA`, `AI_MEMORY_TRANSCRIPT`, `AI_MEMORY_DIR`) while clearing `AI_MEMORY_PERSONA` to prevent recursive cascades.
+`session-end.sh` parses `transcript_path` from hook JSON input and skips when missing (strict mode). Optional fallback to latest transcript is available via `AI_MEMORY_ALLOW_TRANSCRIPT_FALLBACK=1`. The script also syncs `agents/team-memory-sleep.md` into `~/.claude/agents/`, then invokes `team-memory-sleep` with explicit env vars (`AI_MEMORY_TARGET_PERSONA`, `AI_MEMORY_TRANSCRIPT`, `AI_MEMORY_DIR`) while clearing `AI_MEMORY_PERSONA` to prevent recursive cascades.
 
 ## SKILL.md Commands
 
@@ -387,6 +389,7 @@ The skill is self-contained in `~/.claude/skills/team-memory/`. Anyone can insta
 3. Edit `~/.ai-memory/<name>/personality.md`
 4. Alias `claude-memory` to the launcher script
 5. Hook wiring is handled automatically by init
+6. init/session-end keep `~/.claude/agents/team-memory-sleep.md` in sync from the skill-local `agents/` copy
 
 Memory data in `~/.ai-memory/` is user-specific and not part of the skill distribution.
 

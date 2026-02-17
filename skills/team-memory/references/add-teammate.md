@@ -18,7 +18,8 @@ bash ~/.claude/skills/team-memory/scripts/init.sh <name>
 ```
 
 This creates the directory structure, wires the SessionEnd hook (first time only),
-and sets the new teammate as active if it's the first one.
+syncs the global `team-memory-sleep` agent, and sets the new teammate as active
+if it's the first one.
 
 ## 3. Define the Personality
 

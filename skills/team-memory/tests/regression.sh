@@ -10,6 +10,7 @@ SESSION_END_SCRIPT="$SKILL_DIR/scripts/session-end.sh"
 SKILL_DOC="$SKILL_DIR/SKILL.md"
 TEMPLATE="$SKILL_DIR/templates/CLAUDE.md.tmpl"
 ORCHESTRATOR="$REPO_ROOT/agents/team-memory-sleep.md"
+SKILL_ORCHESTRATOR="$SKILL_DIR/agents/team-memory-sleep.md"
 
 fail() {
   echo "FAIL: $*" >&2
@@ -37,7 +38,7 @@ command -v jq >/dev/null 2>&1 || fail "jq is required for regression checks"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-echo "[1/3] bootstrap migrates and wires dedicated team-memory session-end hook"
+echo "[1/4] bootstrap wires dedicated team-memory session-end hook"
 home_init="$tmp/home-init"
 mkdir -p "$home_init/.claude"
 cat > "$home_init/.claude/settings.json" <<'JSON'
@@ -48,7 +49,7 @@ cat > "$home_init/.claude/settings.json" <<'JSON'
         "hooks": [
           {
             "type": "command",
-            "command": "TRANSCRIPT=$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1); PERSONA=\"$AI_MEMORY_PERSONA\"; [ -n \"$PERSONA\" ] && [ -n \"$TRANSCRIPT\" ] && CLAUDECODE= AI_MEMORY_PERSONA= AI_MEMORY_TRANSCRIPT=\"$TRANSCRIPT\" claude --agent team-memory-sleep --model haiku --print \"Run sleep-time compute for persona $PERSONA\" || true"
+            "command": "~/.claude/hooks/session-end.sh"
           }
         ]
       }
@@ -61,9 +62,18 @@ HOME="$home_init" AI_MEMORY_DIR="$home_init/.ai-memory" bash "$INIT_SCRIPT" scou
 commands="$tmp/sessionend-commands.txt"
 jq -r '.hooks.SessionEnd[]?.hooks[]?.command // empty' "$home_init/.claude/settings.json" > "$commands"
 assert_file_contains "$commands" "~/.claude/skills/team-memory/scripts/session-end.sh"
-assert_file_not_contains "$commands" "team-memory-sleep"
+hook_count=$(jq -r '.hooks.SessionEnd[]?.hooks[]?.command // empty' "$home_init/.claude/settings.json" | grep -F -c "~/.claude/skills/team-memory/scripts/session-end.sh" || true)
+[ "$hook_count" -eq 1 ] || fail "Expected exactly one team-memory SessionEnd hook after first init"
 
-echo "[2/3] session-end uses hook transcript_path and explicit persona vars"
+# Second init should not duplicate the team-memory hook.
+HOME="$home_init" AI_MEMORY_DIR="$home_init/.ai-memory" bash "$INIT_SCRIPT" oracle >/dev/null
+hook_count=$(jq -r '.hooks.SessionEnd[]?.hooks[]?.command // empty' "$home_init/.claude/settings.json" | grep -F -c "~/.claude/skills/team-memory/scripts/session-end.sh" || true)
+[ "$hook_count" -eq 1 ] || fail "Expected exactly one team-memory SessionEnd hook after repeated init"
+if ! cmp -s "$SKILL_ORCHESTRATOR" "$home_init/.claude/agents/team-memory-sleep.md"; then
+  fail "Expected init.sh to install synced global team-memory-sleep agent"
+fi
+
+echo "[2/4] session-end uses hook transcript_path and explicit persona vars"
 home_hook="$tmp/home-hook"
 mkdir -p "$home_hook/.claude/projects/demo" "$tmp/bin"
 touch "$home_hook/.claude/projects/demo/fallback.jsonl"
@@ -102,10 +112,41 @@ assert_file_contains "$capture" "AI_MEMORY_TRANSCRIPT:$hook_transcript"
 assert_file_contains "$capture" "AI_MEMORY_DIR:$tmp/custom-memory-root"
 assert_file_contains "$capture" "AI_MEMORY_PERSONA_VALUE:"
 assert_file_not_contains "$capture" "AI_MEMORY_PERSONA_VALUE:smoky"
+if ! cmp -s "$SKILL_ORCHESTRATOR" "$home_hook/.claude/agents/team-memory-sleep.md"; then
+  fail "Expected session-end.sh to sync global team-memory-sleep agent"
+fi
 
-echo "[3/3] prompts are memory-root agnostic"
+echo "[3/4] transcript fallback is opt-in"
+capture_fallback="$tmp/session-end-fallback-capture.txt"
+HOME="$home_hook" \
+PATH="$tmp/bin:$PATH" \
+AI_MEMORY_PERSONA="smoky" \
+TEAM_MEMORY_TEST_CAPTURE="$capture_fallback" \
+bash "$SESSION_END_SCRIPT" <<JSON
+{"session_id":"no-transcript","cwd":"$home_hook"}
+JSON
+
+if [ -f "$capture_fallback" ]; then
+  fail "Did not expect claude call when transcript_path is missing and fallback is disabled"
+fi
+
+HOME="$home_hook" \
+PATH="$tmp/bin:$PATH" \
+AI_MEMORY_PERSONA="smoky" \
+AI_MEMORY_ALLOW_TRANSCRIPT_FALLBACK="1" \
+TEAM_MEMORY_TEST_CAPTURE="$capture_fallback" \
+bash "$SESSION_END_SCRIPT" <<JSON
+{"session_id":"with-fallback","cwd":"$home_hook"}
+JSON
+
+assert_file_contains "$capture_fallback" "AI_MEMORY_TRANSCRIPT:$home_hook/.claude/projects/demo/fallback.jsonl"
+
+echo "[4/4] prompts are memory-root agnostic"
 assert_file_contains "$ORCHESTRATOR" "Memory dir: <MEMORY_DIR>."
 assert_file_not_contains "$ORCHESTRATOR" "Memory dir: ~/.ai-memory/<PERSONA>"
+if ! cmp -s "$SKILL_ORCHESTRATOR" "$ORCHESTRATOR"; then
+  fail "Expected root and skill team-memory-sleep agents to stay in sync"
+fi
 assert_file_contains "$TEMPLATE" 'MEMORY_DIR = ${AI_MEMORY_DIR:-$HOME/.ai-memory}/'
 assert_file_contains "$TEMPLATE" "Memory dir: <MEMORY_DIR>."
 assert_file_contains "$SKILL_DOC" "Memory dir: <MEMORY_DIR>/<name>"

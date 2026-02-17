@@ -15,7 +15,7 @@ Read ~/.claude/skills/team-memory/references/design.md
 
 - `~/.claude/skills/team-memory/references/design.md` — the complete approved design
 - The skill directory has been created at `~/.claude/skills/team-memory/`
-- Implementation now exists in `scripts/`, `templates/`, `references/agents/`, and `~/.claude/agents/team-memory-sleep.md`
+- Implementation now exists in `scripts/`, `templates/`, `references/agents/`, and `agents/team-memory-sleep.md` (synced into `~/.claude/agents/team-memory-sleep.md`)
 
 ## What You're Building
 
@@ -60,7 +60,7 @@ A Claude Code skill with these components (in implementation order):
 
 ### Phase 3: Sleep-Time Compute (subconscious pipeline)
 
-7. **~/.claude/agents/team-memory-sleep.md** — Orchestrator agent dispatched by SessionEnd hook:
+7. **agents/team-memory-sleep.md** — Orchestrator source dispatched by SessionEnd hook (synced to `~/.claude/agents/team-memory-sleep.md`):
    - Dispatches sleep-extract, sleep-consolidate, sleep-reflect in sequence
    - Each runs as a sub-task
 
@@ -100,6 +100,7 @@ A Claude Code skill with these components (in implementation order):
 - **CLAUDE.md @imports**: The per-teammate CLAUDE.md uses @import syntax to load personality, shared knowledge, and core memories.
 - **`--add-dir` loading**: The launcher sets `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1` so the persona's CLAUDE.md is loaded as system prompt.
 - **Env var gating**: `AI_MEMORY_PERSONA` env var is set by launcher. `scripts/session-end.sh` exits immediately when it is missing and prevents recursion by clearing it before spawning sleep compute.
+- **Transcript strictness**: `scripts/session-end.sh` requires hook-provided `transcript_path` by default. Optional fallback to latest transcript is controlled by `AI_MEMORY_ALLOW_TRANSCRIPT_FALLBACK=1`.
 - **No external dependencies**: Pure markdown files + shell scripts + agent markdown files. No bun, no API keys, no databases.
 
 ## Important References
