@@ -70,11 +70,22 @@ rm ~/.claude/skills/my-skill  # remove symlink
 # The skill arrives in ~/.claude via next pull/sync
 ```
 
-For worktree-based development:
+For worktree or conductor-based development:
 ```bash
-# Point symlink at a worktree instead
+# Point symlink at a worktree
 ln -s ~/.worktrees/dotclaude/feat-branch/skills/my-skill ~/.claude/skills/my-skill
+
+# Or at a conductor session workspace
+ln -s ~/conductor/<session>/skills/my-skill ~/.claude/skills/my-skill
 ```
+
+Working directories by context:
+
+| Context | Base Dir |
+|---------|----------|
+| Direct development | `~/code/dotclaude` |
+| Worktree branches | `~/.worktrees/dotclaude/<branch>` |
+| Conductor sessions | `~/conductor/<session>` |
 
 ### Key Rules
 
