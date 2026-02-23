@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Detect likely-completed backlog items by cross-referencing git history and filesystem.
+# Detect likely-completed pending backlog items by cross-referencing
+# git history, in-file references, and filesystem signals.
 # Usage: ~/.claude/skills/backlog/scripts/groom.sh [path/to/backlog]
 
 backlog_dir="${1:-backlog}"
@@ -15,51 +16,50 @@ likely_completed=()
 still_pending=()
 roadmap_notes=()
 
+extract_files_to_create() {
+  local file="$1"
+  awk '
+    /\*\*Files to create:\*\*/ { in_block=1; next }
+    in_block && /^\s*$/ { in_block=0 }
+    in_block && /^- `/ {
+      line=$0
+      gsub(/^.*`/, "", line)
+      gsub(/`.*$/, "", line)
+      print line
+    }
+  ' "$file" 2>/dev/null || true
+}
+
 for f in "$backlog_dir"/*.md; do
-  [[ "$(basename "$f")" == "AGENTS.md" ]] && continue
-  [[ "$(basename "$f")" == "CLAUDE.md" ]] && continue
-  [[ "$(basename "$f")" == "ROADMAP.md" ]] && continue
   [[ ! -f "$f" ]] && continue
 
   name=$(basename "$f")
-
-  # Parse frontmatter (reuses status.sh pattern)
-  first_line=$(head -1 "$f" 2>/dev/null)
-  if [[ "$first_line" == "---" ]]; then
-    fm=$(sed -n '2,/^---$/p' "$f" 2>/dev/null | sed '$d')
-    status=$(echo "$fm" | grep '^status:' | cut -d: -f2 | tr -d ' ')
-    pr=$(echo "$fm" | grep '^pr:' | cut -d: -f2 | tr -d ' ')
-    branch=$(echo "$fm" | grep '^branch:' | cut -d: -f2 | tr -d ' ')
-  else
-    status=""
-    pr=""
-    branch=""
-  fi
-
-  [[ -z "$status" ]] && status="pending"
-  [[ "$status" != "pending" ]] && continue
+  [[ "$name" == "AGENTS.md" || "$name" == "CLAUDE.md" || "$name" == "ROADMAP.md" ]] && continue
 
   signals=()
 
-  # Strategy 1: PR number match
-  if [[ -n "$pr" && "$pr" != "null" ]]; then
+  # Strategy 1: Explicit PR refs in file content (e.g., #123)
+  prs=$(grep -Eo '#[0-9]+' "$f" 2>/dev/null | tr -d '#' | sort -u || true)
+  for pr in $prs; do
     if git log --oneline --all --grep="(#${pr})" 2>/dev/null | grep -q .; then
       signals+=("PR #${pr} found in git log")
+      break
     fi
-  fi
+  done
 
-  # Strategy 2: Branch match
-  if [[ -n "$branch" && "$branch" != "null" ]]; then
-    if git log --oneline main --all --grep="$branch" 2>/dev/null | grep -q . || \
-       git branch --merged main 2>/dev/null | grep -q "$branch"; then
-      signals+=("branch '$branch' merged to main")
+  # Strategy 2: Explicit branch refs in file content (e.g., feat/x, fix/x)
+  branches=$(grep -Eo '\b(feat|fix|chore|docs|refactor|test|perf)/[a-z0-9._/-]+' "$f" 2>/dev/null | sort -u || true)
+  for br in $branches; do
+    if git log --oneline --all --grep="$br" 2>/dev/null | grep -q . || \
+       git branch --merged main 2>/dev/null | grep -q "$br"; then
+      signals+=("branch '$br' merged or referenced")
+      break
     fi
-  fi
+  done
 
   # Strategy 3: Keyword match from title
   title=$(grep -m1 '^# ' "$f" 2>/dev/null | sed 's/^# //' || true)
   if [[ -n "$title" ]]; then
-    # Extract keywords: lowercase, split on spaces/hyphens, skip short words
     keywords=$(echo "$title" | tr '[:upper:]' '[:lower:]' | tr ' -' '\n' | \
       grep -E '^.{4,}$' | grep -vE '^(with|from|into|that|this|will|have|been|does|each|more|also|when|what|then)$' || true)
     for kw in $keywords; do
@@ -70,13 +70,14 @@ for f in "$backlog_dir"/*.md; do
     done
   fi
 
-  # Strategy 4: File existence check ("Files to create" sections)
+  # Strategy 4: File existence check from "Files to create"
   while IFS= read -r filepath; do
+    [[ -z "$filepath" ]] && continue
     if [[ -e "$filepath" ]]; then
       signals+=("$filepath exists")
       break
     fi
-  done < <(grep -A1 'Files to create' "$f" 2>/dev/null | grep '^\- `' | sed 's/.*`\([^`]*\)`.*/\1/' || true)
+  done < <(extract_files_to_create "$f")
 
   if [[ ${#signals[@]} -gt 0 ]]; then
     reason=$(IFS='; '; echo "${signals[*]}")
@@ -100,7 +101,6 @@ if [[ -f "$backlog_dir/ROADMAP.md" ]]; then
     fi
     if [[ "$in_active" == true ]] && echo "$line" | grep -qE '^\s*-\s+\S'; then
       item=$(echo "$line" | sed 's/^\s*-\s*//')
-      # Extract keywords: 4+ chars, skip common verbs/articles
       kws=$(echo "$item" | tr '[:upper:]' '[:lower:]' | tr ' -' '\n' | \
         grep -E '^.{4,}$' | grep -vE '^(with|from|into|that|this|will|have|been|does|each|more|also|when|what|then|adds?)$' | head -3 || true)
       matched=false
@@ -117,7 +117,6 @@ if [[ -f "$backlog_dir/ROADMAP.md" ]]; then
   done < "$backlog_dir/ROADMAP.md"
 fi
 
-# Output
 echo "Backlog Grooming Report"
 echo "======================="
 echo ""

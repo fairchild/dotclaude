@@ -31,23 +31,23 @@ Choose the category and encode it in the filename suffix:
 Use filename format: `backlog/{task-name}-{category}.md`
 
 Examples:
-- `backlog/docs-r2-storage_plan.md`
-- `backlog/session-cache-followups_task-list.md`
+- `backlog/docs-r2-storage-plan.md`
+- `backlog/session-cache-followups-task-list.md`
 
 Notes:
-- Task name is the filename stem (`{task-name}`)
-- Category is derived from suffix (`_{category}`), not frontmatter
+- Task name should be kebab-case (`{task-name}`)
+- Category is derived from suffix (`-{category}`), not frontmatter
 - Status is derived from location: `backlog/` = pending, `backlog/done/` = done
 
 ### Step 3: Create Backlog File
 
-Create a file at `backlog/{task-name}_{category}.md` with this structure:
+Create a file at `backlog/{task-name}-{category}.md` with this structure:
 
 ```markdown
 ---
 # Optional metadata only (omit keys you don't need)
 topic: {slug-topic-name}
-relates_to: {after:other-task_plan|until:other-task_plan}
+relates_to: {after:other-task-plan|until:other-task-plan}
 priority: {1|2|3...} # 1 = highest priority
 description: {short summary for UI/list views}
 ---
@@ -126,7 +126,7 @@ Before finishing, verify the backlog file:
 - [ ] Has verification commands or acceptance criteria
 - [ ] References related code patterns in the codebase
 - [ ] Uses minimal optional metadata only (`topic`, `relates_to`, `priority`, `description`) and omits unused keys
-- [ ] Uses filename suffix category format: `{task-name}_{category}.md`
+- [ ] Uses kebab-case filename suffix format: `{task-name}-{category}.md`
 
 ## List Backlog Items
 
@@ -144,7 +144,7 @@ Detect stale or likely-completed backlog items that were never moved to `done/`.
 ~/.claude/skills/backlog/scripts/groom.sh [path/to/backlog]
 ```
 
-The script cross-references pending items against git history (PR numbers, branch names, keyword matches) and the filesystem (files that were supposed to be created). It flags items that look done so you can review and close them.
+The script cross-references pending items against git history (title/keyword matches and in-file references) and the filesystem (files that were supposed to be created). It flags items that look done so you can review and close them.
 
 See `references/grooming.md` for the full grooming workflow and checklist.
 

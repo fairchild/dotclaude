@@ -6,7 +6,7 @@ This skill captures **explored-but-deferred work** as comprehensive plan files. 
 
 - **Single-purpose**: Capture deferred work, not manage all tasks
 - **Comprehensive output**: Each backlog item is a complete plan, not a stub
-- **Lifecycle tracking**: pending → in-progress → done, with retrospective fields
+- **Lifecycle tracking**: pending (`backlog/`) → done (`backlog/done/`) via file movement
 - **Categories**: plan, followup, task-list, ideas
 
 ## Related Projects
@@ -17,7 +17,7 @@ These projects informed the design and represent alternative approaches:
 
 Full-featured markdown-native task manager with Kanban visualization. Each task is a separate markdown file (`task-<id> - <title>.md`). Includes CLI, TUI board, web interface, dependencies, and MCP server for AI integration.
 
-**What we borrowed**: Per-item file structure, YAML frontmatter schema, category concept
+**What we borrowed**: Per-item file structure and category concept
 **What we skipped**: Full Kanban board, dependency graphs, interactive TUI
 
 ### [Vibe Kanban](https://github.com/BloopAI/vibe-kanban)

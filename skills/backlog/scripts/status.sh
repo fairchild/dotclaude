@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Parse YAML frontmatter from backlog/*.md files
+# Summarize backlog items using kebab-case suffix categories.
 # Usage: ~/.claude/skills/backlog/scripts/status.sh [path/to/backlog]
 #
-# Frontmatter is optional - files without it default to:
-#   status: pending, category: (from filename or unknown)
+# Conventions:
+# - Category from filename suffix: -plan, -followup, -task-list, -ideas
+# - Status from location: backlog/ = pending, backlog/done/ = done
+# - Frontmatter optional; only reads topic/priority when present
 
 backlog_dir="${1:-backlog}"
 
@@ -14,70 +16,74 @@ if [[ ! -d "$backlog_dir" ]]; then
   exit 1
 fi
 
-echo "| File                                | Category   | Thread                | Status      | PR  | Modified   |"
-echo "|-------------------------------------|------------|----------------------|-------------|-----|------------|"
+category_from_name() {
+  local name="$1"
+  case "$name" in
+    *-plan.md) echo "plan" ;;
+    *-followup.md) echo "followup" ;;
+    *-task-list.md) echo "task-list" ;;
+    *-ideas.md) echo "ideas" ;;
+    *) echo "unknown" ;;
+  esac
+}
 
-for f in "$backlog_dir"/*.md; do
-  [[ "$(basename "$f")" == "AGENTS.md" ]] && continue
-  [[ "$(basename "$f")" == "CLAUDE.md" ]] && continue
-  [[ "$(basename "$f")" == "ROADMAP.md" ]] && continue
-  [[ ! -f "$f" ]] && continue
-  [[ ! -r "$f" ]] && continue
+fm_value() {
+  local file="$1"
+  local key="$2"
 
-  name=$(basename "$f")
+  local first_line
+  first_line=$(head -1 "$file" 2>/dev/null || true)
+  [[ "$first_line" != "---" ]] && return 0
 
-  # Check if file starts with frontmatter delimiter
-  first_line=$(head -1 "$f" 2>/dev/null)
-  if [[ "$first_line" == "---" ]]; then
-    fm=$(sed -n '2,/^---$/p' "$f" 2>/dev/null | sed '$d')
-    status=$(echo "$fm" | { grep '^status:' || true; } | cut -d: -f2 | tr -d ' ')
-    category=$(echo "$fm" | { grep '^category:' || true; } | cut -d: -f2 | tr -d ' ')
-    thread=$(echo "$fm" | { grep '^thread:' || true; } | cut -d: -f2 | tr -d ' ')
-    pr=$(echo "$fm" | { grep '^pr:' || true; } | cut -d: -f2 | tr -d ' ')
-  else
-    status=""
-    category=""
-    thread=""
-    pr=""
+  sed -n '2,/^---$/p' "$file" 2>/dev/null \
+    | sed '$d' \
+    | grep -E "^${key}:" \
+    | head -1 \
+    | cut -d: -f2- \
+    | sed 's/^ *//; s/ *$//' || true
+}
+
+print_rows() {
+  local dir="$1"
+  local status="$2"
+
+  for f in "$dir"/*.md; do
+    [[ ! -f "$f" ]] && continue
+
+    local base
+    base=$(basename "$f")
+    [[ "$base" == "AGENTS.md" || "$base" == "CLAUDE.md" || "$base" == "ROADMAP.md" ]] && continue
+
+    local category topic priority modified
+    category=$(category_from_name "$base")
+    topic=$(fm_value "$f" "topic")
+    priority=$(fm_value "$f" "priority")
+    [[ -z "$topic" ]] && topic="-"
+    [[ -z "$priority" ]] && priority="-"
+
+    modified=$(git log -1 --format=%cs -- "$f" 2>/dev/null || true)
+    [[ -z "$modified" ]] && modified=$(stat -f %Sm -t %Y-%m-%d "$f" 2>/dev/null || echo "?")
+
+    printf "%s| %-35s | %-10s | %-8s | %-8s | %-18s |\n" \
+      "$modified" "$base" "$category" "$status" "$priority" "$topic"
+  done
+}
+
+echo "| File                                | Category   | Status   | Priority | Topic              |"
+echo "|-------------------------------------|------------|----------|----------|--------------------|"
+{
+  print_rows "$backlog_dir" "pending"
+  if [[ -d "$backlog_dir/done" ]]; then
+    print_rows "$backlog_dir/done" "done"
   fi
-
-  # Defaults for missing values
-  [[ -z "$status" ]] && status="pending"
-
-  # Infer category from filename pattern if missing
-  if [[ -z "$category" ]]; then
-    case "$name" in
-      *-plan.md) category="plan" ;;
-      *-followup.md) category="followup" ;;
-      *-task-list.md|*_todo.md) category="task-list" ;;
-      *-ideas.md) category="ideas" ;;
-      *) category="unknown" ;;
-    esac
-  fi
-
-  [[ "$thread" == "null" || -z "$thread" ]] && thread="-"
-  [[ "$pr" == "null" || -z "$pr" ]] && pr="-"
-
-  # Get last modified date from git (or filesystem fallback)
-  modified=$(git log -1 --format=%cs -- "$f" 2>/dev/null)
-  [[ -z "$modified" ]] && modified=$(stat -f %Sm -t %Y-%m-%d "$f" 2>/dev/null || echo "?")
-
-  printf "| %-35s | %-10s | %-20s | %-11s | %-3s | %-10s |\n" \
-    "$name" "$category" "$thread" "$status" "$pr" "$modified"
-done | sort -t'|' -k6 -r
+} | sort -r | cut -d'|' -f2-
 
 echo ""
-done_count=$(ls "$backlog_dir"/done/*.md 2>/dev/null | grep -cvE '(AGENTS|CLAUDE|ROADMAP)\.md' || true)
-echo "Done: $done_count files in $backlog_dir/done/"
+pending_count=$(find "$backlog_dir" -maxdepth 1 -name "*.md" ! -name "AGENTS.md" ! -name "CLAUDE.md" ! -name "ROADMAP.md" | wc -l | tr -d ' ')
+done_count=0
+if [[ -d "$backlog_dir/done" ]]; then
+  done_count=$(find "$backlog_dir/done" -maxdepth 1 -name "*.md" ! -name "AGENTS.md" ! -name "CLAUDE.md" ! -name "ROADMAP.md" | wc -l | tr -d ' ')
+fi
 
-# Show git creation dates for context
-echo ""
-echo "## Provenance (git creation dates)"
-for f in "$backlog_dir"/*.md; do
-  [[ "$(basename "$f")" == "AGENTS.md" ]] && continue
-  [[ "$(basename "$f")" == "CLAUDE.md" ]] && continue
-  [[ "$(basename "$f")" == "ROADMAP.md" ]] && continue
-  [[ ! -f "$f" ]] && continue
-  created=$(git log --diff-filter=A --format=%cs -- "$f" 2>/dev/null | tail -1)
-  [[ -n "$created" ]] && printf "  %-35s created %s\n" "$(basename "$f")" "$created"
-done
+echo "Pending: $pending_count"
+echo "Done: $done_count"
