@@ -74,9 +74,9 @@
       "Bash(gh release list:*)",
       "Bash(gh release view:*)",
       "Bash(wt:*)",
-      "Read(~/.bertram/memory/**)",
-      "Write(~/.bertram/memory/**)",
-      "Edit(~/.bertram/memory/**)"
+      "Read(~/.ai-memory/**)",
+      "Write(~/.ai-memory/**)",
+      "Edit(~/.ai-memory/**)"
     ],
     "deny": [
       "Read(.env)",
@@ -108,7 +108,6 @@
     ],
     "defaultMode": "default"
   },
-  "model": "opus",
   "enableAllProjectMcpServers": true,
   "hooks": {
     "SessionStart": [
@@ -139,6 +138,14 @@
             "command": "~/.claude/hooks/session-end.sh"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/skills/team-memory/scripts/session-end.sh"
+          }
+        ]
       }
     ]
   },
@@ -151,5 +158,6 @@
     "browser-automation@browser-tools": true,
     "superpowers@claude-plugins-official": true
   },
-  "alwaysThinkingEnabled": true
+  "alwaysThinkingEnabled": true,
+  "skipDangerousModePermissionPrompt": true
 }
