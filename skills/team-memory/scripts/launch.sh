@@ -80,10 +80,5 @@ fi
 CLAUDE_ARGS=(--add-dir "$PERSONA_DIR")
 [[ -n "$SKIP_PERMS" ]] && CLAUDE_ARGS+=("$SKIP_PERMS")
 
-if [[ $# -eq 0 ]]; then
-  CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 \
-    exec claude "${CLAUDE_ARGS[@]}" "hi, how's it goin"
-else
-  CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 \
-    exec claude "${CLAUDE_ARGS[@]}" "$@"
-fi
+CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 \
+  exec claude "${CLAUDE_ARGS[@]}" "$@"
