@@ -19,28 +19,37 @@ Ask these questions to understand what we're deferring:
 3. **Why are we deferring?** (out of scope, lower priority, needs more info, etc.)
 4. **What did we learn?** (key findings from exploration)
 
-### Step 2: Determine Category
+### Step 2: Determine Category (from filename suffix)
 
-Based on the work, select the appropriate category per `backlog/AGENTS.md`:
+Choose the category and encode it in the filename suffix:
 
 - **plan**: Comprehensive design for new features (most common for /backlog)
 - **followup**: Post-merge improvements and tech debt
 - **task-list**: Collection of related items
 - **ideas**: Ideas to explore, not yet developed into actionable plans
 
+Use filename format: `backlog/{task-name}-{category}.md`
+
+Examples:
+- `backlog/docs-r2-storage_plan.md`
+- `backlog/session-cache-followups_task-list.md`
+
+Notes:
+- Task name is the filename stem (`{task-name}`)
+- Category is derived from suffix (`_{category}`), not frontmatter
+- Status is derived from location: `backlog/` = pending, `backlog/done/` = done
+
 ### Step 3: Create Backlog File
 
-Create a file at `backlog/{feature}-{category}.md` with this structure:
+Create a file at `backlog/{task-name}_{category}.md` with this structure:
 
 ```markdown
 ---
-status: pending
-category: {plan|followup|task-list|ideas}
-pr: null
-branch: null
-score: null
-retro_summary: null
-completed: null
+# Optional metadata only (omit keys you don't need)
+topic: {slug-topic-name}
+relates_to: {after:other-task_plan|until:other-task_plan}
+priority: {1|2|3...} # 1 = highest priority
+description: {short summary for UI/list views}
 ---
 
 # {Feature Name}
@@ -116,7 +125,8 @@ Before finishing, verify the backlog file:
 - [ ] Includes specific file paths (with line numbers when relevant)
 - [ ] Has verification commands or acceptance criteria
 - [ ] References related code patterns in the codebase
-- [ ] Follows the frontmatter schema from `backlog/AGENTS.md`
+- [ ] Uses minimal optional metadata only (`topic`, `relates_to`, `priority`, `description`) and omits unused keys
+- [ ] Uses filename suffix category format: `{task-name}_{category}.md`
 
 ## List Backlog Items
 
@@ -161,10 +171,10 @@ What did we learn?
 
 ## Setting Up backlog/ Directory
 
-See `references/agents-schema.md` for the full directory setup and frontmatter schema.
+See `references/agents-schema.md` for directory setup, naming conventions, and metadata conventions.
 
 ## References
 
-- `references/agents-schema.md` — Frontmatter schema, categories, lifecycle, directory setup
+- `references/agents-schema.md` — Categories, lifecycle, filename conventions, directory setup
 - `references/grooming.md` — Backlog maintenance workflow and checklist
 - `references/README.md` — Background, design philosophy, and related projects
