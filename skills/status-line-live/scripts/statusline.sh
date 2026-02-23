@@ -3,7 +3,7 @@
 # Claude Code Status Line
 # ============================================================================
 #
-# Displays: project branch (files) model $cost +add -del (in+cw+cr):out [1:N]
+# Displays: project[:persona] branch (files) model $cost +add -del (in+cw+cr):out [1:N]
 #
 # Input: JSON via stdin from Claude Code containing:
 #   - workspace.current_dir  : working directory
@@ -66,6 +66,19 @@ get_project_name() {
         || basename "$dir"
 }
 
+# Convert hex color to ANSI true color escape code
+hex_to_ansi() {
+    local hex="${1#\#}"
+    local r=$((16#${hex:0:2}))
+    local g=$((16#${hex:2:2}))
+    local b=$((16#${hex:4:2}))
+    printf '\033[38;2;%d;%d;%dm' "$r" "$g" "$b"
+}
+
+is_valid_hex_color() {
+    [[ "$1" =~ ^#[0-9A-Fa-f]{6}$ ]]
+}
+
 # ----------------------------------------------------------------------------
 # Parse Input
 # ----------------------------------------------------------------------------
@@ -120,6 +133,28 @@ fi
 # ----------------------------------------------------------------------------
 # Render Status Line
 # ----------------------------------------------------------------------------
+
+# Persona identity (icon + name in theme color, or fallback to cyan)
+if [[ -n "${AI_MEMORY_PERSONA:-}" ]]; then
+    MEMORY_DIR="${AI_MEMORY_DIR:-$HOME/.ai-memory}"
+    theme_file="$MEMORY_DIR/$AI_MEMORY_PERSONA/theme.json"
+    if [[ -f "$theme_file" ]] && command -v jq &>/dev/null; then
+        theme_icon=$(jq -r '.icon // ""' "$theme_file")
+        theme_color=$(jq -r '.color // ""' "$theme_file")
+        if [[ -n "$theme_color" ]] && is_valid_hex_color "$theme_color"; then
+            PERSONA_COLOR=$(hex_to_ansi "$theme_color")
+        else
+            PERSONA_COLOR="$CYAN"
+        fi
+        if [[ -n "$theme_icon" ]]; then
+            printf "%s ${PERSONA_COLOR}%s${RESET} " "$theme_icon" "$AI_MEMORY_PERSONA"
+        else
+            printf "${PERSONA_COLOR}%s${RESET} " "$AI_MEMORY_PERSONA"
+        fi
+    else
+        printf "${CYAN}%s${RESET} " "$AI_MEMORY_PERSONA"
+    fi
+fi
 
 # Project name (blue)
 worktree_name_file="$current_dir/.worktree-name"
