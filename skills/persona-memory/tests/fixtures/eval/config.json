@@ -1,0 +1,16 @@
+{
+  "dataset": {
+    "name": "persona-memory-synthetic-v1",
+    "sessions": 12,
+    "events": 24,
+    "queries": 18
+  },
+  "thresholds": {
+    "extraction_f1_min": 0.85,
+    "route_accuracy_min": 0.95,
+    "dedupe_precision_min": 0.95,
+    "recall_at_3_min": 0.8,
+    "runtime_ms_max": 45000,
+    "fail_open_required": true
+  }
+}

@@ -1,0 +1,2259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Persona-Memory Eval Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f7f8;
+      --panel: #ffffff;
+      --panel-soft: #edf2f4;
+      --ink: #112a2f;
+      --ink-muted: #3b555b;
+      --line: #d3dde0;
+      --ok: #18794e;
+      --warn: #c17700;
+      --bad: #b4232f;
+      --brand: #0f6a80;
+      --brand-soft: #dbedf2;
+      --bg-grad-1: #deedf1;
+      --bg-grad-2: #f4e6d6;
+      --hero-border: #b8cdd2;
+      --hero-bg-a: #f2fafc;
+      --hero-bg-b: #fef8f0;
+      --control-border: #9cb4ba;
+      --control-hover-border: #6e8f98;
+      --control-hover-shadow: 0 6px 16px rgba(31, 69, 80, 0.14);
+      --primary-text: #f4fdff;
+      --primary-border: #0a5263;
+      --guide-border: #bfd4d9;
+      --guide-bg: rgba(255, 255, 255, 0.75);
+      --guide-code-bg: #e9f1f3;
+      --pill-ok-bg: #e6f4ed;
+      --pill-ok-border: #b9ddca;
+      --pill-warn-bg: #fff5e2;
+      --pill-warn-border: #eed5a2;
+      --pill-bad-bg: #fdecee;
+      --pill-bad-border: #efc1c5;
+      --bar-bg: #dce6e9;
+      --fill-good-a: #2f8f6a;
+      --fill-good-b: #43aa74;
+      --fill-warn-a: #bd7a18;
+      --fill-warn-b: #dca03a;
+      --fill-bad-a: #bd3c45;
+      --fill-bad-b: #df5960;
+      --kpi-bg: #fafcfd;
+      --table-wrap-border: #dbe6e9;
+      --table-wrap-bg: #ffffff;
+      --table-row-border: #dde7ea;
+      --empty-border: #b9cbcf;
+      --empty-text: #4c666c;
+      --empty-bg: #f6fbfc;
+      --foot-text: #516b71;
+      --run-detail-bg: #f8fbfc;
+      --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      --sans: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+      --shadow: 0 12px 28px rgba(15, 36, 44, 0.08);
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1518;
+        --panel: #151d21;
+        --panel-soft: #1b262b;
+        --ink: #e8f1f3;
+        --ink-muted: #a3bcc2;
+        --line: #2e4148;
+        --ok: #70d3a8;
+        --warn: #f2bf68;
+        --bad: #ef8c96;
+        --brand: #4fb6ce;
+        --brand-soft: #173039;
+        --bg-grad-1: rgba(36, 83, 95, 0.45);
+        --bg-grad-2: rgba(123, 96, 58, 0.3);
+        --hero-border: #335058;
+        --hero-bg-a: #162329;
+        --hero-bg-b: #221f18;
+        --control-border: #47626b;
+        --control-hover-border: #68919d;
+        --control-hover-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+        --primary-text: #08161b;
+        --primary-border: #69bfd4;
+        --guide-border: #34515a;
+        --guide-bg: rgba(18, 27, 31, 0.8);
+        --guide-code-bg: #22343b;
+        --pill-ok-bg: #123225;
+        --pill-ok-border: #2f7d5a;
+        --pill-warn-bg: #3a2a12;
+        --pill-warn-border: #8c6a2a;
+        --pill-bad-bg: #3a1a1f;
+        --pill-bad-border: #8d3b49;
+        --bar-bg: #2a3a40;
+        --fill-good-a: #2f9b73;
+        --fill-good-b: #59c58c;
+        --fill-warn-a: #bb8531;
+        --fill-warn-b: #d5a754;
+        --fill-bad-a: #bd4f5a;
+        --fill-bad-b: #dc6f79;
+        --kpi-bg: #182329;
+        --table-wrap-border: #31444b;
+        --table-wrap-bg: #141d21;
+        --table-row-border: #2f4249;
+        --empty-border: #385159;
+        --empty-text: #9db7be;
+        --empty-bg: #152126;
+        --foot-text: #91adb4;
+        --run-detail-bg: #162227;
+        --shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 10%, var(--bg-grad-1) 0, transparent 45%),
+        radial-gradient(circle at 90% 15%, var(--bg-grad-2) 0, transparent 38%),
+        var(--bg);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 28px 20px 48px;
+    }
+
+    .hero {
+      border: 1px solid var(--hero-border);
+      border-radius: 22px;
+      padding: 22px;
+      background: linear-gradient(135deg, var(--hero-bg-a) 0%, var(--hero-bg-b) 100%);
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+      animation: rise 400ms ease-out both;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.4rem, 2.3vw, 2rem);
+      letter-spacing: -0.02em;
+    }
+
+    .sub {
+      margin-top: 8px;
+      color: var(--ink-muted);
+      line-height: 1.45;
+      font-size: 0.98rem;
+    }
+
+    .toolbar {
+      margin-top: 16px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button,
+    .file-btn {
+      border: 1px solid var(--control-border);
+      background: var(--panel);
+      color: var(--ink);
+      font: 500 0.86rem/1 var(--sans);
+      padding: 11px 13px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: 180ms ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button:hover,
+    .file-btn:hover {
+      transform: translateY(-1px);
+      border-color: var(--control-hover-border);
+      box-shadow: var(--control-hover-shadow);
+    }
+
+    .primary {
+      background: var(--brand);
+      color: var(--primary-text);
+      border-color: var(--primary-border);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .status-row {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+    }
+
+    .action-guide {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .action-guide .guide {
+      border: 1px solid var(--guide-border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: var(--guide-bg);
+    }
+
+    .action-guide h3 {
+      margin: 0 0 6px;
+      font-size: 0.88rem;
+    }
+
+    .action-guide p {
+      margin: 0;
+      font-size: 0.82rem;
+      color: var(--ink-muted);
+      line-height: 1.4;
+    }
+
+    .action-guide code {
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      background: var(--guide-code-bg);
+      padding: 2px 5px;
+      border-radius: 6px;
+    }
+
+    .workflow-rail {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .workflow-step {
+      border: 1px solid var(--guide-border);
+      border-radius: 12px;
+      background: var(--guide-bg);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 132px;
+    }
+
+    .workflow-step .kicker {
+      font-family: var(--mono);
+      color: var(--ink-muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .workflow-step .title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .workflow-step .desc {
+      color: var(--ink-muted);
+      font-size: 0.82rem;
+      line-height: 1.35;
+      flex: 1;
+    }
+
+    .workflow-step a,
+    .workflow-step button {
+      align-self: flex-start;
+      padding: 8px 10px;
+      font-size: 0.78rem;
+    }
+
+    .pill {
+      border-radius: 999px;
+      padding: 7px 10px;
+      border: 1px solid transparent;
+    }
+
+    .pill.ok {
+      background: var(--pill-ok-bg);
+      color: var(--ok);
+      border-color: var(--pill-ok-border);
+    }
+
+    .pill.warn {
+      background: var(--pill-warn-bg);
+      color: var(--warn);
+      border-color: var(--pill-warn-border);
+    }
+
+    .pill.bad {
+      background: var(--pill-bad-bg);
+      color: var(--bad);
+      border-color: var(--pill-bad-border);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      animation: rise 420ms ease-out both;
+    }
+
+    .card h2,
+    .card h3 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: -0.01em;
+    }
+
+    .card .meta {
+      margin-top: 6px;
+      color: var(--ink-muted);
+      font-size: 0.82rem;
+      font-family: var(--mono);
+    }
+
+    .span-4 { grid-column: span 4; }
+    .span-6 { grid-column: span 6; }
+    .span-8 { grid-column: span 8; }
+    .span-12 { grid-column: span 12; }
+
+    .metric {
+      margin-top: 11px;
+    }
+
+    .metric-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      font-size: 0.9rem;
+    }
+
+    .metric-top code {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--ink-muted);
+      background: var(--panel-soft);
+      border-radius: 7px;
+      padding: 3px 7px;
+    }
+
+    .bar {
+      margin-top: 7px;
+      border-radius: 999px;
+      height: 11px;
+      background: var(--bar-bg);
+      overflow: hidden;
+    }
+
+    .fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--fill-good-a), var(--fill-good-b));
+      transition: width 460ms ease;
+    }
+
+    .fill.warn {
+      background: linear-gradient(90deg, var(--fill-warn-a), var(--fill-warn-b));
+    }
+
+    .fill.bad {
+      background: linear-gradient(90deg, var(--fill-bad-a), var(--fill-bad-b));
+    }
+
+    .kpi {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid var(--line);
+      background: var(--kpi-bg);
+      border-radius: 11px;
+      padding: 10px;
+      font-size: 0.88rem;
+      margin-top: 8px;
+    }
+
+    .kpi strong {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+    }
+
+    .table-wrap {
+      margin-top: 10px;
+      border: 1px solid var(--table-wrap-border);
+      border-radius: 12px;
+      overflow: auto;
+      max-height: 320px;
+      background: var(--table-wrap-bg);
+    }
+
+    .table-title {
+      margin-top: 12px;
+      font-size: 0.84rem;
+      color: var(--ink-muted);
+      font-family: var(--mono);
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .muted {
+      color: var(--ink-muted);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin-top: 12px;
+    }
+
+    .table-wrap table {
+      margin-top: 0;
+    }
+
+    th,
+    td {
+      text-align: left;
+      border-bottom: 1px solid var(--table-row-border);
+      padding: 9px 8px;
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 0.75rem;
+      color: var(--ink-muted);
+      font-family: var(--mono);
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .mono {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+    }
+
+    .empty {
+      padding: 14px;
+      border: 1px dashed var(--empty-border);
+      border-radius: 12px;
+      color: var(--empty-text);
+      background: var(--empty-bg);
+      margin-top: 12px;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+
+    .foot {
+      margin-top: 18px;
+      color: var(--foot-text);
+      font-size: 0.82rem;
+      line-height: 1.45;
+      font-family: var(--mono);
+    }
+
+    .run-detail {
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      padding: 10px;
+      background: var(--run-detail-bg);
+    }
+
+    .run-detail + .run-detail {
+      margin-top: 8px;
+    }
+
+    .run-detail .label {
+      color: var(--ink-muted);
+      font-size: 0.74rem;
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 4px;
+    }
+
+    .run-detail .value {
+      font-size: 0.88rem;
+      line-height: 1.35;
+    }
+
+    .curation-controls {
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .segmented {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--panel-soft);
+    }
+
+    .segmented button {
+      border: 0;
+      border-right: 1px solid var(--line);
+      border-radius: 0;
+      background: transparent;
+      padding: 9px 12px;
+      font-size: 0.8rem;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .segmented button:last-child {
+      border-right: 0;
+    }
+
+    .segmented button.active {
+      background: var(--brand-soft);
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .inline-form {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .inline-form .full {
+      grid-column: span 2;
+    }
+
+    .inline-form label {
+      font-size: 0.8rem;
+      color: var(--ink-muted);
+      display: block;
+      margin-bottom: 4px;
+      font-family: var(--mono);
+    }
+
+    .inline-form input,
+    .inline-form select,
+    .inline-form textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--ink);
+      padding: 8px 10px;
+      font-family: var(--sans);
+      font-size: 0.86rem;
+    }
+
+    .inline-form textarea {
+      min-height: 78px;
+      resize: vertical;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--panel-soft);
+      font-size: 0.74rem;
+      font-family: var(--mono);
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 900px) {
+      .action-guide {
+        grid-template-columns: 1fr;
+      }
+
+      .workflow-rail {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .inline-form {
+        grid-template-columns: 1fr;
+      }
+
+      .inline-form .full {
+        grid-column: span 1;
+      }
+
+      .span-4,
+      .span-6,
+      .span-8,
+      .span-12 {
+        grid-column: span 12;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .workflow-rail {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>Persona-Memory Evaluation Dashboard</h1>
+      <p class="sub">
+        Shows synthetic-eval quality and live-smoke health from the latest harness artifacts.
+        Deterministic quality should stay green before merge; live smoke should pass or be explicitly skipped.
+      </p>
+      <div class="toolbar">
+        <button
+          id="loadLatest"
+          class="primary"
+          title="Load the most recent eval and live report artifacts from disk."
+        >Load Latest Artifacts</button>
+        <button
+          id="runEval"
+          title="Run the synthetic deterministic evaluation and refresh eval-report.json."
+        >Run Synthetic Eval</button>
+        <button
+          id="runLive"
+          title="Run Anthropic live smoke checks and refresh live-report.json."
+        >Run Live Smoke</button>
+        <label
+          class="file-btn"
+          for="evalFile"
+          title="Upload a local eval-report JSON file to view it without running tests."
+        >Load Eval JSON</label>
+        <input id="evalFile" type="file" accept="application/json" />
+        <label
+          class="file-btn"
+          for="liveFile"
+          title="Upload a local live-report JSON file to view it without running tests."
+        >Load Live JSON</label>
+        <input id="liveFile" type="file" accept="application/json" />
+      </div>
+      <div class="status-row" id="statusRow"></div>
+      <div class="action-guide">
+        <div class="guide">
+          <h3>Synthetic Eval Action</h3>
+          <p>
+            Calls <code>POST /api/run/eval</code>, runs <code>bun tests/eval.ts --report json</code>,
+            uses deterministic fixtures only (no network), and updates <code>tests/.artifacts/eval-report.json</code>.
+          </p>
+        </div>
+        <div class="guide">
+          <h3>Live Smoke Action</h3>
+          <p>
+            Calls <code>POST /api/run/live</code>, runs <code>bun tests/run-live.ts --report json</code>,
+            attempts Anthropic smoke checks, and writes <code>tests/.artifacts/live-report.json</code>.
+          </p>
+        </div>
+      </div>
+      <div class="workflow-rail">
+        <div class="workflow-step">
+          <div class="kicker">Step 1</div>
+          <div class="title">Run</div>
+          <div class="desc">Execute deterministic gate first to refresh artifacts and assert baseline quality.</div>
+          <button id="railRunDeterministic" class="primary">Run Deterministic Gate</button>
+        </div>
+        <div class="workflow-step">
+          <div class="kicker">Step 2</div>
+          <div class="title">Review</div>
+          <div class="desc">Inspect overall score, thresholds, and event/query outcomes to spot weak rows.</div>
+          <a class="file-btn" href="#section-review">Jump To Review</a>
+        </div>
+        <div class="workflow-step">
+          <div class="kicker">Step 3</div>
+          <div class="title">Curate</div>
+          <div class="desc">Label rows with rationale, assign score (1-5), and edit synthetic seeds when needed.</div>
+          <a class="file-btn" href="#section-curation">Jump To Curation</a>
+        </div>
+        <div class="workflow-step">
+          <div class="kicker">Step 4</div>
+          <div class="title">Rebuild</div>
+          <div class="desc">Compile effective evalset so deterministic runs include your latest curation changes.</div>
+          <button id="railRebuildEvalset">Rebuild Evalset</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article id="section-run" class="card span-12">
+        <h2>Run Activity</h2>
+        <div class="meta" id="runMeta">No run has been triggered in this browser session.</div>
+        <div id="runDetails" class="empty">
+          Click <span class="mono">Run Synthetic Eval</span> or <span class="mono">Run Live Smoke</span> to execute tests.
+          This panel will show endpoint, script command, artifact writes, and outcome.
+        </div>
+      </article>
+
+      <article class="card span-4">
+        <h2>Overall Health</h2>
+        <div class="meta" id="overallMeta">No data loaded.</div>
+        <div class="metric">
+          <div class="metric-top">
+            <span>Score</span>
+            <code id="overallScoreCode">0 / 100</code>
+          </div>
+          <div class="bar"><div class="fill" id="overallFill"></div></div>
+        </div>
+        <div id="overallNotes" class="empty">Load artifacts to compute a quality score.</div>
+      </article>
+
+      <article id="section-review" class="card span-8">
+        <h2>Deterministic Eval Metrics</h2>
+        <div class="meta" id="evalMeta">Waiting for eval-report.json</div>
+        <div id="metricList"></div>
+      </article>
+
+      <article class="card span-8">
+        <h2>Threshold Checks</h2>
+        <div class="meta">Direct pass/fail from synthetic eval checks</div>
+        <div id="checkTableHost"></div>
+      </article>
+
+      <article class="card span-4">
+        <h2>Live Smoke</h2>
+        <div class="meta" id="liveMeta">Waiting for live-report.json</div>
+        <div id="liveKpis"></div>
+      </article>
+
+      <article class="card span-12">
+        <h3>Counts and Throughput</h3>
+        <div id="countGrid"></div>
+      </article>
+
+      <article class="card span-12">
+        <h3>Synthetic Dataset Inputs</h3>
+        <div class="meta" id="datasetMeta">Waiting for fixture rows.</div>
+        <div id="datasetTables"></div>
+      </article>
+
+      <article id="section-curation" class="card span-12">
+        <h3>Evalset Curation</h3>
+        <div class="meta" id="curationMeta">Use this panel to hand-label rows and rebuild compiled evalset.</div>
+        <div class="curation-controls">
+          <div class="segmented" id="sourceToggle">
+            <button id="viewBase" class="active">View Base</button>
+            <button id="viewCompiled">View Compiled</button>
+          </div>
+          <div class="segmented" id="kindToggle">
+            <button id="kindEvents" class="active">Events</button>
+            <button id="kindQueries">Queries</button>
+          </div>
+          <button id="reloadCuration">Reload Curation Data</button>
+          <button id="rebuildEvalset">Rebuild Evalset</button>
+        </div>
+        <div class="status-row" id="curationStatus"></div>
+        <div id="curationStats" class="meta"></div>
+        <div id="curationTableHost"></div>
+        <div class="run-detail">
+          <div class="label">Annotation Editor</div>
+          <div class="value" id="annotationSummary">Select Mark Good/Mark Bad on a row to populate the editor.</div>
+          <div class="inline-form">
+            <div>
+              <label for="annRowId">Row ID</label>
+              <input id="annRowId" readonly />
+            </div>
+            <div>
+              <label for="annScore">Score (1-5)</label>
+              <input id="annScore" type="number" min="1" max="5" step="1" placeholder="optional" />
+            </div>
+            <div>
+              <label for="annVerdict">Verdict</label>
+              <select id="annVerdict">
+                <option value="good">good</option>
+                <option value="bad">bad</option>
+              </select>
+            </div>
+            <div>
+              <label for="annAnnotator">Annotator</label>
+              <input id="annAnnotator" value="fairchild" />
+            </div>
+            <div>
+              <label for="annKind">Row Kind</label>
+              <input id="annKind" readonly />
+            </div>
+            <div class="full">
+              <label for="annRationale">Rationale</label>
+              <textarea id="annRationale" placeholder="Why this row is good/bad"></textarea>
+            </div>
+            <div id="eventCorrectionFields" class="full" style="display:none;">
+              <label for="corrEventContent">Correction Content (required for event.bad)</label>
+              <textarea id="corrEventContent" placeholder="Corrected event content"></textarea>
+              <div class="inline-form" style="margin-top:8px;">
+                <div>
+                  <label for="corrEventStatus">Correction Expected Status</label>
+                  <select id="corrEventStatus">
+                    <option value="promoted">promoted</option>
+                    <option value="duplicate">duplicate</option>
+                    <option value="skipped">skipped</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="corrEventBlock">Correction Expected Block</label>
+                  <input id="corrEventBlock" placeholder="decisions or decisions.md" />
+                </div>
+              </div>
+            </div>
+            <div id="queryCorrectionFields" class="full" style="display:none;">
+              <label for="corrQueryText">Correction Query (required for query.bad)</label>
+              <textarea id="corrQueryText" placeholder="Corrected query text"></textarea>
+              <label for="corrQueryExpected" style="margin-top:8px;">Correction Expected Contains (one per line)</label>
+              <textarea id="corrQueryExpected" placeholder="expected phrase A&#10;expected phrase B"></textarea>
+            </div>
+            <div class="full actions">
+              <button id="submitAnnotation" class="primary">Save Annotation</button>
+            </div>
+          </div>
+        </div>
+        <div class="run-detail">
+          <div class="label">Base Row Editor</div>
+          <div class="value" id="editSummary">Select Edit Row on a base row to update synthetic seed data.</div>
+          <div class="inline-form">
+            <div>
+              <label for="editRowId">Row ID</label>
+              <input id="editRowId" readonly />
+            </div>
+            <div>
+              <label for="editKind">Row Kind</label>
+              <input id="editKind" readonly />
+            </div>
+            <div id="editEventFields" class="full" style="display:none;">
+              <div class="inline-form">
+                <div>
+                  <label for="editEventType">Type</label>
+                  <select id="editEventType">
+                    <option value="fact">fact</option>
+                    <option value="preference">preference</option>
+                    <option value="decision">decision</option>
+                    <option value="thread">thread</option>
+                    <option value="relationship">relationship</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="editEventConfidence">Confidence</label>
+                  <select id="editEventConfidence">
+                    <option value="confirmed">confirmed</option>
+                    <option value="observed">observed</option>
+                    <option value="inferred">inferred</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="editEventProject">Project Key</label>
+                  <input id="editEventProject" placeholder="project key" />
+                </div>
+                <div>
+                  <label for="editEventSource">Source</label>
+                  <input id="editEventSource" placeholder="source" />
+                </div>
+                <div>
+                  <label for="editEventStatus">Expected Status</label>
+                  <select id="editEventStatus">
+                    <option value="promoted">promoted</option>
+                    <option value="duplicate">duplicate</option>
+                    <option value="skipped">skipped</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="editEventBlock">Expected Block</label>
+                  <input id="editEventBlock" placeholder="decisions" />
+                </div>
+                <div class="full">
+                  <label for="editEventContent">Content</label>
+                  <textarea id="editEventContent" placeholder="event content"></textarea>
+                </div>
+              </div>
+            </div>
+            <div id="editQueryFields" class="full" style="display:none;">
+              <div class="inline-form">
+                <div>
+                  <label for="editQueryCwd">CWD</label>
+                  <input id="editQueryCwd" placeholder="/tmp/project" />
+                </div>
+                <div class="full">
+                  <label for="editQueryText">Query</label>
+                  <textarea id="editQueryText" placeholder="query text"></textarea>
+                </div>
+                <div class="full">
+                  <label for="editQueryExpected">Expected Contains (one per line)</label>
+                  <textarea id="editQueryExpected" placeholder="expected phrase A&#10;expected phrase B"></textarea>
+                </div>
+              </div>
+            </div>
+            <div class="full actions">
+              <button id="submitRowEdit">Save Base Edit</button>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="card span-12">
+        <h3>Question to Answer Outcomes</h3>
+        <div class="meta" id="qaMeta">Waiting for query outcomes from eval-report.json.</div>
+        <div id="qaTableHost"></div>
+      </article>
+
+      <article class="card span-12">
+        <h3>Event Outcome Rows</h3>
+        <div class="meta" id="eventMeta">Waiting for event outcomes from eval-report.json.</div>
+        <div id="eventTableHost"></div>
+      </article>
+    </section>
+
+    <p class="foot">
+      Default artifact paths are loaded relative to this file: <span class="mono">../../tests/.artifacts/eval-report.json</span> and
+      <span class="mono">../../tests/.artifacts/live-report.json</span>.
+      If opening via <span class="mono">file://</span>, use file upload buttons or run
+      <span class="mono">bun scripts/serve-eval-dashboard.ts</span> from the skill root for one-click eval runs.
+    </p>
+  </div>
+
+  <script>
+    const state = {
+      evalReport: null,
+      liveReport: null,
+      runActivity: null,
+      datasetFixtures: {
+        events: null,
+        queries: null,
+        goldEvents: null,
+      },
+      curation: {
+        source: "base",
+        kind: "events",
+        rows: [],
+        stats: null,
+        selectedRow: null,
+      },
+    };
+
+    const elements = {
+      statusRow: document.getElementById("statusRow"),
+      overallMeta: document.getElementById("overallMeta"),
+      overallFill: document.getElementById("overallFill"),
+      overallScoreCode: document.getElementById("overallScoreCode"),
+      overallNotes: document.getElementById("overallNotes"),
+      evalMeta: document.getElementById("evalMeta"),
+      liveMeta: document.getElementById("liveMeta"),
+      metricList: document.getElementById("metricList"),
+      checkTableHost: document.getElementById("checkTableHost"),
+      liveKpis: document.getElementById("liveKpis"),
+      countGrid: document.getElementById("countGrid"),
+      evalFile: document.getElementById("evalFile"),
+      liveFile: document.getElementById("liveFile"),
+      loadLatest: document.getElementById("loadLatest"),
+      runEval: document.getElementById("runEval"),
+      runLive: document.getElementById("runLive"),
+      railRunDeterministic: document.getElementById("railRunDeterministic"),
+      railRebuildEvalset: document.getElementById("railRebuildEvalset"),
+      runMeta: document.getElementById("runMeta"),
+      runDetails: document.getElementById("runDetails"),
+      datasetMeta: document.getElementById("datasetMeta"),
+      datasetTables: document.getElementById("datasetTables"),
+      curationMeta: document.getElementById("curationMeta"),
+      curationStatus: document.getElementById("curationStatus"),
+      curationStats: document.getElementById("curationStats"),
+      curationTableHost: document.getElementById("curationTableHost"),
+      viewBase: document.getElementById("viewBase"),
+      viewCompiled: document.getElementById("viewCompiled"),
+      kindEvents: document.getElementById("kindEvents"),
+      kindQueries: document.getElementById("kindQueries"),
+      reloadCuration: document.getElementById("reloadCuration"),
+      rebuildEvalset: document.getElementById("rebuildEvalset"),
+      annRowId: document.getElementById("annRowId"),
+      annScore: document.getElementById("annScore"),
+      annVerdict: document.getElementById("annVerdict"),
+      annAnnotator: document.getElementById("annAnnotator"),
+      annKind: document.getElementById("annKind"),
+      annRationale: document.getElementById("annRationale"),
+      annotationSummary: document.getElementById("annotationSummary"),
+      eventCorrectionFields: document.getElementById("eventCorrectionFields"),
+      corrEventContent: document.getElementById("corrEventContent"),
+      corrEventStatus: document.getElementById("corrEventStatus"),
+      corrEventBlock: document.getElementById("corrEventBlock"),
+      queryCorrectionFields: document.getElementById("queryCorrectionFields"),
+      corrQueryText: document.getElementById("corrQueryText"),
+      corrQueryExpected: document.getElementById("corrQueryExpected"),
+      submitAnnotation: document.getElementById("submitAnnotation"),
+      editSummary: document.getElementById("editSummary"),
+      editRowId: document.getElementById("editRowId"),
+      editKind: document.getElementById("editKind"),
+      editEventFields: document.getElementById("editEventFields"),
+      editEventType: document.getElementById("editEventType"),
+      editEventConfidence: document.getElementById("editEventConfidence"),
+      editEventProject: document.getElementById("editEventProject"),
+      editEventSource: document.getElementById("editEventSource"),
+      editEventStatus: document.getElementById("editEventStatus"),
+      editEventBlock: document.getElementById("editEventBlock"),
+      editEventContent: document.getElementById("editEventContent"),
+      editQueryFields: document.getElementById("editQueryFields"),
+      editQueryCwd: document.getElementById("editQueryCwd"),
+      editQueryText: document.getElementById("editQueryText"),
+      editQueryExpected: document.getElementById("editQueryExpected"),
+      submitRowEdit: document.getElementById("submitRowEdit"),
+      qaMeta: document.getElementById("qaMeta"),
+      qaTableHost: document.getElementById("qaTableHost"),
+      eventMeta: document.getElementById("eventMeta"),
+      eventTableHost: document.getElementById("eventTableHost"),
+    };
+
+    const artifactCandidates = {
+      eval: ["/artifacts/eval-report.json", "../../tests/.artifacts/eval-report.json"],
+      live: ["/artifacts/live-report.json", "../../tests/.artifacts/live-report.json"],
+    };
+
+    const fixtureCandidates = {
+      events: [
+        "/fixtures/eval/base/events.jsonl",
+        "/tests/fixtures/eval/base/events.jsonl",
+        "/fixtures/eval/events.jsonl",
+        "/tests/fixtures/eval/events.jsonl",
+        "../../tests/fixtures/eval/base/events.jsonl",
+        "../../tests/fixtures/eval/events.jsonl",
+      ],
+      queries: [
+        "/fixtures/eval/base/queries.jsonl",
+        "/tests/fixtures/eval/base/queries.jsonl",
+        "/fixtures/eval/queries.jsonl",
+        "/tests/fixtures/eval/queries.jsonl",
+        "../../tests/fixtures/eval/base/queries.jsonl",
+        "../../tests/fixtures/eval/queries.jsonl",
+      ],
+      goldEvents: [
+        "/fixtures/eval/base/gold-events.jsonl",
+        "/tests/fixtures/eval/base/gold-events.jsonl",
+        "/fixtures/eval/gold-events.jsonl",
+        "/tests/fixtures/eval/gold-events.jsonl",
+        "../../tests/fixtures/eval/base/gold-events.jsonl",
+        "../../tests/fixtures/eval/gold-events.jsonl",
+      ],
+    };
+
+    const runPresets = {
+      eval: {
+        label: "Synthetic Eval",
+        endpoint: "/api/run/eval",
+        command: "bun tests/eval.ts --report json",
+        artifacts: ["tests/.artifacts/eval-report.json"],
+        network: "none",
+        preconditions: ["No API key required."],
+      },
+      live: {
+        label: "Live Smoke",
+        endpoint: "/api/run/live",
+        command: "bun tests/run-live.ts --report json",
+        artifacts: ["tests/.artifacts/live-report.json", "tests/.artifacts/live-metrics.jsonl"],
+        network: "anthropic",
+        preconditions: ["ANTHROPIC_API_KEY is required or the run is skipped."],
+      },
+      deterministic: {
+        label: "Deterministic Gate",
+        endpoint: "/api/run/deterministic",
+        command: "bun tests/run-deterministic.ts --report json",
+        artifacts: ["tests/.artifacts/eval-report.json"],
+        network: "none",
+        preconditions: ["No API key required."],
+      },
+    };
+
+    function fmt(value, digits = 4) {
+      if (typeof value !== "number" || Number.isNaN(value)) return "n/a";
+      return value.toFixed(digits).replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1");
+    }
+
+    function asPercent(x) {
+      if (typeof x !== "number") return "n/a";
+      return `${(x * 100).toFixed(1)}%`;
+    }
+
+    function pill(text, tone) {
+      const span = document.createElement("span");
+      span.className = `pill ${tone}`;
+      span.textContent = text;
+      return span;
+    }
+
+    function scoreFromReports(evalReport, liveReport) {
+      let score = 0;
+      if (evalReport?.checks?.length) {
+        const passed = evalReport.checks.filter((item) => item.pass).length;
+        score += (passed / evalReport.checks.length) * 80;
+      }
+      if (liveReport) {
+        if (liveReport.status === "passed") score += 20;
+        else if (liveReport.status === "skipped") score += 12;
+      }
+      return Math.round(Math.min(100, Math.max(0, score)));
+    }
+
+    function fillClass(value, threshold) {
+      if (typeof value !== "number") return "bad";
+      if (value >= threshold) return "ok";
+      if (value >= threshold * 0.85) return "warn";
+      return "bad";
+    }
+
+    function metricBlock(title, value, threshold, formatter = asPercent) {
+      const wrap = document.createElement("div");
+      wrap.className = "metric";
+
+      const top = document.createElement("div");
+      top.className = "metric-top";
+      const left = document.createElement("span");
+      left.textContent = title;
+      const right = document.createElement("code");
+      right.textContent = `threshold ${formatter(threshold)}`;
+      top.appendChild(left);
+      top.appendChild(right);
+
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      const fill = document.createElement("div");
+      const pct = Math.max(0, Math.min(100, (typeof value === "number" ? value : 0) * 100));
+      const tone = fillClass(value, threshold);
+      fill.className = `fill ${tone === "warn" ? "warn" : tone === "bad" ? "bad" : ""}`.trim();
+      fill.style.width = `${pct}%`;
+      bar.appendChild(fill);
+
+      const note = document.createElement("div");
+      note.className = "meta";
+      note.textContent = `observed ${formatter(value)} · ${tone.toUpperCase()}`;
+
+      wrap.appendChild(top);
+      wrap.appendChild(bar);
+      wrap.appendChild(note);
+      return wrap;
+    }
+
+    function renderChecksTable(checks) {
+      if (!Array.isArray(checks) || checks.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "No threshold checks available.";
+        return empty;
+      }
+
+      const table = document.createElement("table");
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Check</th>
+            <th>Observed</th>
+            <th>Expected</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+      `;
+
+      const tbody = document.createElement("tbody");
+      checks.forEach((item) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><span class="mono">${item.name}</span></td>
+          <td class="mono">${item.observed}</td>
+          <td class="mono">${item.expected}</td>
+          <td></td>
+        `;
+        tr.children[3].appendChild(pill(item.pass ? "PASS" : "FAIL", item.pass ? "ok" : "bad"));
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      return table;
+    }
+
+    function renderCountCard(label, value) {
+      const div = document.createElement("div");
+      div.className = "kpi";
+      div.innerHTML = `<span>${label}</span><strong>${value}</strong>`;
+      return div;
+    }
+
+    function clearAndAppend(host, children) {
+      host.innerHTML = "";
+      if (!Array.isArray(children)) {
+        host.appendChild(children);
+        return;
+      }
+      children.forEach((child) => host.appendChild(child));
+    }
+
+    function appendStatus(text, tone = "warn") {
+      elements.statusRow.appendChild(pill(text, tone));
+    }
+
+    function prettyTimestamp(iso) {
+      if (!iso) return "n/a";
+      const date = new Date(iso);
+      if (Number.isNaN(date.getTime())) return iso;
+      return date.toLocaleString();
+    }
+
+    function joinList(values) {
+      if (!Array.isArray(values) || values.length === 0) return "n/a";
+      return values.join(" | ");
+    }
+
+    function runLabel(kind) {
+      return runPresets[kind]?.label || String(kind || "run");
+    }
+
+    function errorMessage(err) {
+      if (err && typeof err === "object" && "message" in err) {
+        return String(err.message);
+      }
+      return String(err);
+    }
+
+    function buildRunDetail(label, value) {
+      const div = document.createElement("div");
+      div.className = "run-detail";
+      div.innerHTML = `<div class="label">${label}</div><div class="value mono">${value}</div>`;
+      return div;
+    }
+
+    function renderRunActivity() {
+      const run = state.runActivity;
+      if (!run) {
+        elements.runMeta.textContent = "No run has been triggered in this browser session.";
+        elements.runDetails.className = "empty";
+        elements.runDetails.innerHTML =
+          'Click <span class="mono">Run Synthetic Eval</span> or <span class="mono">Run Live Smoke</span> to execute tests. ' +
+          "This panel will show endpoint, script command, artifact writes, and outcome.";
+        return;
+      }
+
+      const statusText = run.report_status || run.phase || "unknown";
+      elements.runMeta.textContent =
+        `${runLabel(run.kind)} · status=${statusText} · started=${prettyTimestamp(run.started_at)}`;
+      elements.runDetails.className = "";
+      elements.runDetails.innerHTML = "";
+
+      const details = [
+        buildRunDetail("Endpoint", run.endpoint || "n/a"),
+        buildRunDetail("Command", run.command || "n/a"),
+        buildRunDetail("Network", run.network || "n/a"),
+        buildRunDetail("Artifacts Updated", joinList(run.artifacts)),
+        buildRunDetail("Preconditions", joinList(run.preconditions)),
+        buildRunDetail("Duration", run.duration_ms ? `${run.duration_ms} ms` : "n/a"),
+        buildRunDetail("Finished", prettyTimestamp(run.finished_at)),
+      ];
+
+      if (run.api_code) {
+        details.push(buildRunDetail("API Result", run.api_code));
+      }
+      if (run.stderr) {
+        details.push(buildRunDetail("stderr", run.stderr));
+      }
+      if (run.error) {
+        details.push(buildRunDetail("Error", run.error));
+      }
+
+      details.forEach((item) => elements.runDetails.appendChild(item));
+    }
+
+    function buildTable(headers, rows) {
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      headers.forEach((header) => {
+        const th = document.createElement("th");
+        th.textContent = header;
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+      rows.forEach((row) => {
+        const tr = document.createElement("tr");
+        row.forEach((cell) => {
+          const td = document.createElement("td");
+          td.textContent = String(cell);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      return table;
+    }
+
+    function buildTablePanel(title, headers, rows) {
+      const panel = document.createElement("div");
+      const label = document.createElement("div");
+      label.className = "table-title";
+      label.textContent = title;
+      const wrap = document.createElement("div");
+      wrap.className = "table-wrap";
+      wrap.appendChild(buildTable(headers, rows));
+      panel.appendChild(label);
+      panel.appendChild(wrap);
+      return panel;
+    }
+
+    function joinExpected(value) {
+      if (!Array.isArray(value) || value.length === 0) return "n/a";
+      return value.join(" | ");
+    }
+
+    function renderDatasetEvidence() {
+      const events = Array.isArray(state.datasetFixtures.events) ? state.datasetFixtures.events : [];
+      const queries = Array.isArray(state.datasetFixtures.queries) ? state.datasetFixtures.queries : [];
+      const goldEvents = Array.isArray(state.datasetFixtures.goldEvents) ? state.datasetFixtures.goldEvents : [];
+
+      if (events.length === 0 && queries.length === 0 && goldEvents.length === 0) {
+        elements.datasetMeta.textContent = "Fixture rows not loaded.";
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.innerHTML =
+          'Start the dashboard server and click <span class="mono">Load Latest Artifacts</span> to load fixture inputs.';
+        clearAndAppend(elements.datasetTables, empty);
+        return;
+      }
+
+      elements.datasetMeta.textContent = `events=${events.length} · queries=${queries.length} · gold_events=${goldEvents.length}`;
+
+      const eventRows = events.map((item, idx) => [
+        idx + 1,
+        item.type || "",
+        item.project_key || "",
+        item.confidence || "",
+        item.expected_status || "",
+        item.content || "",
+      ]);
+      const queryRows = queries.map((item) => [
+        item.id || "",
+        item.cwd || "",
+        item.query || "",
+        joinExpected(item.expected_contains),
+      ]);
+      const goldRows = goldEvents.map((item, idx) => [
+        idx + 1,
+        item.type || "",
+        item.content || "",
+      ]);
+
+      clearAndAppend(elements.datasetTables, [
+        buildTablePanel("Fixture Events (Input Rows)", ["#", "Type", "Project", "Confidence", "Expected Status", "Content"], eventRows),
+        buildTablePanel("Fixture Queries (Questions + Expected Contains)", ["ID", "CWD", "Question", "Expected Answer Fragments"], queryRows),
+        buildTablePanel("Gold Promoted Events", ["#", "Type", "Content"], goldRows),
+      ]);
+    }
+
+    function renderQueryOutcomes() {
+      const outcomes = Array.isArray(state.evalReport?.query_outcomes) ? state.evalReport.query_outcomes : [];
+      if (outcomes.length === 0) {
+        elements.qaMeta.textContent = "No query outcome rows in this eval report.";
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.innerHTML =
+          "Run synthetic eval again to generate question-to-answer outcomes in eval-report.json.";
+        clearAndAppend(elements.qaTableHost, empty);
+        return;
+      }
+
+      const matched = outcomes.filter((item) => item.matched).length;
+      elements.qaMeta.textContent = `rows=${outcomes.length} · matched=${matched} · miss=${outcomes.length - matched}`;
+
+      const rows = outcomes.map((item) => [
+        item.id || "",
+        item.query || "",
+        joinExpected(item.expected_contains),
+        Array.isArray(item.top_snippets) && item.top_snippets.length > 0 ? item.top_snippets[0] : "(no snippet)",
+        Array.isArray(item.top_snippets) && item.top_snippets.length > 1 ? item.top_snippets.slice(1).join(" || ") : "",
+        item.matched ? "PASS" : "FAIL",
+        item.recall_code || "",
+        item.error || "",
+      ]);
+
+      clearAndAppend(
+        elements.qaTableHost,
+        buildTablePanel(
+          "Recall Outcomes (Question to Retrieved Answer)",
+          ["ID", "Question", "Expected Fragments", "Top Answer Snippet", "Additional Snippets", "Match", "Recall Code", "Error"],
+          rows,
+        ),
+      );
+    }
+
+    function renderEventOutcomes() {
+      const outcomes = Array.isArray(state.evalReport?.event_outcomes) ? state.evalReport.event_outcomes : [];
+      if (outcomes.length === 0) {
+        elements.eventMeta.textContent = "No event outcome rows in this eval report.";
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.innerHTML =
+          "Run synthetic eval again to generate event-level outcomes in eval-report.json.";
+        clearAndAppend(elements.eventTableHost, empty);
+        return;
+      }
+
+      const statusMatches = outcomes.filter((item) => item.status_match).length;
+      elements.eventMeta.textContent =
+        `rows=${outcomes.length} · status_match=${statusMatches} · mismatch=${outcomes.length - statusMatches}`;
+
+      const rows = outcomes.map((item) => [
+        item.index || "",
+        item.type || "",
+        item.project_key || "",
+        item.expected_status || "",
+        item.actual_status || "",
+        item.status_match ? "PASS" : "FAIL",
+        item.expected_block || "",
+        item.resolved_block || "",
+        item.appears_in_expected_block ? "yes" : "no",
+        item.content || "",
+      ]);
+
+      clearAndAppend(
+        elements.eventTableHost,
+        buildTablePanel(
+          "Event Rows (Expected vs Actual)",
+          ["#", "Type", "Project", "Expected Status", "Actual Status", "Status Match", "Expected Block", "Resolved Block", "In Expected Block", "Content"],
+          rows,
+        ),
+      );
+    }
+
+    function setToggleState(buttonA, activeA, buttonB, activeB) {
+      if (activeA) buttonA.classList.add("active");
+      else buttonA.classList.remove("active");
+      if (activeB) buttonB.classList.add("active");
+      else buttonB.classList.remove("active");
+    }
+
+    function setCurationStatus(message, tone = "warn") {
+      elements.curationStatus.innerHTML = "";
+      if (!message) return;
+      elements.curationStatus.appendChild(pill(message, tone));
+    }
+
+    function parseExpectedContainsFromTextarea(raw) {
+      return String(raw || "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+    }
+
+    function parseOptionalScore(raw) {
+      const trimmed = String(raw ?? "").trim();
+      if (!trimmed) return null;
+      const score = Number(trimmed);
+      if (!Number.isFinite(score) || !Number.isInteger(score) || score < 1 || score > 5) {
+        return NaN;
+      }
+      return score;
+    }
+
+    function openAnnotationEditor(row, verdict) {
+      if (!row) return;
+      const rowKind = state.curation.kind === "events" ? "event" : "query";
+      state.curation.selectedRow = row;
+      elements.annRowId.value = row.id || "";
+      elements.annKind.value = rowKind;
+      elements.annVerdict.value = verdict || "good";
+      elements.annRationale.value = "";
+      elements.annScore.value = Number.isInteger(row?.latest_label?.score) ? String(row.latest_label.score) : "";
+      elements.corrEventContent.value = rowKind === "event" ? row.content || "" : "";
+      elements.corrEventStatus.value = rowKind === "event" ? row.expected_status || "promoted" : "promoted";
+      elements.corrEventBlock.value = rowKind === "event" ? row.expected_block || "" : "";
+      elements.corrQueryText.value = rowKind === "query" ? row.query || "" : "";
+      elements.corrQueryExpected.value =
+        rowKind === "query" && Array.isArray(row.expected_contains) ? row.expected_contains.join("\n") : "";
+      elements.annotationSummary.textContent =
+        `Editing ${rowKind} row ${row.id}. Set rationale and correction fields if verdict=bad.`;
+      updateCorrectionVisibility();
+    }
+
+    function updateCorrectionVisibility() {
+      const rowKind = elements.annKind.value;
+      const verdict = elements.annVerdict.value;
+      const showCorrection = verdict === "bad";
+      elements.eventCorrectionFields.style.display = showCorrection && rowKind === "event" ? "block" : "none";
+      elements.queryCorrectionFields.style.display = showCorrection && rowKind === "query" ? "block" : "none";
+    }
+
+    function openEditEditor(row) {
+      if (!row) return;
+      const rowKind = state.curation.kind === "events" ? "event" : "query";
+      elements.editRowId.value = row.id || "";
+      elements.editKind.value = rowKind;
+
+      if (rowKind === "event") {
+        elements.editEventType.value = row.type || "fact";
+        elements.editEventConfidence.value = row.confidence || "confirmed";
+        elements.editEventProject.value = row.project_key || "";
+        elements.editEventSource.value = row.source || "";
+        elements.editEventStatus.value = row.expected_status || "promoted";
+        elements.editEventBlock.value = row.expected_block || "";
+        elements.editEventContent.value = row.content || "";
+      } else {
+        elements.editQueryCwd.value = row.cwd || "";
+        elements.editQueryText.value = row.query || "";
+        elements.editQueryExpected.value = Array.isArray(row.expected_contains) ? row.expected_contains.join("\n") : "";
+      }
+
+      elements.editSummary.textContent = `Editing base ${rowKind} row ${row.id}. Save writes to tests/fixtures/eval/base/* and rebuilds compiled.`;
+      updateEditVisibility();
+    }
+
+    function updateEditVisibility() {
+      const rowKind = String(elements.editKind.value || "").trim();
+      elements.editEventFields.style.display = rowKind === "event" ? "block" : "none";
+      elements.editQueryFields.style.display = rowKind === "query" ? "block" : "none";
+    }
+
+    async function fetchEvalsetRows(source, kind) {
+      const res = await fetch(`/api/evalset/${source}?kind=${kind}`, { cache: "no-store" });
+      const payload = await res.json();
+      if (!res.ok || !payload.ok) {
+        throw new Error(payload?.details?.message || payload?.code || `HTTP_${res.status}`);
+      }
+      return payload.details;
+    }
+
+    async function fetchEvalsetStats() {
+      const res = await fetch("/api/evalset/stats", { cache: "no-store" });
+      const payload = await res.json();
+      if (!res.ok || !payload.ok) {
+        throw new Error(payload?.details?.message || payload?.code || `HTTP_${res.status}`);
+      }
+      return payload.details;
+    }
+
+    async function loadCurationData(showStatus = true) {
+      if (window.location.protocol === "file:") {
+        if (showStatus) setCurationStatus("Curation API requires bun dashboard server.", "warn");
+        return;
+      }
+
+      try {
+        const rowsPayload = await fetchEvalsetRows(state.curation.source, state.curation.kind);
+        const statsPayload = await fetchEvalsetStats();
+        state.curation.rows = Array.isArray(rowsPayload.rows) ? rowsPayload.rows : [];
+        state.curation.stats = statsPayload;
+        render();
+        if (showStatus) {
+          setCurationStatus(
+            `Loaded ${state.curation.source} ${state.curation.kind} rows (${state.curation.rows.length})`,
+            "ok",
+          );
+        }
+      } catch (err) {
+        state.curation.rows = [];
+        render();
+        if (showStatus) setCurationStatus(`Curation load failed: ${errorMessage(err)}`, "bad");
+      }
+    }
+
+    async function rebuildEvalset(showStatus = true) {
+      if (window.location.protocol === "file:") {
+        if (showStatus) setCurationStatus("Rebuild requires bun dashboard server.", "warn");
+        return false;
+      }
+
+      try {
+        const res = await fetch("/api/evalset/rebuild", { method: "POST" });
+        const payload = await res.json();
+        if (!res.ok || !payload.ok) {
+          throw new Error(payload?.details?.message || payload?.code || `HTTP_${res.status}`);
+        }
+        await loadCurationData(false);
+        if (showStatus) {
+          const stats = payload?.details?.stats;
+          const hq = stats?.compiled_high_quality?.total ?? "n/a";
+          setCurationStatus(`Evalset rebuilt. compiled_high_quality=${hq}`, "ok");
+        }
+        return true;
+      } catch (err) {
+        if (showStatus) setCurationStatus(`Rebuild failed: ${errorMessage(err)}`, "bad");
+        return false;
+      }
+    }
+
+    async function submitAnnotation() {
+      const rowId = String(elements.annRowId.value || "").trim();
+      const rowKind = String(elements.annKind.value || "").trim();
+      const verdict = String(elements.annVerdict.value || "").trim();
+      const rationale = String(elements.annRationale.value || "").trim();
+      const annotator = String(elements.annAnnotator.value || "fairchild").trim();
+      const score = parseOptionalScore(elements.annScore.value);
+
+      if (!rowId || !rowKind) {
+        setCurationStatus("Select a row before saving annotation.", "warn");
+        return;
+      }
+      if (!rationale) {
+        setCurationStatus("Rationale is required.", "warn");
+        return;
+      }
+      if (Number.isNaN(score)) {
+        setCurationStatus("Score must be an integer from 1 to 5.", "warn");
+        return;
+      }
+
+      const payload = {
+        row_kind: rowKind,
+        row_id: rowId,
+        verdict,
+        rationale,
+        annotator,
+      };
+      if (typeof score === "number") {
+        payload.score = score;
+      }
+
+      if (verdict === "bad") {
+        if (rowKind === "event") {
+          const correction = {
+            content: String(elements.corrEventContent.value || "").trim(),
+            expected_status: String(elements.corrEventStatus.value || "").trim(),
+            expected_block: String(elements.corrEventBlock.value || "").trim(),
+          };
+          if (!correction.content || !correction.expected_status || !correction.expected_block) {
+            setCurationStatus("event.bad requires correction content/status/block.", "warn");
+            return;
+          }
+          payload.correction = correction;
+        } else {
+          const correction = {
+            query: String(elements.corrQueryText.value || "").trim(),
+            expected_contains: parseExpectedContainsFromTextarea(elements.corrQueryExpected.value),
+          };
+          if (!correction.query || correction.expected_contains.length === 0) {
+            setCurationStatus("query.bad requires correction query and expected_contains.", "warn");
+            return;
+          }
+          payload.correction = correction;
+        }
+      }
+
+      try {
+        const res = await fetch("/api/evalset/annotate", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          throw new Error(data?.details?.message || data?.code || `HTTP_${res.status}`);
+        }
+        const rebuilt = await rebuildEvalset(false);
+        await loadCurationData(false);
+        render();
+        setCurationStatus(`Annotation saved (${data?.details?.label?.label_id || "ok"})${rebuilt ? " and rebuilt." : "."}`, "ok");
+      } catch (err) {
+        setCurationStatus(`Annotation failed: ${errorMessage(err)}`, "bad");
+      }
+    }
+
+    async function submitRowEdit() {
+      const rowId = String(elements.editRowId.value || "").trim();
+      const rowKind = String(elements.editKind.value || "").trim();
+      if (!rowId || !rowKind) {
+        setCurationStatus("Select Edit Row before saving base edits.", "warn");
+        return;
+      }
+
+      const payload = {
+        row_kind: rowKind,
+        row_id: rowId,
+        patch: {},
+      };
+
+      if (rowKind === "event") {
+        payload.patch = {
+          type: String(elements.editEventType.value || "").trim(),
+          confidence: String(elements.editEventConfidence.value || "").trim(),
+          project_key: String(elements.editEventProject.value || "").trim(),
+          source: String(elements.editEventSource.value || "").trim(),
+          expected_status: String(elements.editEventStatus.value || "").trim(),
+          expected_block: String(elements.editEventBlock.value || "").trim(),
+          content: String(elements.editEventContent.value || "").trim(),
+        };
+      } else {
+        payload.patch = {
+          cwd: String(elements.editQueryCwd.value || "").trim(),
+          query: String(elements.editQueryText.value || "").trim(),
+          expected_contains: parseExpectedContainsFromTextarea(elements.editQueryExpected.value),
+        };
+      }
+
+      try {
+        const res = await fetch("/api/evalset/edit", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          throw new Error(data?.details?.message || data?.code || `HTTP_${res.status}`);
+        }
+        const rebuilt = await rebuildEvalset(false);
+        await loadCurationData(false);
+        render();
+        setCurationStatus(`Base row saved (${rowId})${rebuilt ? " and rebuilt." : "."}`, "ok");
+      } catch (err) {
+        setCurationStatus(`Base edit failed: ${errorMessage(err)}`, "bad");
+      }
+    }
+
+    function renderCurationTable() {
+      const rows = Array.isArray(state.curation.rows) ? state.curation.rows : [];
+      if (rows.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "No rows loaded for this selection.";
+        clearAndAppend(elements.curationTableHost, empty);
+        return;
+      }
+
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const head = document.createElement("tr");
+      const headers =
+        state.curation.kind === "events"
+          ? ["ID", "Type", "Project", "Expected Status", "Expected Block", "Quality", "Label Source", "Score", "Curation", "Actions"]
+          : ["ID", "Query", "CWD", "Expected Contains", "Quality", "Label Source", "Score", "Curation", "Actions"];
+      headers.forEach((label) => {
+        const th = document.createElement("th");
+        th.textContent = label;
+        head.appendChild(th);
+      });
+      thead.appendChild(head);
+      table.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+      rows.forEach((row) => {
+        const tr = document.createElement("tr");
+        const label = row.latest_label;
+        const labelStatus = row.curation_status || "unlabeled";
+        const labelText =
+          labelStatus === "good_hq"
+            ? "Good (HQ)"
+            : labelStatus === "bad_replaced"
+              ? "Bad (replaced)"
+              : "Unlabeled";
+
+        const cells =
+          state.curation.kind === "events"
+            ? [
+                row.id || "",
+                row.type || "",
+                row.project_key || "",
+                row.expected_status || "",
+                row.expected_block || "",
+                row.quality || "synthetic_seed",
+                row.label_source || "",
+                Number.isInteger(row?.latest_label?.score) ? row.latest_label.score : "",
+              ]
+            : [
+                row.id || "",
+                row.query || "",
+                row.cwd || "",
+                joinExpected(row.expected_contains),
+                row.quality || "synthetic_seed",
+                row.label_source || "",
+                Number.isInteger(row?.latest_label?.score) ? row.latest_label.score : "",
+              ];
+
+        cells.forEach((value) => {
+          const td = document.createElement("td");
+          td.textContent = String(value);
+          tr.appendChild(td);
+        });
+
+        const labelCell = document.createElement("td");
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = labelText + (label?.label_id ? ` · ${label.label_id}` : "");
+        labelCell.appendChild(chip);
+        tr.appendChild(labelCell);
+
+        const actionCell = document.createElement("td");
+        actionCell.className = "actions";
+        const goodBtn = document.createElement("button");
+        goodBtn.textContent = "Mark Good";
+        goodBtn.addEventListener("click", () => openAnnotationEditor(row, "good"));
+        const badBtn = document.createElement("button");
+        badBtn.textContent = "Mark Bad";
+        badBtn.addEventListener("click", () => openAnnotationEditor(row, "bad"));
+        const editBtn = document.createElement("button");
+        editBtn.textContent = "Edit Row";
+        if (state.curation.source !== "base") {
+          editBtn.disabled = true;
+          editBtn.title = "Switch to View Base to edit synthetic rows.";
+        }
+        editBtn.addEventListener("click", () => openEditEditor(row));
+        actionCell.appendChild(goodBtn);
+        actionCell.appendChild(badBtn);
+        actionCell.appendChild(editBtn);
+        tr.appendChild(actionCell);
+
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+
+      const wrap = document.createElement("div");
+      wrap.className = "table-wrap";
+      wrap.appendChild(table);
+      clearAndAppend(elements.curationTableHost, wrap);
+    }
+
+    function renderCurationSection() {
+      setToggleState(elements.viewBase, state.curation.source === "base", elements.viewCompiled, state.curation.source === "compiled");
+      setToggleState(elements.kindEvents, state.curation.kind === "events", elements.kindQueries, state.curation.kind === "queries");
+
+      const stats = state.curation.stats;
+      if (stats) {
+        const avgScore = typeof stats.score_avg?.total === "number" ? stats.score_avg.total.toFixed(2) : "n/a";
+        elements.curationStats.textContent =
+          `base_total=${stats.base_rows.total} · labeled_good=${stats.labeled_good.total} · labeled_bad=${stats.labeled_bad.total} · ` +
+          `compiled_high_quality=${stats.compiled_high_quality.total} · unlabeled=${stats.unlabeled.total} · scored=${stats.scored.total} · score_avg=${avgScore}/5`;
+      } else {
+        elements.curationStats.textContent = "Curation stats unavailable.";
+      }
+
+      elements.curationMeta.textContent =
+        `source=${state.curation.source} · kind=${state.curation.kind} · rows=${Array.isArray(state.curation.rows) ? state.curation.rows.length : 0}`;
+
+      renderCurationTable();
+      updateCorrectionVisibility();
+      updateEditVisibility();
+    }
+
+    function render() {
+      const evalReport = state.evalReport;
+      const liveReport = state.liveReport;
+
+      elements.statusRow.innerHTML = "";
+      if (evalReport) {
+        elements.statusRow.appendChild(pill(`Eval ${evalReport.status.toUpperCase()}`, evalReport.status === "passed" ? "ok" : "bad"));
+      } else {
+        elements.statusRow.appendChild(pill("Eval missing", "warn"));
+      }
+
+      if (liveReport) {
+        const tone = liveReport.status === "passed" ? "ok" : liveReport.status === "skipped" ? "warn" : "bad";
+        elements.statusRow.appendChild(pill(`Live ${liveReport.status.toUpperCase()}`, tone));
+      } else {
+        elements.statusRow.appendChild(pill("Live missing", "warn"));
+      }
+
+      const score = scoreFromReports(evalReport, liveReport);
+      elements.overallScoreCode.textContent = `${score} / 100`;
+      elements.overallFill.className = `fill ${score < 60 ? "bad" : score < 80 ? "warn" : ""}`.trim();
+      elements.overallFill.style.width = `${score}%`;
+
+      if (evalReport) {
+        elements.overallMeta.textContent = `${evalReport.dataset} · ${evalReport.duration_ms} ms`;
+      } else {
+        elements.overallMeta.textContent = "No synthetic eval loaded.";
+      }
+
+      const notes = [];
+      if (evalReport?.notes?.length) notes.push(...evalReport.notes);
+      if (liveReport?.reason) notes.push(`Live: ${liveReport.reason}`);
+      if (notes.length === 0) {
+        elements.overallNotes.className = "empty";
+        elements.overallNotes.textContent = "No warnings. Deterministic and live layers look healthy.";
+      } else {
+        elements.overallNotes.className = "empty";
+        elements.overallNotes.innerHTML = notes.map((line) => `• ${line}`).join("<br>");
+      }
+
+      if (evalReport?.metrics) {
+        elements.evalMeta.textContent = `status=${evalReport.status} · runtime=${evalReport.metrics.runtime_ms} ms`;
+
+        const m = evalReport.metrics;
+        const t = evalReport.thresholds || {};
+        clearAndAppend(elements.metricList, [
+          metricBlock("Extraction F1", m.extraction_f1, t.extraction_f1_min ?? 0.85),
+          metricBlock("Route Accuracy", m.route_accuracy, t.route_accuracy_min ?? 0.95),
+          metricBlock("Dedupe Precision", m.dedupe_precision, t.dedupe_precision_min ?? 0.95),
+          metricBlock("Recall@3", m.recall_at_3, t.recall_at_3_min ?? 0.8),
+        ]);
+      } else {
+        elements.evalMeta.textContent = "Waiting for eval-report.json";
+        clearAndAppend(elements.metricList, (() => {
+          const empty = document.createElement("div");
+          empty.className = "empty";
+          empty.textContent = "Load eval data to populate deterministic metrics.";
+          return empty;
+        })());
+      }
+
+      clearAndAppend(elements.checkTableHost, renderChecksTable(evalReport?.checks || []));
+
+      if (liveReport) {
+        elements.liveMeta.textContent = `provider=${liveReport.provider} · status=${liveReport.status}`;
+        const list = [];
+        list.push(renderCountCard("Run Count", liveReport.metrics?.run_count ?? 0));
+        list.push(renderCountCard("Avg Latency", `${liveReport.metrics?.latency_ms_avg ?? 0} ms`));
+        list.push(renderCountCard("Input Tokens", liveReport.metrics?.input_tokens_total ?? 0));
+        list.push(renderCountCard("Output Tokens", liveReport.metrics?.output_tokens_total ?? 0));
+        list.push(renderCountCard("Est. Cost", `$${fmt(liveReport.metrics?.estimated_cost_usd_total ?? 0, 6)}`));
+        if (liveReport.reason) list.push(renderCountCard("Reason", liveReport.reason));
+        clearAndAppend(elements.liveKpis, list);
+      } else {
+        elements.liveMeta.textContent = "Waiting for live-report.json";
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "Load live report to view latency, token and cost metrics.";
+        clearAndAppend(elements.liveKpis, empty);
+      }
+
+      if (evalReport?.counts) {
+        clearAndAppend(elements.countGrid, [
+          renderCountCard("Events Total", evalReport.counts.events_total),
+          renderCountCard("Promoted Predicted", evalReport.counts.promoted_predicted),
+          renderCountCard("Promoted Gold", evalReport.counts.promoted_gold),
+          renderCountCard("True Positives", evalReport.counts.true_positive_promoted),
+          renderCountCard("Recall Queries", evalReport.counts.recall_queries),
+          renderCountCard("Recall Hits", evalReport.counts.recall_hits),
+        ]);
+      } else {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "No count data available.";
+        clearAndAppend(elements.countGrid, empty);
+      }
+
+      renderDatasetEvidence();
+      renderCurationSection();
+      renderQueryOutcomes();
+      renderEventOutcomes();
+      renderRunActivity();
+    }
+
+    async function fetchJson(path) {
+      const res = await fetch(path, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Failed to load ${path} (${res.status})`);
+      return res.json();
+    }
+
+    async function fetchText(path) {
+      const res = await fetch(path, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Failed to load ${path} (${res.status})`);
+      return res.text();
+    }
+
+    function parseJsonl(raw) {
+      const lines = String(raw || "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+      const rows = [];
+      lines.forEach((line) => {
+        try {
+          rows.push(JSON.parse(line));
+        } catch {}
+      });
+      return rows;
+    }
+
+    async function fetchFirstAvailable(paths) {
+      let lastError = null;
+      for (const path of paths) {
+        try {
+          const json = await fetchJson(path);
+          return { json, path };
+        } catch (err) {
+          lastError = err;
+        }
+      }
+      throw lastError || new Error(`No candidate path succeeded: ${paths.join(", ")}`);
+    }
+
+    async function fetchFirstAvailableJsonl(paths) {
+      let lastError = null;
+      for (const path of paths) {
+        try {
+          const text = await fetchText(path);
+          return { rows: parseJsonl(text), path };
+        } catch (err) {
+          lastError = err;
+        }
+      }
+      throw lastError || new Error(`No candidate path succeeded: ${paths.join(", ")}`);
+    }
+
+    async function loadLatest() {
+      const status = [];
+      try {
+        const loaded = await fetchFirstAvailable(artifactCandidates.eval);
+        state.evalReport = loaded.json;
+        status.push(`eval loaded (${loaded.path})`);
+      } catch (err) {
+        status.push(`eval not loaded: ${errorMessage(err)}`);
+      }
+
+      try {
+        const loaded = await fetchFirstAvailable(artifactCandidates.live);
+        state.liveReport = loaded.json;
+        status.push(`live loaded (${loaded.path})`);
+      } catch (err) {
+        status.push(`live not loaded: ${errorMessage(err)}`);
+      }
+
+      try {
+        const loaded = await fetchFirstAvailableJsonl(fixtureCandidates.events);
+        state.datasetFixtures.events = loaded.rows;
+        status.push(`events loaded (${loaded.path})`);
+      } catch (err) {
+        state.datasetFixtures.events = null;
+        status.push(`events not loaded: ${errorMessage(err)}`);
+      }
+
+      try {
+        const loaded = await fetchFirstAvailableJsonl(fixtureCandidates.queries);
+        state.datasetFixtures.queries = loaded.rows;
+        status.push(`queries loaded (${loaded.path})`);
+      } catch (err) {
+        state.datasetFixtures.queries = null;
+        status.push(`queries not loaded: ${errorMessage(err)}`);
+      }
+
+      try {
+        const loaded = await fetchFirstAvailableJsonl(fixtureCandidates.goldEvents);
+        state.datasetFixtures.goldEvents = loaded.rows;
+        status.push(`gold events loaded (${loaded.path})`);
+      } catch (err) {
+        state.datasetFixtures.goldEvents = null;
+        status.push(`gold events not loaded: ${errorMessage(err)}`);
+      }
+
+      try {
+        await loadCurationData(false);
+        status.push(`curation loaded (${state.curation.source}/${state.curation.kind})`);
+      } catch (err) {
+        status.push(`curation not loaded: ${errorMessage(err)}`);
+      }
+
+      render();
+      appendStatus(status.join(" | "), "warn");
+    }
+
+    function bindFileInput(inputEl, assignFn) {
+      inputEl.addEventListener("change", async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const raw = await file.text();
+        try {
+          assignFn(JSON.parse(raw));
+          render();
+          appendStatus(`${file.name} loaded`, "ok");
+        } catch (err) {
+          appendStatus(`invalid JSON: ${file.name}`, "bad");
+          console.error(err);
+        }
+      });
+    }
+
+    async function triggerRun(kind, triggerButton = null) {
+      const preset = runPresets[kind] || runPresets.eval;
+      const endpoint = preset.endpoint;
+      const button =
+        triggerButton ||
+        (kind === "live"
+          ? elements.runLive
+          : kind === "deterministic"
+            ? elements.railRunDeterministic || elements.runEval
+            : elements.runEval);
+
+      if (window.location.protocol === "file:") {
+        state.runActivity = {
+          kind,
+          phase: "blocked",
+          report_status: "blocked",
+          endpoint,
+          command: preset.command,
+          network: preset.network,
+          artifacts: preset.artifacts,
+          preconditions: preset.preconditions,
+          started_at: new Date().toISOString(),
+          finished_at: new Date().toISOString(),
+          error: "Dashboard is opened with file://. Run the bun server to enable API calls.",
+        };
+        render();
+        appendStatus("run endpoints require bun dashboard server", "warn");
+        return;
+      }
+
+      const originalLabel = button ? button.textContent : "";
+      if (button) {
+        button.disabled = true;
+        button.textContent =
+          kind === "live"
+            ? "Running live..."
+            : kind === "deterministic"
+              ? "Running gate..."
+              : "Running eval...";
+      }
+      state.runActivity = {
+        kind,
+        phase: "running",
+        report_status: "running",
+        endpoint,
+        command: preset.command,
+        network: preset.network,
+        artifacts: preset.artifacts,
+        preconditions: preset.preconditions,
+        started_at: new Date().toISOString(),
+      };
+      render();
+
+      try {
+        const res = await fetch(endpoint, { method: "POST" });
+        const payload = await res.json();
+        if (!res.ok || !payload.ok) {
+          const code = payload?.code || `HTTP_${res.status}`;
+          throw new Error(code);
+        }
+
+        const details = payload?.details || {};
+        const status = details?.report?.status || details?.run_status || "unknown";
+        state.runActivity = {
+          kind,
+          phase: "complete",
+          report_status: status,
+          endpoint: details.endpoint || endpoint,
+          command: details?.invocation?.command || preset.command,
+          network: details?.invocation?.network_dependency || preset.network,
+          artifacts: Array.isArray(details.artifacts) ? details.artifacts : preset.artifacts,
+          preconditions: Array.isArray(details.preconditions) ? details.preconditions : preset.preconditions,
+          duration_ms: details.duration_ms || null,
+          api_code: payload.code || null,
+          stderr: details.stderr || null,
+          started_at: state.runActivity?.started_at || new Date().toISOString(),
+          finished_at: new Date().toISOString(),
+        };
+        render();
+        appendStatus(`${kind} run completed (${status})`, status === "passed" ? "ok" : status === "skipped" ? "warn" : "bad");
+        await loadLatest();
+      } catch (err) {
+        const message = errorMessage(err);
+        state.runActivity = {
+          kind,
+          phase: "failed",
+          report_status: "failed",
+          endpoint,
+          command: preset.command,
+          network: preset.network,
+          artifacts: preset.artifacts,
+          preconditions: preset.preconditions,
+          started_at: state.runActivity?.started_at || new Date().toISOString(),
+          finished_at: new Date().toISOString(),
+          error: message,
+        };
+        render();
+        appendStatus(`${kind} run failed: ${message}`, "bad");
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = originalLabel;
+        }
+      }
+    }
+
+    elements.loadLatest.addEventListener("click", loadLatest);
+    bindFileInput(elements.evalFile, (json) => { state.evalReport = json; });
+    bindFileInput(elements.liveFile, (json) => { state.liveReport = json; });
+    elements.runEval.addEventListener("click", () => triggerRun("eval"));
+    elements.runLive.addEventListener("click", () => triggerRun("live"));
+    elements.railRunDeterministic.addEventListener("click", () => triggerRun("deterministic", elements.railRunDeterministic));
+    elements.railRebuildEvalset.addEventListener("click", () => rebuildEvalset(true));
+    elements.viewBase.addEventListener("click", async () => {
+      state.curation.source = "base";
+      await loadCurationData();
+    });
+    elements.viewCompiled.addEventListener("click", async () => {
+      state.curation.source = "compiled";
+      await loadCurationData();
+    });
+    elements.kindEvents.addEventListener("click", async () => {
+      state.curation.kind = "events";
+      await loadCurationData();
+    });
+    elements.kindQueries.addEventListener("click", async () => {
+      state.curation.kind = "queries";
+      await loadCurationData();
+    });
+    elements.reloadCuration.addEventListener("click", () => loadCurationData());
+    elements.rebuildEvalset.addEventListener("click", () => rebuildEvalset(true));
+    elements.submitAnnotation.addEventListener("click", (event) => {
+      event.preventDefault();
+      submitAnnotation();
+    });
+    elements.submitRowEdit.addEventListener("click", (event) => {
+      event.preventDefault();
+      submitRowEdit();
+    });
+    elements.annVerdict.addEventListener("change", updateCorrectionVisibility);
+
+    if (window.location.protocol === "file:") {
+      elements.runEval.disabled = true;
+      elements.runLive.disabled = true;
+      elements.reloadCuration.disabled = true;
+      elements.rebuildEvalset.disabled = true;
+      elements.submitAnnotation.disabled = true;
+      elements.submitRowEdit.disabled = true;
+      elements.railRunDeterministic.disabled = true;
+      elements.railRebuildEvalset.disabled = true;
+    }
+
+    render();
+  </script>
+</body>
+</html>
