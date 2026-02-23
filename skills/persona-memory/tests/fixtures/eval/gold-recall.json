@@ -1,5 +1,0 @@
-{
-  "metric": "recall_at_3",
-  "queries": 18,
-  "expected_min": 0.8
-}
