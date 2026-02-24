@@ -171,7 +171,7 @@ JSON
 
 assert_file_contains "$capture_fallback" "AI_MEMORY_TRANSCRIPT:$home_hook/.claude/projects/demo/fallback.jsonl"
 
-echo "[4/5] no-arg launch does not inject a synthetic prompt"
+echo "[4/5] launch defaults to safe permissions and avoids synthetic prompt"
 home_launch="$tmp/home-launch"
 mkdir -p "$home_launch/.ai-memory/scout" "$tmp/bin-launch"
 ln -sfn scout "$home_launch/.ai-memory/active"
@@ -191,9 +191,18 @@ HOME="$home_launch" \
 PATH="$tmp/bin-launch:$PATH" \
 bash "$LAUNCH_SCRIPT"
 
-assert_file_contains "$launch_capture" "ARGS:--add-dir $home_launch/.ai-memory/scout --dangerously-skip-permissions"
+assert_file_contains "$launch_capture" "ARGS:--add-dir $home_launch/.ai-memory/scout"
+assert_file_not_contains "$launch_capture" "--dangerously-skip-permissions"
 assert_file_not_contains "$launch_capture" "hi, how's it goin"
 assert_file_contains "$launch_capture" "CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD:1"
+
+launch_capture_unsafe="$tmp/launch-capture-unsafe.txt"
+TEAM_MEMORY_LAUNCH_CAPTURE="$launch_capture_unsafe" \
+HOME="$home_launch" \
+PATH="$tmp/bin-launch:$PATH" \
+bash "$LAUNCH_SCRIPT" --unsafe
+
+assert_file_contains "$launch_capture_unsafe" "ARGS:--add-dir $home_launch/.ai-memory/scout --dangerously-skip-permissions"
 
 echo "[5/5] prompts are memory-root agnostic"
 assert_file_contains "$ORCHESTRATOR" "Memory dir: <MEMORY_DIR>."
