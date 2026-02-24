@@ -70,6 +70,11 @@ cd /Users/fairchild/.claude/skills/persona-memory
 bun scripts/capture-dashboard.ts
 ```
 
+Screenshot storage policy:
+- Keep only a small compressed sample in git: `assets/eval-dashboard/screenshots/sample/`
+- Raw timestamped captures under `assets/eval-dashboard/screenshots/<timestamp>/` are gitignored
+  so local investigation artifacts do not bloat the repo.
+
 Port behavior:
 - Dashboard server default port: `8787`
 - Capture script default port: `8799` (chosen to avoid common local conflicts)
