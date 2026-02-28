@@ -50,7 +50,7 @@ This creates:
 
 After init, edit:
 1. `~/.ai-memory/<name>/personality.md` — define the teammate's identity
-2. `~/.ai-memory/shared/human.md` — tell teammates about yourself
+2. `~/.ai-memory/shared/projects.md` — add project context (first teammate only)
 
 For the full walkthrough, see [`references/add-teammate.md`](references/add-teammate.md).
 

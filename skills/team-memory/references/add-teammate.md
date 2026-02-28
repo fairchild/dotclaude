@@ -60,36 +60,11 @@ Then edit Identity/Values to match your vision.
 
 ## 4. Populate Shared Knowledge (First Teammate Only)
 
-If this is your first teammate, edit `~/.ai-memory/shared/human.md`:
+If this is your first teammate, populate the shared files that all teammates
+@import. Human preferences and conventions are already covered by your global
+`~/.claude/CLAUDE.md`, so only project and platform context need shared files:
 
-```markdown
-## About the Human
-
-Name: Michael
-Role: Software engineer
-
-## Preferences
-
-- Minimal dependencies, stdlib-preferred
-- Type hints over comments
-- Conventional commits
-
-## Development Tools
-
-- TypeScript: bun
-- Python: uv
-- Runtimes: mise
-
-## Communication Style
-
-- Direct, concise
-- Show don't tell
-- Skip formalities
-```
-
-Also consider populating:
 - `~/.ai-memory/shared/projects.md` — active projects and their context
-- `~/.ai-memory/shared/conventions.md` — coding standards, workflow patterns
 - `~/.ai-memory/shared/platform.md` — shell, OS, and infrastructure defaults
 
 These files are @imported by every teammate's CLAUDE.md, so all teammates

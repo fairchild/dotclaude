@@ -151,14 +151,11 @@ that assert internal method calls.
 | tags | string[] | Freeform, used for search and consolidation grouping |
 | project | string (optional) | Which project this relates to |
 
-### Confidence Decay
+### Staleness
 
-- **Decisions**: decay slowly (0.01/week) — decisions are durable
-- **Patterns**: decay slowly (0.02/week) — patterns are structural
-- **Preferences**: decay moderately (0.03/week) — preferences can shift
-- **Insights**: decay faster (0.05/week) — insights can become stale
-- **Facts**: no decay — facts are facts
-- Below 0.3 = candidate for archival pruning by consolidation agent
+Blocks not updated in 30+ days lose 0.1 confidence per consolidation pass (facts exempt).
+Below 0.3 = candidate for archival pruning by consolidation agent.
+Blocks that stay relevant get refreshed by merges and re-references.
 
 ### Promotion/Demotion
 
@@ -212,12 +209,7 @@ The `<!-- IMMUTABLE -->` / `<!-- MUTABLE -->` markers are guardrails. The sleep-
 
 ### Shared Knowledge
 
-`~/.ai-memory/shared/human.md` is imported by every teammate's CLAUDE.md. Contains facts about the user that shouldn't need re-teaching per teammate:
-
-- Name, role, preferences
-- Development tools (bun, uv, mise)
-- Code philosophy
-- Communication style preferences
+`~/.ai-memory/shared/projects.md` and `~/.ai-memory/shared/platform.md` are @imported by every teammate's CLAUDE.md. Human preferences and conventions are already covered by the global `~/.claude/CLAUDE.md` which loads alongside the persona.
 
 Teammates can also read each other's archival/ for cross-pollination (e.g., Oracle reading Bertram's memories about a shared project).
 
@@ -343,13 +335,14 @@ The per-teammate CLAUDE.md that gets loaded via `--add-dir`:
 
 @personality.md
 @relationship.md
-@../shared/human.md
 @../shared/projects.md
-@../shared/conventions.md
 @../shared/platform.md
+@core/decisions.md
+@core/patterns.md
 
 ## Core Memories
-At the start of each session, read all `.md` files in `core/`.
+Core memories are @imported above (durable across compaction).
+Update this list when blocks are promoted or demoted.
 
 ## Memory Instructions
 
