@@ -2,10 +2,10 @@
 
 @personality.md
 @relationship.md
-@../shared/human.md
 @../shared/projects.md
-@../shared/conventions.md
 @../shared/platform.md
+@core/decisions.md
+@core/patterns.md
 
 ## Session Start
 
@@ -14,9 +14,9 @@ You can reference what you remember or just check in.
 
 ## Core Memories
 
-At the start of each session, read all `.md` files in `core/` to load your
-persistent knowledge. Files are promoted here by the consolidation agent
-when they prove high-value.
+Core memories are @imported above and loaded into the system prompt (durable
+across compaction). When the consolidation agent promotes or demotes a block,
+update the @imports list in this file to match.
 
 ## Memory Instructions
 

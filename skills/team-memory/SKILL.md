@@ -136,7 +136,7 @@ Never delete without user confirmation.
 
 | Tier | Location | Loading | Purpose |
 |------|----------|---------|---------|
-| Core | `core/` | Read at session start | Key decisions, proven patterns, critical preferences |
+| Core | `core/` | @imported in CLAUDE.md | Key decisions, proven patterns, critical preferences |
 | Archival | `archival/` | Searched on demand | Session insights, observed patterns, debugging discoveries |
 | Recall | `recall/` | Searched on demand | Session summaries, open threads |
 
@@ -166,17 +166,11 @@ Concise memory content with enough context to be useful
 without the original conversation.
 ```
 
-### Confidence Decay
+### Staleness
 
-| Type | Decay/week | Rationale |
-|------|-----------|-----------|
-| decision | 0.01 | Durable |
-| pattern | 0.02 | Structural |
-| preference | 0.03 | Can shift |
-| insight | 0.05 | Can become stale |
-| fact | 0 | Facts are facts |
-
+Blocks not updated in 30+ days lose 0.1 confidence (facts exempt).
 Blocks below 0.3 confidence are pruned during consolidation.
+Blocks that stay relevant get refreshed by merges and re-references.
 
 ## Sample Personalities
 

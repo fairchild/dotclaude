@@ -39,6 +39,12 @@ fi
 
 [ -z "$transcript" ] && exit 0
 
+# Skip trivial sessions (fewer than 6 user messages)
+if [ -f "$transcript" ]; then
+  user_msgs=$(grep -c '"role":"user"' "$transcript" 2>/dev/null || true)
+  [ "${user_msgs:-0}" -lt 6 ] && exit 0
+fi
+
 CLAUDECODE= \
 AI_MEMORY_PERSONA= \
 AI_MEMORY_TARGET_PERSONA="$persona" \

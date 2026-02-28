@@ -100,10 +100,6 @@ if [ ! -d "$MEMORY_DIR/shared" ]; then
   mkdir -p "$MEMORY_DIR/shared"
 fi
 
-if [ ! -f "$MEMORY_DIR/shared/human.md" ]; then
-  interpolate "$TEMPLATE_DIR/human.md.tmpl" > "$MEMORY_DIR/shared/human.md"
-fi
-
 if [ ! -f "$MEMORY_DIR/shared/projects.md" ]; then
   cat > "$MEMORY_DIR/shared/projects.md" << 'EOF'
 # Shared Project Context
@@ -111,16 +107,6 @@ if [ ! -f "$MEMORY_DIR/shared/projects.md" ]; then
 Projects and context shared across all teammates.
 
 (Add project notes here as you work together.)
-EOF
-fi
-
-if [ ! -f "$MEMORY_DIR/shared/conventions.md" ]; then
-  cat > "$MEMORY_DIR/shared/conventions.md" << 'EOF'
-# Shared Conventions
-
-Coding and workflow conventions shared across all teammates.
-
-(Add conventions here as you discover them.)
 EOF
 fi
 

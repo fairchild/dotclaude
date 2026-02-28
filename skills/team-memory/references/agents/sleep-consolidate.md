@@ -34,19 +34,16 @@ Find blocks that cover substantially the same topic:
 
 Delete the redundant block after merging.
 
-### 3. Apply confidence decay
+### 3. Flag stale blocks
 
-Calculate weeks since last update for each block. Apply decay based on type:
+Check each block's `updated` date against today. A block is **stale** if:
+- Type `fact`: never stale
+- All other types: stale if `updated` is more than 30 days ago
 
-| Type | Decay per week |
-|------|---------------|
-| decision | 0.01 |
-| pattern | 0.02 |
-| preference | 0.03 |
-| insight | 0.05 |
-| fact | 0 (no decay) |
-
-Update the confidence and `updated` date in frontmatter using Edit tool.
+For stale blocks, reduce confidence by 0.1 (minimum 0.1) and update the
+`updated` date to today. This is a simple one-step decay — no per-type
+floating-point math. Blocks that remain relevant get refreshed by merges
+and re-references; blocks that don't gradually fade.
 
 ### 4. Promote high-value archival → core
 

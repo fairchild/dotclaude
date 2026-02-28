@@ -76,9 +76,12 @@ fi
 echo "[2/4] session-end uses hook transcript_path and explicit persona vars"
 home_hook="$tmp/home-hook"
 mkdir -p "$home_hook/.claude/projects/demo" "$tmp/bin"
-touch "$home_hook/.claude/projects/demo/fallback.jsonl"
 hook_transcript="$tmp/hook-transcript.jsonl"
-touch "$hook_transcript"
+# Populate mock transcripts with enough user messages to pass session-size gate
+for i in 1 2 3 4 5 6; do
+  echo '{"role":"user","content":"msg '$i'"}' >> "$hook_transcript"
+  echo '{"role":"user","content":"msg '$i'"}' >> "$home_hook/.claude/projects/demo/fallback.jsonl"
+done
 
 cat > "$tmp/bin/claude" <<'SH'
 #!/bin/bash
