@@ -8,7 +8,7 @@ Sessions are ephemeral but work is not. Most of this config is dedicated to an o
 
 **Chronicle** a persistent journalist. A hook extracts a memory block at session end (what was accomplished, what's pending, key decisions). At session start, another hook injects relevant context: recent work in this project, pending items, stale threads. Over time: `/chronicle curate` to organize, `/chronicle insights` for cross-session patterns, `/chronicle publish` for digests.
 
-**Supporting pieces:** session-title generation (a stop hook names each session from its content), ai-coding-usage (DuckDB analytics across Claude Code and Cursor logs), recall/remember agents (persistent memory across sessions), `/fork` (carry context into a new worktree or session).
+**Supporting pieces:** session-title generation (a stop hook names each session from its content), analyze-usage (DuckDB analytics across Claude Code and Cursor logs), recall/remember agents (persistent memory across sessions), `/fork` (carry context into a new worktree or session).
 
 Much of this config observes work rather than does it. The memory system is where the config is still evolving. 
 
@@ -56,7 +56,7 @@ Much of this config observes work rather than does it. The memory system is wher
 
 | Skill | When it activates |
 |-------|-------------------|
-| **ai-coding-usage** | Analyzing AI coding patterns and statistics |
+| **analyze-usage** | Analyzing AI coding patterns and statistics |
 | **brainstorm-to-brief** | Visual design exploration and design briefs |
 | **image-gen** | Generating images with AI (OpenAI, Imagen, fal.ai) |
 | **backlog** | Capturing explored work for later |

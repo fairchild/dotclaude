@@ -1,5 +1,5 @@
 ---
-name: ai-coding-usage
+name: analyze-usage
 description: Analyze AI coding assistant usage patterns across Claude Code and Cursor. Use when user asks about their coding usage, tool statistics, productivity patterns, skill popularity, session history, or wants to query their AI coding logs. Triggers include "usage", "how much have I used", "most used tools", "skill popularity", "coding stats", "productivity patterns".
 license: Apache-2.0
 ---
@@ -12,13 +12,13 @@ Unified usage analyzer for Claude Code and Cursor. Loads logs into DuckDB for SQ
 
 ```bash
 # Run the script (loads data on first run, incremental updates after)
-scripts/ai-coding-usage
+scripts/analyze-usage
 
 # Show database schema and example queries
-scripts/ai-coding-usage --schema
+scripts/analyze-usage --schema
 
 # Query your data
-scripts/ai-coding-usage query "SELECT * FROM tool_summary"
+scripts/analyze-usage query "SELECT * FROM tool_summary"
 ```
 
 ## Commands
@@ -38,22 +38,22 @@ scripts/ai-coding-usage query "SELECT * FROM tool_summary"
 
 ```bash
 # ILIKE search on conversation content (default)
-scripts/ai-coding-usage search "memory"
+scripts/analyze-usage search "memory"
 
 # BM25 full-text search (covers content + thinking)
-scripts/ai-coding-usage search "memory" --fts
+scripts/analyze-usage search "memory" --fts
 
 # Search reasoning traces
-scripts/ai-coding-usage search "memory" --thinking
+scripts/analyze-usage search "memory" --thinking
 
 # Search both content and thinking
-scripts/ai-coding-usage search "memory" --all
+scripts/analyze-usage search "memory" --all
 
 # Filter by role, repo, time
-scripts/ai-coding-usage search "refactor" --user --repo bertram-chat --since 7d
+scripts/analyze-usage search "refactor" --user --repo bertram-chat --since 7d
 
 # Limit results
-scripts/ai-coding-usage search "deploy" -n 20
+scripts/analyze-usage search "deploy" -n 20
 ```
 
 ## Common Queries

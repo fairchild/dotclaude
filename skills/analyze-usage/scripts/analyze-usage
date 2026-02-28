@@ -1,16 +1,16 @@
 #!/bin/bash
-# ai-coding-usage - Unified usage analyzer for AI coding assistants
+# analyze-usage - Unified usage analyzer for AI coding assistants
 #
 # Loads Claude Code and Cursor logs into a persistent DuckDB database
 # for analysis via SQL queries.
 #
 # Usage:
-#   ai-coding-usage              # Auto-detect changes, incremental update, show summary
-#   ai-coding-usage --help       # Detailed help for agents/users
-#   ai-coding-usage --schema     # Show database schema with example queries
-#   ai-coding-usage query "SQL"  # Run a SQL query
-#   ai-coding-usage update       # Explicit incremental update
-#   ai-coding-usage reload       # Force reload all data
+#   analyze-usage              # Auto-detect changes, incremental update, show summary
+#   analyze-usage --help       # Detailed help for agents/users
+#   analyze-usage --schema     # Show database schema with example queries
+#   analyze-usage query "SQL"  # Run a SQL query
+#   analyze-usage update       # Explicit incremental update
+#   analyze-usage reload       # Force reload all data
 
 set -euo pipefail
 
@@ -20,7 +20,7 @@ VERSION="1.2.0"
 # Configuration
 # ============================================================================
 
-DB_PATH="${AI_CODING_USAGE_DB:-$HOME/.local/share/ai-coding-usage/usage.duckdb}"
+DB_PATH="${ANALYZE_USAGE_DB:-$HOME/.local/share/analyze-usage/usage.duckdb}"
 DB_DIR=$(dirname "$DB_PATH")
 
 # Source paths
@@ -62,7 +62,7 @@ fi
 
 show_help() {
     cat << 'EOF'
-ai-coding-usage - Unified usage analyzer for AI coding assistants
+analyze-usage - Unified usage analyzer for AI coding assistants
 
 DESCRIPTION
     Loads conversation and tool usage logs from Claude Code and Cursor into a
@@ -70,15 +70,15 @@ DESCRIPTION
     across both tools.
 
 USAGE
-    ai-coding-usage                     Auto-detect changes, update, show summary
-    ai-coding-usage --help              Show this help message
-    ai-coding-usage --schema            Show database schema with example queries
-    ai-coding-usage --version           Show version
-    ai-coding-usage update              Explicit incremental update
-    ai-coding-usage reload              Force reload all data from source logs
-    ai-coding-usage query "SQL"         Execute a SQL query against the database
-    ai-coding-usage search "query"      Search conversation content
-    ai-coding-usage shell               Open interactive DuckDB shell
+    analyze-usage                     Auto-detect changes, update, show summary
+    analyze-usage --help              Show this help message
+    analyze-usage --schema            Show database schema with example queries
+    analyze-usage --version           Show version
+    analyze-usage update              Explicit incremental update
+    analyze-usage reload              Force reload all data from source logs
+    analyze-usage query "SQL"         Execute a SQL query against the database
+    analyze-usage search "query"      Search conversation content
+    analyze-usage shell               Open interactive DuckDB shell
 
 COMMANDS
     (default)   If no database, does a full load. Otherwise auto-detects new
@@ -107,8 +107,8 @@ COMMANDS
                 Useful for exploratory analysis.
 
 ENVIRONMENT VARIABLES
-    AI_CODING_USAGE_DB      Path to DuckDB database file
-                            Default: ~/.local/share/ai-coding-usage/usage.duckdb
+    ANALYZE_USAGE_DB      Path to DuckDB database file
+                            Default: ~/.local/share/analyze-usage/usage.duckdb
 
     CLAUDE_PROJECTS_DIR     Path to Claude Code projects directory
                             Default: ~/.claude/projects
@@ -123,65 +123,65 @@ DATA SOURCES
 
 EXAMPLES
     # First run - loads data and shows summary
-    ai-coding-usage
+    analyze-usage
 
     # See what tables and columns are available
-    ai-coding-usage --schema
+    analyze-usage --schema
 
     # Count tool usage by type
-    ai-coding-usage query "SELECT tool_name, COUNT(*) FROM claude_tools GROUP BY 1 ORDER BY 2 DESC"
+    analyze-usage query "SELECT tool_name, COUNT(*) FROM claude_tools GROUP BY 1 ORDER BY 2 DESC"
 
     # Daily usage across both tools
-    ai-coding-usage query "SELECT * FROM daily_summary ORDER BY date DESC LIMIT 14"
+    analyze-usage query "SELECT * FROM daily_summary ORDER BY date DESC LIMIT 14"
 
     # Search conversation content
-    ai-coding-usage search "memory"
+    analyze-usage search "memory"
 
     # BM25-ranked full-text search
-    ai-coding-usage search "memory" --fts
+    analyze-usage search "memory" --fts
 
     # Search with filters
-    ai-coding-usage search "refactor" --repo bertram-chat --since 7d --user
+    analyze-usage search "refactor" --repo bertram-chat --since 7d --user
 
     # Turn durations
-    ai-coding-usage query "SELECT * FROM turn_durations ORDER BY duration_ms DESC LIMIT 10"
+    analyze-usage query "SELECT * FROM turn_durations ORDER BY duration_ms DESC LIMIT 10"
 
     # Session overview with summaries
-    ai-coding-usage query "SELECT session_id, repo_name, summary FROM session_overview LIMIT 10"
+    analyze-usage query "SELECT session_id, repo_name, summary FROM session_overview LIMIT 10"
 
     # Interactive exploration
-    ai-coding-usage shell
+    analyze-usage shell
 
 FOR AI AGENTS
     To analyze AI coding usage programmatically:
 
-    1. Run: ai-coding-usage --schema
+    1. Run: analyze-usage --schema
        This outputs the complete database schema with column types and descriptions.
 
     2. Write SQL queries against the tables described in the schema.
 
-    3. Execute with: ai-coding-usage query "YOUR SQL HERE"
+    3. Execute with: analyze-usage query "YOUR SQL HERE"
 
     The database uses standard SQL. DuckDB supports modern SQL features including
     window functions, CTEs, JSON functions, and more.
 
 SEE ALSO
-    ai-coding-usage --schema    Complete schema documentation
+    analyze-usage --schema    Complete schema documentation
     https://duckdb.org/docs/    DuckDB SQL reference
 EOF
 }
 
 show_schema() {
     cat << 'EOF'
-ai-coding-usage DATABASE SCHEMA
+analyze-usage DATABASE SCHEMA
 ===============================
 
-This document describes all tables in the ai-coding-usage database.
+This document describes all tables in the analyze-usage database.
 Use this information to construct SQL queries for analysis.
 
 DATABASE LOCATION
-    Default: ~/.local/share/ai-coding-usage/usage.duckdb
-    Override: AI_CODING_USAGE_DB environment variable
+    Default: ~/.local/share/analyze-usage/usage.duckdb
+    Override: ANALYZE_USAGE_DB environment variable
 
 ================================================================================
 TABLE: claude_tools
@@ -619,10 +619,22 @@ EOF
 # Claude Code Loaders
 # ============================================================================
 
+# Returns SQL expression for read_json_auto's file argument.
+# List literals (starting with '[') pass through; glob strings get quoted.
+sql_file_arg() {
+    local pattern="$1"
+    if [[ "$pattern" == \[* ]]; then
+        echo "$pattern"
+    else
+        echo "'$pattern'"
+    fi
+}
+
 # Load tool invocations from JSONL files
 # Args: glob pattern for files (default: all)
 load_claude_data() {
     local file_pattern="${1:-$CLAUDE_PROJECTS/*/*.jsonl}"
+    local pattern_sql; pattern_sql=$(sql_file_arg "$file_pattern")
 
     if [ ! -d "$CLAUDE_PROJECTS" ]; then
         echo "  Claude Code: Not found at $CLAUDE_PROJECTS"
@@ -651,7 +663,7 @@ CREATE TABLE IF NOT EXISTS claude_tools (
 
 INSERT INTO claude_tools
 WITH raw_logs AS (
-    SELECT * FROM read_json_auto('${file_pattern}',
+    SELECT * FROM read_json_auto(${pattern_sql},
         ignore_errors=true,
         maximum_object_size=104857600,
         union_by_name=true,
@@ -719,6 +731,7 @@ EOF
 # Load conversation messages
 load_claude_messages() {
     local file_pattern="${1:-$CLAUDE_PROJECTS/*/*.jsonl}"
+    local pattern_sql; pattern_sql=$(sql_file_arg "$file_pattern")
 
     if [ ! -d "$CLAUDE_PROJECTS" ]; then
         return
@@ -753,7 +766,7 @@ CREATE TABLE IF NOT EXISTS messages (
 
 INSERT INTO messages
 WITH raw_logs AS (
-    SELECT * FROM read_json_auto('${file_pattern}',
+    SELECT * FROM read_json_auto(${pattern_sql},
         ignore_errors=true,
         maximum_object_size=104857600,
         union_by_name=true,
@@ -910,6 +923,7 @@ EOF
 # Load system events (turn_duration, api_error, stop_hook_summary, etc.)
 load_system_events() {
     local file_pattern="${1:-$CLAUDE_PROJECTS/*/*.jsonl}"
+    local pattern_sql; pattern_sql=$(sql_file_arg "$file_pattern")
 
     if [ ! -d "$CLAUDE_PROJECTS" ]; then
         return
@@ -934,7 +948,7 @@ CREATE TABLE IF NOT EXISTS system_events (
 
 INSERT OR IGNORE INTO system_events
 WITH raw_logs AS (
-    SELECT * FROM read_json_auto('${file_pattern}',
+    SELECT * FROM read_json_auto(${pattern_sql},
         ignore_errors=true,
         maximum_object_size=104857600,
         union_by_name=true,
@@ -964,6 +978,7 @@ EOF
 # Load queue operations (user inputs typed during assistant response)
 load_queue_operations() {
     local file_pattern="${1:-$CLAUDE_PROJECTS/*/*.jsonl}"
+    local pattern_sql; pattern_sql=$(sql_file_arg "$file_pattern")
 
     if [ ! -d "$CLAUDE_PROJECTS" ]; then
         return
@@ -982,7 +997,7 @@ CREATE TABLE IF NOT EXISTS queue_operations (
 
 INSERT INTO queue_operations
 WITH raw_logs AS (
-    SELECT * FROM read_json_auto('${file_pattern}',
+    SELECT * FROM read_json_auto(${pattern_sql},
         ignore_errors=true,
         maximum_object_size=104857600,
         union_by_name=true,
@@ -1006,6 +1021,7 @@ EOF
 # Load PR link records
 load_pr_links() {
     local file_pattern="${1:-$CLAUDE_PROJECTS/*/*.jsonl}"
+    local pattern_sql; pattern_sql=$(sql_file_arg "$file_pattern")
 
     if [ ! -d "$CLAUDE_PROJECTS" ]; then
         return
@@ -1025,7 +1041,7 @@ CREATE TABLE IF NOT EXISTS pr_links (
 
 INSERT INTO pr_links
 WITH raw_logs AS (
-    SELECT * FROM read_json_auto('${file_pattern}',
+    SELECT * FROM read_json_auto(${pattern_sql},
         ignore_errors=true,
         maximum_object_size=104857600,
         union_by_name=true,
@@ -1849,7 +1865,7 @@ run_query() {
     local sql="$1"
 
     if ! db_exists; then
-        echo "Database not found. Run 'ai-coding-usage' first to load data." >&2
+        echo "Database not found. Run 'analyze-usage' first to load data." >&2
         exit 1
     fi
 
@@ -1858,7 +1874,7 @@ run_query() {
 
 open_shell() {
     if ! db_exists; then
-        echo "Database not found. Run 'ai-coding-usage' first to load data." >&2
+        echo "Database not found. Run 'analyze-usage' first to load data." >&2
         exit 1
     fi
 
@@ -1874,7 +1890,7 @@ open_shell() {
 
 run_search() {
     if ! db_exists; then
-        echo "Database not found. Run 'ai-coding-usage' first to load data." >&2
+        echo "Database not found. Run 'analyze-usage' first to load data." >&2
         exit 1
     fi
 
@@ -1936,7 +1952,7 @@ run_search() {
                 ;;
             -*)
                 echo "Unknown flag: $1" >&2
-                echo "Usage: ai-coding-usage search \"query\" [--thinking|--all|--fts] [-n N] [--user|--asst] [--repo X] [--since 7d]" >&2
+                echo "Usage: analyze-usage search \"query\" [--thinking|--all|--fts] [-n N] [--user|--asst] [--repo X] [--since 7d]" >&2
                 exit 1
                 ;;
             *)
@@ -1947,7 +1963,7 @@ run_search() {
     done
 
     if [ -z "$query" ]; then
-        echo "Usage: ai-coding-usage search \"query\" [--thinking|--all|--fts] [-n N] [--user|--asst] [--repo X] [--since 7d]" >&2
+        echo "Usage: analyze-usage search \"query\" [--thinking|--all|--fts] [-n N] [--user|--asst] [--repo X] [--since 7d]" >&2
         exit 1
     fi
 
@@ -2101,17 +2117,17 @@ EOF
     echo "───────────────────────────────────────────────────────────────────────────────"
     echo ""
     echo "Quick start:"
-    echo "  ai-coding-usage --schema           Show tables and example queries"
-    echo "  ai-coding-usage query \"SQL\"        Run a SQL query"
-    echo "  ai-coding-usage search \"query\"     Search conversation content"
-    echo "  ai-coding-usage update             Incremental update"
-    echo "  ai-coding-usage shell              Interactive SQL shell"
-    echo "  ai-coding-usage reload             Full reload from source logs"
+    echo "  analyze-usage --schema           Show tables and example queries"
+    echo "  analyze-usage query \"SQL\"        Run a SQL query"
+    echo "  analyze-usage search \"query\"     Search conversation content"
+    echo "  analyze-usage update             Incremental update"
+    echo "  analyze-usage shell              Interactive SQL shell"
+    echo "  analyze-usage reload             Full reload from source logs"
     echo ""
     echo "Examples:"
-    echo "  ai-coding-usage query \"SELECT * FROM turn_durations ORDER BY duration_ms DESC LIMIT 5\""
-    echo "  ai-coding-usage query \"SELECT session_id, summary FROM session_overview WHERE summary IS NOT NULL LIMIT 5\""
-    echo "  ai-coding-usage query \"SELECT * FROM cost_summary ORDER BY cost_usd DESC\""
+    echo "  analyze-usage query \"SELECT * FROM turn_durations ORDER BY duration_ms DESC LIMIT 5\""
+    echo "  analyze-usage query \"SELECT session_id, summary FROM session_overview WHERE summary IS NOT NULL LIMIT 5\""
+    echo "  analyze-usage query \"SELECT * FROM cost_summary ORDER BY cost_usd DESC\""
 }
 
 # ============================================================================
@@ -2128,7 +2144,7 @@ case "${1:-}" in
         ;;
 
     --version|-v)
-        echo "ai-coding-usage version $VERSION"
+        echo "analyze-usage version $VERSION"
         ;;
 
     reload)
@@ -2149,7 +2165,7 @@ case "${1:-}" in
 
     query|q)
         if [ -z "${2:-}" ]; then
-            echo "Usage: ai-coding-usage query \"SQL QUERY\"" >&2
+            echo "Usage: analyze-usage query \"SQL QUERY\"" >&2
             exit 1
         fi
         run_query "$2"
@@ -2179,7 +2195,7 @@ case "${1:-}" in
 
     *)
         echo "Unknown command: $1" >&2
-        echo "Run 'ai-coding-usage --help' for usage" >&2
+        echo "Run 'analyze-usage --help' for usage" >&2
         exit 1
         ;;
 esac

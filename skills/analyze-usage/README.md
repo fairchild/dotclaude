@@ -1,4 +1,4 @@
-# ai-coding-usage
+# analyze-usage
 
 Unified usage analyzer for AI coding assistants (Claude Code & Cursor).
 
@@ -8,24 +8,24 @@ Loads local logs into a **persistent DuckDB database** for SQL-based analysis. D
 
 ```bash
 # Install
-cp ai-coding-usage ~/.local/bin/
-chmod +x ~/.local/bin/ai-coding-usage
+cp analyze-usage ~/.local/bin/
+chmod +x ~/.local/bin/analyze-usage
 
 # First run - loads data and shows summary
-ai-coding-usage
+analyze-usage
 
 # See what's available
-ai-coding-usage --schema
+analyze-usage --schema
 
 # Query your data
-ai-coding-usage query "SELECT * FROM tool_summary"
+analyze-usage query "SELECT * FROM tool_summary"
 ```
 
 ## Features
 
 - **Unified**: Loads both Claude Code and Cursor data into one database
 - **Incremental**: Auto-detects new/changed files and updates only what's needed
-- **Persistent**: DuckDB database persists between runs (`~/.local/share/ai-coding-usage/usage.duckdb`)
+- **Persistent**: DuckDB database persists between runs (`~/.local/share/analyze-usage/usage.duckdb`)
 - **Safe**: Timestamped backup before every load/reload
 - **Agent-friendly**: `--help` and `--schema` provide complete documentation for AI agents
 - **Fast**: DuckDB is extremely fast for analytical queries
@@ -34,22 +34,22 @@ ai-coding-usage query "SELECT * FROM tool_summary"
 
 | Command | Description |
 |---------|-------------|
-| `ai-coding-usage` | Auto-detect changes, incremental update, show summary |
-| `ai-coding-usage update` | Explicit incremental update |
-| `ai-coding-usage reload` | Force reload all data (with backup) |
-| `ai-coding-usage --help` | Detailed help documentation |
-| `ai-coding-usage --schema` | Database schema with example queries |
-| `ai-coding-usage query "SQL"` | Execute a SQL query |
-| `ai-coding-usage search "query"` | Search conversation content |
-| `ai-coding-usage shell` | Open interactive DuckDB shell |
+| `analyze-usage` | Auto-detect changes, incremental update, show summary |
+| `analyze-usage update` | Explicit incremental update |
+| `analyze-usage reload` | Force reload all data (with backup) |
+| `analyze-usage --help` | Detailed help documentation |
+| `analyze-usage --schema` | Database schema with example queries |
+| `analyze-usage query "SQL"` | Execute a SQL query |
+| `analyze-usage search "query"` | Search conversation content |
+| `analyze-usage shell` | Open interactive DuckDB shell |
 
 ## For AI Agents
 
 This tool is designed to be used by AI coding agents. To analyze usage:
 
-1. Run `ai-coding-usage --schema` to get the complete database schema
+1. Run `analyze-usage --schema` to get the complete database schema
 2. Write SQL queries based on the schema documentation
-3. Execute queries with `ai-coding-usage query "YOUR SQL"`
+3. Execute queries with `analyze-usage query "YOUR SQL"`
 
 ## Search
 
@@ -57,19 +57,19 @@ Search conversation content across all indexed sessions:
 
 ```bash
 # ILIKE search (default)
-ai-coding-usage search "memory"
+analyze-usage search "memory"
 
 # BM25 full-text search
-ai-coding-usage search "memory" --fts
+analyze-usage search "memory" --fts
 
 # Search reasoning traces
-ai-coding-usage search "memory" --thinking
+analyze-usage search "memory" --thinking
 
 # Search both content and thinking
-ai-coding-usage search "memory" --all
+analyze-usage search "memory" --all
 
 # Filters
-ai-coding-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
+analyze-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
 ```
 
 | Flag | Description |
@@ -142,7 +142,7 @@ ai-coding-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
 | `usage_with_cost` | Tool invocations with pre-calculated `cost_usd` |
 | `cost_summary` | Pre-aggregated costs by repo/model |
 
-Run `ai-coding-usage --schema` for complete documentation.
+Run `analyze-usage --schema` for complete documentation.
 
 ## Example Queries
 
@@ -200,7 +200,7 @@ ORDER BY week DESC;
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `AI_CODING_USAGE_DB` | `~/.local/share/ai-coding-usage/usage.duckdb` | Database path |
+| `ANALYZE_USAGE_DB` | `~/.local/share/analyze-usage/usage.duckdb` | Database path |
 | `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Claude Code logs path |
 
 ## Requirements
@@ -214,6 +214,6 @@ ORDER BY week DESC;
 2. On subsequent runs, auto-detects new/changed files via mtime comparison
 3. Incrementally updates only changed files (delete stale rows by `source_file`, reinsert)
 4. Creates timestamped backup before every load/reload
-5. Database persists at `~/.local/share/ai-coding-usage/usage.duckdb`
+5. Database persists at `~/.local/share/analyze-usage/usage.duckdb`
 
 Use `reload` to force a full rebuild from scratch.
