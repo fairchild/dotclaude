@@ -58,7 +58,7 @@ This is why **promotion to `core/` matters** — a memory block in `core/` gets 
 │   │   └── *.md                    # Promoted from archival by consolidation
 │   ├── archival/                   # Searchable deep storage
 │   │   └── *.md                    # Tagged blocks with frontmatter
-│   └── recall/                     # Session summaries
+│   └── journal/                     # Session summaries
 │       └── *.md
 │
 ├── oracle/                         # Another teammate
@@ -113,7 +113,7 @@ Managed by: the remember agent writes new blocks here. The consolidation agent m
 
 ### Tier 3: Recall Memory (session history)
 
-Files in `<teammate>/recall/` contain session summaries. Integration point with Chronicle — session blocks can be mirrored here.
+Files in `<teammate>/journal/` contain session summaries. Integration point with Chronicle — session blocks can be mirrored here.
 
 Includes: what was accomplished, decisions made, pending threads, files modified.
 
@@ -233,7 +233,7 @@ What NOT to remember:
 - Information already in core/ or archival/
 - Temporary context (current branch, today's task)
 
-**Recall**: When the teammate suspects relevant context exists that isn't in its loaded core memories, it fires a background `recall` agent to search archival/ and recall/.
+**Recall**: When the teammate suspects relevant context exists that isn't in its loaded core memories, it fires a background `recall` agent to search archival/ and journal/.
 
 Triggers for recall:
 - Starting work on a project seen before
@@ -391,7 +391,7 @@ Memory data in `~/.ai-memory/` is user-specific and not part of the skill distri
 | System | Relationship |
 |--------|-------------|
 | **Auto memory** | Complementary. Auto memory handles per-project patterns. Team-memory handles cross-project personality and relationship. |
-| **Chronicle** | Integration point. Chronicle session blocks can be mirrored to recall/. Sleep-extract may read Chronicle data. |
+| **Chronicle** | Integration point. Chronicle session blocks can be mirrored to journal/. Sleep-extract may read Chronicle data. |
 | **Remember/recall agents** | Superseded. The team-memory agents replace these with persona-aware versions. |
 | **CLAUDE.md** | Extended. Team-memory adds an additional CLAUDE.md via --add-dir, layered on top of existing project/user CLAUDE.md. |
 

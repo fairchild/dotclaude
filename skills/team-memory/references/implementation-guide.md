@@ -30,7 +30,7 @@ A Claude Code skill with these components (in implementation order):
    - `human.md.tmpl` — starter human profile
 
 2. **init.sh** — Script that bootstraps `~/.ai-memory/<name>/` from templates:
-   - Creates directory structure (core/, archival/, recall/)
+   - Creates directory structure (core/, archival/, journal/)
    - Copies and interpolates templates
    - Creates `~/.ai-memory/shared/` if it doesn't exist
    - Sets up `active` symlink if this is the first teammate
@@ -53,7 +53,7 @@ A Claude Code skill with these components (in implementation order):
    - Checks for duplicates before writing (grep existing blocks)
 
 6. **references/agents/recall.md** — Background agent that searches memories:
-   - Searches archival/ and recall/ using Grep
+   - Searches archival/ and journal/ using Grep
    - Reads matching blocks
    - Returns relevant memories to the main agent
    - Searches core/ too for completeness

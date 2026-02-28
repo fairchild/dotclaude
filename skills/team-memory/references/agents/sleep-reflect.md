@@ -21,7 +21,7 @@ The calling prompt provides:
 Read these files:
 - `<memory_dir>/personality.md`
 - `<memory_dir>/relationship.md`
-- Recent recall summaries: `Glob pattern="*.md" path="<memory_dir>/recall/"`
+- Recent journal entries: `Glob pattern="*.md" path="<memory_dir>/journal/"`
 
 ### 2. Find session context
 

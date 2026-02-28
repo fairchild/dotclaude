@@ -45,7 +45,7 @@ interpolate() {
 echo "Creating teammate: $NAME"
 
 # Create directory structure
-mkdir -p "$PERSONA_DIR/core" "$PERSONA_DIR/archival" "$PERSONA_DIR/recall"
+mkdir -p "$PERSONA_DIR/core" "$PERSONA_DIR/archival" "$PERSONA_DIR/journal"
 
 # Generate default theme.json
 cat > "$PERSONA_DIR/theme.json" << 'EOF'

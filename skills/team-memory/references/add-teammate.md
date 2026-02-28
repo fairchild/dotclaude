@@ -122,7 +122,7 @@ After the first session ends, check that memory was created:
 
 ```bash
 ls ~/.ai-memory/<name>/archival/   # Should have memory blocks
-ls ~/.ai-memory/<name>/recall/     # Should have a session summary
+ls ~/.ai-memory/<name>/journal/     # Should have a session summary
 cat ~/.ai-memory/<name>/relationship.md  # Should be updated
 ```
 

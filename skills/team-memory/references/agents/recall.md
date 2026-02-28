@@ -1,6 +1,6 @@
 ---
 name: recall
-description: "Background agent that searches memories across archival, core, and recall storage. Returns relevant memories to the main agent."
+description: "Background agent that searches memories across archival, core, and journal storage. Returns relevant memories to the main agent."
 tools: [Read, Glob, Grep]
 model: haiku
 ---
@@ -27,9 +27,9 @@ Grep pattern="<search terms>" path="<memory_dir>/core/"
 Grep pattern="<search terms>" path="<memory_dir>/archival/"
 ```
 
-### 3. Session recall (session summaries)
+### 3. Session journal (session summaries)
 ```
-Grep pattern="<search terms>" path="<memory_dir>/recall/"
+Grep pattern="<search terms>" path="<memory_dir>/journal/"
 ```
 
 ### 4. Shared knowledge (cross-teammate)

@@ -1,6 +1,6 @@
 ---
 name: team-memory
-description: "Persistent AI teammate memory framework. Gives Claude Code agents persistent memory, evolving personality, and teammate-like behavior across sessions. Use when setting up personality.md injection, durable memory blocks in ~/.ai-memory, session start/end memory workflows, recall/remember/consolidate scripts, or packaging a distributable memory skill profile."
+description: "Persistent AI teammate memory framework. Gives Claude Code agents persistent memory, evolving personality, and teammate-like behavior across sessions. Use when setting up personality.md injection, durable memory blocks in ~/.ai-memory, session start/end memory workflows, journal/remember/consolidate scripts, or packaging a distributable memory skill profile."
 license: Apache-2.0
 ---
 
@@ -44,7 +44,7 @@ This creates:
 - `~/.ai-memory/<name>/` with CLAUDE.md, personality.md, relationship.md
 - `~/.ai-memory/<name>/core/` — always-loaded memory blocks
 - `~/.ai-memory/<name>/archival/` — searchable deep storage
-- `~/.ai-memory/<name>/recall/` — session summaries
+- `~/.ai-memory/<name>/journal/` — session summaries
 - `~/.ai-memory/shared/` — cross-teammate knowledge (if first teammate)
 - SessionEnd hook for sleep-time compute
 
@@ -96,7 +96,7 @@ ln -sfn <name> ~/.ai-memory/active
 Show memory statistics for a teammate:
 - Count of core/ blocks
 - Count of archival/ blocks
-- Count of recall/ summaries
+- Count of journal/ entries
 - Confidence distribution across blocks
 - Last consolidation date
 - Personality version
@@ -106,7 +106,7 @@ PERSONA="${1:-$(readlink ~/.ai-memory/active)}"
 echo "Teammate: $PERSONA"
 echo "Core blocks: $(ls ~/.ai-memory/$PERSONA/core/*.md 2>/dev/null | wc -l)"
 echo "Archival blocks: $(ls ~/.ai-memory/$PERSONA/archival/*.md 2>/dev/null | wc -l)"
-echo "Session recalls: $(ls ~/.ai-memory/$PERSONA/recall/*.md 2>/dev/null | wc -l)"
+echo "Session journals: $(ls ~/.ai-memory/$PERSONA/journal/*.md 2>/dev/null | wc -l)"
 ```
 
 ## Consolidate (`/team-memory consolidate`)
@@ -138,7 +138,7 @@ Never delete without user confirmation.
 |------|----------|---------|---------|
 | Core | `core/` | @imported in CLAUDE.md | Key decisions, proven patterns, critical preferences |
 | Archival | `archival/` | Searched on demand | Session insights, observed patterns, debugging discoveries |
-| Recall | `recall/` | Searched on demand | Session summaries, open threads |
+| Recall | `journal/` | Searched on demand | Session summaries, open threads |
 
 ### Two Memory Loops
 

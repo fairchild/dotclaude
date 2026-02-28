@@ -75,9 +75,9 @@ project: <if applicable>
 <Concise memory content>
 ```
 
-### 6. Write session summary to recall/
+### 6. Write session summary to journal/
 
-Write a session summary to `<memory_dir>/recall/`:
+Write a session summary to `<memory_dir>/journal/`:
 ```markdown
 ---
 date: <today's date>
