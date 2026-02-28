@@ -132,6 +132,17 @@ interface Script {
   content: string;
 }
 
+interface BlogPost {
+  name: string;
+  filename: string;
+  title: string;
+  date: string;
+  description: string;
+  tags: string[];
+  content: string;
+  images: Record<string, string>; // filename -> base64 data URI
+}
+
 interface ConfigData {
   scannedAt: string;
   readme: string;
@@ -142,6 +153,7 @@ interface ConfigData {
   marketplaces: Marketplace[];
   installedPlugins: InstalledPlugin[];
   mcpServers: McpServer[];
+  blog: BlogPost[];
 }
 
 function parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
@@ -809,6 +821,63 @@ async function scanReadme(): Promise<string> {
   }
 }
 
+async function scanBlog(): Promise<BlogPost[]> {
+  const posts: BlogPost[] = [];
+  const dir = join(CLAUDE_DIR, "blog");
+
+  try {
+    const files = await readdir(dir);
+    for (const file of files) {
+      if (!file.endsWith(".md")) continue;
+
+      const content = await readFile(join(dir, file), "utf-8");
+      const { frontmatter, body } = parseFrontmatter(content);
+
+      // Inline images as base64 data URIs
+      const images: Record<string, string> = {};
+      const imgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+      let match;
+      while ((match = imgRegex.exec(body)) !== null) {
+        const imgPath = match[2];
+        if (imgPath.startsWith("http")) continue;
+        try {
+          const fullPath = join(dir, imgPath);
+          const imgData = await readFile(fullPath);
+          const ext = imgPath.split(".").pop()?.toLowerCase();
+          const mime = ext === "png" ? "image/png" : ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "svg" ? "image/svg+xml" : "image/png";
+          const b64 = Buffer.from(imgData).toString("base64");
+          images[imgPath] = `data:${mime};base64,${b64}`;
+        } catch {
+          // Image not found, skip
+        }
+      }
+
+      // Parse tags from frontmatter (handle both array and inline formats)
+      let tags: string[] = [];
+      if (Array.isArray(frontmatter.tags)) {
+        tags = frontmatter.tags as string[];
+      } else if (typeof frontmatter.tags === "string") {
+        tags = (frontmatter.tags as string).split(",").map(t => t.trim());
+      }
+
+      posts.push({
+        name: file.replace(".md", ""),
+        filename: file,
+        title: (frontmatter.title as string) || file.replace(/^\d{4}-\d{2}-\d{2}-/, "").replace(".md", "").replace(/-/g, " "),
+        date: (frontmatter.date as string) || file.slice(0, 10),
+        description: (frontmatter.description as string) || "",
+        tags,
+        content: body.trim(),
+        images,
+      });
+    }
+  } catch (e) {
+    // blog/ directory may not exist
+  }
+
+  return posts.sort((a, b) => b.date.localeCompare(a.date));
+}
+
 async function main() {
   console.log(`Scanning ${CLAUDE_DIR}...\n`);
 
@@ -822,6 +891,7 @@ async function main() {
     marketplaces: await scanMarketplaces(),
     installedPlugins: await scanInstalledPlugins(),
     mcpServers: await scanMcpServers(),
+    blog: await scanBlog(),
   };
 
   // URL Validation
@@ -859,6 +929,7 @@ async function main() {
   console.log(`Marketplaces: ${data.marketplaces.length}`);
   console.log(`Plugins:      ${data.installedPlugins.length}`);
   console.log(`MCP Servers:  ${data.mcpServers.length}`);
+  console.log(`Blog Posts:   ${data.blog.length}`);
   console.log(`\nWritten to: ${outputPath}`);
 }
 
