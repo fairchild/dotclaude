@@ -1,9 +1,9 @@
 /**
- * Usage queries for Chronicle - fetch data from ai-coding-usage DuckDB.
+ * Usage queries for Chronicle - fetch data from analyze-usage DuckDB.
  */
 import { execSync } from "child_process";
 
-const DB_PATH = `${process.env.HOME}/.local/share/ai-coding-usage/usage.duckdb`;
+const DB_PATH = `${process.env.HOME}/.local/share/analyze-usage/usage.duckdb`;
 
 // Extended PATH for shell commands (includes homebrew, mise shims, etc.)
 const SHELL_PATH = [
