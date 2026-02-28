@@ -73,6 +73,10 @@ config/notification_states.json
 .DS_Store
 Thumbs.db
 
+# Local artifacts
+backups/
+mcp-needs-auth-cache.json
+
 # Temporary files
 .trash
 tmp/
