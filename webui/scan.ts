@@ -146,6 +146,7 @@ interface BlogPost {
 interface ConfigData {
   scannedAt: string;
   readme: string;
+  claudeMd: string;
   commands: Command[];
   agents: Agent[];
   skills: Skill[];
@@ -154,6 +155,7 @@ interface ConfigData {
   installedPlugins: InstalledPlugin[];
   mcpServers: McpServer[];
   blog: BlogPost[];
+  sectionIntros: Record<string, string>;
 }
 
 function parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
@@ -821,6 +823,15 @@ async function scanReadme(): Promise<string> {
   }
 }
 
+async function scanClaudeMd(): Promise<string> {
+  const claudePath = join(CLAUDE_DIR, "CLAUDE.md");
+  try {
+    return await readFile(claudePath, "utf-8");
+  } catch {
+    return "";
+  }
+}
+
 async function scanBlog(): Promise<BlogPost[]> {
   const posts: BlogPost[] = [];
   const dir = join(CLAUDE_DIR, "blog");
@@ -884,6 +895,7 @@ async function main() {
   const data: ConfigData = {
     scannedAt: new Date().toISOString(),
     readme: await scanReadme(),
+    claudeMd: await scanClaudeMd(),
     commands: await scanCommands(),
     agents: await scanAgents(),
     skills: await scanSkills(),
@@ -892,6 +904,17 @@ async function main() {
     installedPlugins: await scanInstalledPlugins(),
     mcpServers: await scanMcpServers(),
     blog: await scanBlog(),
+    sectionIntros: {
+      claude: "Personal instructions loaded into every Claude Code session. The ~/.claude/CLAUDE.md file.",
+      commands: "Slash commands available in every Claude Code session. Defined in ~/.claude/commands/.",
+      agents: "Background agents that run autonomously. Defined in ~/.claude/agents/.",
+      skills: "Specialized capabilities and workflows that extend Claude's abilities. Defined in ~/.claude/skills/.",
+      scripts: "Custom utility scripts callable by skills and agents. Located in ~/.claude/scripts/.",
+      marketplaces: "Plugin registries that provide installable extensions.",
+      plugins: "Extensions installed from marketplaces.",
+      mcp: "Model Context Protocol servers providing external tool integrations.",
+      blog: "Notes and reflections on building with Claude Code. Written in ~/.claude/blog/.",
+    },
   };
 
   // URL Validation

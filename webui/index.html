@@ -579,6 +579,14 @@
     }
 
     /* README section */
+    .section-intro {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin: 0 0 1.5rem 0;
+      padding: 0;
+      font-style: italic;
+    }
+
     .readme-container {
       background: var(--bg-surface);
       border: 1px solid var(--border);
@@ -1006,21 +1014,18 @@
         <div class="stat-count" id="count-mcp">--</div>
         <div class="stat-label">MCP Servers</div>
       </div>
-      <div class="stat" data-section="blog" tabindex="0" role="button" aria-label="View blog posts">
-        <div class="stat-count" id="count-blog">--</div>
-        <div class="stat-label">Blog</div>
-      </div>
     </div>
 
     <nav class="tabs" id="tabs" role="tablist" aria-label="Configuration sections">
       <button id="tab-readme" class="tab active" data-section="readme" role="tab" aria-selected="true" aria-controls="readme">README</button>
+      <button id="tab-claude" class="tab" data-section="claude" role="tab" aria-selected="false" aria-controls="claude">CLAUDE.md</button>
+      <button id="tab-scripts" class="tab" data-section="scripts" role="tab" aria-selected="false" aria-controls="scripts">scripts/</button>
       <button id="tab-commands" class="tab" data-section="commands" role="tab" aria-selected="false" aria-controls="commands">/commands</button>
       <button id="tab-agents" class="tab" data-section="agents" role="tab" aria-selected="false" aria-controls="agents">/agents</button>
       <button id="tab-skills" class="tab" data-section="skills" role="tab" aria-selected="false" aria-controls="skills">/skills</button>
       <button id="tab-marketplaces" class="tab" data-section="marketplaces" role="tab" aria-selected="false" aria-controls="marketplaces">/marketplaces</button>
       <button id="tab-plugins" class="tab" data-section="plugins" role="tab" aria-selected="false" aria-controls="plugins">/plugins</button>
       <button id="tab-mcp" class="tab" data-section="mcp" role="tab" aria-selected="false" aria-controls="mcp">/mcp</button>
-      <button id="tab-scripts" class="tab" data-section="scripts" role="tab" aria-selected="false" aria-controls="scripts">$scripts</button>
       <button id="tab-blog" class="tab" data-section="blog" role="tab" aria-selected="false" aria-controls="blog">blog</button>
     </nav>
 
@@ -1092,7 +1097,7 @@
 
     function navigateToHash() {
       const { section, card } = parseHash();
-      const validSections = ['readme', 'commands', 'agents', 'skills', 'marketplaces', 'plugins', 'mcp', 'scripts', 'blog'];
+      const validSections = ['claude', 'readme', 'commands', 'agents', 'skills', 'marketplaces', 'plugins', 'mcp', 'scripts', 'blog'];
       const targetSection = validSections.includes(section) ? section : 'readme';
 
       // Update UI
@@ -1226,7 +1231,6 @@ ${skill.content}`);
       document.getElementById('count-marketplaces').textContent = data.marketplaces.length;
       document.getElementById('count-plugins').textContent = data.installedPlugins.length;
       document.getElementById('count-mcp').textContent = data.mcpServers.length;
-      document.getElementById('count-blog').textContent = (data.blog || []).length;
     }
 
     function renderSection(section) {
@@ -1234,6 +1238,9 @@ ${skill.content}`);
       let html = '';
 
       switch (section) {
+        case 'claude':
+          html = renderClaude();
+          break;
         case 'readme':
           html = renderReadme();
           break;
@@ -1263,6 +1270,11 @@ ${skill.content}`);
           break;
       }
 
+      const intro = data.sectionIntros?.[section];
+      if (intro) {
+        html = `<p class="section-intro">${escapeHtml(intro)}</p>` + html;
+      }
+
       content.innerHTML = `<section id="${section}" class="section active" role="tabpanel" aria-labelledby="tab-${section}">${html}</section>`;
 
       // Stagger card animations (capped at 500ms total)
@@ -1272,6 +1284,14 @@ ${skill.content}`);
       cards.forEach((card, i) => {
         card.style.animationDelay = `${i * delayPerCard}s`;
       });
+    }
+
+    function renderClaude() {
+      const content = data.claudeMd || '';
+      if (!content) {
+        return '<div class="empty"><div class="empty-icon">📋</div><p>No CLAUDE.md found</p><p style="color:var(--text-muted)">Create ~/.claude/CLAUDE.md to add personal instructions</p></div>';
+      }
+      return `<div class="readme-container"><div class="readme-content">${renderMarkdown(content)}</div></div>`;
     }
 
     function renderReadme() {

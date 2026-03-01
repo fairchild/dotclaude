@@ -70,13 +70,13 @@ test.describe("Claude Config Visualizer", () => {
   });
 
   test("tabs navigate between sections", async ({ page }) => {
-    const tabs = ["readme", "commands", "agents", "skills", "marketplaces", "plugins", "mcp", "scripts"];
+    const tabs = ["claude", "readme", "commands", "agents", "skills", "marketplaces", "plugins", "mcp", "scripts", "blog"];
 
     for (const tab of tabs) {
       await page.click(`.tab[data-section="${tab}"]`);
       await expect(page.locator(`.tab[data-section="${tab}"]`)).toHaveClass(/active/);
-      // readme tab doesn't have a stat card
-      if (tab !== "readme") {
+      // claude, readme, and blog tabs don't have stat cards
+      if (tab !== "readme" && tab !== "claude" && tab !== "blog") {
         await expect(page.locator(`.stat[data-section="${tab}"]`)).toHaveClass(/active/);
       }
     }
