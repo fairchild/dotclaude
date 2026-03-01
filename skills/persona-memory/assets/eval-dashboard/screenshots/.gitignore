@@ -1,0 +1,6 @@
+# Keep only a curated compressed sample in git.
+*
+!.gitignore
+!README.md
+!sample/
+!sample/**

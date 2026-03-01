@@ -7,6 +7,7 @@ REPO_ROOT="$(cd "$SKILL_DIR/../.." && pwd)"
 
 INIT_SCRIPT="$SKILL_DIR/scripts/init.sh"
 SESSION_END_SCRIPT="$SKILL_DIR/scripts/session-end.sh"
+LAUNCH_SCRIPT="$SKILL_DIR/scripts/launch.sh"
 SKILL_DOC="$SKILL_DIR/SKILL.md"
 TEMPLATE="$SKILL_DIR/templates/CLAUDE.md.tmpl"
 ORCHESTRATOR="$REPO_ROOT/agents/team-memory-sleep.md"
@@ -38,7 +39,7 @@ command -v jq >/dev/null 2>&1 || fail "jq is required for regression checks"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-echo "[1/4] bootstrap wires dedicated team-memory session-end hook"
+echo "[1/5] bootstrap wires dedicated team-memory session-end hook"
 home_init="$tmp/home-init"
 mkdir -p "$home_init/.claude"
 cat > "$home_init/.claude/settings.json" <<'JSON'
@@ -69,11 +70,40 @@ hook_count=$(jq -r '.hooks.SessionEnd[]?.hooks[]?.command // empty' "$home_init/
 HOME="$home_init" AI_MEMORY_DIR="$home_init/.ai-memory" bash "$INIT_SCRIPT" oracle >/dev/null
 hook_count=$(jq -r '.hooks.SessionEnd[]?.hooks[]?.command // empty' "$home_init/.claude/settings.json" | grep -F -c "~/.claude/skills/team-memory/scripts/session-end.sh" || true)
 [ "$hook_count" -eq 1 ] || fail "Expected exactly one team-memory SessionEnd hook after repeated init"
+
+# Reordered SessionEnd entries should still be detected as already wired.
+cat > "$home_init/.claude/settings.json" <<'JSON'
+{
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/skills/team-memory/scripts/session-end.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/other-session-end.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+JSON
+HOME="$home_init" AI_MEMORY_DIR="$home_init/.ai-memory" bash "$INIT_SCRIPT" atlas >/dev/null
+hook_count=$(jq -r '.hooks.SessionEnd[]?.hooks[]?.command // empty' "$home_init/.claude/settings.json" | grep -F -c "~/.claude/skills/team-memory/scripts/session-end.sh" || true)
+[ "$hook_count" -eq 1 ] || fail "Expected exactly one team-memory SessionEnd hook when existing hook is not the last SessionEnd entry"
 if ! cmp -s "$SKILL_ORCHESTRATOR" "$home_init/.claude/agents/team-memory-sleep.md"; then
   fail "Expected init.sh to install synced global team-memory-sleep agent"
 fi
 
-echo "[2/4] session-end uses hook transcript_path and explicit persona vars"
+echo "[2/5] session-end uses hook transcript_path and explicit persona vars"
 home_hook="$tmp/home-hook"
 mkdir -p "$home_hook/.claude/projects/demo" "$tmp/bin"
 hook_transcript="$tmp/hook-transcript.jsonl"
@@ -119,7 +149,7 @@ if ! cmp -s "$SKILL_ORCHESTRATOR" "$home_hook/.claude/agents/team-memory-sleep.m
   fail "Expected session-end.sh to sync global team-memory-sleep agent"
 fi
 
-echo "[3/4] transcript fallback is opt-in"
+echo "[3/5] transcript fallback is opt-in"
 capture_fallback="$tmp/session-end-fallback-capture.txt"
 HOME="$home_hook" \
 PATH="$tmp/bin:$PATH" \
@@ -144,7 +174,40 @@ JSON
 
 assert_file_contains "$capture_fallback" "AI_MEMORY_TRANSCRIPT:$home_hook/.claude/projects/demo/fallback.jsonl"
 
-echo "[4/4] prompts are memory-root agnostic"
+echo "[4/5] launch defaults to safe permissions and avoids synthetic prompt"
+home_launch="$tmp/home-launch"
+mkdir -p "$home_launch/.ai-memory/scout" "$tmp/bin-launch"
+ln -sfn scout "$home_launch/.ai-memory/active"
+
+cat > "$tmp/bin-launch/claude" <<'SH'
+#!/bin/bash
+{
+  echo "ARGS:$*"
+  echo "CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD:${CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD:-}"
+} > "$TEAM_MEMORY_LAUNCH_CAPTURE"
+SH
+chmod +x "$tmp/bin-launch/claude"
+
+launch_capture="$tmp/launch-capture.txt"
+TEAM_MEMORY_LAUNCH_CAPTURE="$launch_capture" \
+HOME="$home_launch" \
+PATH="$tmp/bin-launch:$PATH" \
+bash "$LAUNCH_SCRIPT"
+
+assert_file_contains "$launch_capture" "ARGS:--add-dir $home_launch/.ai-memory/scout"
+assert_file_not_contains "$launch_capture" "--dangerously-skip-permissions"
+assert_file_not_contains "$launch_capture" "hi, how's it goin"
+assert_file_contains "$launch_capture" "CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD:1"
+
+launch_capture_unsafe="$tmp/launch-capture-unsafe.txt"
+TEAM_MEMORY_LAUNCH_CAPTURE="$launch_capture_unsafe" \
+HOME="$home_launch" \
+PATH="$tmp/bin-launch:$PATH" \
+bash "$LAUNCH_SCRIPT" --unsafe
+
+assert_file_contains "$launch_capture_unsafe" "ARGS:--add-dir $home_launch/.ai-memory/scout --dangerously-skip-permissions"
+
+echo "[5/5] prompts are memory-root agnostic"
 assert_file_contains "$ORCHESTRATOR" "Memory dir: <MEMORY_DIR>."
 assert_file_not_contains "$ORCHESTRATOR" "Memory dir: ~/.ai-memory/<PERSONA>"
 if ! cmp -s "$SKILL_ORCHESTRATOR" "$ORCHESTRATOR"; then

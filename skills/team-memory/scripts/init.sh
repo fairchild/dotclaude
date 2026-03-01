@@ -153,7 +153,9 @@ fi
 # Wire SessionEnd hook if not already present
 if command -v jq &>/dev/null; then
   # Check if hook already exists.
-  if ! jq -e --arg cmd "$TEAM_MEMORY_HOOK_COMMAND" '.hooks.SessionEnd[]? | any(.hooks[]?; (.command // "") == $cmd)' "$SETTINGS" &>/dev/null; then
+  if ! jq -e --arg cmd "$TEAM_MEMORY_HOOK_COMMAND" \
+    '[.hooks.SessionEnd[]?.hooks[]? | (.command // empty)] | any(. == $cmd)' \
+    "$SETTINGS" &>/dev/null; then
     echo "Wiring SessionEnd hook for sleep-time compute..."
     jq --arg cmd "$TEAM_MEMORY_HOOK_COMMAND" \
       '(.hooks //= {}) | (.hooks.SessionEnd //= []) | .hooks.SessionEnd += [{"hooks":[{"type":"command","command":$cmd}]}]' \

@@ -3,13 +3,13 @@
 # Usage:
 #   launch.sh                        # use active teammate
 #   launch.sh --persona bertram      # use specific teammate
-#   launch.sh --safe                 # require permission prompts
+#   launch.sh --unsafe               # skip permission prompts (opt-in)
 #   launch.sh --persona bertram ~/code/project
 set -euo pipefail
 
 MEMORY_DIR="${AI_MEMORY_DIR:-$HOME/.ai-memory}"
 PERSONA=""
-SKIP_PERMS="--dangerously-skip-permissions"
+SKIP_PERMS=""
 
 is_valid_hex_color() {
   [[ "$1" =~ ^#[0-9A-Fa-f]{6}$ ]]
@@ -23,8 +23,12 @@ while [[ $# -gt 0 ]]; do
       [ -z "$PERSONA" ] && { echo "Error: --persona requires a name"; exit 1; }
       shift 2
       ;;
+    --unsafe)
+      SKIP_PERMS="--dangerously-skip-permissions"
+      shift
+      ;;
     --safe)
-      SKIP_PERMS=""
+      # Backward-compatible no-op: safe mode is now the default.
       shift
       ;;
     *) break ;;
@@ -80,10 +84,5 @@ fi
 CLAUDE_ARGS=(--add-dir "$PERSONA_DIR")
 [[ -n "$SKIP_PERMS" ]] && CLAUDE_ARGS+=("$SKIP_PERMS")
 
-if [[ $# -eq 0 ]]; then
-  CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 \
-    exec claude "${CLAUDE_ARGS[@]}" "hi, how's it goin"
-else
-  CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 \
-    exec claude "${CLAUDE_ARGS[@]}" "$@"
-fi
+CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 \
+  exec claude "${CLAUDE_ARGS[@]}" "$@"
