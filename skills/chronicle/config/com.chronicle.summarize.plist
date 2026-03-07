@@ -26,6 +26,8 @@
     <dict>
         <key>HOME</key>
         <string>/Users/fairchild</string>
+        <key>PATH</key>
+        <string>/Users/fairchild/.local/bin:/Users/fairchild/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
 </dict>
 </plist>

@@ -9,6 +9,13 @@
         <string>/bin/bash</string>
         <string>/Users/fairchild/.claude/skills/chronicle/scripts/sync-reminder.sh</string>
     </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/fairchild</string>
+        <key>PATH</key>
+        <string>/Users/fairchild/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>

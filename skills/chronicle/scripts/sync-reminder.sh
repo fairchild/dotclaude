@@ -7,6 +7,9 @@
 
 set -euo pipefail
 
+# Ensure PATH includes user-installed tools (launchd runs with minimal PATH)
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 # Load .env
 [[ -f "$HOME/.claude/.env" ]] && export $(grep -v '^#' "$HOME/.claude/.env" | xargs)
 
@@ -20,7 +23,7 @@ CHRONICLE_DIR="$HOME/.claude/chronicle/blocks"
 LAST_SYNC_FILE="$HOME/.claude/.chronicle-last-sync"
 
 # Get latest block modification time
-latest_block=$(find "$CHRONICLE_DIR" -name "*.json" -type f -exec stat -f "%m" {} \; 2>/dev/null | sort -rn | head -1)
+latest_block=$(find "$CHRONICLE_DIR" -name "*.json" -type f -exec stat -f "%m" {} \; 2>/dev/null | sort -rn | head -1 || true)
 
 # Get last sync time (0 if never synced)
 last_sync=0
