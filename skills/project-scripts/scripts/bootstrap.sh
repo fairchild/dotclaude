@@ -108,6 +108,34 @@ add_mise_task_includes() {
     fi
 }
 
+write_readme() {
+    local ecosystem="$1"
+    cat > scripts/README.md <<EOF
+# Scripts
+
+Lifecycle scripts for this project ($ecosystem ecosystem).
+
+## Usage
+
+\`\`\`bash
+# With mise (recommended)
+mise run setup
+
+# Direct
+bash scripts/setup
+\`\`\`
+
+## Available Scripts
+
+| Script | Description |
+|--------|-------------|
+| \`setup\` | Install deps, link env |
+| \`run\` | Start dev server |
+| \`stop\` | Stop processes |
+| \`archive\` | Teardown workspace (runs stop first) |
+EOF
+}
+
 print_summary() {
     local ecosystem="$1"
     echo ""
@@ -160,6 +188,7 @@ write_script setup "$setup_body"
 write_script run "$run_body"
 write_script stop "$stop_body"
 write_script archive "$archive_body"
+write_readme "$ecosystem"
 
 chmod +x scripts/setup scripts/run scripts/stop scripts/archive
 

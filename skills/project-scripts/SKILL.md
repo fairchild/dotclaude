@@ -46,6 +46,26 @@ Prepare for workspace teardown. Depends on `stop` — mise handles this automati
 - `stop` must always be idempotent — safe to call when nothing is running
 - `archive` should call `scripts/stop` before cleanup (defensive fallback for non-mise callers)
 - Missing script = no-op (not all projects need all four actions)
+- Maintain a `scripts/README.md` as a quick index — update it when scripts are added or changed
+
+### scripts/README.md
+
+Every `scripts/` directory should include a `README.md` that indexes the available scripts with a brief description of each. This serves both humans browsing the repo and agents discovering available lifecycle actions. Keep it updated as scripts are added, removed, or modified.
+
+Example:
+
+```markdown
+# Scripts
+
+Project lifecycle scripts. Run with `mise run <name>` or `bash scripts/<name>`.
+
+| Script | Description |
+|--------|-------------|
+| `setup` | Install deps, link env. Idempotent — exits fast when nothing to do. |
+| `run` | Start dev server (`bun dev`). |
+| `stop` | Stop dev server. Idempotent — safe when nothing is running. |
+| `archive` | Teardown workspace. Stops processes, cleans build artifacts. |
+```
 
 ### #MISE metadata
 
@@ -131,9 +151,10 @@ To scaffold lifecycle scripts for a project:
 | `Cargo.lock` | cargo |
 
 2. Create `scripts/` with ecosystem-appropriate defaults and `#MISE` metadata
-3. `chmod +x` each script
-4. Optionally add `task_config.includes = ["scripts"]` to mise.toml
-5. Optionally wire into other runtime configs (conductor.json, devcontainer.json, etc.)
+3. Generate `scripts/README.md` indexing the scripts
+4. `chmod +x` each script
+5. Optionally add `task_config.includes = ["scripts"]` to mise.toml
+6. Optionally wire into other runtime configs (conductor.json, devcontainer.json, etc.)
 
 Automated scaffolding:
 ```bash
