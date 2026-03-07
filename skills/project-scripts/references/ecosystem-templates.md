@@ -19,6 +19,7 @@ Per-ecosystem defaults for lifecycle scripts and conductor.json.
 ```bash
 # scripts/setup
 #!/usr/bin/env bash
+#MISE description="Install deps, link env"
 set -euo pipefail
 [[ -f .mise.toml ]] && mise trust && mise install
 bun install
@@ -26,16 +27,20 @@ bun install
 
 # scripts/run
 #!/usr/bin/env bash
+#MISE description="Start dev server"
 set -euo pipefail
 bun dev
 
 # scripts/stop (must be idempotent — safe when nothing is running)
 #!/usr/bin/env bash
+#MISE description="Stop processes"
 set -euo pipefail
 pkill -f "bun dev" 2>/dev/null || true
 
-# scripts/archive (calls stop first, then cleans up)
+# scripts/archive (mise handles stop dep; defensive call for non-mise callers)
 #!/usr/bin/env bash
+#MISE description="Teardown workspace"
+#MISE depends=["stop"]
 set -euo pipefail
 [[ -x scripts/stop ]] && bash scripts/stop
 rm -rf node_modules .turbo
@@ -46,6 +51,7 @@ rm -rf node_modules .turbo
 ```bash
 # scripts/setup
 #!/usr/bin/env bash
+#MISE description="Install deps, link env"
 set -euo pipefail
 [[ -f .mise.toml ]] && mise trust && mise install
 pnpm install
@@ -53,6 +59,7 @@ pnpm install
 
 # scripts/run
 #!/usr/bin/env bash
+#MISE description="Start dev server"
 set -euo pipefail
 pnpm dev
 ```
@@ -62,6 +69,7 @@ pnpm dev
 ```bash
 # scripts/setup
 #!/usr/bin/env bash
+#MISE description="Install deps, link env"
 set -euo pipefail
 [[ -f .mise.toml ]] && mise trust && mise install
 uv sync
@@ -69,6 +77,7 @@ uv sync
 
 # scripts/run
 #!/usr/bin/env bash
+#MISE description="Start dev server"
 set -euo pipefail
 uv run python -m app  # or: uv run uvicorn app:app --reload
 ```
@@ -78,12 +87,14 @@ uv run python -m app  # or: uv run uvicorn app:app --reload
 ```bash
 # scripts/setup
 #!/usr/bin/env bash
+#MISE description="Install deps, link env"
 set -euo pipefail
 npm install
 [[ -n "${CONDUCTOR_ROOT_PATH:-}" && -f "$CONDUCTOR_ROOT_PATH/.env" ]] && cp "$CONDUCTOR_ROOT_PATH/.env" .env
 
 # scripts/run
 #!/usr/bin/env bash
+#MISE description="Start dev server"
 set -euo pipefail
 npm run dev
 ```
@@ -93,14 +104,32 @@ npm run dev
 ```bash
 # scripts/setup
 #!/usr/bin/env bash
+#MISE description="Build project"
 set -euo pipefail
 cargo build
 
 # scripts/run
 #!/usr/bin/env bash
+#MISE description="Run project"
 set -euo pipefail
 cargo run
 ```
+
+## mise.toml Integration
+
+Add to your `mise.toml` to make scripts available as mise tasks:
+
+```toml
+[task_config]
+includes = ["scripts"]
+
+# Optional: auto-setup on project entry (requires mise activate)
+[hooks]
+enter = { task = "setup" }
+leave = { task = "stop" }
+```
+
+Then: `mise run setup`, `mise run archive`, `mise tasks ls`
 
 ## conductor.json Templates
 

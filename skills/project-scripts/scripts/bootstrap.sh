@@ -72,8 +72,6 @@ abort_if_scripts_exist() {
 write_script() {
     local name="$1" body="$2"
     cat > "scripts/$name" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
 $body
 EOF
 }
@@ -96,6 +94,20 @@ JSON
     fi
 }
 
+add_mise_task_includes() {
+    if [[ ! -f mise.toml ]] && [[ ! -f .mise.toml ]]; then return; fi
+    local mise_file
+    if [[ -f mise.toml ]]; then mise_file="mise.toml"; else mise_file=".mise.toml"; fi
+
+    if grep -q 'task_config' "$mise_file" 2>/dev/null; then return; fi
+
+    read -r -p "Add task_config.includes to $mise_file? [y/N] " response 2>/dev/null || response="n"
+    if [[ "$response" =~ ^[Yy]$ ]]; then
+        printf '\n[task_config]\nincludes = ["scripts"]\n' >> "$mise_file"
+        echo "Added task_config.includes to $mise_file"
+    fi
+}
+
 print_summary() {
     local ecosystem="$1"
     echo ""
@@ -103,10 +115,12 @@ print_summary() {
     echo "  scripts/setup    - install deps, link env"
     echo "  scripts/run      - start dev server"
     echo "  scripts/stop     - stop processes (stub)"
-    echo "  scripts/archive  - clean up (stub)"
+    echo "  scripts/archive  - clean up"
     echo ""
-    echo "Review and customize each script, then wire into your runtime:"
-    echo "  See: references/adapters.md"
+    echo "Run with mise (recommended):  mise run setup"
+    echo "Run directly:                 bash scripts/setup"
+    echo ""
+    echo "See: references/adapters.md for wiring into other runtimes"
 }
 
 # --- main ---
@@ -116,19 +130,39 @@ ecosystem="${1:-$(detect_ecosystem_from_lockfile)}"
 abort_if_scripts_exist
 mkdir -p scripts
 
-setup_body="$(mise_setup_line)
+setup_body="#!/usr/bin/env bash
+#MISE description=\"Install deps, link env\"
+set -euo pipefail
+$(mise_setup_line)
 $(install_command_for "$ecosystem")
 $(env_copy_line)"
 
-write_script setup "$setup_body"
-write_script run "$(run_command_for "$ecosystem")"
-write_script stop "# TODO: stop processes, clean transient state (must be idempotent)
-# Example: pkill -f \"bun dev\" 2>/dev/null || true"
-write_script archive "# Stop processes first (stop is idempotent, safe to call always)
+run_body="#!/usr/bin/env bash
+#MISE description=\"Start dev server\"
+set -euo pipefail
+$(run_command_for "$ecosystem")"
+
+stop_body='#!/usr/bin/env bash
+#MISE description="Stop processes"
+set -euo pipefail
+# TODO: stop processes, clean transient state (must be idempotent)
+# Example: pkill -f "bun dev" 2>/dev/null || true'
+
+archive_body="#!/usr/bin/env bash
+#MISE description=\"Teardown workspace\"
+#MISE depends=[\"stop\"]
+set -euo pipefail
+# Stop processes first (defensive fallback for non-mise callers)
 [[ -x scripts/stop ]] && bash scripts/stop
 $(archive_command_for "$ecosystem")"
 
+write_script setup "$setup_body"
+write_script run "$run_body"
+write_script stop "$stop_body"
+write_script archive "$archive_body"
+
 chmod +x scripts/setup scripts/run scripts/stop scripts/archive
 
+add_mise_task_includes
 offer_conductor_json
 print_summary "$ecosystem"

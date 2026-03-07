@@ -2,6 +2,46 @@
 
 How to wire `scripts/` lifecycle actions into each runtime's config format.
 
+## mise (Recommended)
+
+**File:** `mise.toml` at project root
+
+```toml
+[task_config]
+includes = ["scripts"]
+
+[hooks]
+enter = { task = "setup" }
+leave = { task = "stop" }
+```
+
+**How it works:**
+- `task_config.includes = ["scripts"]` makes all executables in `scripts/` available as mise tasks
+- `mise run setup`, `mise run archive`, etc. invoke the scripts with mise's environment
+- `enter` hook runs setup automatically when you cd into the project (requires `mise activate`)
+- `leave` hook runs stop when you leave the project
+- `#MISE depends=["stop"]` in archive script means `mise run archive` runs stop first automatically
+- Env vars from `[env]` in mise.toml are injected into all tasks
+
+**Env vars available:** `$MISE_PROJECT_ROOT`, `$MISE_CONFIG_ROOT`, `$MISE_TASK_NAME`
+
+**Limitation:** `enter`/`leave` hooks only work in interactive shells with `mise activate`. CI, Claude Code sessions, and Conductor need direct invocation (`bash scripts/setup`) or the adapters below.
+
+**TOML task wrappers (alternative):**
+
+Instead of `task_config.includes`, you can wrap scripts as TOML tasks for richer metadata without modifying the scripts:
+
+```toml
+[tasks.setup]
+description = "Install deps, link env"
+file = "scripts/setup"
+
+[tasks.archive]
+description = "Teardown workspace"
+depends = ["stop"]
+file = "scripts/archive"
+```
+
 ## Conductor
 
 **File:** `conductor.json` at project root
