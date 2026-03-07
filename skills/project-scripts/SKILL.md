@@ -24,7 +24,7 @@ Single-file shell scripts in `scripts/` are the portable source of truth for pro
 | `archive` | Package outputs, push branches, clean up | Before workspace destruction |
 
 ### setup
-Idempotent. Install dependencies, copy secrets from `$CONDUCTOR_ROOT_PATH`, run `mise trust`. Should be safe to run repeatedly.
+Idempotent and fast when nothing has changed. Should check state before doing work — if deps are installed and env is linked, exit early. This matters because mise's `enter` hook runs setup on every project entry. Safe to run repeatedly.
 
 ### run
 Start the dev server or main workflow. May be long-running (blocks until killed). For projects without a dev server, this can run tests or a REPL.
@@ -42,6 +42,7 @@ Prepare for workspace teardown. Depends on `stop` — mise handles this automati
 - Optional `#MISE` metadata comments for description, dependencies, tool requirements
 - No positional args — use env vars (`$CONDUCTOR_ROOT_PATH`, `$CLAUDE_PROJECT_DIR`)
 - Idempotent where possible, exit non-zero on failure
+- `setup` must be idempotent and fast — exit early when nothing to do
 - `stop` must always be idempotent — safe to call when nothing is running
 - `archive` should call `scripts/stop` before cleanup (defensive fallback for non-mise callers)
 - Missing script = no-op (not all projects need all four actions)
