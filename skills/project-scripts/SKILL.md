@@ -50,9 +50,17 @@ Prepare for workspace teardown. Depends on `stop` — mise handles this automati
 
 ### scripts/README.md
 
-Every `scripts/` directory should include a `README.md` that indexes the available scripts with a brief description of each. This serves both humans browsing the repo and agents discovering available lifecycle actions. Keep it updated as scripts are added, removed, or modified.
+Every `scripts/` directory should include a `README.md` that indexes the available scripts with a brief description of each. This serves both humans browsing the repo and agents discovering available lifecycle actions.
 
-Example:
+**Updating the README:**
+- Read the existing README before modifying — never blindly overwrite it
+- Projects accumulate utility scripts beyond the four lifecycle actions; preserve descriptions and sections added by humans
+- Add new scripts to the appropriate table; remove entries for deleted scripts
+- If the README has custom sections (e.g., grouped tables for lifecycle vs utility scripts, usage notes, examples), preserve that structure and add within it
+- Descriptions should be written by the agent based on reading the actual script, not from a template
+- Bootstrap generates a starter README; all subsequent updates should be surgical edits
+
+Example (initial bootstrap):
 
 ```markdown
 # Scripts

@@ -109,6 +109,10 @@ add_mise_task_includes() {
 }
 
 write_readme() {
+    if [[ -f scripts/README.md ]]; then
+        echo "scripts/README.md already exists — skipping (update manually)"
+        return
+    fi
     local ecosystem="$1"
     cat > scripts/README.md <<EOF
 # Scripts
