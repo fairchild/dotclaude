@@ -41,7 +41,7 @@ How to wire `scripts/` lifecycle actions into each runtime's config format.
         ]
       }
     ],
-    "Stop": [
+    "session_end": [
       {
         "matcher": "",
         "hooks": [
@@ -60,7 +60,7 @@ How to wire `scripts/` lifecycle actions into each runtime's config format.
 | Action | Hook Event | Notes |
 |--------|-----------|-------|
 | setup | `SessionStart` | Runs once when session begins |
-| stop | `Stop` | Runs when agent completes |
+| stop | `session_end` | Runs once when session ends |
 
 **Env vars available:** `$CLAUDE_PROJECT_DIR`, `$CLAUDE_ENV_FILE`
 

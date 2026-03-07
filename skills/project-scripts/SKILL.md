@@ -88,7 +88,7 @@ Each runtime has its own config format that points at the scripts:
 | Runtime | Config file | setup | run |
 |---------|------------|-------|-----|
 | Conductor | `conductor.json` | `"setup": "bash scripts/setup"` | `"run": "bash scripts/run"` |
-| Claude Code | `.claude/settings.json` | SessionStart hook | — |
+| Claude Code | `.claude/settings.json` | SessionStart hook | session_end hook |
 | Devcontainer | `devcontainer.json` | `postCreateCommand` | `postStartCommand` |
 | Cursor | `environment.json` | `workspace.setup` | `workspace.run` |
 | Codex | `codex.yaml` | `lifecycle.setup` | `lifecycle.run` |
