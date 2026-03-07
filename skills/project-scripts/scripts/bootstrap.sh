@@ -5,7 +5,9 @@ set -euo pipefail
 # Usage: bash bootstrap.sh [ecosystem]
 # If ecosystem is omitted, detects from lockfile.
 
-detect_ecosystem() {
+# --- template generators (produce lines for the generated scripts) ---
+
+detect_ecosystem_from_lockfile() {
     if [[ -f bun.lock || -f bun.lockb ]]; then echo "bun"
     elif [[ -f pnpm-lock.yaml ]]; then echo "pnpm"
     elif [[ -f package-lock.json ]]; then echo "npm"
@@ -15,87 +17,72 @@ detect_ecosystem() {
     fi
 }
 
-ECOSYSTEM="${1:-$(detect_ecosystem)}"
+install_command_for() {
+    case "$1" in
+        bun)   echo "bun install" ;;
+        pnpm)  echo "pnpm install" ;;
+        npm)   echo "npm install" ;;
+        uv)    echo "uv sync" ;;
+        cargo) echo "cargo build" ;;
+        *)     echo "# TODO: add setup commands for your project" ;;
+    esac
+}
 
-for action in setup run stop archive; do
-    if [[ -f "scripts/$action" || -f "scripts/$action.sh" ]]; then
-        echo "Found existing scripts/$action. Aborting to avoid clobbering."
-        exit 1
+run_command_for() {
+    case "$1" in
+        bun)   echo "bun dev" ;;
+        pnpm)  echo "pnpm dev" ;;
+        npm)   echo "npm run dev" ;;
+        uv)    echo "uv run dev" ;;
+        cargo) echo "cargo run" ;;
+        *)     echo "# TODO: add run command" ;;
+    esac
+}
+
+archive_command_for() {
+    case "$1" in
+        bun|pnpm|npm) echo "rm -rf node_modules" ;;
+        uv)           echo "rm -rf .venv" ;;
+        cargo)        echo "cargo clean" ;;
+        *)            echo "# TODO: add archive commands" ;;
+    esac
+}
+
+mise_setup_line() {
+    if [[ -f .mise.toml ]]; then
+        echo "mise trust && mise install"
     fi
-done
+}
 
-mkdir -p scripts
+env_copy_line() {
+    echo '[[ -n "${CONDUCTOR_ROOT_PATH:-}" && -f "$CONDUCTOR_ROOT_PATH/.env" ]] && cp "$CONDUCTOR_ROOT_PATH/.env" .env'
+}
 
-has_mise() { [[ -f .mise.toml ]]; }
-has_conductor_root() { echo '[[ -n "${CONDUCTOR_ROOT_PATH:-}" && -f "$CONDUCTOR_ROOT_PATH/.env" ]] && cp "$CONDUCTOR_ROOT_PATH/.env" .env'; }
+# --- actions ---
 
-# --- setup ---
-setup_body=""
-if has_mise; then
-    setup_body+="mise trust && mise install"$'\n'
-fi
+abort_if_scripts_exist() {
+    for action in setup run stop archive; do
+        if [[ -f "scripts/$action" || -f "scripts/$action.sh" ]]; then
+            echo "Found existing scripts/$action. Aborting to avoid clobbering."
+            exit 1
+        fi
+    done
+}
 
-case "$ECOSYSTEM" in
-    bun)   setup_body+="bun install" ;;
-    pnpm)  setup_body+="pnpm install" ;;
-    npm)   setup_body+="npm install" ;;
-    uv)    setup_body+="uv sync" ;;
-    cargo) setup_body+="cargo build" ;;
-    *)     setup_body+="# TODO: add setup commands for your project" ;;
-esac
-
-cat > scripts/setup <<EOF
+write_script() {
+    local name="$1" body="$2"
+    cat > "scripts/$name" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-$setup_body
-$(has_conductor_root)
+$body
 EOF
+}
 
-# --- run ---
-case "$ECOSYSTEM" in
-    bun)   run_cmd="bun dev" ;;
-    pnpm)  run_cmd="pnpm dev" ;;
-    npm)   run_cmd="npm run dev" ;;
-    uv)    run_cmd="uv run dev" ;;
-    cargo) run_cmd="cargo run" ;;
-    *)     run_cmd="# TODO: add run command" ;;
-esac
-
-cat > scripts/run <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-$run_cmd
-EOF
-
-# --- stop ---
-cat > scripts/stop <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-# TODO: stop processes, clean transient state
-# Example: pkill -f "bun dev" 2>/dev/null || true
-EOF
-
-# --- archive ---
-case "$ECOSYSTEM" in
-    bun|pnpm|npm) archive_cmd="rm -rf node_modules" ;;
-    uv)           archive_cmd="rm -rf .venv" ;;
-    cargo)        archive_cmd="cargo clean" ;;
-    *)            archive_cmd="# TODO: add archive commands" ;;
-esac
-
-cat > scripts/archive <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-$archive_cmd
-EOF
-
-chmod +x scripts/setup scripts/run scripts/stop scripts/archive
-
-# --- optional conductor.json ---
-if [[ ! -f conductor.json ]]; then
+offer_conductor_json() {
+    if [[ -f conductor.json ]]; then return; fi
     read -r -p "Create conductor.json? [y/N] " response 2>/dev/null || response="n"
     if [[ "$response" =~ ^[Yy]$ ]]; then
-        cat > conductor.json <<'CONDUCTOR'
+        cat > conductor.json <<'JSON'
 {
   "scripts": {
     "setup": "bash scripts/setup",
@@ -104,17 +91,41 @@ if [[ ! -f conductor.json ]]; then
     "archive": "bash scripts/archive"
   }
 }
-CONDUCTOR
+JSON
         echo "Created conductor.json"
     fi
-fi
+}
 
-echo ""
-echo "Created lifecycle scripts for $ECOSYSTEM:"
-echo "  scripts/setup    - install deps, link env"
-echo "  scripts/run      - start dev server"
-echo "  scripts/stop     - stop processes (stub)"
-echo "  scripts/archive  - clean up (stub)"
-echo ""
-echo "Review and customize each script, then wire into your runtime:"
-echo "  See: references/adapters.md"
+print_summary() {
+    local ecosystem="$1"
+    echo ""
+    echo "Created lifecycle scripts for $ecosystem:"
+    echo "  scripts/setup    - install deps, link env"
+    echo "  scripts/run      - start dev server"
+    echo "  scripts/stop     - stop processes (stub)"
+    echo "  scripts/archive  - clean up (stub)"
+    echo ""
+    echo "Review and customize each script, then wire into your runtime:"
+    echo "  See: references/adapters.md"
+}
+
+# --- main ---
+
+ecosystem="${1:-$(detect_ecosystem_from_lockfile)}"
+
+abort_if_scripts_exist
+mkdir -p scripts
+
+setup_body="$(mise_setup_line)
+$(install_command_for "$ecosystem")
+$(env_copy_line)"
+
+write_script setup "$setup_body"
+write_script run "$(run_command_for "$ecosystem")"
+write_script stop "# TODO: stop processes, clean transient state"
+write_script archive "$(archive_command_for "$ecosystem")"
+
+chmod +x scripts/setup scripts/run scripts/stop scripts/archive
+
+offer_conductor_json
+print_summary "$ecosystem"
