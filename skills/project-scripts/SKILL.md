@@ -32,7 +32,7 @@ Start the dev server or main workflow. May be long-running (blocks until killed)
 Best-effort process cleanup. Kill dev servers, remove temp files. A missing stop script is a no-op.
 
 ### archive
-Prepare for workspace teardown. Push uncommitted work, clean build artifacts, stash changes. The git-worktree skill's `wt archive` calls this via conductor.json.
+Prepare for workspace teardown. Push uncommitted work, clean build artifacts, stash changes. Workspace managers typically call this via conductor.json before destroying a workspace.
 
 ## Script Conventions
 
@@ -87,7 +87,7 @@ Each runtime has its own config format that points at the scripts:
 
 | Runtime | Config file | setup | run |
 |---------|------------|-------|-----|
-| Conductor/wt.sh | `conductor.json` | `"setup": "bash scripts/setup"` | `"run": "bash scripts/run"` |
+| Conductor | `conductor.json` | `"setup": "bash scripts/setup"` | `"run": "bash scripts/run"` |
 | Claude Code | `.claude/settings.json` | SessionStart hook | — |
 | Devcontainer | `devcontainer.json` | `postCreateCommand` | `postStartCommand` |
 | Cursor | `environment.json` | `workspace.setup` | `workspace.run` |

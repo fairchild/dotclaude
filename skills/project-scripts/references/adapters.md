@@ -2,7 +2,7 @@
 
 How to wire `scripts/` lifecycle actions into each runtime's config format.
 
-## Conductor / wt.sh
+## Conductor
 
 **File:** `conductor.json` at project root
 
@@ -18,13 +18,10 @@ How to wire `scripts/` lifecycle actions into each runtime's config format.
 ```
 
 **How it works:**
-- `wt.sh` reads `conductor.json` via `get_conductor_script()` (see `skills/git-worktree/scripts/wt.sh:136`)
-- `setup` runs automatically on `wt <branch>` (worktree creation)
-- `archive` runs on `wt archive` (worktree teardown)
+- Workspace managers read `conductor.json` and call the matching script for each lifecycle event
+- `setup` runs on workspace creation, `archive` runs before workspace teardown
 - `$CONDUCTOR_ROOT_PATH` is set to the main repo path before scripts execute
-- If no conductor.json exists, wt.sh falls back to copying `.env` files
-
-**Key detail:** conductor.json `scripts` values are passed directly to `eval`, so they can be inline commands or script references.
+- Script values are passed directly to `eval`, so they can be inline commands or script references
 
 ## Claude Code Hooks
 
