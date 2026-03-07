@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Start dev server (webui)"
+set -euo pipefail
+bun webui/serve.ts

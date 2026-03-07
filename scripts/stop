@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Stop processes"
+set -euo pipefail
+pkill -f "bun webui/serve" 2>/dev/null || true

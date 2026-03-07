@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+#MISE description="Teardown workspace"
+#MISE depends=["stop"]
+set -euo pipefail
+
+# Stop processes first (defensive fallback for non-mise callers)
+[[ -x scripts/stop ]] && bash scripts/stop
+
+# Sync changes back to origin
+cd "${CONDUCTOR_ROOT_PATH:-.}"
+(git diff --quiet && git diff --cached --quiet || git stash push -u -m 'conductor-archive')
+git pull --rebase 2>/dev/null || true
+git push 2>/dev/null || true
+git stash list | grep -q 'conductor-archive' && git stash pop || true
