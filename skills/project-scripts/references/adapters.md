@@ -9,23 +9,25 @@ How to wire `scripts/` lifecycle actions into each runtime's config format.
 ```toml
 [task_config]
 includes = ["scripts"]
-
-[hooks]
-enter = { task = "setup" }
-leave = { task = "stop" }
 ```
 
 **How it works:**
 - `task_config.includes = ["scripts"]` makes all executables in `scripts/` available as mise tasks
 - `mise run setup`, `mise run archive`, etc. invoke the scripts with mise's environment
-- `enter` hook runs setup automatically when you cd into the project (requires `mise activate`)
-- `leave` hook runs stop when you leave the project
 - `#MISE depends=["stop"]` in archive script means `mise run archive` runs stop first automatically
 - Env vars from `[env]` in mise.toml are injected into all tasks
 
 **Env vars available:** `$MISE_PROJECT_ROOT`, `$MISE_CONFIG_ROOT`, `$MISE_TASK_NAME`
 
-**Limitation:** `enter`/`leave` hooks only work in interactive shells with `mise activate`. CI, Claude Code sessions, and Conductor need direct invocation (`bash scripts/setup`) or the adapters below.
+**Optional enter/leave hooks:** For projects not managed by a harness (Conductor, Claude Code, etc.), mise can trigger lifecycle scripts on directory entry/exit. Only add this when no other runtime is managing the lifecycle — otherwise it duplicates work:
+
+```toml
+[hooks]
+enter = { task = "setup" }
+leave = { task = "stop" }
+```
+
+Requires `mise activate` in an interactive shell. Does not fire in CI, Claude Code sessions, or Conductor.
 
 **TOML task wrappers (alternative):**
 

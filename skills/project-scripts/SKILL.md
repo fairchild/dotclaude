@@ -12,7 +12,7 @@ license: Apache-2.0
 
 # Project Scripts
 
-Single-file shell scripts in `scripts/` are the portable source of truth for project lifecycle actions. When mise is available, it orchestrates them with dependency management, environment injection, and automatic lifecycle hooks. Other runtimes (Conductor, Claude Code, devcontainers) reference scripts through their own config formats.
+Single-file shell scripts in `scripts/` are the portable source of truth for project lifecycle actions. When mise is available, it orchestrates them with dependency management and environment injection. Runtimes (Conductor, Claude Code, devcontainers) invoke scripts through their own config formats — they decide when lifecycle actions run.
 
 ## The Four Actions
 
@@ -24,7 +24,7 @@ Single-file shell scripts in `scripts/` are the portable source of truth for pro
 | `archive` | Package outputs, push branches, clean up | Before workspace destruction |
 
 ### setup
-Idempotent and fast when nothing has changed. Should check state before doing work — if deps are installed and env is linked, exit early. This matters because mise's `enter` hook runs setup on every project entry. Safe to run repeatedly.
+Idempotent and fast when nothing has changed. Should check state before doing work — if deps are installed and env is linked, exit early. Safe to run repeatedly.
 
 ### run
 Start the dev server or main workflow. May be long-running (blocks until killed). For projects without a dev server, this can run tests or a REPL.
@@ -71,18 +71,6 @@ includes = ["scripts"]
 
 This makes all scripts in `scripts/` available as mise tasks: `mise run setup`, `mise run stop`, etc.
 
-### Lifecycle hooks
-
-mise can automatically run setup on project entry and stop on project exit (requires `mise activate` in shell):
-
-```toml
-[hooks]
-enter = { task = "setup" }
-leave = { task = "stop" }
-```
-
-The `enter` hook fires once when you cd into the project — not on every directory change within it. This gives automatic setup without manual invocation.
-
 ### Dependency management
 
 With `#MISE depends=["stop"]` in the archive script, `mise run archive` automatically runs stop first. No manual chaining needed. Dependencies are resolved as a DAG.
@@ -92,11 +80,22 @@ With `#MISE depends=["stop"]` in the archive script, `mise run archive` automati
 | Feature | `bash scripts/X` | `mise run X` |
 |---------|-------------------|-------------|
 | Dependencies | Manual (defensive calls) | Declarative (`depends`) |
-| Auto-setup on cd | No | `enter` hook |
 | Tool pinning | External | `#MISE tools={bun="1.1"}` |
 | Task discovery | `ls scripts/` | `mise tasks ls` |
 | Parallel execution | No | `mise run setup lint test` |
 | Environment injection | Manual | `[env]` in mise.toml |
+
+### Optional: mise enter/leave hooks
+
+For projects not managed by a harness (Conductor, Claude Code, etc.), mise can optionally trigger lifecycle scripts on directory entry/exit. This is opt-in per project — do not enable this when a harness already invokes the scripts, as it would duplicate work:
+
+```toml
+[hooks]
+enter = { task = "setup" }
+leave = { task = "stop" }
+```
+
+The `enter` hook fires once when you cd into the project (requires `mise activate` in shell). Only add this when no other runtime is managing the lifecycle.
 
 ### Fallback
 

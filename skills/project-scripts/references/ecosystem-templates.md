@@ -122,14 +122,11 @@ Add to your `mise.toml` to make scripts available as mise tasks:
 ```toml
 [task_config]
 includes = ["scripts"]
-
-# Optional: auto-setup on project entry (requires mise activate)
-[hooks]
-enter = { task = "setup" }
-leave = { task = "stop" }
 ```
 
 Then: `mise run setup`, `mise run archive`, `mise tasks ls`
+
+For projects not managed by a harness, you can optionally add enter/leave hooks — see [adapters.md](adapters.md#mise-recommended) for details.
 
 ## conductor.json Templates
 
