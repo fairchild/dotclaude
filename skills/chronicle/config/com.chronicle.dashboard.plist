@@ -24,6 +24,10 @@
     <string>/Users/fairchild/.claude</string>
     <key>EnvironmentVariables</key>
     <dict>
+        <key>HOME</key>
+        <string>/Users/fairchild</string>
+        <key>PATH</key>
+        <string>/Users/fairchild/.local/bin:/Users/fairchild/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
         <key>PORT</key>
         <string>3457</string>
     </dict>
