@@ -19,7 +19,7 @@ How to wire `scripts/` lifecycle actions into each runtime's config format.
 
 **How it works:**
 - Workspace managers read `conductor.json` and call the matching script for each lifecycle event
-- `setup` runs on workspace creation, `archive` runs before workspace teardown
+- `setup` runs on workspace creation; teardown runs `stop` then `archive`
 - `$CONDUCTOR_ROOT_PATH` is set to the main repo path before scripts execute
 - Script values are passed directly to `eval`, so they can be inline commands or script references
 
@@ -48,6 +48,10 @@ How to wire `scripts/` lifecycle actions into each runtime's config format.
           {
             "type": "command",
             "command": "bash scripts/stop"
+          },
+          {
+            "type": "command",
+            "command": "bash scripts/archive"
           }
         ]
       }
@@ -60,7 +64,7 @@ How to wire `scripts/` lifecycle actions into each runtime's config format.
 | Action | Hook Event | Notes |
 |--------|-----------|-------|
 | setup | `SessionStart` | Runs once when session begins |
-| stop | `session_end` | Runs once when session ends |
+| stop + archive | `session_end` | Runs stop then archive when session ends |
 
 **Env vars available:** `$CLAUDE_PROJECT_DIR`, `$CLAUDE_ENV_FILE`
 

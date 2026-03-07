@@ -29,14 +29,15 @@ bun install
 set -euo pipefail
 bun dev
 
-# scripts/stop
+# scripts/stop (must be idempotent — safe when nothing is running)
 #!/usr/bin/env bash
 set -euo pipefail
 pkill -f "bun dev" 2>/dev/null || true
 
-# scripts/archive
+# scripts/archive (calls stop first, then cleans up)
 #!/usr/bin/env bash
 set -euo pipefail
+[[ -x scripts/stop ]] && bash scripts/stop
 rm -rf node_modules .turbo
 ```
 

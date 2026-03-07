@@ -122,8 +122,11 @@ $(env_copy_line)"
 
 write_script setup "$setup_body"
 write_script run "$(run_command_for "$ecosystem")"
-write_script stop "# TODO: stop processes, clean transient state"
-write_script archive "$(archive_command_for "$ecosystem")"
+write_script stop "# TODO: stop processes, clean transient state (must be idempotent)
+# Example: pkill -f \"bun dev\" 2>/dev/null || true"
+write_script archive "# Stop processes first (stop is idempotent, safe to call always)
+[[ -x scripts/stop ]] && bash scripts/stop
+$(archive_command_for "$ecosystem")"
 
 chmod +x scripts/setup scripts/run scripts/stop scripts/archive
 

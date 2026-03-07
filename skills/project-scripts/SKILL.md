@@ -29,10 +29,10 @@ Idempotent. Install dependencies, copy secrets from `$CONDUCTOR_ROOT_PATH`, run 
 Start the dev server or main workflow. May be long-running (blocks until killed). For projects without a dev server, this can run tests or a REPL.
 
 ### stop
-Best-effort process cleanup. Kill dev servers, remove temp files. A missing stop script is a no-op.
+Idempotent process cleanup. Kill dev servers, remove temp files. Must be safe to call multiple times or when nothing is running. A missing stop script is a no-op.
 
 ### archive
-Prepare for workspace teardown. Push uncommitted work, clean build artifacts, stash changes. Workspace managers typically call this via conductor.json before destroying a workspace.
+Prepare for workspace teardown. Should call `scripts/stop` first to ensure processes are stopped, then push uncommitted work, clean build artifacts, stash changes. Workspace managers typically call this via conductor.json before destroying a workspace.
 
 ## Script Conventions
 
@@ -40,6 +40,8 @@ Prepare for workspace teardown. Push uncommitted work, clean build artifacts, st
 - Shebang: `#!/usr/bin/env bash` with `set -euo pipefail`
 - No positional args — use env vars (`$CONDUCTOR_ROOT_PATH`, `$CLAUDE_PROJECT_DIR`)
 - Idempotent where possible, exit non-zero on failure
+- `stop` must always be idempotent — safe to call when nothing is running
+- `archive` should call `scripts/stop` before cleanup to ensure processes are stopped
 - Missing script = no-op (not all projects need all four actions)
 
 ## Detection Workflow
@@ -85,13 +87,13 @@ See [references/ecosystem-templates.md](references/ecosystem-templates.md) for p
 
 Each runtime has its own config format that points at the scripts:
 
-| Runtime | Config file | setup | run |
-|---------|------------|-------|-----|
-| Conductor | `conductor.json` | `"setup": "bash scripts/setup"` | `"run": "bash scripts/run"` |
-| Claude Code | `.claude/settings.json` | SessionStart hook | session_end hook |
-| Devcontainer | `devcontainer.json` | `postCreateCommand` | `postStartCommand` |
-| Cursor | `environment.json` | `workspace.setup` | `workspace.run` |
-| Codex | `codex.yaml` | `lifecycle.setup` | `lifecycle.run` |
+| Runtime | Config file | startup | teardown |
+|---------|------------|---------|----------|
+| Conductor | `conductor.json` | `setup` on create | `stop` then `archive` on teardown |
+| Claude Code | `.claude/settings.json` | `SessionStart` hook | `session_end` hook (stop + archive) |
+| Devcontainer | `devcontainer.json` | `postCreateCommand` | Container handles teardown |
+| Cursor | `environment.json` | `workspace.setup` | — |
+| Codex | `codex.yaml` | `lifecycle.setup` | `lifecycle.stop` |
 | GitHub Actions | `.github/workflows/*.yml` | `run: bash scripts/setup` | — |
 
 See [references/adapters.md](references/adapters.md) for complete config snippets and env var details.
