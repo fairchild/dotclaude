@@ -1,82 +1,124 @@
-# dotclaude Development Workflow
+# Worktree-Based Runtime Pattern
 
-## Architecture
+A pattern for managing `~/.claude` as a git worktree instead of an independent clone. Eliminates drift between development and runtime environments.
 
-Two locations, single `.git`, shared via worktree:
+## Setup
+
+Given a dotclaude repo at `~/code/dotclaude`:
+
+```bash
+# Create a runtime branch (worktrees require separate branches)
+git -C ~/code/dotclaude branch runtime main
+git -C ~/code/dotclaude push origin runtime
+
+# Create the worktree
+git -C ~/code/dotclaude worktree add ~/.claude runtime
+
+# Restore gitignored runtime data (if migrating from an existing clone)
+rsync -a --exclude='.git/' --exclude='.git' --ignore-existing \
+  ~/.claude-backup/ ~/.claude/
+```
+
+Result:
 
 | Path | Branch | Role |
 |------|--------|------|
-| `~/code/dotclaude` | `main` | Development — branches, PRs, worktrees |
+| `~/code/dotclaude` | `main` | Development — branches, PRs |
 | `~/.claude` | `runtime` | Live runtime — Claude Code reads this |
 
-`git -C ~/.claude status` detects untracked/unignored files. The `.gitignore` covers ~30k+ ephemeral runtime files.
+## Auto-Sync Hook
 
-## Skill Sources
+Add a `SessionStart` hook to `settings.json` that fast-forwards the runtime on every session start:
 
-Three origins coexist in `~/.claude/skills/`:
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git -C ~/.claude fetch origin main --quiet 2>/dev/null; git -C ~/.claude merge origin/main --ff-only --quiet 2>/dev/null; true"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
-| Source | Tracked | Example |
-|--------|---------|---------|
-| **Git-tracked** | Yes | `chronicle/`, `release/`, `dotclaude-config/` |
-| **Ecosystem-installed** | No | `capture-screens/` (from `npx skills install`) |
-| **External symlinks** | No | `slidev` → `~/.agents/skills/slidev` |
+Place this **first** in the SessionStart list so other hooks see updated code. The trailing `; true` prevents offline failures from blocking sessions.
 
-Ecosystem-installed and symlinked skills appear as untracked in `git status` — this is expected.
+## Skill Development with Symlinks
 
-## Development Workflow
-
-### Feature Development
+Skills must be "live" at `~/.claude/skills/<name>` to test. Symlink from runtime to dev:
 
 ```bash
-# 1. Branch in dev clone
-git -C ~/code/dotclaude checkout -b feat/my-skill main
-
-# 2. Create skill
-mkdir -p ~/code/dotclaude/skills/my-skill
-
-# 3. Symlink for live testing
 ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
-
-# 4. Develop, test, commit in ~/code/dotclaude
-# 5. Push, open PR
-
-# 6. After merge: remove symlink, fast-forward runtime
-rm ~/.claude/skills/my-skill
-git -C ~/.claude merge main --ff-only
 ```
 
-### After Merging Any PR
+After PR merge, remove the symlink — auto-sync delivers the tracked version.
+
+## Runtime-Specific Changes
+
+When Claude Code modifies tracked files at runtime:
 
 ```bash
-git -C ~/.claude merge main --ff-only
-```
-
-### Runtime-Specific Changes
-
-When Claude Code modifies `settings.json` or other tracked files at runtime:
-
-```bash
-git -C ~/.claude add settings.json
-git -C ~/.claude commit -m "chore: update settings from runtime"
+git -C ~/.claude add <file>
+git -C ~/.claude commit -m "chore: update <file> from runtime"
 git -C ~/code/dotclaude cherry-pick runtime
 git push origin main
 git -C ~/.claude merge main --ff-only
 ```
 
+## Gitignore
+
+The runtime generates thousands of ephemeral files. Keep `.gitignore` comprehensive so `git -C ~/.claude status` stays clean and useful as a drift detector. Common patterns:
+
+```gitignore
+# Session data
+history.jsonl
+plans/
+todos/
+session-env/
+
+# Debug and logs
+debug/
+shell-snapshots/
+
+# Generated/cached
+cache/
+projects/
+plugins/
+
+# Temporary
+tmp/
+*.tmp
+*.cache
+```
+
+## Skill Sources in Runtime
+
+Three origins can coexist in `~/.claude/skills/`:
+
+| Source | Tracked | Notes |
+|--------|---------|-------|
+| **Git-tracked** | Yes | Canonical, version-controlled |
+| **Ecosystem-installed** | No | From `npx skills install`, runtime-only |
+| **External symlinks** | No | From other repos — fragile, document them |
+
+Untracked skills are expected in `git status` — don't force-add them.
+
 ## Gotchas
 
 - **Never develop directly in `~/.claude`** — it's the deployment target
-- **Keep `.gitignore` comprehensive** — runtime generates ~30k ephemeral files; new patterns need adding when new runtime artifacts appear
-- **External symlinks can shadow tracked skills** — if `~/.agents/skills/foo` and `~/code/dotclaude/skills/foo` both exist, the symlink wins in runtime
-- **`settings.json` drifts** — Claude Code modifies it at runtime (effort level, plugins); sync regularly via cherry-pick workflow
-- **Worktree branch constraint** — `~/code/dotclaude` must stay on `main`, `~/.claude` on `runtime`; git disallows two worktrees on the same branch
+- **Worktree branch constraint** — git disallows two worktrees on the same branch; dev stays on `main`, runtime on `runtime`
+- **External symlinks can shadow tracked skills** — a symlink at `~/.claude/skills/foo` overrides a tracked `skills/foo`
+- **`settings.json` drifts** — Claude Code modifies it at runtime; sync regularly via cherry-pick workflow
 
 ## Rollback
 
-If the worktree setup breaks:
-
 ```bash
 git -C ~/code/dotclaude worktree remove ~/.claude --force
-# Restore from backup or re-clone
-git clone https://github.com/fairchild/dotclaude.git ~/.claude
+git clone <remote> ~/.claude
 ```
