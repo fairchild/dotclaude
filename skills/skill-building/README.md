@@ -1,12 +1,12 @@
-# Skill Builder
+# Skill Building
 
-Guide for creating effective skills that extend Claude's capabilities with specialized knowledge, workflows, and tool integrations.
+Guide for creating and evaluating skills that extend Claude's capabilities with specialized knowledge, workflows, and tool integrations.
 
-Covers the full lifecycle: understanding use cases, planning resources, initializing structure, writing SKILL.md, packaging for distribution, and iterating from real usage.
+Covers the full lifecycle: understanding use cases, planning resources, initializing structure, writing SKILL.md, packaging for distribution, iterating from real usage, and evaluating third-party skills for security, quality, and value.
 
 ## Key Concepts
 
-- **Progressive disclosure**: Metadata always loaded (~100 words), SKILL.md body on trigger (<5k words), references on demand
+- **Progressive disclosure**: Metadata always loaded (~100 words), SKILL.md body on trigger (<500 lines), references on demand
 - **Description as trigger**: The `description` field determines when the skill activates — write triggering conditions, not workflow summaries
 - **Defensive writing**: Agents optimize for speed and rationalize shortcuts. Good skills anticipate this with explicit steps, verification, and rationalization counters
 
@@ -20,7 +20,7 @@ hooks:
     - matcher: "Write"
       hooks:
         - type: command
-          command: uv run $CLAUDE_PROJECT_DIR/.claude/skills/skill-builder/scripts/validate_frontmatter.py
+          command: "s=skills/skill-building/scripts/validate_frontmatter.py; if [ -f .claude/$s ]; then uv run .claude/$s; else uv run ~/.claude/$s; fi"
 ```
 
 Checks required frontmatter fields, description length, YAML structure, and file organization.

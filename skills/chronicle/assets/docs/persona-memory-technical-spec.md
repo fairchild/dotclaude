@@ -245,7 +245,7 @@ Validation:
 - `bun ~/.claude/skills/skills-manager/scripts/manage.ts validate ~/.claude/skills/persona-memory`
 
 Package:
-- `python ~/.claude/skills/skill-builder/scripts/package_skill.py ~/.claude/skills/persona-memory`
+- `python ~/.claude/skills/skill-building/scripts/package_skill.py ~/.claude/skills/persona-memory`
 
 Install (repo mode):
 - `npx skills add <owner>/<repo> --skill persona-memory`

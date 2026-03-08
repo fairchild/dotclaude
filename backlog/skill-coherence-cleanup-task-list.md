@@ -31,7 +31,7 @@ Audit and promote skills whose experimental label no longer reflects reality:
 | Skill | Action | Rationale |
 |-------|--------|-----------|
 | **chronicle** | Promote | Most actively used skill, 540-line SKILL.md, full test suite |
-| **skill-builder** | Promote | 397 lines, comprehensive references, used regularly |
+| **skill-building** | Promote | ~160 lines, consolidated with evaluator, used regularly |
 | **skills-manager** | Promote | Well-structured, mature tooling |
 | **persona-memory** | Evaluate | Has README, tests, references — may be ready |
 | **cloudflare-workers-deploy** | Evaluate | Unclear why experimental |
@@ -54,7 +54,7 @@ Two skills exceed 300 lines. Move reference content out of SKILL.md into `refere
 - Move command reference details, curation workflows, and examples to `references/`
 - Keep: frontmatter, description, command summary table, key workflows
 
-**skill-builder (397 lines):**
+**skill-building (~160 lines, already consolidated):**
 - Move detailed guidance (output patterns, testing methodology) to `references/`
 - Keep: frontmatter, description, creation workflow, quality checklist
 
@@ -91,7 +91,7 @@ Four skills in overlapping territory need "see also" guidance:
 ls ~/.claude/skills/swiftui-expert/SKILL.md
 
 # Check SKILL.md line counts
-wc -l ~/.claude/skills/chronicle/SKILL.md ~/.claude/skills/skill-builder/SKILL.md
+wc -l ~/.claude/skills/chronicle/SKILL.md ~/.claude/skills/skill-building/SKILL.md
 
 # Verify experimental status
 grep -l "status: experimental" ~/.claude/skills/*/SKILL.md

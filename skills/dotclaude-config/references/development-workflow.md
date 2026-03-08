@@ -85,13 +85,66 @@ After this, merged PRs are live at next session start — no manual sync needed.
 
 ## Skill Development with Symlinks
 
-Skills must be "live" at `~/.claude/skills/<name>` to test. Symlink from runtime to your dev branch:
+Skills must be "live" at `~/.claude/skills/<name>` to test. Use symlinks to bridge dev and runtime.
+
+### New Skill
 
 ```bash
+# 1. Create feature branch + skill in dev repo
+git -C "$DEV_REPO" checkout -b feat/my-skill main
+mkdir -p "$DEV_REPO/skills/my-skill"
+
+# 2. Symlink into runtime for live testing
 ln -s "$DEV_REPO/skills/my-skill" ~/.claude/skills/my-skill
+
+# 3. Develop, test, commit in $DEV_REPO
+# 4. Push, open PR
+
+# 5. After merge: remove symlink, fast-forward runtime
+rm ~/.claude/skills/my-skill
+git -C ~/.claude merge main --ff-only
 ```
 
-After PR merge, remove the symlink — auto-sync delivers the tracked version.
+### Existing Skill (modify on a branch)
+
+The runtime worktree already has the tracked version. Replace it with a symlink to your dev branch:
+
+```bash
+# 1. Create feature branch in dev repo
+git -C "$DEV_REPO" checkout -b feat/improve-my-skill main
+
+# 2. Swap runtime's tracked copy for a dev symlink
+rm -rf ~/.claude/skills/my-skill
+ln -s "$DEV_REPO/skills/my-skill" ~/.claude/skills/my-skill
+
+# 3. Develop, test, commit in $DEV_REPO
+# 4. Push, open PR
+
+# 5. After merge: remove symlink, fast-forward runtime
+rm ~/.claude/skills/my-skill
+git -C ~/.claude merge main --ff-only
+# git restores the tracked version from the merged commit
+```
+
+**Do NOT rename the tracked dir** (e.g., `my-skill.backup`). Claude Code scans `~/.claude/skills/*/SKILL.md` — any directory with a SKILL.md becomes a skill in the catalog.
+
+If you need to roll back before merging:
+```bash
+rm ~/.claude/skills/my-skill
+git -C ~/.claude checkout -- skills/my-skill
+```
+
+### Deleting a Skill (on a branch)
+
+When removing a skill from the repo, also remove it from runtime during testing:
+
+```bash
+# In dev repo: delete the skill, commit on branch
+# In runtime: remove so it stops appearing in catalog
+rm -rf ~/.claude/skills/old-skill
+```
+
+After merge + fast-forward, git removes it from the worktree automatically.
 
 ## Runtime-Specific Changes
 
@@ -148,6 +201,7 @@ Untracked skills are expected in `git status` — don't force-add them.
 - **Never develop directly in `~/.claude`** — it's the deployment target
 - **Worktree branch constraint** — git disallows two worktrees on the same branch; dev stays on `main`, runtime on `runtime`
 - **External symlinks can shadow tracked skills** — a symlink at `~/.claude/skills/foo` overrides a tracked `skills/foo`
+- **Never rename/backup skill dirs in runtime** — any directory under `~/.claude/skills/` with a SKILL.md gets loaded into the catalog. A `skill-foo.backup/SKILL.md` becomes a skill named `skill-foo.backup`. Instead, `rm -rf` and rely on `git checkout` to restore.
 - **`settings.json` drifts** — Claude Code modifies it at runtime; sync regularly via cherry-pick workflow
 - **Claude Code recreates `~/.claude`** — if you `mv ~/.claude` while a session is active, Claude Code may recreate it before you can create the worktree. Close all sessions first.
 

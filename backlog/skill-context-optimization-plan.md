@@ -73,8 +73,8 @@ Skills that are always user-initiated and never need proactive triggering:
 |-------|--------|
 | release | Always explicit (`/release`) |
 | fork | Always explicit (`/fork`) |
-| skill-builder | Always explicit |
-| skill-evaluator | Always explicit |
+| skill-building | Always explicit |
+| ~~skill-evaluator~~ | Merged into skill-building |
 | slidev | Always explicit |
 | code-council | Always explicit |
 | excalidraw-diagrams | Always explicit |
@@ -111,7 +111,7 @@ export SLASH_COMMAND_TOOL_CHAR_BUDGET=8000
 
 Only pursue if bug #16616 persists. Convert heaviest user skills to plugin format:
 
-- `skill-builder` (20KB SKILL.md)
+- `skill-building` (~7KB SKILL.md)
 - `chronicle` (15KB SKILL.md)
 - `webapp-testing` (9KB SKILL.md)
 - `dotclaude-config` (9KB SKILL.md)

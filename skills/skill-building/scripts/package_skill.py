@@ -66,13 +66,20 @@ def package_skill(skill_path, output_dir=None):
     # Create the .skill file (zip format)
     try:
         with zipfile.ZipFile(skill_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            # Walk through the skill directory
+            # Walk through the skill directory, skipping junk files
+            skip_dirs = {'__pycache__', '.git', 'node_modules', '.mypy_cache', '.pytest_cache', '.ruff_cache'}
+            skip_suffixes = {'.pyc', '.pyo'}
+            skip_names = {'.DS_Store', 'Thumbs.db'}
             for file_path in skill_path.rglob('*'):
-                if file_path.is_file():
-                    # Calculate the relative path within the zip
-                    arcname = file_path.relative_to(skill_path.parent)
-                    zipf.write(file_path, arcname)
-                    print(f"  Added: {arcname}")
+                if not file_path.is_file():
+                    continue
+                if any(d in file_path.parts for d in skip_dirs):
+                    continue
+                if file_path.suffix in skip_suffixes or file_path.name in skip_names:
+                    continue
+                arcname = file_path.relative_to(skill_path.parent)
+                zipf.write(file_path, arcname)
+                print(f"  Added: {arcname}")
 
         print(f"\n✅ Successfully packaged skill to: {skill_filename}")
         return skill_filename

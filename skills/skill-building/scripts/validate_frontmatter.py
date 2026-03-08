@@ -104,7 +104,7 @@ if __name__ == "__main__":
                 "hookEventName": "PostToolUse",
                 "additionalContext": f"Fix these skill structure issues in {file_path}:\n\n" +
                                     "\n".join(f"  • {e}" for e in errors) +
-                                    "\n\nSee skill-builder guidelines for proper structure."
+                                    "\n\nSee skill-building guidelines for proper structure."
             }
         }
         print(json.dumps(output))
