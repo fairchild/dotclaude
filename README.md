@@ -121,6 +121,10 @@ npx skills add fairchild/dotclaude --skill <skill-name>
 npx skills check && npx skills update
 ```
 
+## Development
+
+`~/.claude` is a git worktree of this repo on a `runtime` branch — not an independent clone. A `SessionStart` hook auto-syncs from `main` on every session start, so merged PRs are live immediately. See [docs/development.md](docs/development.md) for the full architecture, sync workflow, and skill development process.
+
 ## Drawing from This
 
 This config is personal — `CLAUDE.md` has my name, hooks call my Chronicle scripts, the MCP server needs my API key. To draw from it, cherry-pick rather than clone.
@@ -191,7 +195,8 @@ For implementation details, see [skills/status-line-live/docs/architecture.md](h
 
 | Doc | Topic |
 |-----|-------|
-| [docs/session-data.md](https://github.com/fairchild/dotclaude/blob/main/docs/session-data.md) | Gitignored session data, multi-machine sync |
+| [docs/development.md](docs/development.md) | Worktree architecture, auto-sync, skill development |
+| [docs/session-data.md](docs/session-data.md) | Gitignored session data, multi-machine sync |
 | [skills/status-line-live/docs/architecture.md](https://github.com/fairchild/dotclaude/blob/main/skills/status-line-live/docs/architecture.md) | Status line implementation |
 | [skills/chronicle/docs/chronicle-design.md](https://github.com/fairchild/dotclaude/blob/main/skills/chronicle/docs/chronicle-design.md) | Chronicle memory system design |
 

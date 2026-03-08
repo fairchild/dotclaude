@@ -18,6 +18,7 @@ credentials/
 
 # Session data (personal, ephemeral)
 history.jsonl
+.chronicle-last-sync
 plans/
 todos/
 /session-titles/
@@ -40,6 +41,7 @@ telemetry/
 
 # Generated/cached
 cache/
+downloads/
 docs/local/
 projects/
 plugins/
@@ -78,6 +80,8 @@ backups/
 mcp-needs-auth-cache.json
 
 # Temporary files
+.venv/
+policy-limits.json
 .trash
 tmp/
 *.tmp
@@ -90,9 +94,10 @@ paste-cache/
 cadence/
 
 # Session artifacts
+teams/
 handoff.md
 notes.md
 tasks/
 
 # claude chrome plugin
-chrome-native-host
+chrome/

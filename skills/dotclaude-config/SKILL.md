@@ -182,13 +182,26 @@ Key rules:
 
 ## Working in ~/.claude Itself
 
-When the current directory IS `~/.claude` (e.g., this config is a git repo):
+When the current directory IS `~/.claude`:
 
 - **Everything is global** — changes affect all Claude Code sessions
-- Skills, agents, commands created here are available everywhere
-- `settings.json` here is the global config, not a project override
-- `CLAUDE.md` at the root is your personal instructions for all projects
-- Treat it as a public repo if published — never commit secrets
+- Treat it as a public repo — never commit secrets
+
+### Worktree Setup (Recommended)
+
+If `~/.claude` is a git repo with a development clone elsewhere, it should be a **worktree** — not an independent clone. Check:
+
+```bash
+# File = worktree (good), Directory = standalone clone (migrate)
+[ -f ~/.claude/.git ] && echo "WORKTREE" || echo "STANDALONE — see development-workflow.md"
+```
+
+When `~/.claude` is a worktree:
+- Development happens in the dev repo (on `main`), never directly here
+- A SessionStart hook auto-syncs merged PRs — no manual maintenance
+- `git status` detects untracked/unignored files (gitignore covers ~30k ephemeral files)
+
+To set up or migrate, see [references/development-workflow.md](references/development-workflow.md).
 
 ## Detailed Documentation
 
