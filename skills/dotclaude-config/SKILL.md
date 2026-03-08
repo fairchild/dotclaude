@@ -182,13 +182,16 @@ Key rules:
 
 ## Working in ~/.claude Itself
 
-When the current directory IS `~/.claude` (e.g., this config is a git repo):
+When the current directory IS `~/.claude`:
 
 - **Everything is global** — changes affect all Claude Code sessions
-- Skills, agents, commands created here are available everywhere
-- `settings.json` here is the global config, not a project override
-- `CLAUDE.md` at the root is your personal instructions for all projects
-- Treat it as a public repo if published — never commit secrets
+- This is a **git worktree** on the `runtime` branch, linked to `~/code/dotclaude`
+- Development happens in `~/code/dotclaude` (on `main`), never directly here
+- After merging PRs: `git -C ~/.claude merge main --ff-only`
+- Detect untracked files: `git status` (gitignore covers ~30k ephemeral files)
+- Treat it as a public repo — never commit secrets
+
+For the full development workflow, see [references/development-workflow.md](references/development-workflow.md).
 
 ## Detailed Documentation
 

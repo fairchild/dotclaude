@@ -62,6 +62,25 @@ bunx playwright test -c webui/           # E2E
 
 See `.github/copilot-instructions.md` for code review style (shared with Copilot).
 
-## Drawing from This
+## Development Architecture
 
-See README.md "Drawing from This" section — cherry-pick rather than clone. Customize CLAUDE.md + settings.json first.
+`~/.claude` is a **git worktree** of `~/code/dotclaude` on the `runtime` branch.
+
+| Path | Branch | Role |
+|------|--------|------|
+| `~/code/dotclaude` | `main` | Development — branches, PRs, worktrees |
+| `~/.claude` | `runtime` | Live runtime — Claude Code reads this |
+
+**After merging a PR**: `git -C ~/.claude merge main --ff-only`
+
+**Detect drift**: `git -C ~/.claude status` shows anything untracked and not gitignored.
+
+**Skill sources in runtime**:
+- Git-tracked (canonical)
+- Ecosystem-installed (untracked, runtime-only)
+- External symlinks (`~/.agents/`, `~/code/Skill_Seekers/`)
+
+**Key rules**:
+- Never develop directly in `~/.claude`
+- Keep `.gitignore` comprehensive for runtime ephemeral data
+- Symlink direction for testing: `~/.claude/skills/<name>` → `~/code/dotclaude/skills/<name>`

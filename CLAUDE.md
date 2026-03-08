@@ -42,14 +42,22 @@ Test behavior over implementation details
 
 This repo (`fairchild/dotclaude`) tracks Claude Code configuration: skills, agents, hooks, settings, and references. It has two locations:
 
-| Path | Role |
-|------|------|
-| `~/.claude` | **Live runtime** — Claude Code reads this directly |
-| `~/code/dotclaude` | **Development clone** — where branches, PRs, and worktrees happen |
+| Path | Branch | Role |
+|------|--------|------|
+| `~/code/dotclaude` | `main` | **Development** — branches, PRs, worktrees |
+| `~/.claude` | `runtime` | **Live runtime** — worktree, Claude Code reads this |
+
+`~/.claude` is a **git worktree** of `~/code/dotclaude`. Single `.git`, no drift.
+
+### After Merging a PR
+
+```bash
+git -C ~/.claude merge main --ff-only
+```
 
 ### Workflow: Developing Skills
 
-Skills must be "live" at `~/.claude/skills/<name>` to test (visible in skills list, scripts runnable). Use symlinks to bridge dev and runtime:
+Skills must be "live" at `~/.claude/skills/<name>` to test. Use symlinks to bridge dev and runtime:
 
 ```bash
 # 1. Create a feature branch in the dev clone
@@ -64,32 +72,26 @@ ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
 # 4. Develop, test, commit — all in ~/code/dotclaude
 # 5. Push, open PR from ~/code/dotclaude
 
-# 6. After merge, pull in dev clone and remove symlink
-git -C ~/code/dotclaude checkout main && git -C ~/code/dotclaude pull
-rm ~/.claude/skills/my-skill  # remove symlink
-# The skill arrives in ~/.claude via next pull/sync
+# 6. After merge, remove symlink and fast-forward runtime
+rm ~/.claude/skills/my-skill
+git -C ~/.claude merge main --ff-only
 ```
 
-For worktree or conductor-based development:
+### Runtime-Specific Changes
+
+When settings.json or other files are modified by Claude Code at runtime:
+
 ```bash
-# Point symlink at a worktree
-ln -s ~/.worktrees/dotclaude/feat-branch/skills/my-skill ~/.claude/skills/my-skill
-
-# Or at a conductor session workspace
-ln -s ~/conductor/<session>/skills/my-skill ~/.claude/skills/my-skill
+git -C ~/.claude add settings.json
+git -C ~/.claude commit -m "chore: update settings from runtime"
+git -C ~/code/dotclaude cherry-pick runtime
+git push origin main
+git -C ~/.claude merge main --ff-only
 ```
-
-Working directories by context:
-
-| Context | Base Dir |
-|---------|----------|
-| Direct development | `~/code/dotclaude` |
-| Worktree branches | `~/.worktrees/dotclaude/<branch>` |
-| Conductor sessions | `~/conductor/<session>` |
 
 ### Key Rules
 
 - **Never develop directly in `~/.claude`** — it's the deployment target, not the workspace
 - **Symlink direction**: `~/.claude/skills/<name>` -> `~/code/dotclaude/skills/<name>` (live points to dev)
 - **Ecosystem installs** (`npx skills install`) land in `~/.claude/skills/` as real directories, not tracked here
-- **After merge**: pull `~/code/dotclaude`, then sync to `~/.claude` (pull or copy)
+- **Detect untracked files**: `git -C ~/.claude status`
