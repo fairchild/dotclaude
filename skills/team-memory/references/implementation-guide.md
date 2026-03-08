@@ -109,7 +109,7 @@ A Claude Code skill with these components (in implementation order):
 - Claude Code memory: https://code.claude.com/docs/en/memory
 - Existing agents to learn from: `~/.claude/agents/remember.md`, `~/.claude/agents/recall.md`
 - Existing hook patterns: `~/.claude/settings.json` (SessionStart, Stop, SessionEnd hooks)
-- Existing skill examples: `~/.claude/skills/chronicle/SKILL.md`, `~/.claude/skills/skill-builder/SKILL.md`
+- Existing skill examples: `~/.claude/skills/chronicle/SKILL.md`, `~/.claude/skills/skill-building/SKILL.md`
 
 ## Style Notes
 
@@ -118,4 +118,4 @@ A Claude Code skill with these components (in implementation order):
 - Prefer concise, well-typed code. "Code can be poetry."
 - Shell scripts should be POSIX-compatible where possible, bash where necessary
 - Agent markdown files should have clear YAML frontmatter (name, description, tools, model)
-- Use the `skill-builder` skill when creating SKILL.md to ensure it follows conventions
+- Use the `skill-building` skill when creating SKILL.md to ensure it follows conventions

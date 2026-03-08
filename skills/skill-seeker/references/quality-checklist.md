@@ -1,6 +1,6 @@
 # Quality Checklist for Generated Skills
 
-Distilled from skill-builder and skill-evaluator standards. Use during Phase 3 review.
+Distilled from skill-building standards. Use during Phase 3 review.
 
 ## Frontmatter Rules
 

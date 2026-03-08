@@ -1,20 +1,20 @@
----
-name: skill-evaluator
-description: >-
-  Evaluate third-party skills before trusting or installing them. Use when
-  reviewing a skill from skills.sh or GitHub, when asking "should I install
-  this skill", "is this skill safe", "review this skill", "evaluate skill
-  quality", or when comparing competing skills. Performs security audit,
-  quality assessment, context budget analysis, and generates advisory report
-  with adopt/skip/modify recommendation.
----
-
-# Skill Evaluator
+# Evaluating a Skill
 
 Evaluate third-party skills for security, quality, context cost, and value before adoption.
 
 **Input**: GitHub URL, skills.sh identifier, or local path to a skill
-**Output**: Evaluation report saved to `~/.claude/skills/skill-evaluator/reports/`
+**Output**: Evaluation report saved to `skills/skill-building/reports/`
+
+## Table of Contents
+
+- [Step 1: Resolve Source](#step-1-resolve-source)
+- [Step 2: Structural Assessment](#step-2-structural-assessment)
+- [Step 3: Security Audit](#step-3-security-audit)
+- [Step 4: Quality Assessment](#step-4-quality-assessment)
+- [Step 5: Context Budget](#step-5-context-budget)
+- [Step 6: Value Assessment](#step-6-value-assessment)
+- [Step 7: Generate Report](#step-7-generate-report)
+- [Comparing Skills](#comparing-skills)
 
 ## Workflow
 
@@ -25,7 +25,7 @@ Follow these 7 steps in order. Do not skip steps.
 Run the fetch script to clone the skill and gather metadata:
 
 ```bash
-uv run ~/.claude/skills/skill-evaluator/scripts/fetch_skill.py \
+uv run scripts/fetch_skill.py \
   --source "<github-url-or-skills.sh-id-or-local-path>" \
   --skill "<skill-name>" \
   --format json
@@ -57,7 +57,7 @@ Record all errors and warnings.
 
 Run the security scanner:
 ```bash
-uv run ~/.claude/skills/skill-evaluator/scripts/security_scan.py \
+uv run scripts/security_scan.py \
   --path "<skill-path>" \
   --format json
 ```
@@ -93,7 +93,7 @@ Rate: A (exemplary) / B (good) / C (functional) / D (poor)
 
 Run the budget analyzer:
 ```bash
-uv run ~/.claude/skills/skill-evaluator/scripts/context_budget.py \
+uv run scripts/context_budget.py \
   --path "<skill-path>" \
   --format json
 ```
@@ -132,14 +132,12 @@ Using `references/report-template.md` as a guide, produce a markdown report with
 
 Save the report to:
 ```
-~/.claude/skills/skill-evaluator/reports/<skill-name>-<YYYY-MM-DD>.md
+skills/skill-building/reports/<skill-name>-<YYYY-MM-DD>.md
 ```
 
 Present the summary table and recommendation to the user.
 
 ## Recommendation Decision Matrix
-
-Use `references/scoring-rubric.md` for the full matrix. Quick reference:
 
 | Security | Quality | Value | Recommendation |
 |----------|---------|-------|----------------|
@@ -149,6 +147,8 @@ Use `references/scoring-rubric.md` for the full matrix. Quick reference:
 | FAIL | Any | Any | **SKIP** |
 | Any | D | Any | **SKIP** |
 | Any | Any | Redundant | **SKIP** |
+
+See `references/scoring-rubric.md` for the full matrix.
 
 ## Comparing Skills
 
