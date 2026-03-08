@@ -23,6 +23,8 @@ A persistent journalist tracking your coding sessions.
 /chronicle catchup            # Restore context for current project
 /chronicle catchup --days=30  # Extend lookback to 30 days
 /chronicle stale              # Show stale pending items (>14 days)
+/chronicle consolidate        # Consolidate old blocks (dry run)
+/chronicle consolidate apply  # Consolidate and drop stale pending
 /chronicle resolve "text"     # Mark pending item as resolved
 /chronicle resolve --list     # Show all resolved items
 /chronicle resolve --undo "text"  # Undo a resolution
@@ -253,6 +255,33 @@ Shows:
 3. Sorted by age (oldest first)
 
 Staleness warnings also appear in `/chronicle catchup` output with ⚠️ markers.
+
+---
+
+## Consolidate (/chronicle consolidate)
+
+Reduce block bloat by merging per-project, per-week blocks into consolidated summaries.
+
+```bash
+bun ~/.claude/skills/chronicle/scripts/consolidate.ts                    # Dry run
+bun ~/.claude/skills/chronicle/scripts/consolidate.ts --apply            # Execute
+bun ~/.claude/skills/chronicle/scripts/consolidate.ts --apply --drop-pending  # Execute + clear stale pending
+bun ~/.claude/skills/chronicle/scripts/consolidate.ts --older-than=30    # Only blocks >30 days old (default: 14)
+bun ~/.claude/skills/chronicle/scripts/consolidate.ts --project=services # Single project
+```
+
+Consolidation:
+- Groups blocks by project + ISO week
+- Deduplicates accomplished and pending items (case-insensitive)
+- Removes pending items that appear in accomplished
+- Cross-week dedup: each project's pending kept only in earliest week
+- Archives originals to `~/.claude/chronicle/archive/` (not deleted)
+
+Also runs monthly via launchd (1st of each month at 2am). Install:
+```bash
+cp ~/.claude/skills/chronicle/config/com.chronicle.consolidate.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.chronicle.consolidate.plist
+```
 
 ---
 
