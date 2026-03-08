@@ -185,13 +185,23 @@ Key rules:
 When the current directory IS `~/.claude`:
 
 - **Everything is global** — changes affect all Claude Code sessions
-- This is a **git worktree** on the `runtime` branch, linked to `~/code/dotclaude`
-- Development happens in `~/code/dotclaude` (on `main`), never directly here
-- After merging PRs: `git -C ~/.claude merge main --ff-only`
-- Detect untracked files: `git status` (gitignore covers ~30k ephemeral files)
 - Treat it as a public repo — never commit secrets
 
-For the full development workflow, see [references/development-workflow.md](references/development-workflow.md).
+### Worktree Setup (Recommended)
+
+If `~/.claude` is a git repo with a development clone elsewhere, it should be a **worktree** — not an independent clone. Check:
+
+```bash
+# File = worktree (good), Directory = standalone clone (migrate)
+[ -f ~/.claude/.git ] && echo "WORKTREE" || echo "STANDALONE — see development-workflow.md"
+```
+
+When `~/.claude` is a worktree:
+- Development happens in the dev repo (on `main`), never directly here
+- A SessionStart hook auto-syncs merged PRs — no manual maintenance
+- `git status` detects untracked/unignored files (gitignore covers ~30k ephemeral files)
+
+To set up or migrate, see [references/development-workflow.md](references/development-workflow.md).
 
 ## Detailed Documentation
 
