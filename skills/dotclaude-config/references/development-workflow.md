@@ -60,7 +60,7 @@ Result:
 
 ## Auto-Sync Hook
 
-Add a `SessionStart` hook to `settings.json` that fast-forwards the runtime on every session start. Place it **first** so other hooks see updated code:
+Add a `SessionStart` hook to `settings.json` that fast-forwards the runtime on every session start. The sync logic lives in `hooks/runtime-sync.sh` — place it **first** so other hooks see updated code:
 
 ```json
 {
@@ -70,7 +70,7 @@ Add a `SessionStart` hook to `settings.json` that fast-forwards the runtime on e
         "hooks": [
           {
             "type": "command",
-            "command": "git -C ~/.claude fetch origin main --quiet 2>/dev/null; git -C ~/.claude merge origin/main --ff-only --quiet 2>/dev/null; true"
+            "command": "~/.claude/hooks/runtime-sync.sh"
           }
         ]
       }
@@ -79,7 +79,7 @@ Add a `SessionStart` hook to `settings.json` that fast-forwards the runtime on e
 }
 ```
 
-The trailing `; true` ensures offline sessions start normally.
+The script always exits 0, so offline sessions start normally. Edit the script to add timeouts, logging, or local-only mode without touching `settings.json`.
 
 After this, merged PRs are live at next session start — no manual sync needed.
 

@@ -1,6 +1,9 @@
 ---
+status: done
+category: plan
 priority: 1
 description: Refactor inline auto-sync hook into a standalone script for easier iteration
+completed: 2026-03-07
 ---
 
 # Runtime Auto-Sync Script

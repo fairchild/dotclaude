@@ -115,7 +115,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "git -C ~/.claude fetch origin main --quiet 2>/dev/null; git -C ~/.claude merge origin/main --ff-only --quiet 2>/dev/null; true"
+            "command": "~/.claude/hooks/runtime-sync.sh"
           }
         ]
       },

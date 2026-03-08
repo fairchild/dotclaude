@@ -9,14 +9,17 @@
 
 ## Auto-Sync
 
-A `SessionStart` hook keeps the runtime current. Every time Claude Code starts a session (in any project), it runs:
+A `SessionStart` hook keeps the runtime current. Every time Claude Code starts a session (in any project), it runs `hooks/runtime-sync.sh`, which fast-forwards the `runtime` branch to match `main` using the shared local object store (~0.08s, no network):
 
 ```bash
-git -C ~/.claude fetch origin main --quiet 2>/dev/null
-git -C ~/.claude merge origin/main --ff-only --quiet 2>/dev/null
+#!/usr/bin/env bash
+git -C ~/.claude merge main --ff-only --quiet 2>/dev/null
+exit 0
 ```
 
-This is the first hook in the SessionStart list — it runs before chronicle or anything else, so updated skills are available immediately. The `2>/dev/null` and trailing `; true` ensure offline sessions start normally.
+This is the first hook in the SessionStart list — it runs before chronicle or anything else, so updated skills are available immediately. The script always exits 0 so sessions start normally even if the merge fails.
+
+Note: since this is local-only, the runtime sees new commits after you `git pull` in `~/code/dotclaude`, not immediately after a PR merges on GitHub.
 
 After merging a PR, you don't need to do anything. The next session start picks it up automatically.
 
