@@ -16,3 +16,14 @@ if [[ "$before" != "$after" ]]; then
   echo "~/.claude synced: ${count} new commit(s)"
   git -C ~/.claude log --oneline "$before..$after"
 fi
+
+# Detect untracked ecosystem skills
+untracked=()
+for dir in ~/.claude/skills/*/; do
+  [[ -f "$dir/SKILL.md" ]] || continue
+  git -C ~/.claude ls-files --error-unmatch "$dir/SKILL.md" &>/dev/null && continue
+  untracked+=("$(basename "$dir")")
+done
+if [[ ${#untracked[@]} -gt 0 ]]; then
+  echo "${#untracked[@]} ecosystem skill(s) not tracked: ${untracked[*]}"
+fi
