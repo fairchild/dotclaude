@@ -1,6 +1,6 @@
 # Creating a Skill
 
-Detailed guide for the 6-step skill creation process. See SKILL.md for the summary.
+Detailed guide for the 7-step skill creation process. See SKILL.md for the summary.
 
 ## Table of Contents
 
@@ -8,8 +8,9 @@ Detailed guide for the 6-step skill creation process. See SKILL.md for the summa
 - [Step 2: Planning Reusable Contents](#step-2-planning-the-reusable-skill-contents)
 - [Step 3: Initializing the Skill](#step-3-initializing-the-skill)
 - [Step 4: Editing the Skill](#step-4-edit-the-skill)
-- [Step 5: Packaging](#step-5-packaging-a-skill)
-- [Step 6: Iterating](#step-6-iterate)
+- [Step 5: Validating](#step-5-validating)
+- [Step 6: Packaging](#step-6-packaging-a-skill)
+- [Step 7: Iterating](#step-7-iterate)
 
 ## Step 1: Understanding the Skill with Concrete Examples
 
@@ -171,7 +172,17 @@ For simple edits, modify the XML directly.
 - **Avoid deeply nested references** — keep references one level deep from SKILL.md
 - **Structure longer reference files** — for files longer than 100 lines, include a table of contents
 
-## Step 5: Packaging a Skill
+## Step 5: Validating
+
+Run the validator before packaging:
+
+```bash
+scripts/quick_validate.py <path/to/skill-folder>
+```
+
+Checks required frontmatter fields (`name`, `description`), naming conventions, description quality, and YAML structure. Fix any errors before proceeding.
+
+## Step 6: Packaging a Skill
 
 Once development is complete, package into a distributable .skill file:
 
@@ -197,7 +208,7 @@ The packaging script will:
 
 If validation fails, fix errors and run again.
 
-## Step 6: Iterate
+## Step 7: Iterate
 
 Skills improve through use, not through speculation. The best time to iterate is right after using a skill, while the gaps are fresh.
 

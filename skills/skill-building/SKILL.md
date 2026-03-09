@@ -11,12 +11,6 @@ metadata:
   status: experimental
   author: Michael Fairchild
   version: "3.0"
-hooks:
-  PostToolUse:
-    - matcher: "Write"
-      hooks:
-        - type: command
-          command: "s=skills/skill-building/scripts/validate_frontmatter.py; if [ -f .claude/$s ]; then uv run .claude/$s; else uv run ~/.claude/$s; fi"
 ---
 
 # Skill Building
@@ -73,8 +67,9 @@ Keep SKILL.md body under 500 lines. When splitting content, reference files from
 | 2 | Plan reusable contents | Identify scripts, references, and assets needed |
 | 3 | Initialize | `scripts/init_skill.py <name> --path <dir>` |
 | 4 | Edit | Implement resources, write SKILL.md |
-| 5 | Package | `scripts/package_skill.py <path>` |
-| 6 | Iterate | Improve from real usage |
+| 5 | Validate | `scripts/quick_validate.py <path>` |
+| 6 | Package | `scripts/package_skill.py <path>` |
+| 7 | Iterate | Improve from real usage |
 
 For detailed guidance on each step, read `references/creating.md`.
 

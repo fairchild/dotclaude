@@ -10,20 +10,9 @@ Covers the full lifecycle: understanding use cases, planning resources, initiali
 - **Description as trigger**: The `description` field determines when the skill activates — write triggering conditions, not workflow summaries
 - **Defensive writing**: Agents optimize for speed and rationalize shortcuts. Good skills anticipate this with explicit steps, verification, and rationalization counters
 
-## Self-Validation
+## Validation
 
-A PostToolUse hook automatically validates SKILL.md files as they're written:
-
-```yaml
-hooks:
-  PostToolUse:
-    - matcher: "Write"
-      hooks:
-        - type: command
-          command: "s=skills/skill-building/scripts/validate_frontmatter.py; if [ -f .claude/$s ]; then uv run .claude/$s; else uv run ~/.claude/$s; fi"
-```
-
-Checks required frontmatter fields, description length, YAML structure, and file organization.
+Run `scripts/quick_validate.py <skill-dir>` after writing or editing a SKILL.md. Checks required frontmatter fields, description length, YAML structure, and file organization.
 
 ## References
 
