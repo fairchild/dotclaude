@@ -279,8 +279,7 @@ Consolidation:
 
 Also runs monthly via launchd (1st of each month at 2am). Install:
 ```bash
-cp ~/.claude/skills/chronicle/config/com.chronicle.consolidate.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.chronicle.consolidate.plist
+~/.claude/skills/chronicle/scripts/install-services.sh install consolidate
 ```
 
 ---
@@ -475,7 +474,7 @@ Run the dashboard on a remote server with periodic data sync from your Mac.
    ```
 3. Install the reminder service:
    ```bash
-   launchctl load ~/Library/LaunchAgents/com.chronicle.sync-reminder.plist
+   ~/.claude/skills/chronicle/scripts/install-services.sh install sync-reminder
    ```
 
 **How it works:**
@@ -497,7 +496,7 @@ Start a development session for working on Chronicle itself.
 
 ```bash
 # Stop service to free port, start dev server with auto-reload
-launchctl unload ~/Library/LaunchAgents/com.chronicle.dashboard.plist 2>/dev/null
+~/.claude/skills/chronicle/scripts/install-services.sh uninstall dashboard 2>/dev/null
 bun --watch ~/.claude/skills/chronicle/scripts/dashboard.ts
 ```
 
@@ -540,9 +539,7 @@ Daily summaries run at midnight, weekly on Sunday 00:05.
 
 **Install services:**
 ```bash
-cp ~/.claude/skills/chronicle/config/com.chronicle.summarize*.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.chronicle.summarize.plist
-launchctl load ~/Library/LaunchAgents/com.chronicle.summarize-weekly.plist
+~/.claude/skills/chronicle/scripts/install-services.sh install summarize summarize-weekly
 ```
 
 **Check logs:**
