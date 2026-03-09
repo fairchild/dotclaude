@@ -22,21 +22,27 @@ If `which aadc` fails, build from source:
 bash ~/.claude/skills/ascii-art-fix/scripts/ensure-aadc.sh
 ```
 
+## Caution
+
+aadc treats markdown tables as ASCII diagrams, which **corrupts valid markdown** — it breaks separator rows and appends stray `|` to nearby text. It also pads already-aligned box diagrams unnecessarily.
+
+**Rules:**
+- **Never** run `aadc -ri` on a directory or repo — bulk operations cause widespread false positives
+- **Always** preview with `-d` before applying `-i`
+- **Always** review the full diff — reject changes that touch markdown tables or add trailing `|` to prose
+- Target **specific files** you know contain misaligned `+---+` / `│` box art
+- Best for `.txt` files or code blocks with pure ASCII box diagrams, not `.md` files with tables
+
 ## Usage
 
-Fix a file in place:
+Preview changes first (always do this):
 ```bash
-aadc -i file.md
+aadc -d file.txt
 ```
 
-Preview changes as a diff:
+Fix a specific file in place (only after reviewing the diff):
 ```bash
-aadc -d file.md
-```
-
-Recursive fix across a directory:
-```bash
-aadc -ri docs/
+aadc -i file.txt
 ```
 
 Pipe from stdin:
@@ -48,19 +54,16 @@ echo '| short|' | aadc
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--in-place` | `-i` | Edit file in place |
-| `--recursive` | `-r` | Process files recursively |
 | `--diff` | `-d` | Show unified diff instead of full output |
 | `--dry-run` | `-n` | Preview changes without modifying (exit 3 if changes found) |
+| `--in-place` | `-i` | Edit file in place |
 | `--verbose` | `-v` | Show correction progress and statistics |
 | `--all` | `-a` | Process all diagram-like blocks, even low-confidence ones |
+| `--recursive` | `-r` | Process files recursively (**avoid — see Caution**) |
 | `--glob` | | Glob pattern for recursive mode (default: `*.txt,*.md`) |
-| `--watch` | `-w` | Watch file for changes and auto-correct |
-| `--json` | | Output results as JSON |
 
 ## When to Use
 
-- After generating or editing ASCII diagrams in documentation
-- Cleaning up docs with misaligned box-drawing characters
-- Batch-fixing: `aadc -ri --glob "*.md" .`
-- Before committing files with ASCII art
+- After generating or editing a specific file with ASCII box diagrams
+- On `.txt` or plain-text files with `+---+` / `│` box-drawing borders
+- When you can see the misalignment and want a targeted fix
