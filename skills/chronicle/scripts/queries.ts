@@ -11,6 +11,22 @@ export type { ChronicleBlock, PendingItem, PendingItemWithAge } from "./types.ts
 
 const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;
 
+// Simple cache: invalidated when block count or dir mtime changes
+let _cache: { blocks: ChronicleBlock[]; fileCount: number; mtimeMs: number } | null = null;
+
+function getCachedBlocks(): ChronicleBlock[] | null {
+  if (!_cache) return null;
+  try {
+    const { statSync } = require("fs") as typeof import("fs");
+    const stat = statSync(CHRONICLE_DIR);
+    const files = readdirSync(CHRONICLE_DIR).filter(f => f.endsWith(".json"));
+    if (files.length === _cache.fileCount && stat.mtimeMs === _cache.mtimeMs) {
+      return _cache.blocks;
+    }
+  } catch {}
+  return null;
+}
+
 export interface ProjectStats {
   project: string;
   sessionCount: number;
@@ -29,11 +45,16 @@ export interface DateRange {
 }
 
 /**
- * Load all Chronicle blocks from disk.
+ * Load all Chronicle blocks from disk (cached by dir mtime + file count).
  */
 export function loadAllBlocks(): ChronicleBlock[] {
   if (!existsSync(CHRONICLE_DIR)) return [];
 
+  const cached = getCachedBlocks();
+  if (cached) return cached;
+
+  const { statSync } = require("fs") as typeof import("fs");
+  const stat = statSync(CHRONICLE_DIR);
   const files = readdirSync(CHRONICLE_DIR).filter((f) => f.endsWith(".json"));
   const blocks: ChronicleBlock[] = [];
 
@@ -46,9 +67,12 @@ export function loadAllBlocks(): ChronicleBlock[] {
     }
   }
 
-  return blocks.sort(
+  const sorted = blocks.sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   );
+
+  _cache = { blocks: sorted, fileCount: files.length, mtimeMs: stat.mtimeMs };
+  return sorted;
 }
 
 /**

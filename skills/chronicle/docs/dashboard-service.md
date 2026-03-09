@@ -38,7 +38,7 @@ When user runs `/chronicle ui <command>`, execute:
 
 ### install
 ```bash
-cp ~/.claude/skills/chronicle/config/com.chronicle.dashboard.plist ~/Library/LaunchAgents/
+~/.claude/skills/chronicle/scripts/install-services.sh install dashboard
 ```
 Report: "Service installed. Run `/chronicle ui start` to start it."
 
@@ -56,7 +56,7 @@ Report: "Dashboard service stopped."
 
 ### status
 ```bash
-launchctl list | grep chronicle
+~/.claude/skills/chronicle/scripts/install-services.sh status
 ```
 - If output shows PID: "Dashboard running (PID: {pid})"
 - If no output: "Dashboard not running."
@@ -68,27 +68,29 @@ tail -50 /tmp/chronicle-dashboard.log
 
 ### uninstall
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.chronicle.dashboard.plist 2>/dev/null
-rm ~/Library/LaunchAgents/com.chronicle.dashboard.plist
+~/.claude/skills/chronicle/scripts/install-services.sh uninstall dashboard
 ```
 Report: "Service uninstalled."
 
 ## Manual Commands
 
-If not using skill commands:
+All services are managed via `install-services.sh`:
 
 ```bash
-# Install
-cp ~/.claude/skills/chronicle/config/com.chronicle.dashboard.plist ~/Library/LaunchAgents/
+# List available services
+~/.claude/skills/chronicle/scripts/install-services.sh list
 
-# Start
-launchctl load ~/Library/LaunchAgents/com.chronicle.dashboard.plist
+# Install all services
+~/.claude/skills/chronicle/scripts/install-services.sh install
 
-# Stop
-launchctl unload ~/Library/LaunchAgents/com.chronicle.dashboard.plist
+# Install specific service
+~/.claude/skills/chronicle/scripts/install-services.sh install dashboard
 
 # Check status
-launchctl list | grep chronicle
+~/.claude/skills/chronicle/scripts/install-services.sh status
+
+# Uninstall specific service
+~/.claude/skills/chronicle/scripts/install-services.sh uninstall dashboard
 
 # View logs
 tail -f /tmp/chronicle-dashboard.log
@@ -96,9 +98,9 @@ tail -f /tmp/chronicle-dashboard.log
 
 ## Configuration
 
-The plist is at `~/.claude/skills/chronicle/config/com.chronicle.dashboard.plist`.
+Plists are generated at install time by `scripts/install-services.sh` using `$HOME` for portability.
 
-Key settings:
+Key settings (dashboard):
 - **RunAtLoad**: false (doesn't start on login by default)
 - **KeepAlive**: restarts on crash
 - **Logs**: `/tmp/chronicle-dashboard.log` and `/tmp/chronicle-dashboard.err`
