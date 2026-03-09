@@ -1,0 +1,44 @@
+# dotagents.toml — Manifest for ~/.agents skill management
+#
+# Managed in dotclaude; synced with `./scripts/sync-dotagents.py`
+#
+# This file declares the intended state of ~/.agents and the symlink
+# relationships between ~/.claude/skills/ and ~/.agents/skills/.
+# Single source of truth — no separate dotagents repo needed.
+
+# Ecosystem skills — installed by `skills` CLI into ~/.agents/skills/
+# Format: skill-name = "github-org/repo"
+[ecosystem]
+apple-hig-designer = "jamesrochabrun/skills"
+apple-ui-designer = "heyman333/atelier-ui"
+better-auth-best-practices = "better-auth/skills"
+find-skills = "roin-orca/skills"
+fun-brainstorming = "roin-orca/skills"
+macos-development = "rshankras/claude-code-apple-skills"
+simple-brainstorm = "roin-orca/skills"
+slidev = "antfu/skills"
+swiftui-expert-skill = "avdlee/swiftui-agent-skill"
+vercel-react-best-practices = "vercel-labs/agent-skills"
+web-design-guidelines = "vercel-labs/agent-skills"
+
+# Ecosystem skills to also symlink into ~/.claude/skills/
+# (skills CLI may already create these — sync verifies and repairs)
+[link-to-claude]
+apple-hig-designer = true
+apple-ui-designer = true
+find-skills = true
+fun-brainstorming = true
+macos-development = true
+slidev = true
+vercel-react-best-practices = true
+web-design-guidelines = true
+
+# Dotclaude-authored skills to share with ~/.agents/skills/
+# Makes these available to Cursor, Codex, Gemini CLI, etc.
+[share-to-agents]
+backlog = true
+image-gen = true
+release = true
+tart-gui-automation = true
+update-dependencies = true
+voice = true

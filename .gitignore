@@ -101,3 +101,20 @@ tasks/
 
 # claude chrome plugin
 chrome/
+
+# Ecosystem skills (symlinks to ~/.agents/skills/, managed by dotagents.toml)
+# These are created by `skills add` or `./scripts/sync-dotagents.py sync`
+skills/apple-hig-designer
+skills/apple-ui-designer
+skills/better-auth-best-practices
+skills/find-skills
+skills/fun-brainstorming
+skills/macos-development
+skills/simple-brainstorm
+skills/slidev
+skills/swiftui-expert-skill
+skills/vercel-react-best-practices
+skills/web-design-guidelines
+
+# Other external symlinks
+skills/code-council
