@@ -4,6 +4,10 @@ description: Fix misaligned right borders in ASCII art diagrams using the aadc C
 license: Apache-2.0
 metadata:
   status: experimental
+  credits:
+    - name: aadc
+      url: https://github.com/Dicklesworthstone/aadc
+      author: Jeffrey Emanuel
 ---
 
 # ASCII Art Fix
