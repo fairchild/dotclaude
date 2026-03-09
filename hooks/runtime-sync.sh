@@ -17,15 +17,18 @@ if [[ "$before" != "$after" ]]; then
   git -C ~/.claude log --oneline "$before..$after"
 fi
 
-# Detect untracked ecosystem skills
+# Detect untracked ecosystem skills (respects .gitignore)
 untracked=()
 for dir in ~/.claude/skills/*/; do
   [[ -f "$dir/SKILL.md" ]] || continue
+  name=$(basename "$dir")
+  # Skip if git-ignored (managed by dotagents.toml) or already tracked
+  git -C ~/.claude check-ignore -q "skills/$name" 2>/dev/null && continue
   git -C ~/.claude ls-files --error-unmatch "$dir/SKILL.md" &>/dev/null && continue
-  untracked+=("$(basename "$dir")")
+  untracked+=("$name")
 done
 if [[ ${#untracked[@]} -gt 0 ]]; then
-  echo "${#untracked[@]} ecosystem skill(s) not tracked: ${untracked[*]}"
+  echo "${#untracked[@]} untracked skill(s): ${untracked[*]}"
   echo "  To track: copy to ~/code/dotclaude/skills/ and commit"
-  echo "  To ignore: add to ~/.claude/.gitignore"
+  echo "  To manage via manifest: add to dotagents.toml and .gitignore"
 fi
