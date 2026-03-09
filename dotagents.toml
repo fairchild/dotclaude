@@ -17,7 +17,6 @@ fun-brainstorming = "roin-orca/skills"
 macos-development = "rshankras/claude-code-apple-skills"
 simple-brainstorm = "roin-orca/skills"
 slidev = "antfu/skills"
-swiftui-expert-skill = "avdlee/swiftui-agent-skill"
 vercel-react-best-practices = "vercel-labs/agent-skills"
 web-design-guidelines = "vercel-labs/agent-skills"
 
@@ -39,6 +38,7 @@ web-design-guidelines = true
 backlog = true
 image-gen = true
 release = true
+swiftui-expert-skill = true
 tart-gui-automation = true
 update-dependencies = true
 voice = true
