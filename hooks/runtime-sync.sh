@@ -26,4 +26,6 @@ for dir in ~/.claude/skills/*/; do
 done
 if [[ ${#untracked[@]} -gt 0 ]]; then
   echo "${#untracked[@]} ecosystem skill(s) not tracked: ${untracked[*]}"
+  echo "  To track: copy to ~/code/dotclaude/skills/ and commit"
+  echo "  To ignore: add to ~/.claude/.gitignore"
 fi
