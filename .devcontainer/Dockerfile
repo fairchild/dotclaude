@@ -78,16 +78,18 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
   -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
   -x
 
-# Install mise (runtime manager)
+# Install mise (runtime manager) and pre-install runtimes for prebuild caching
 RUN curl -fsSL https://mise.run | sh
 ENV PATH="/home/node/.local/bin:$PATH"
+COPY .mise.toml /tmp/.mise.toml
+RUN mise trust /tmp/.mise.toml && mise install -C /tmp && rm /tmp/.mise.toml
 
 # Install Claude
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
 
 # Copy and set up firewall script
-COPY init-firewall.sh /usr/local/bin/
+COPY .devcontainer/init-firewall.sh /usr/local/bin/
 USER root
 RUN chmod +x /usr/local/bin/init-firewall.sh && \
   echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall && \

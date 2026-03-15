@@ -1,6 +1,7 @@
 {
   "name": "dotclaude",
   "build": {
+    "context": "..",
     "dockerfile": "Dockerfile",
     "args": {
       "TZ": "${localEnv:TZ:America/Los_Angeles}",
