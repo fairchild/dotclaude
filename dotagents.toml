@@ -41,5 +41,6 @@ image-gen = true
 release = true
 swiftui-expert-skill = true
 tart-gui-automation = true
+team-communication-protocols = true
 update-dependencies = true
 voice = true
