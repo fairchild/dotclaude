@@ -36,6 +36,7 @@ web-design-guidelines = true
 # Makes these available to Cursor, Codex, Gemini CLI, etc.
 [share-to-agents]
 backlog = true
+gh-apps = true
 image-gen = true
 release = true
 swiftui-expert-skill = true
