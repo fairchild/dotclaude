@@ -1,0 +1,17 @@
+{
+  "name": "dotclaude",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "postCreateCommand": "./setup.sh",
+  "secrets": {
+    "ANTHROPIC_API_KEY": {
+      "description": "Anthropic API key. Or skip this and run `claude login` to authenticate via browser."
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

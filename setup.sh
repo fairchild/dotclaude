@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Codespaces dotfiles entry point.
-# Also works as a general bootstrap for any new machine.
+# Bootstrap a Claude Code development environment.
+# Auto-detected by GitHub Codespaces (dotfiles) and devcontainer postCreateCommand.
 set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -13,6 +13,13 @@ fi
 mise trust --all "$DOTFILES_DIR"
 mise install -C "$DOTFILES_DIR"
 eval "$(mise activate bash)"
+
+# Persist mise activation for interactive shells
+for rc in ~/.bashrc ~/.zshrc; do
+  if [[ -f "$rc" ]] && ! grep -q 'mise activate' "$rc"; then
+    echo 'eval "$(mise activate bash)"' >> "$rc"
+  fi
+done
 
 # --- Claude Code ---
 if ! command -v claude &>/dev/null; then
@@ -29,3 +36,4 @@ fi
 uv sync --project "$DOTFILES_DIR" --no-dev 2>/dev/null || true
 
 echo "dotclaude ready at ~/.claude"
+echo "Run 'claude' to start. Authenticate with ANTHROPIC_API_KEY or 'claude login'."
