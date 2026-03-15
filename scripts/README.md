@@ -6,7 +6,13 @@ Lifecycle and utility scripts for dotclaude.
 
 ```bash
 # Direct
-bash scripts/setup
+bash setup.sh        # full bootstrap (installs mise, runtimes, claude code)
+bash scripts/run     # start webui
+
+# Via mise (.mise.toml)
+mise run setup       # → setup.sh
+mise run run         # → scripts/run
+mise tasks ls        # list all tasks
 
 # Via conductor
 # conductor.json wires setup/run/stop/archive automatically
@@ -16,7 +22,7 @@ bash scripts/setup
 
 | Script | Description |
 |--------|-------------|
-| `setup` | Install runtimes and deps from `.mise.toml` |
+| `setup.sh` (root) | Bootstrap environment — mise, runtimes, Claude Code, symlink `~/.claude` |
 | `run` | Start webui dev server |
 | `stop` | Stop webui server |
 | `archive` | Teardown workspace — stops processes, syncs git changes |

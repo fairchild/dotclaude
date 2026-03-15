@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "setup": "bash scripts/setup",
+    "setup": "bash setup.sh",
     "run": "bash scripts/run",
     "stop": "bash scripts/stop",
     "archive": "bash scripts/archive"

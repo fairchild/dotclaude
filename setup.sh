@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# Bootstrap a Claude Code development environment.
+#MISE description="Bootstrap Claude Code development environment"
 # Auto-detected by GitHub Codespaces (dotfiles) and devcontainer postCreateCommand.
+# Also available as: mise run setup, conductor setup, bash setup.sh
 set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# --- Conductor secrets ---
+[[ -n "${CONDUCTOR_ROOT_PATH:-}" && -f "$CONDUCTOR_ROOT_PATH/.env" ]] && cp "$CONDUCTOR_ROOT_PATH/.env" "$DOTFILES_DIR/.env"
 
 # --- mise: runtimes and tools ---
 if ! command -v mise &>/dev/null; then

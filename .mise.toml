@@ -6,3 +6,7 @@ uv = "latest"
 
 [task_config]
 includes = ["scripts"]
+
+[tasks.setup]
+run = "./setup.sh"
+description = "Bootstrap Claude Code development environment"
