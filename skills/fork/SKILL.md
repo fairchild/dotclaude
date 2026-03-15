@@ -295,6 +295,19 @@ The main session stays active. Teammate messages arrive automatically when idle.
 - Send instructions: `SendMessage` to `<branch>-worker`
 - Shut down: `SendMessage(type: "shutdown_request", recipient: "<branch>-worker")`
 
+**Rollback on failure:**
+
+If any step above fails, clean up what was created:
+
+| Failed at | Clean up |
+|-----------|----------|
+| TeamCreate | Nothing to clean — abort and report error |
+| TaskCreate | `TeamDelete(team_name: "fork-<branch>")` |
+| Task spawn | Cancel task, then `TeamDelete` |
+| TaskUpdate | Teammate is running but unassigned — send shutdown, then cancel task and delete team |
+
+Report what happened: "Fork to `<branch>` failed at [step]. Cleaned up [resources]. Worktree exists at `~/.worktrees/<repo>/<branch>` — you can use it manually."
+
 #### Background mode
 
 ```bash
