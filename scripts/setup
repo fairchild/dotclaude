@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-#MISE description="Install deps, link env"
+#MISE description="Install runtimes and deps from .mise.toml"
 set -euo pipefail
 
 # Copy secrets from conductor root if available
 [[ -n "${CONDUCTOR_ROOT_PATH:-}" && -f "$CONDUCTOR_ROOT_PATH/.env" ]] && cp "$CONDUCTOR_ROOT_PATH/.env" .env
 
-# Trust mise if present
-[[ -f .mise.toml || -f mise.toml ]] && mise trust && mise install
+# Runtimes and tools from .mise.toml
+mise trust && mise install
 
-# Install dependencies (skip if already synced)
-uv sync
+# Python deps (core only, optional groups are lazy)
+uv sync --no-dev

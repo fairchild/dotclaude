@@ -16,7 +16,7 @@ bash scripts/setup
 
 | Script | Description |
 |--------|-------------|
-| `setup` | Install deps (uv sync), link env, trust mise |
+| `setup` | Install runtimes and deps from `.mise.toml` |
 | `run` | Start webui dev server |
 | `stop` | Stop webui server |
 | `archive` | Teardown workspace — stops processes, syncs git changes |
