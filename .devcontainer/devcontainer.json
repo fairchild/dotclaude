@@ -8,12 +8,17 @@
   "secrets": {
     "ANTHROPIC_API_KEY": {
       "description": "Anthropic API key. Or skip this and run `claude login` to authenticate via browser."
+    },
+    "OPENAI_API_KEY": {
+      "description": "OpenAI API key for image generation and other integrations."
     }
   },
   "customizations": {
     "vscode": {
+      "extensions": [],
       "settings": {
-        "terminal.integrated.defaultProfile.linux": "bash"
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "extensions.ignoreRecommendations": true
       }
     }
   }
