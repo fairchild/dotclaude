@@ -19,6 +19,7 @@ Fork the current session, carrying context for continuity.
 /fork <branch> --team              # Spawn a coordinated teammate in the worktree
 /fork <branch> --background        # Spawn autonomous fire-and-forget agent
 /fork --local                      # Write handoff for manual pickup
+/fork <branch> --dry-run              # Preview what would happen without creating anything
 ```
 
 ## Modes
@@ -59,6 +60,7 @@ Check the user's input:
 
 **Options** (combine with any worktree mode):
 - `--base <ref>` — Create the worktree from a specific branch, tag, or commit instead of main. Passed through to `wt` as `--base <ref>`.
+- `--dry-run` — Preview what would happen (worktree path, mode, base branch, handoff size) without creating anything. Compatible with all modes.
 
 ### Step 1.5: Pre-flight Checks (all worktree modes)
 
@@ -92,6 +94,47 @@ Before generating the handoff, verify prerequisites:
    If missing → fall back to `--local` mode and explain why.
 
 If all checks pass, proceed silently. Only report failures.
+
+### Step 1.7: Dry Run (if `--dry-run`)
+
+If `--dry-run` was specified, report what would happen and stop:
+
+Run the same pre-flight checks from Step 1.5, plus gather additional info, then report:
+
+```bash
+# Determine values for the report
+REPO_NAME=$(basename "$(git remote get-url origin 2>/dev/null || basename "$(git rev-parse --show-toplevel)")" .git)
+WORKTREE_PATH="$HOME/.worktrees/$REPO_NAME/<branch>"
+
+# Branch existence
+if [ -d "$WORKTREE_PATH" ]; then
+  BRANCH_STATUS="yes — would reuse existing worktree"
+else
+  BRANCH_STATUS="no — would create new branch from $BASE"
+fi
+
+# Uncommitted changes
+DIRTY_COUNT=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+
+# claude CLI
+CLAUDE_AVAILABLE=$(command -v claude >/dev/null 2>&1 && echo "available" || echo "NOT available — would fall back to --local")
+```
+
+Print the report:
+
+```
+Dry run for `/fork <branch>`:
+  Mode: {terminal|move|team|background}
+  Worktree: {WORKTREE_PATH}
+  Base: {base_branch}
+  Branch exists: {BRANCH_STATUS}
+  Uncommitted changes: {DIRTY_COUNT} files would be carried as patch
+  claude CLI: {CLAUDE_AVAILABLE}
+  Terminal: {TERM_PROGRAM or "Terminal"} (for --open/--launch-cmd)
+  All pre-flight checks passed ✓
+```
+
+Do not create the worktree, handoff, or spawn any agents. Return after printing the report.
 
 ### Step 2: Generate Context Summary
 
