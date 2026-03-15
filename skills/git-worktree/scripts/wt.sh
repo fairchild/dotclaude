@@ -85,16 +85,25 @@ open_terminal_tab() {
 
     case "$terminal" in
         ghostty)
-            osascript <<ASCRIPT
+            # Save and restore clipboard to avoid clobbering user data
+            local old_clip
+            old_clip=$(pbpaste 2>/dev/null || true)
+
+            # Use clipboard + paste — atomic, handles special chars
+            echo -n "$full_cmd" | pbcopy
+            osascript <<'ASCRIPT'
 tell application "Ghostty" to activate
 delay 0.3
 tell application "System Events" to tell process "Ghostty"
     keystroke "n" using command down
     delay 0.5
-    keystroke "$full_cmd"
+    keystroke "v" using command down
+    delay 0.1
     key code 36
 end tell
 ASCRIPT
+            # Restore previous clipboard after a brief delay
+            (sleep 1 && echo -n "$old_clip" | pbcopy) &
             ;;
         iTerm*)
             osascript \
