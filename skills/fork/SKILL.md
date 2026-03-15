@@ -99,10 +99,12 @@ Create a handoff document summarizing:
 
 1. **Current Task** - what we're working on
 2. **Progress** - what's been done so far
-3. **Key Decisions** - important choices made
-4. **Next Steps** - what the new session should tackle
-5. **Relevant Files** - files we've been working with
-6. **Open Questions** - unresolved issues
+3. **Git State** - current branch, dirty files, recent commits
+4. **Key Decisions** - important choices made
+5. **Next Steps** - what the new session should tackle
+6. **Relevant Files** - files we've been working with
+7. **Open Questions** - unresolved issues
+8. **When Done** - how to merge back and clean up
 
 Use this template:
 
@@ -115,6 +117,15 @@ Use this template:
 ## Progress
 - {What's been completed}
 - {What's in progress}
+
+## Git State
+- Source branch: `{current branch}`
+- Base for fork: `{base_branch or "main"}`
+- Dirty files: {list of modified/untracked files, or "clean"}
+- Recent commits (last 3):
+  - `{short hash}` {message}
+  - `{short hash}` {message}
+  - `{short hash}` {message}
 
 ## Key Decisions
 | Decision | Choice | Why |
@@ -131,8 +142,14 @@ Use this template:
 ## Open Questions
 - {Unresolved question or blocker}
 
+## When Done
+1. Commit your work with conventional commits
+2. Apply to main: `wt apply --push --archive`
+3. Or return to parent: `cd {original_path}`
+
 ---
-*Forked from session on {date}*
+*Forked from `{repo}@{branch}` on {date}*
+*Parent directory: `{original_path}`*
 ```
 
 ### Step 3: Capture Uncommitted Changes (all worktree modes)
