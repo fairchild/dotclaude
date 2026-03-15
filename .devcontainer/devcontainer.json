@@ -25,7 +25,7 @@
       "description": "Anthropic API key. Or skip this and run `claude login` to authenticate via browser."
     },
     "OPENAI_API_KEY": {
-      "description": "OpenAI API key for image generation and other integrations."
+      "description": "Optional. OpenAI API key for image generation and other integrations."
     }
   },
   "customizations": {
