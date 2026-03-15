@@ -312,10 +312,23 @@ if [ -n "$PATCH" ] && [ -s "$PATCH" ]; then
 fi
 ```
 
-After the worktree is created, run claude in the background:
+After the worktree is created, run claude in the background with structured logging:
+
+All paths must be absolute (use `$HOME`, not `~`). `WORKTREE_PATH` is built from `$HOME` so `LOG_DIR` inherits that.
 
 ```bash
-cd ~/.worktrees/<repo>/<branch> && claude --print 'Read .context/handoff.md and complete the work described there. Commit with conventional commits.' > /tmp/fork-<branch>.log 2>&1
+WORKTREE_PATH="$HOME/.worktrees/$REPO_NAME/<branch>"  # absolute via $HOME
+LOG_DIR="$WORKTREE_PATH/.context"
+mkdir -p "$LOG_DIR"
+
+cd "$WORKTREE_PATH" && \
+  claude --print 'Read .context/handoff.md and complete the work described there. Commit with conventional commits.' \
+  > "$LOG_DIR/fork.log" 2>&1 &
+FORK_PID=$!
+echo "$FORK_PID" > "$LOG_DIR/fork.pid"
+
+# Write completion marker when done
+(wait $FORK_PID; echo $? > "$LOG_DIR/fork.exit") &
 ```
 
 Use `run_in_background: true` on the Bash tool call.
@@ -338,7 +351,10 @@ Mode-specific confirmation messages:
 - **Terminal**: "Forked to `<branch>`. New terminal tab opened with interactive Claude session. Handoff at `~/.worktrees/<repo>/<branch>/.context/handoff.md`."
 - **Move**: "Moved into worktree `<branch>`. To return: `cd <original_path>`" (or if using absolute paths: "Working in `~/.worktrees/<repo>/<branch>` via absolute paths.")
 - **Team**: "Forked to `<branch>`. Teammate `<branch>-worker` is working in the worktree. Messages will arrive here when they need input or finish."
-- **Background**: "Forked to `<branch>`. Monitor: `tail -f /tmp/fork-<branch>.log`"
+- **Background**: "Forked to `<branch>`. Background agent running (PID in `.context/fork.pid`).
+  - Monitor: `tail -f ~/.worktrees/<repo>/<branch>/.context/fork.log`
+  - Check status: `test -f ~/.worktrees/<repo>/<branch>/.context/fork.exit && cat it`
+  - Kill: `kill $(cat ~/.worktrees/<repo>/<branch>/.context/fork.pid)`"
 - **Local**: "Context written to `.context/handoff.md`. Open a new terminal here and run `claude`."
 
 If `--base` was used, include it in the confirmation: "Based on `<ref>`."
