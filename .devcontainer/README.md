@@ -9,12 +9,14 @@ Based on the official Anthropic reference devcontainer from
 
 Adopted in commit `23f6755` (`feat: adopt Anthropic reference devcontainer with firewall`).
 
-## What's unchanged
-
-**Dockerfile** — byte-for-byte copy of Anthropic's reference. `node:20` base with
-zsh/powerlevel10k, git-delta, iptables/ipset, and `@anthropic-ai/claude-code`.
-
 ## What we changed
+
+### Dockerfile
+
+One addition to the Anthropic reference: **mise** is installed after zsh setup and before
+Claude Code so that `setup.sh` (postCreateCommand) can skip the download and go straight
+to `mise install`. The `setup.sh` install step is idempotent — it only downloads mise if
+the binary is missing.
 
 ### devcontainer.json
 
@@ -57,5 +59,5 @@ Three changes from the Anthropic reference:
 When Anthropic updates their reference devcontainer:
 
 1. Diff against upstream: `diff <(curl -sL https://raw.githubusercontent.com/anthropics/claude-code/main/.devcontainer/Dockerfile) .devcontainer/Dockerfile`
-2. Apply Dockerfile changes directly (we have no modifications)
+2. Apply Dockerfile changes, preserving the mise install block
 3. For `devcontainer.json` and `init-firewall.sh`, merge carefully — preserve our customizations listed above

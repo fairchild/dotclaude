@@ -12,8 +12,8 @@ DOTFILES_DIR="$(cd "$(dirname "$0")" && pwd)"
 # --- mise: runtimes and tools ---
 if ! command -v mise &>/dev/null; then
   curl -fsSL https://mise.run | sh
-  export PATH="$HOME/.local/bin:$PATH"
 fi
+export PATH="$HOME/.local/bin:$PATH"
 mise trust --all "$DOTFILES_DIR"
 mise install -C "$DOTFILES_DIR"
 eval "$(mise activate bash)"
