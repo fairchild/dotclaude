@@ -19,9 +19,10 @@ mise install -C "$DOTFILES_DIR"
 eval "$(mise activate bash)"
 
 # Persist mise activation for interactive shells
+SHELL_NAME=$(basename "${SHELL:-bash}")
 for rc in ~/.bashrc ~/.zshrc; do
   if [[ -f "$rc" ]] && ! grep -q 'mise activate' "$rc"; then
-    echo 'eval "$(mise activate bash)"' >> "$rc"
+    echo "eval \"\$(mise activate $SHELL_NAME)\"" >> "$rc"
   fi
 done
 
