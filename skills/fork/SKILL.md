@@ -60,6 +60,39 @@ Check the user's input:
 **Options** (combine with any worktree mode):
 - `--base <ref>` — Create the worktree from a specific branch, tag, or commit instead of main. Passed through to `wt` as `--base <ref>`.
 
+### Step 1.5: Pre-flight Checks (all worktree modes)
+
+Skip this step for `--local` mode.
+
+Before generating the handoff, verify prerequisites:
+
+1. **Git repo check:**
+   ```bash
+   git rev-parse --git-dir 2>/dev/null
+   ```
+   If this fails → tell user "Not in a git repository. Use `/fork --local` for non-git contexts."
+
+2. **wt.sh available:**
+   ```bash
+   test -x "$HOME/.claude/skills/git-worktree/scripts/wt.sh"
+   ```
+   If missing → tell user: "git-worktree skill not installed. Install it or use `/fork --local`."
+
+3. **Branch collision:**
+   ```bash
+   REPO_NAME=$(basename "$(git remote get-url origin 2>/dev/null || basename "$(git rev-parse --show-toplevel)")" .git)
+   test -d "$HOME/.worktrees/$REPO_NAME/<branch>"
+   ```
+   If exists → ask: "Worktree `<branch>` already exists. Resume with `wt cd <branch>`, or pick a different name?"
+
+4. **claude CLI** (for `--open` and `--background` modes only):
+   ```bash
+   command -v claude
+   ```
+   If missing → fall back to `--local` mode and explain why.
+
+If all checks pass, proceed silently. Only report failures.
+
 ### Step 2: Generate Context Summary
 
 Create a handoff document summarizing:
