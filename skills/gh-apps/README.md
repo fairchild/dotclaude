@@ -26,14 +26,14 @@ Credentials are stored as flat files under `~/.config/gh-apps/<slug>/` (app ID, 
 
 ```bash
 # Create an app with specific permissions
-~/.claude/skills/gh-apps/scripts/gh-apps.py create my-bot --permissions issues:write,metadata:read --events issues
+scripts/gh-apps.py create my-bot --permissions issues:write,metadata:read --events issues
 
 # Get an installation token for repo-scoped API calls
-~/.claude/skills/gh-apps/scripts/gh-apps.py token
+scripts/gh-apps.py token
 
 # Debug a failed webhook
-~/.claude/skills/gh-apps/scripts/gh-apps.py deliveries --limit 10
-~/.claude/skills/gh-apps/scripts/gh-apps.py redeliver 12345678
+scripts/gh-apps.py deliveries --limit 10
+scripts/gh-apps.py redeliver 12345678
 ```
 
 ## Reference docs

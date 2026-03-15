@@ -12,7 +12,7 @@ description: >
 
 # GitHub Apps Management
 
-Script: `~/.claude/skills/gh-apps/scripts/gh-apps.py`
+Script: `scripts/gh-apps.py`
 
 ## Quick Reference
 
@@ -55,34 +55,34 @@ Env var overrides: `GH_APPS_APP_ID`, `GH_APPS_PRIVATE_KEY_PATH`, `GH_APPS_SLUG`.
 
 ```bash
 # Interactive browser flow — creates app and saves credentials automatically
-~/.claude/skills/gh-apps/scripts/gh-apps.py create my-bot --permissions issues:write,metadata:read --events issues,issue_comment
+scripts/gh-apps.py create my-bot --permissions issues:write,metadata:read --events issues,issue_comment
 
 # Manual mode (no browser / headless)
-~/.claude/skills/gh-apps/scripts/gh-apps.py create my-bot --no-browser --permissions issues:write
+scripts/gh-apps.py create my-bot --no-browser --permissions issues:write
 
 # Create under an organization
-~/.claude/skills/gh-apps/scripts/gh-apps.py create org-bot --org my-org --permissions contents:read
+scripts/gh-apps.py create org-bot --org my-org --permissions contents:read
 ```
 
 ### Authenticate and use
 
 ```bash
 # Verify credentials
-~/.claude/skills/gh-apps/scripts/gh-apps.py setup
+scripts/gh-apps.py setup
 
 # Generate JWT for API calls
-~/.claude/skills/gh-apps/scripts/gh-apps.py jwt
+scripts/gh-apps.py jwt
 
 # Get installation token (for repo-scoped operations)
-~/.claude/skills/gh-apps/scripts/gh-apps.py token
+scripts/gh-apps.py token
 ```
 
 ### Manage webhooks
 
 ```bash
-~/.claude/skills/gh-apps/scripts/gh-apps.py webhook-config
-~/.claude/skills/gh-apps/scripts/gh-apps.py deliveries --limit 20
-~/.claude/skills/gh-apps/scripts/gh-apps.py redeliver 12345678
+scripts/gh-apps.py webhook-config
+scripts/gh-apps.py deliveries --limit 20
+scripts/gh-apps.py redeliver 12345678
 ```
 
 ## What Requires Manual Steps
