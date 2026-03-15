@@ -1,0 +1,12 @@
+[tools]
+node = "lts"
+python = "3.13"
+bun = "latest"
+uv = "latest"
+
+[task_config]
+includes = ["scripts"]
+
+[tasks.setup]
+run = "./setup.sh"
+description = "Bootstrap Claude Code development environment"
