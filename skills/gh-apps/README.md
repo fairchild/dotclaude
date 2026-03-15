@@ -10,7 +10,7 @@ Create, authenticate, and manage GitHub Apps from the command line.
 
 ## What it does
 
-A single Python script (`scripts/gh-apps.py`, runs via `uv`) that wraps the GitHub Apps API:
+A single executable Python script (`scripts/gh-apps.py`) that wraps the GitHub Apps API. Uses `uv` via shebang — no install step, just run it directly:
 
 | Area | Commands |
 |------|----------|
@@ -26,14 +26,14 @@ Credentials are stored as flat files under `~/.config/gh-apps/<slug>/` (app ID, 
 
 ```bash
 # Create an app with specific permissions
-uv run gh-apps.py create my-bot --permissions issues:write,metadata:read --events issues
+~/.claude/skills/gh-apps/scripts/gh-apps.py create my-bot --permissions issues:write,metadata:read --events issues
 
 # Get an installation token for repo-scoped API calls
-uv run gh-apps.py token
+~/.claude/skills/gh-apps/scripts/gh-apps.py token
 
 # Debug a failed webhook
-uv run gh-apps.py deliveries --limit 10
-uv run gh-apps.py redeliver 12345678
+~/.claude/skills/gh-apps/scripts/gh-apps.py deliveries --limit 10
+~/.claude/skills/gh-apps/scripts/gh-apps.py redeliver 12345678
 ```
 
 ## Reference docs
