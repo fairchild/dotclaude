@@ -5,9 +5,9 @@ description: >
   Create, authenticate, and manage GitHub Apps. Use for: creating apps
   via manifest flow, generating JWTs, getting installation tokens,
   managing webhooks and installations, rotating keys. Triggers on:
-  "create github app", "github app", "manage app", "JWT",
-  "installation token", "app manifest", "webhook deliveries",
-  "register app", "gh app".
+  "create github app", "github app", "manage github app",
+  "github app JWT", "github installation token", "github app manifest",
+  "github webhook deliveries", "register github app", "gh app".
 ---
 
 # GitHub Apps Management
