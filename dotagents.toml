@@ -43,4 +43,4 @@ release = true
 swiftui-expert-skill = true
 tart-gui-automation = true
 update-dependencies = true
-voice = true
+vocal = true

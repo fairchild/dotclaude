@@ -50,7 +50,7 @@ Relevant GitHub issues:
 
 Commands in `~/.claude/commands/` that are already covered by skills:
 
-- `voice.md` — covered by `skills/voice/`
+- `vocal.md` — covered by `skills/vocal/`
 - `update-dependencies.md` — covered by `skills/update-dependencies/`
 - `code-review.md` — covered by superpowers:requesting-code-review
 - `bootstrap.md` — covered by superpowers:brainstorming

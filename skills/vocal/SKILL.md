@@ -1,65 +1,65 @@
 ---
-name: voice
+name: vocal
 description: >-
   Speak text aloud (TTS) and transcribe speech (STT). Supports local
   (macOS say, mlx-whisper) and cloud (ElevenLabs) providers. Use when
-  user asks to speak, read aloud, listen, transcribe, or use voice.
+  user asks to speak, read aloud, listen, transcribe, or use vocal.
 license: Apache-2.0
 metadata:
   status: experimental
 ---
 
-# Voice
+# Vocal
 
 Speak text aloud and transcribe speech with local and cloud providers.
 
 ## Usage
 
-### `/voice` command loop
+### `/vocal` command loop
 ```bash
-/voice What should we work on next?
+/vocal What should we work on next?
 ```
 
 Optional inline config:
-- `/voice stt=local tts=local duration=8 What should we work on next?`
-- `/voice stt=elevenlabs tts=elevenlabs duration=10 Ready when you are.`
+- `/vocal stt=local tts=local duration=8 What should we work on next?`
+- `/vocal stt=elevenlabs tts=elevenlabs duration=10 Ready when you are.`
 
 ### Local TTS (macOS `say`)
 ```bash
-uv run ~/.claude/skills/voice/scripts/tts_local.py --text "Hello Michael"
+uv run ~/.claude/skills/vocal/scripts/tts_local.py --text "Hello Michael"
 ```
 
 Examples:
 ```bash
 # Save audio to file
-uv run ~/.claude/skills/voice/scripts/tts_local.py \
+uv run ~/.claude/skills/vocal/scripts/tts_local.py \
   --text "Build succeeded" \
   --voice Alex \
   --rate 200 \
   --output /tmp/build.aiff
 
 # List macOS voices
-uv run ~/.claude/skills/voice/scripts/tts_local.py --list-voices
+uv run ~/.claude/skills/vocal/scripts/tts_local.py --list-voices
 ```
 
 ### Local STT (mlx-whisper, Apple Silicon)
 ```bash
 # Record microphone for 5 seconds and transcribe
-uv run ~/.claude/skills/voice/scripts/stt_local.py --duration 5
+uv run ~/.claude/skills/vocal/scripts/stt_local.py --duration 5
 
 # Transcribe an existing file
-uv run ~/.claude/skills/voice/scripts/stt_local.py --file ./meeting.wav
+uv run ~/.claude/skills/vocal/scripts/stt_local.py --file ./meeting.wav
 
 # List input devices
-uv run ~/.claude/skills/voice/scripts/stt_local.py --list-devices
+uv run ~/.claude/skills/vocal/scripts/stt_local.py --list-devices
 
 # Use a specific device
-uv run ~/.claude/skills/voice/scripts/stt_local.py --duration 5 --device 1
+uv run ~/.claude/skills/vocal/scripts/stt_local.py --duration 5 --device 1
 ```
 
 ### ElevenLabs TTS (cloud)
 ```bash
-uv run ~/.claude/skills/voice/scripts/tts_elevenlabs.py \
+uv run ~/.claude/skills/vocal/scripts/tts_elevenlabs.py \
   --text "Hello Michael" \
   --voice George
 ```
@@ -67,7 +67,7 @@ uv run ~/.claude/skills/voice/scripts/tts_elevenlabs.py \
 Examples:
 ```bash
 # Save and play the generated mp3
-uv run ~/.claude/skills/voice/scripts/tts_elevenlabs.py \
+uv run ~/.claude/skills/vocal/scripts/tts_elevenlabs.py \
   --text "Deployment complete" \
   --model eleven_turbo_v2_5 \
   --output /tmp/deploy.mp3 \
@@ -77,24 +77,24 @@ uv run ~/.claude/skills/voice/scripts/tts_elevenlabs.py \
 ### ElevenLabs STT (Scribe v2)
 ```bash
 # Record microphone for 5 seconds and transcribe
-uv run ~/.claude/skills/voice/scripts/stt_elevenlabs.py --duration 5
+uv run ~/.claude/skills/vocal/scripts/stt_elevenlabs.py --duration 5
 
 # Transcribe an existing audio file
-uv run ~/.claude/skills/voice/scripts/stt_elevenlabs.py --file ./call.wav
+uv run ~/.claude/skills/vocal/scripts/stt_elevenlabs.py --file ./call.wav
 
 # List input devices
-uv run ~/.claude/skills/voice/scripts/stt_elevenlabs.py --list-devices
+uv run ~/.claude/skills/vocal/scripts/stt_elevenlabs.py --list-devices
 
 # Use a specific device
-uv run ~/.claude/skills/voice/scripts/stt_elevenlabs.py --duration 5 --device 1
+uv run ~/.claude/skills/vocal/scripts/stt_elevenlabs.py --duration 5 --device 1
 ```
 
 ### Provider checks
 ```bash
-uv run ~/.claude/skills/voice/scripts/tts_local.py --check
-uv run ~/.claude/skills/voice/scripts/stt_local.py --check
-uv run ~/.claude/skills/voice/scripts/tts_elevenlabs.py --check
-uv run ~/.claude/skills/voice/scripts/stt_elevenlabs.py --check
+uv run ~/.claude/skills/vocal/scripts/tts_local.py --check
+uv run ~/.claude/skills/vocal/scripts/stt_local.py --check
+uv run ~/.claude/skills/vocal/scripts/tts_elevenlabs.py --check
+uv run ~/.claude/skills/vocal/scripts/stt_elevenlabs.py --check
 ```
 
 ## Provider Comparison
@@ -146,19 +146,19 @@ If transcription fails with permission errors:
 Run fast provider checks:
 
 ```bash
-uv run ~/.claude/skills/voice/tests/test_voice.py
+uv run ~/.claude/skills/vocal/tests/test_voice.py
 ```
 
 Run file-based ask/listen/respond loop (no microphone required):
 
 ```bash
-uv run ~/.claude/skills/voice/tests/test_voice_loop.py
+uv run ~/.claude/skills/vocal/tests/test_voice_loop.py
 ```
 
 Include cloud loop validation (requires ElevenLabs key):
 
 ```bash
-uv run ~/.claude/skills/voice/tests/test_voice_loop.py --cloud
+uv run ~/.claude/skills/vocal/tests/test_voice_loop.py --cloud
 ```
 
 Fixture files for loop validation:

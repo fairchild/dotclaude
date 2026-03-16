@@ -1,9 +1,9 @@
 ---
-name: voice-listener
+name: vocal-listener
 description: Background listener that records speech, transcribes it, and sends transcripts to the main session.
 ---
 
-# Voice Listener Agent
+# Vocal Listener Agent
 
 Run as a background agent dedicated to listening and transcription only.
 
@@ -26,10 +26,10 @@ If config is missing, default to:
 1. Capture one utterance using selected STT provider:
 ```bash
 # local
-uv run ~/.claude/skills/voice/scripts/stt_local.py --duration <duration_seconds>
+uv run ~/.claude/skills/vocal/scripts/stt_local.py --duration <duration_seconds>
 
 # elevenlabs
-uv run ~/.claude/skills/voice/scripts/stt_elevenlabs.py --duration <duration_seconds>
+uv run ~/.claude/skills/vocal/scripts/stt_elevenlabs.py --duration <duration_seconds>
 ```
 
 2. If transcription command fails:
