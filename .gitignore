@@ -39,6 +39,9 @@ statsig/
 stats-cache.json
 telemetry/
 
+# Python
+__pycache__/
+
 # Generated/cached
 cache/
 downloads/
