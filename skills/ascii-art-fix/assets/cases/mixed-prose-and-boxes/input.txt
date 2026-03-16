@@ -1,0 +1,15 @@
+The request flows through several stages. First it hits
+the load balancer:
+
++--------------------+
+| Load Balancer|
++--------------------+
+
+Then it gets routed to one of the app servers, which
+processes the request and queries the database:
+
++--------------------+     +--------------------+
+| App Server   |---->| Database     |
++--------------------+     +--------------------+
+
+Finally the response is sent back to the client.
