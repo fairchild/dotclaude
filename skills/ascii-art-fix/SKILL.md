@@ -62,6 +62,25 @@ Box diagrams have:
 
 If a line has a `|---|` separator row, it's a table. Leave it alone.
 
+## Verify Your Work
+
+After fixing, check that every line in each box is the same width. Nested boxes are especially tricky — the outer box content lines that contain an inner box still need their closing `|` at the outer box's column:
+
+```
++------------------+          <- width 20, | at column 20
+| Outer content    |          <- | at column 20 ✓
+|  +----------+   |          <- | at column 20 ✓ (not column 17)
+|  | Inner    |   |          <- | at column 20 ✓
+|  +----------+   |          <- | at column 20 ✓
++------------------+
+```
+
+Run the validator to catch misalignment:
+
+```bash
+python3 scripts/validate.py <file>
+```
+
 ## Eval
 
 Run the eval to check your work:
