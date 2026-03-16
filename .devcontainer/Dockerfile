@@ -78,11 +78,9 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
   -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
   -x
 
-# Install mise (runtime manager) and pre-install runtimes for prebuild caching
+# Install mise (runtimes installed at runtime by setup.sh)
 RUN curl -fsSL https://mise.run | sh
 ENV PATH="/home/node/.local/bin:$PATH"
-COPY .mise.toml /tmp/.mise.toml
-RUN mise trust /tmp/.mise.toml && mise install -C /tmp && rm /tmp/.mise.toml
 
 # Install Claude
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
