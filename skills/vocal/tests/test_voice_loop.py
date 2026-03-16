@@ -4,7 +4,7 @@
 # dependencies = []
 # ///
 """
-Non-interactive voice loop test.
+Non-interactive vocal loop test.
 
 Usage:
   uv run tests/test_voice_loop.py            # Local file-based ask/listen/respond
@@ -151,7 +151,7 @@ def main() -> None:
     keyword = args.keyword or read_fixture(FIXTURES_DIR / "expected_keyword.txt", "howdy")
 
     failures = 0
-    print("=== Voice Loop (File-Based) ===")
+    print("=== Vocal Loop (File-Based) ===")
     print(f"prompt: {prompt}")
     print(f"keyword: {keyword}")
 

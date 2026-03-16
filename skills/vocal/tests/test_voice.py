@@ -4,7 +4,7 @@
 # dependencies = []
 # ///
 """
-Voice skill test suite.
+Vocal skill test suite.
 
 Usage:
   uv run tests/test_voice.py                # Run --check for each provider
@@ -40,7 +40,7 @@ PROVIDERS = {
 
 SKILL_DIR = Path(__file__).parent.parent
 SCRIPTS_DIR = SKILL_DIR / "scripts"
-TEST_TEXT = "Voice skill test."
+TEST_TEXT = "Vocal skill test."
 
 
 def env_is_set(provider: str) -> bool:
@@ -124,7 +124,7 @@ def run_generate(provider: str, temp_dir: Path) -> tuple[bool, str]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Test voice skill")
+    parser = argparse.ArgumentParser(description="Test vocal skill")
     parser.add_argument("--generate", "-g", action="store_true", help="Run generation and transcription tests")
     parser.add_argument("--provider", "-p", choices=list(PROVIDERS.keys()), help="Run only one provider")
     args = parser.parse_args()

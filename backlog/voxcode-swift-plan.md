@@ -12,7 +12,7 @@ completed: null
 
 ## Problem Statement
 
-Claude Code is keyboard-first. The existing voice skill (`~/.claude/skills/voice/`) provides
+Claude Code is keyboard-first. The existing voice skill (`~/.claude/skills/vocal/`) provides
 TTS and STT as Bash tools, but the interaction is clunky — each listen/speak cycle requires
 a separate tool call, there's no continuous conversation, and the Python scripts have no
 native macOS integration (audio routing, global hotkeys, background operation).
@@ -613,15 +613,15 @@ The REST and WebSocket APIs are simple enough to call directly.
 ```
 ~/code/voxcode/           ← new repo, Swift Package, standalone app
 ~/code/workspaces/             ← existing, adds VoxcodeCore dependency (Phase 4)
-~/.claude/skills/voice/        ← existing Python scripts, unchanged
+~/.claude/skills/vocal/        ← existing Python scripts, unchanged
 ~/.claude/backlog/voxcode-swift-plan.md  ← this plan
 ```
 
-**Why its own repo** (not in `~/.claude/skills/voice/`):
+**Why its own repo** (not in `~/.claude/skills/vocal/`):
 - Skills are things **Claude calls** — Python scripts invoked via Bash tool
 - Voxcode is something that **calls Claude** — a standalone macOS app wrapping the CLI
 - Different build system (SPM vs uv scripts), different lifecycle, different distribution
-- The Python voice skill stays unchanged — they serve opposite directions
+- The Python vocal skill stays unchanged — they serve opposite directions
 
 **Scaffolded at `~/code/voxcode/`** with working build (`swift build` passes):
 ```
@@ -698,13 +698,13 @@ Input Monitoring permission (global hotkey) requested at runtime via
 19. API key persisted in Keychain
 20. Graceful fallback when ElevenLabs unavailable
 
-## Existing Python Voice Skill — Unchanged
+## Existing Python Vocal Skill — Unchanged
 
-The Python scripts at `~/.claude/skills/voice/scripts/` remain as-is. They serve a different
-purpose: tools that Claude calls from within a terminal session (`/voice` command).
+The Python scripts at `~/.claude/skills/vocal/scripts/` remain as-is. They serve a different
+purpose: tools that Claude calls from within a terminal session (`/vocal` command).
 
 The two coexist:
-- **Python voice skill**: Claude-initiated ("Claude, speak this")
+- **Python vocal skill**: Claude-initiated ("Claude, speak this")
 - **Swift Voxcode**: Human-initiated ("Hey Claude, listen to me")
 
 ## References
@@ -728,6 +728,6 @@ The two coexist:
 - Zed CLI: `zed path/to/file:line:column` — opens at specific line
 
 ### Related
-- Voice skill (Python): `~/.claude/skills/voice/`
+- Vocal skill (Python): `~/.claude/skills/vocal/`
 - Workspaces app: `~/code/workspaces/`
 - Scaffolded repo: `~/code/voxcode/`

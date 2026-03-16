@@ -1,4 +1,4 @@
-# Voice Skill Architecture
+# Vocal Skill Architecture
 
 ## Overview
 
@@ -43,8 +43,8 @@ Uses Claude Code's team mechanism to create a background voice listener.
 ```
 Main Session                     Voice Listener Agent (background)
      │                                      │
-     │──── TeamCreate("voice") ────────────▶│
-     │──── Task(voice-listener) ───────────▶│
+     │──── TeamCreate("vocal") ────────────▶│
+     │──── Task(vocal-listener) ───────────▶│
      │                                      │
      │  ┌──────────────────────────────────▶│ runs stt script (blocking Bash)
      │  │                                   │ waits for speech...

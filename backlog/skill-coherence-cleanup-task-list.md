@@ -36,7 +36,7 @@ Audit and promote skills whose experimental label no longer reflects reality:
 | **persona-memory** | Evaluate | Has README, tests, references — may be ready |
 | **cloudflare-workers-deploy** | Evaluate | Unclear why experimental |
 | **skill-seeker** | Keep experimental | Genuinely experimental (generation quality varies) |
-| **voice** | Keep experimental | External provider dependencies (ElevenLabs) |
+| **vocal** | Keep experimental | External provider dependencies (ElevenLabs) |
 
 **Files to modify:**
 - Each promoted skill's `SKILL.md` — remove `status: experimental` from frontmatter
