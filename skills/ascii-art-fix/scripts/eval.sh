@@ -27,14 +27,31 @@ for case_dir in "$CASES_DIR"/*/; do
         continue
     fi
 
+    # Check alignment consistency
+    alignment_ok=true
+    alignment_errors="$(python3 "$SCRIPT_DIR/validate.py" "$output_file" 2>&1)" || alignment_ok=false
+
     if diff "$output_file" "$expected_file" > /dev/null 2>&1; then
-        echo "PASS  $case_name"
-        ((pass++))
+        if [[ "$alignment_ok" == true ]]; then
+            echo "PASS  $case_name"
+            ((pass++))
+        else
+            echo "FAIL  $case_name (diff ok but alignment broken)"
+            echo "$alignment_errors"
+            echo
+            ((fail++))
+            errors="$errors  $case_name (alignment)\n"
+        fi
     else
         echo "FAIL  $case_name"
         echo "--- diff (output vs expected) ---"
         diff "$output_file" "$expected_file" || true
         echo "--- end diff ---"
+        if [[ "$alignment_ok" == false ]]; then
+            echo "--- alignment errors ---"
+            echo "$alignment_errors"
+            echo "--- end alignment ---"
+        fi
         echo
         ((fail++))
         errors="$errors  $case_name\n"

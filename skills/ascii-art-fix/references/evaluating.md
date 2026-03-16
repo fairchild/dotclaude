@@ -28,11 +28,24 @@ bash skills/ascii-art-fix/scripts/eval.sh
 
 Exit code = number of failures. Zero = all pass.
 
+## Validating Alignment
+
+The validator checks that all box content lines have their border characters at the correct column:
+
+```bash
+python3 scripts/validate.py <file>...
+```
+
+The eval runner calls this automatically on every output file. Use it manually to:
+- Verify expected files are correct when adding new cases
+- Spot-check your output before running the full eval
+
 ## Adding Cases
 
 ```bash
 mkdir -p assets/cases/<category>-<description>
 # Create input.* and expected.* files
+python3 scripts/validate.py assets/cases/<category>-<description>/expected.*
 # Run eval to confirm
 ```
 
