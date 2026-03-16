@@ -35,6 +35,7 @@ web-design-guidelines = true
 # Dotclaude-authored skills to share with ~/.agents/skills/
 # Makes these available to Cursor, Codex, Gemini CLI, etc.
 [share-to-agents]
+agent-inbox = true
 backlog = true
 gh-apps = true
 image-gen = true
