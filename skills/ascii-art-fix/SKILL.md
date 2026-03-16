@@ -1,69 +1,75 @@
 ---
 name: ascii-art-fix
-description: Fix misaligned right borders in ASCII art diagrams using the aadc CLI
+description: Fix misaligned right borders in ASCII art diagrams
 license: Apache-2.0
 metadata:
   status: experimental
-  credits:
-    - name: aadc
-      url: https://github.com/Dicklesworthstone/aadc
-      author: Jeffrey Emanuel
 ---
 
 # ASCII Art Fix
 
-Wraps [aadc](https://github.com/Dicklesworthstone/aadc) (ASCII Art Diagram Corrector) to automatically detect and fix misaligned right borders in ASCII diagrams. Only adds padding — never removes content.
+Fix misaligned right borders in ASCII art box diagrams. Prompt-driven — no external tools required.
 
-## Setup
+## Recognizing ASCII Box Diagrams
 
-If `which aadc` fails, build from source:
+Box diagrams use border characters to draw rectangular outlines:
 
-```bash
-bash ~/.claude/skills/ascii-art-fix/scripts/ensure-aadc.sh
+**Plus-dash style:**
+```
++-------------------+
+| Content here      |
++-------------------+
 ```
 
-## Caution
-
-aadc treats markdown tables as ASCII diagrams, which **corrupts valid markdown** — it breaks separator rows and appends stray `|` to nearby text. It also pads already-aligned box diagrams unnecessarily.
-
-**Rules:**
-- **Never** run `aadc -ri` on a directory or repo — bulk operations cause widespread false positives
-- **Always** preview with `-d` before applying `-i`
-- **Always** review the full diff — reject changes that touch markdown tables or add trailing `|` to prose
-- Target **specific files** you know contain misaligned `+---+` / `│` box art
-- Best for `.txt` files or code blocks with pure ASCII box diagrams, not `.md` files with tables
-
-## Usage
-
-Preview changes first (always do this):
-```bash
-aadc -d file.txt
+**Unicode style:**
+```
+┌─────────────────┐
+│ Content here    │
+└─────────────────┘
 ```
 
-Fix a specific file in place (only after reviewing the diff):
+## How to Fix
+
+1. **Find each box** — identify top/bottom borders (lines of `+---+` or `┌───┐` / `└───┘`)
+2. **Measure the box width** — count characters in the top border from first `+` to last `+` (inclusive)
+3. **Pad each content line** — every `|` or `│` content line between borders must have its closing border character at the same column as the border width
+4. **Preserve everything else** — do not modify any text outside box diagrams
+
+## Rules
+
+**DO fix:**
+- Content lines where the closing `|` or `│` is at the wrong column
+- Pad with spaces between content and closing border
+
+**DO NOT touch:**
+- Markdown tables (`| Col | Col |` with `|---|---|` separator rows)
+- Content inside fenced code blocks (``` or ~~~)
+- Flow arrows or connectors between boxes (`|`, `v`, `---->`)
+- Lines that don't belong to a box diagram
+- Already-aligned boxes
+
+## Distinguishing Tables from Boxes
+
+Markdown tables have:
+- Multiple `|` characters per line separating columns
+- A separator row matching `|---|---|` (dashes with optional colons)
+- No `+` corner characters
+
+Box diagrams have:
+- `+` or `┌└┐┘` corner characters on border lines
+- Exactly two `|` or `│` per content line (opening and closing)
+- Horizontal borders made of `-` or `─`
+
+If a line has a `|---|` separator row, it's a table. Leave it alone.
+
+## Eval
+
+Run the eval to check your work:
+
 ```bash
-aadc -i file.txt
+bash skills/ascii-art-fix/scripts/clean.sh
+# process each case in assets/cases/*/
+bash skills/ascii-art-fix/scripts/eval.sh
 ```
 
-Pipe from stdin:
-```bash
-echo '| short|' | aadc
-```
-
-## Key Options
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--diff` | `-d` | Show unified diff instead of full output |
-| `--dry-run` | `-n` | Preview changes without modifying (exit 3 if changes found) |
-| `--in-place` | `-i` | Edit file in place |
-| `--verbose` | `-v` | Show correction progress and statistics |
-| `--all` | `-a` | Process all diagram-like blocks, even low-confidence ones |
-| `--recursive` | `-r` | Process files recursively (**avoid — see Caution**) |
-| `--glob` | | Glob pattern for recursive mode (default: `*.txt,*.md`) |
-
-## When to Use
-
-- After generating or editing a specific file with ASCII box diagrams
-- On `.txt` or plain-text files with `+---+` / `│` box-drawing borders
-- When you can see the misalignment and want a targeted fix
+See `references/evaluating.md` for the full eval workflow.

@@ -1,0 +1,9 @@
+Here is a diagram:
+
++-------------------+
+| Header            |
++-------------------+
+| Short|
+| A longer line here|
+| Mid length |
++-------------------+
