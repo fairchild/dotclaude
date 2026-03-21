@@ -104,7 +104,6 @@
       "Bash(git push *)",
       "Bash(git reset *)",
       "Bash(git rebase *)",
-      "Bash(git push --force *)",
       "Bash(rm -rf *)"
     ],
     "defaultMode": "default"

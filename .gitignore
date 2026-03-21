@@ -17,6 +17,7 @@ secrets/
 credentials/
 
 # Session data (personal, ephemeral)
+sessions/
 history.jsonl
 .chronicle-last-sync
 plans/
