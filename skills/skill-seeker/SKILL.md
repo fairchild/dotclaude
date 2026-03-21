@@ -3,6 +3,7 @@ name: skill-seeker
 description: >-
   EXPERIMENTAL — only use when explicitly requested. Generate Claude Code
   skills from docs sites, GitHub repos, or local codebases using Skill Seekers.
+license: Apache 2.0
 metadata:
   status: experimental
 ---

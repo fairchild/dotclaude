@@ -1,6 +1,7 @@
 ---
 name: persona-memory
 description: Build and operate a persistent persona and memory framework for Claude Code. Use when setting up personality.md injection, durable memory blocks in ~/.ai-memory, session start/end memory workflows, recall/remember/consolidate scripts, or packaging a distributable memory skill profile.
+license: Apache 2.0
 metadata:
   status: experimental
 ---
