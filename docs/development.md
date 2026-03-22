@@ -1,27 +1,21 @@
 # Development
 
-`~/.claude` is a git worktree of `~/code/dotclaude`, not an independent clone. One `.git`, two working directories, no drift.
+`~/.claude` and `~/code/dotclaude` are two independent clones of the same repo, both on `main`. One is for development, the other is the deploy target.
 
 | Path | Branch | Role |
 |------|--------|------|
-| `~/code/dotclaude` | `main` | Development — branches, PRs, worktrees |
-| `~/.claude` | `runtime` | Live runtime — Claude Code reads this |
+| `~/code/dotclaude` | `main` + feature branches | Development — branches, PRs |
+| `~/.claude` | `main` | Deploy target — Claude Code reads this |
 
-## Auto-Sync
+## Auto-Deploy
 
-A `SessionStart` hook keeps the runtime current. Every time Claude Code starts a session (in any project), it runs `hooks/runtime-sync.sh`, which fast-forwards the `runtime` branch to match `main` using the shared local object store (~0.08s, no network):
+A `SessionStart` hook runs `hooks/dotclaude-deploy.sh`, which delegates to `scripts/deploy.sh`. On every session start it:
 
-```bash
-#!/usr/bin/env bash
-git -C ~/.claude merge main --ff-only --quiet 2>/dev/null
-exit 0
-```
+1. Removes dev symlinks (skills pointing back to `~/code/dotclaude`)
+2. Fetches and fast-forwards `~/.claude` to `origin/main`
+3. Reports what changed (silent when nothing did)
 
-This is the first hook in the SessionStart list — it runs before chronicle or anything else, so updated skills are available immediately. The script always exits 0 so sessions start normally even if the merge fails.
-
-Note: since this is local-only, the runtime sees new commits after you `git pull` in `~/code/dotclaude`, not immediately after a PR merges on GitHub.
-
-After merging a PR, you don't need to do anything. The next session start picks it up automatically.
+After merging a PR, the next session start picks it up automatically.
 
 ## Skill Sources
 
@@ -31,9 +25,9 @@ Three origins coexist in `~/.claude/skills/`:
 |--------|---------|---------|
 | **Git-tracked** | Yes | `chronicle/`, `release/`, `dotclaude-config/` |
 | **Ecosystem-installed** | No | `capture-screens/` (from `npx skills install`) |
-| **External symlinks** | No | `slidev` → `~/.agents/skills/slidev` |
+| **Dev symlinks** | No | Temporary, cleaned by deploy script |
 
-Ecosystem-installed and symlinked skills appear as untracked in `git status` — this is expected.
+Ecosystem-installed skills appear as untracked in `git status` — this is expected.
 
 ## Developing a Skill
 
@@ -48,42 +42,32 @@ mkdir -p ~/code/dotclaude/skills/my-skill
 ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
 
 # 4. Develop, test, commit in ~/code/dotclaude
-# 5. Push, open PR
+# 5. Push, open PR, merge
 
-# 6. After merge: remove symlink (auto-sync handles the rest)
-rm ~/.claude/skills/my-skill
+# 6. Deploy (removes symlink automatically, pulls new code)
+~/.claude/scripts/deploy.sh
 ```
 
-## Runtime-Specific Changes
+## Runtime Changes
 
-Claude Code sometimes modifies tracked files at runtime (e.g., `settings.json` gains a new `effortLevel`). To get those changes back into `main`:
+Claude Code sometimes modifies tracked files at runtime (e.g., `settings.json`). Push directly:
 
 ```bash
 git -C ~/.claude add settings.json
 git -C ~/.claude commit -m "chore: update settings from runtime"
-git -C ~/code/dotclaude cherry-pick runtime
-git push origin main
-git -C ~/.claude merge main --ff-only
+git -C ~/.claude push origin main
+
+# Dev repo catches up whenever needed:
+git -C ~/code/dotclaude pull
 ```
 
 ## Gitignore
 
-The runtime generates ~30k+ ephemeral files (session history, debug logs, chronicle blocks, caches). The `.gitignore` covers all of them. When new runtime artifacts appear, add patterns to `.gitignore` so `git -C ~/.claude status` stays clean.
-
-## Why Worktree Over Two Clones
-
-The previous setup had two independent clones of the same repo. They drifted — the runtime fell 10+ commits behind, tracked files diverged, and there was no sync mechanism. The worktree approach gives:
-
-- **Single `.git`** — one history, one set of branches
-- **`git status` as drift detection** — untracked files in `~/.claude` are visible immediately
-- **Fast-forward merges** — `runtime` branch always moves forward to match `main`
-- **Auto-sync on session start** — zero manual maintenance
+The runtime generates ~30k+ ephemeral files (session history, debug logs, chronicle blocks, caches). The `.gitignore` covers all of them. When new runtime artifacts appear, add patterns so `git -C ~/.claude status` stays clean.
 
 ## Rollback
 
-If the worktree setup breaks:
-
 ```bash
-git -C ~/code/dotclaude worktree remove ~/.claude --force
+rm -rf ~/.claude
 git clone https://github.com/fairchild/dotclaude.git ~/.claude
 ```
