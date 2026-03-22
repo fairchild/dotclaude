@@ -1,66 +1,152 @@
-# Worktree-Based Runtime Pattern
+# Two-Clone Development Workflow
 
-Manage `~/.claude` as a git worktree of your dotclaude development repo. Eliminates drift between where you develop and where Claude Code reads configuration.
+Manage `~/.claude` as an independent clone that deploys from `origin/main`. Develop in `~/code/dotclaude` on feature branches. One command to sync.
 
-## Detect Current State
+## Architecture
 
-```bash
-# Is ~/.claude a worktree already?
-if [ -f ~/.claude/.git ]; then
-  echo "WORKTREE — linked to $(cat ~/.claude/.git | sed 's/gitdir: //')"
-elif [ -d ~/.claude/.git ]; then
-  echo "STANDALONE CLONE — candidate for migration"
-else
-  echo "NOT A REPO — no git tracking"
-fi
+```
+~/code/dotclaude          ~/.claude
+(dev clone)               (deploy clone)
+feature branches          always on main
+PRs, commits              git pull to update
+                  ← origin/main →
 ```
 
-## Why Worktree
+Two independent clones of the same remote. No worktrees, no branch sync, no cherry-picks.
 
-With two independent clones (dev repo + `~/.claude`), tracked files drift silently. You merge a PR but `~/.claude` doesn't know. Settings.json diverges. Skills get out of sync.
+| Path | Branch | Role |
+|------|--------|------|
+| `~/code/dotclaude` | `main` + feature branches | Development — branches, PRs |
+| `~/.claude` | `main` | Deploy target — Claude Code reads this |
 
-A worktree gives you:
-- **Single `.git`** — one history, one set of branches, no drift
-- **`git status` as drift detector** — untracked files in `~/.claude` are visible immediately
-- **Fast-forward sync** — `runtime` branch always moves forward to match `main`
-- **Auto-sync on session start** — zero manual maintenance
+## Deploy
 
-## Setup
-
-Replace `DEV_REPO` with the path to your dotclaude development clone:
+After merging a PR (or anytime):
 
 ```bash
-DEV_REPO=~/code/dotclaude  # adjust to your location
+~/.claude/scripts/deploy.sh
+```
 
-# 1. Back up current ~/.claude
+The script:
+1. Removes dev symlinks (skills pointing back to `~/code/dotclaude`)
+2. Fetches and fast-forwards `~/.claude` to `origin/main`
+3. Reports what changed (silent when nothing did)
+
+A `SessionStart` hook runs this automatically, so merged PRs are live at next session start.
+
+## Skill Development
+
+Skills must be "live" at `~/.claude/skills/<name>` to test. Use symlinks to bridge dev and runtime during development.
+
+### New Skill
+
+```bash
+# 1. Feature branch + skill in dev repo
+git -C ~/code/dotclaude checkout -b feat/my-skill main
+mkdir -p ~/code/dotclaude/skills/my-skill
+
+# 2. Symlink into runtime for live testing
+ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
+
+# 3. Develop, test, commit in ~/code/dotclaude
+# 4. Push, open PR, merge
+
+# 5. Deploy (removes symlink automatically, pulls new code)
+~/.claude/scripts/deploy.sh
+```
+
+### Existing Skill (modify on a branch)
+
+```bash
+# 1. Feature branch in dev repo
+git -C ~/code/dotclaude checkout -b feat/improve-my-skill main
+
+# 2. Swap runtime's copy for a dev symlink
+rm -rf ~/.claude/skills/my-skill
+ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
+
+# 3. Develop, test, commit, push, PR, merge
+
+# 4. Deploy (restores tracked version from main)
+~/.claude/scripts/deploy.sh
+```
+
+### Deleting a Skill
+
+```bash
+# In dev repo: delete the skill directory, commit on branch, merge PR
+# Deploy pulls the deletion:
+~/.claude/scripts/deploy.sh
+```
+
+## Runtime Changes
+
+When Claude Code modifies tracked files at runtime (e.g., `settings.json` gains a new permission):
+
+```bash
+git -C ~/.claude add settings.json
+git -C ~/.claude commit -m "chore: update settings from runtime"
+git -C ~/.claude push origin main
+
+# Dev repo catches up whenever needed:
+git -C ~/code/dotclaude pull
+```
+
+No cherry-pick. No hash divergence. Both clones are on `main`.
+
+## Setup (Fresh)
+
+```bash
+DEV_REPO=~/code/dotclaude
+
+# 1. Clone the dev repo (if not already)
+git clone git@github.com:fairchild/dotclaude.git "$DEV_REPO"
+
+# 2. Back up current ~/.claude
 mv ~/.claude ~/.claude-backup
 
-# 2. Create a runtime branch (worktrees require separate branches)
-git -C "$DEV_REPO" branch runtime main
-git -C "$DEV_REPO" push origin runtime
+# 3. Clone the deploy target
+git clone git@github.com:fairchild/dotclaude.git ~/.claude
 
-# 3. Create the worktree
-git -C "$DEV_REPO" worktree add ~/.claude runtime
-
-# 4. Restore gitignored runtime data (session history, caches, etc.)
+# 4. Restore gitignored runtime data (sessions, caches, plugins)
 rsync -a --exclude='.git/' --exclude='.git' --ignore-existing \
   ~/.claude-backup/ ~/.claude/
 
 # 5. Verify
-git -C "$DEV_REPO" worktree list
-git -C ~/.claude status
+git -C ~/.claude log --oneline -1
+git -C "$DEV_REPO" log --oneline -1
+# Both should show the same HEAD commit
 ```
 
-Result:
+## Setup (Migrate from Worktree)
 
-| Path | Branch | Role |
-|------|--------|------|
-| `$DEV_REPO` | `main` | Development — branches, PRs |
-| `~/.claude` | `runtime` | Live runtime — Claude Code reads this |
+If `~/.claude` is currently a worktree of `~/code/dotclaude`:
+
+```bash
+DEV_REPO=~/code/dotclaude
+
+# 1. Remove the worktree registration (keeps files in place)
+git -C "$DEV_REPO" worktree remove ~/.claude --force
+
+# 2. Re-init ~/.claude as a standalone clone
+cd ~/.claude
+git init
+git remote add origin git@github.com:fairchild/dotclaude.git
+git fetch origin
+git reset --hard origin/main
+
+# 3. Delete the runtime branch (no longer needed)
+git -C "$DEV_REPO" branch -D runtime
+git push origin --delete runtime
+
+# 4. Verify
+git -C ~/.claude log --oneline -1
+git -C "$DEV_REPO" log --oneline -1
+```
 
 ## Auto-Sync Hook
 
-Add a `SessionStart` hook to `settings.json` that fast-forwards the runtime on every session start. The sync logic lives in `hooks/runtime-sync.sh` — place it **first** so other hooks see updated code:
+The `SessionStart` hook runs `scripts/deploy.sh` so merged PRs are live at next session start. Place it **first** so other hooks see updated code:
 
 ```json
 {
@@ -70,7 +156,7 @@ Add a `SessionStart` hook to `settings.json` that fast-forwards the runtime on e
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/runtime-sync.sh"
+            "command": "~/.claude/scripts/deploy.sh"
           }
         ]
       }
@@ -79,88 +165,11 @@ Add a `SessionStart` hook to `settings.json` that fast-forwards the runtime on e
 }
 ```
 
-The script always exits 0, so offline sessions start normally. Edit the script to add timeouts, logging, or local-only mode without touching `settings.json`.
-
-After this, merged PRs are live at next session start — no manual sync needed.
-
-## Skill Development with Symlinks
-
-Skills must be "live" at `~/.claude/skills/<name>` to test. Use symlinks to bridge dev and runtime.
-
-### New Skill
-
-```bash
-# 1. Create feature branch + skill in dev repo
-git -C "$DEV_REPO" checkout -b feat/my-skill main
-mkdir -p "$DEV_REPO/skills/my-skill"
-
-# 2. Symlink into runtime for live testing
-ln -s "$DEV_REPO/skills/my-skill" ~/.claude/skills/my-skill
-
-# 3. Develop, test, commit in $DEV_REPO
-# 4. Push, open PR
-
-# 5. After merge: remove symlink, fast-forward runtime
-rm ~/.claude/skills/my-skill
-git -C ~/.claude merge main --ff-only
-```
-
-### Existing Skill (modify on a branch)
-
-The runtime worktree already has the tracked version. Replace it with a symlink to your dev branch:
-
-```bash
-# 1. Create feature branch in dev repo
-git -C "$DEV_REPO" checkout -b feat/improve-my-skill main
-
-# 2. Swap runtime's tracked copy for a dev symlink
-rm -rf ~/.claude/skills/my-skill
-ln -s "$DEV_REPO/skills/my-skill" ~/.claude/skills/my-skill
-
-# 3. Develop, test, commit in $DEV_REPO
-# 4. Push, open PR
-
-# 5. After merge: remove symlink, fast-forward runtime
-rm ~/.claude/skills/my-skill
-git -C ~/.claude merge main --ff-only
-# git restores the tracked version from the merged commit
-```
-
-**Do NOT rename the tracked dir** (e.g., `my-skill.backup`). Claude Code scans `~/.claude/skills/*/SKILL.md` — any directory with a SKILL.md becomes a skill in the catalog.
-
-If you need to roll back before merging:
-```bash
-rm ~/.claude/skills/my-skill
-git -C ~/.claude checkout -- skills/my-skill
-```
-
-### Deleting a Skill (on a branch)
-
-When removing a skill from the repo, also remove it from runtime during testing:
-
-```bash
-# In dev repo: delete the skill, commit on branch
-# In runtime: remove so it stops appearing in catalog
-rm -rf ~/.claude/skills/old-skill
-```
-
-After merge + fast-forward, git removes it from the worktree automatically.
-
-## Runtime-Specific Changes
-
-When Claude Code modifies tracked files at runtime (e.g., `settings.json` gains a new field):
-
-```bash
-git -C ~/.claude add <file>
-git -C ~/.claude commit -m "chore: update <file> from runtime"
-git -C "$DEV_REPO" cherry-pick runtime
-git push origin main
-git -C ~/.claude merge main --ff-only
-```
+The script exits 0 on failure (offline, diverged), so sessions always start normally.
 
 ## Gitignore
 
-The runtime generates thousands of ephemeral files. Keep `.gitignore` comprehensive so `git status` stays clean and useful as a drift detector. Common patterns:
+The runtime generates thousands of ephemeral files. Keep `.gitignore` comprehensive so `git status` stays clean:
 
 ```gitignore
 # Session data
@@ -186,30 +195,27 @@ tmp/
 
 ## Skill Sources in Runtime
 
-Three origins can coexist in `~/.claude/skills/`:
+Three origins coexist in `~/.claude/skills/`:
 
 | Source | Tracked | Notes |
 |--------|---------|-------|
 | **Git-tracked** | Yes | Canonical, version-controlled |
 | **Ecosystem-installed** | No | From `npx skills install`, runtime-only |
-| **External symlinks** | No | From other repos — fragile, document them |
-
-Untracked skills are expected in `git status` — don't force-add them.
+| **Dev symlinks** | No | Temporary, cleaned by deploy script |
 
 ## Gotchas
 
-- **Never develop directly in `~/.claude`** — it's the deployment target
-- **Worktree branch constraint** — git disallows two worktrees on the same branch; dev stays on `main`, runtime on `runtime`
-- **External symlinks can shadow tracked skills** — a symlink at `~/.claude/skills/foo` overrides a tracked `skills/foo`
-- **Never rename/backup skill dirs in runtime** — any directory under `~/.claude/skills/` with a SKILL.md gets loaded into the catalog. A `skill-foo.backup/SKILL.md` becomes a skill named `skill-foo.backup`. Instead, `rm -rf` and rely on `git checkout` to restore.
-- **`settings.json` drifts** — Claude Code modifies it at runtime; sync regularly via cherry-pick workflow
-- **Claude Code recreates `~/.claude`** — if you `mv ~/.claude` while a session is active, Claude Code may recreate it before you can create the worktree. Close all sessions first.
+- **Never develop directly in `~/.claude`** — it's the deploy target. Only commit runtime changes (settings.json, etc.) there.
+- **Dev symlinks shadow tracked skills** — a symlink at `~/.claude/skills/foo` overrides a tracked `skills/foo`. The deploy script handles cleanup, but be aware during development.
+- **Push runtime changes before deploying** — if `~/.claude` has unpushed commits, the deploy script warns and skips the pull.
+- **`settings.json` drifts** — Claude Code modifies it at runtime. Commit and push from `~/.claude` promptly.
+- **Claude Code recreates `~/.claude`** — if you move it while a session is active, Claude Code may recreate it. Close all sessions first.
 
 ## Rollback
 
 ```bash
-git -C "$DEV_REPO" worktree remove ~/.claude --force
-mv ~/.claude-backup ~/.claude  # if backup still exists
-# or fresh clone:
-git clone <remote> ~/.claude
+# If something goes wrong with the deploy clone:
+rm -rf ~/.claude
+git clone git@github.com:fairchild/dotclaude.git ~/.claude
+rsync -a --ignore-existing ~/.claude-backup/ ~/.claude/
 ```
