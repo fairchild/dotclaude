@@ -47,58 +47,51 @@ Test behavior over implementation details
 
 ## dotclaude Development
 
-This repo (`fairchild/dotclaude`) tracks Claude Code configuration: skills, agents, hooks, settings, and references. It has two locations:
+This repo (`fairchild/dotclaude`) tracks Claude Code configuration: skills, agents, hooks, settings, and references. Two independent clones, connected by `origin/main`:
 
 | Path | Branch | Role |
 |------|--------|------|
-| `~/code/dotclaude` | `main` | **Development** — branches, PRs, worktrees |
-| `~/.claude` | `runtime` | **Live runtime** — worktree, Claude Code reads this |
-
-`~/.claude` is a **git worktree** of `~/code/dotclaude`. Single `.git`, no drift.
+| `~/code/dotclaude` | `main` + feature branches | **Development** — branches, PRs |
+| `~/.claude` | `main` | **Deploy target** — Claude Code reads this |
 
 ### After Merging a PR
 
 ```bash
-git -C ~/.claude merge main --ff-only
+~/.claude/scripts/deploy.sh
 ```
 
-### Workflow: Developing Skills
+The deploy script removes dev symlinks and fast-forwards `~/.claude` to `origin/main`. A `SessionStart` hook runs this automatically.
 
-Skills must be "live" at `~/.claude/skills/<name>` to test. Use symlinks to bridge dev and runtime:
+### Developing Skills
 
 ```bash
-# 1. Create a feature branch in the dev clone
+# 1. Feature branch in dev repo
 git -C ~/code/dotclaude checkout -b feat/my-skill main
-
-# 2. Create the skill in the dev clone
 mkdir -p ~/code/dotclaude/skills/my-skill
 
-# 3. Symlink into live runtime for testing
+# 2. Symlink into runtime for live testing
 ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
 
-# 4. Develop, test, commit — all in ~/code/dotclaude
-# 5. Push, open PR from ~/code/dotclaude
+# 3. Develop, test, commit, push, PR, merge
 
-# 6. After merge, remove symlink and fast-forward runtime
-rm ~/.claude/skills/my-skill
-git -C ~/.claude merge main --ff-only
+# 4. Deploy (removes symlink, pulls new code)
+~/.claude/scripts/deploy.sh
 ```
 
-### Runtime-Specific Changes
+### Runtime Changes
 
-When settings.json or other files are modified by Claude Code at runtime:
+When Claude Code modifies settings.json or other tracked files:
 
 ```bash
 git -C ~/.claude add settings.json
 git -C ~/.claude commit -m "chore: update settings from runtime"
-git -C ~/code/dotclaude cherry-pick runtime
-git push origin main
-git -C ~/.claude merge main --ff-only
+git -C ~/.claude push origin main
+# Dev repo catches up: git -C ~/code/dotclaude pull
 ```
 
 ### Key Rules
 
-- **Never develop directly in `~/.claude`** — it's the deployment target, not the workspace
-- **Symlink direction**: `~/.claude/skills/<name>` -> `~/code/dotclaude/skills/<name>` (live points to dev)
-- **Ecosystem installs** (`npx skills install`) land in `~/.claude/skills/` as real directories, not tracked here
-- **Detect untracked files**: `git -C ~/.claude status`
+- **Never develop directly in `~/.claude`** — only commit runtime changes there
+- **Symlink direction**: `~/.claude/skills/<name>` → `~/code/dotclaude/skills/<name>`
+- **Ecosystem installs** (`npx skills install`) land in `~/.claude/skills/` as real directories, not tracked
+- **Full workflow docs**: `skills/dotclaude-config/references/development-workflow.md`
