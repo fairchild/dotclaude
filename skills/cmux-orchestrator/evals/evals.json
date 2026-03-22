@@ -1,0 +1,29 @@
+{
+  "skill_name": "cmux-orchestrator",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm working on a web app. Set me up with a split layout — my terminal on the left, browser showing localhost:3000 on the right, and a test watcher below.",
+      "expected_output": "Creates right split with browser surface at localhost:3000, creates down split with terminal running test watcher, uses cmux new-split/new-pane commands correctly",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Open the Hono docs site in a browser pane, find the middleware section, and set a sidebar status showing what you found.",
+      "expected_output": "Opens browser pane with Hono docs URL, uses browser snapshot/click/find to navigate to middleware section, calls cmux set-status with meaningful content and appropriate icon",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Spawn a new workspace to run `npm test` in ~/code/bread-builder, set up agent-inbox so it can report back, and show progress in the sidebar while it runs.",
+      "expected_output": "Creates new workspace with --cwd and --command, sets up .agents/inbox directories, sets progress with cmux set-progress, monitors via read-screen or inbox polling",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "I have two Claude agents running in separate cmux workspaces — one doing a code review in workspace:3 and one running tests in workspace:4. Set up agent-inbox so they can coordinate, and have the test runner send its results to the reviewer when done.",
+      "expected_output": "Creates .agents/inbox directories for both agents (reviewer and test-runner), constructs proper agent-inbox messages with frontmatter (from, to, reply_to, timestamp, thread), uses atomic write pattern (tmp/ then mv to new/), shows how to check for and read messages",
+      "files": []
+    }
+  ]
+}
