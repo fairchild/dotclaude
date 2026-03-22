@@ -79,9 +79,9 @@ ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
 ~/.claude/scripts/deploy.sh
 ```
 
-## Runtime Changes
+## Runtime Config Changes
 
-When Claude Code modifies tracked files at runtime (e.g., `settings.json` gains a new permission):
+Claude Code sometimes modifies `settings.json` automatically (adding permissions, changing model, etc.). These small mechanical changes push directly — no branch or PR needed:
 
 ```bash
 git -C ~/.claude add settings.json
@@ -92,7 +92,7 @@ git -C ~/.claude push origin main
 git -C ~/code/dotclaude pull
 ```
 
-No cherry-pick. No hash divergence. Both clones are on `main`.
+All other development (new skills, workflow changes, doc updates) goes through feature branches and PRs in `~/code/dotclaude`.
 
 ## Setup (Fresh)
 
