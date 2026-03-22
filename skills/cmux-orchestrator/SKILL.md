@@ -121,6 +121,43 @@ cmux browser --surface surface:5 snapshot --selector "main" --compact
 
 Always `wait --load-state complete` before snapshotting. For full browser command reference: `cmux browser --help`.
 
+## Pattern: Prompt via Inbox
+
+When launching an agent into a pane, **write the prompt to the agent's inbox first**, then start the agent with a simple command to check its inbox. This gives you:
+
+- A persisted, readable record of what was asked
+- The agent can re-read its instructions at any time
+- The orchestrator has a log of what it dispatched
+- Consistent with inbox-first communication across all conventions
+
+```bash
+# 1. Create the inbox
+mkdir -p .agents/inbox/coder/{new,tmp,archive}
+
+# 2. Write the prompt as an inbox message
+TIMESTAMP=$(date -u +%Y%m%dT%H%M%S)
+cat > .agents/inbox/coder/tmp/${TIMESTAMP}-task.md << 'EOF'
+---
+from: orchestrator
+to: coder
+reply_to: ../orchestrator/tmp/
+timestamp: 2026-03-21T18:00:00Z
+thread: workshop
+---
+
+Fix the failing auth tests. The JWT validation is rejecting valid tokens.
+Check the test output in the "tests" pane via `cmux read-screen`.
+Report back when done.
+EOF
+mv .agents/inbox/coder/tmp/${TIMESTAMP}-task.md .agents/inbox/coder/new/
+
+# 3. Launch the agent with a simple inbox check
+cmux send --surface <agent-surface> "claude -p 'Check your inbox at .agents/inbox/coder/new/ and execute the task described there. When done, send results to .agents/inbox/orchestrator/ using the agent-inbox protocol.'"
+cmux send-key --surface <agent-surface> Enter
+```
+
+This pattern applies everywhere — workshop agents, ops deck agents, any spawned agent.
+
 ## Convention: "Workshop"
 
 A focused development layout for a single project. Say **"set up a workshop for [project]"** and get:
@@ -128,17 +165,24 @@ A focused development layout for a single project. Say **"set up a workshop for 
 ```
 +---------------------+---------------------+
 |                     |                      |
-|  Terminal (code)    |  Browser (preview)   |
+|  Agent / Coding     |  Browser (preview)   |
+|  (top-left, tall)   |  (top-right, tall)   |
 |                     |                      |
 +---------------------+---------------------+
-|          Test/Dev Watcher (full width)     |
+|  Dev Server (compact, full width)          |
++--------------------------------------------+
+|  Test Watcher (compact, full width)        |
 +--------------------------------------------+
 
 Sidebar:
   Title: "[project] workshop"
-  Status: dev-server: running, tests: watching
+  Status: agent: ready, dev-server: running, tests: watching
   Progress: (cleared — used during setup only)
+
+Inbox: .agents/inbox/coder/ (always created)
 ```
+
+The top-left pane is the agent's workspace — typically launched from the orchestrator via prompt-via-inbox, but the human can switch to it and take over at any time. The agent can use `cmux browser` to validate its work in the browser pane, `cmux read-screen` to check test output, and agent-inbox to report back to the orchestrator.
 
 ### How to build it
 
@@ -161,62 +205,87 @@ Sidebar:
 
    Also read `package.json` scripts (or equivalent) to confirm — the table above is a starting point, not gospel. Some projects use `wrangler dev`, `vite dev`, etc.
 
-4. Split down first (full-width bottom): `cmux new-split down --workspace <ws>`
-5. `cmux list-panes --workspace <ws>` — note the top pane and bottom pane refs
-6. Run setup + dev server in the top pane:
+4. **Build the layout** — split down twice first for the two compact rows, then split the top pane right for the browser:
    ```bash
-   cmux send --workspace <ws> --surface <top> "<setup-and-run-cmd>"
-   cmux send-key --workspace <ws> --surface <top> Enter
+   # First split: creates dev-server row (bottom)
+   cmux new-split down --workspace <ws>
+   # Second split: creates test-watcher row (bottom-bottom)
+   cmux new-split down --workspace <ws>
+   cmux list-panes --workspace <ws>
+   # Note: top pane (agent), middle pane (dev-server), bottom pane (tests)
    ```
-7. **Verify and discover the URL**: Wait a few seconds, then read the screen to confirm the server started and find its URL:
+5. Resize the bottom rows compact — they're output-only, don't need much height:
    ```bash
-   cmux read-screen --workspace <ws> --surface <top> --lines 15
+   cmux resize-pane --pane <middle> --workspace <ws> -U --amount 15
+   cmux resize-pane --pane <bottom> --workspace <ws> -U --amount 10
    ```
-   Look for output like `Ready on http://localhost:8787`, `listening on port 3000`, etc. If setup failed (missing deps, permission error), fix it before continuing.
-8. Open browser at the discovered URL:
+6. Run dev server in the middle pane:
+   ```bash
+   cmux send --workspace <ws> --surface <middle> "<setup-and-run-cmd>"
+   cmux send-key --workspace <ws> --surface <middle> Enter
+   ```
+7. **Verify and discover the URL**: Wait a few seconds, then read the screen:
+   ```bash
+   cmux read-screen --workspace <ws> --surface <middle> --lines 15
+   ```
+   Look for output like `Ready on http://localhost:8787`, `listening on port 3000`, etc.
+8. Open browser at the discovered URL — split right from the top (agent) pane:
    ```bash
    cmux new-pane --type browser --direction right --workspace <ws> --url <discovered-url>
    ```
-9. Start test watcher in bottom pane:
+9. Start test watcher in the bottom pane:
    ```bash
    cmux send --workspace <ws> --surface <bottom> "<test-watch-cmd>"
    cmux send-key --workspace <ws> --surface <bottom> Enter
    ```
 10. **Verify tests started**: `cmux read-screen --workspace <ws> --surface <bottom> --lines 15`
-11. Resize bottom smaller: `cmux resize-pane --pane <bottom> --workspace <ws> -U --amount 10`
+11. **Set up the agent inbox** — always, even if no agent is launched yet:
+    ```bash
+    mkdir -p ~/code/<project>/.agents/inbox/coder/{new,tmp,archive}
+    mkdir -p ~/code/<project>/.agents/inbox/orchestrator/{new,tmp,archive}
+    ```
 12. Name everything:
     ```bash
     cmux rename-workspace --workspace <ws> "[project] workshop"
-    cmux rename-tab --workspace <ws> --surface <top> "dev server"
+    cmux rename-tab --workspace <ws> --surface <top> "agent"
+    cmux rename-tab --workspace <ws> --surface <middle> "dev server"
     cmux rename-tab --workspace <ws> --surface <bottom> "tests"
     ```
 13. Set up the sidebar dashboard — only mark things as "running" if you verified they actually started:
     ```bash
+    cmux set-status "agent" "ready" --icon "person.fill" --color "#888888" --workspace <ws>
     cmux set-status "dev-server" "<discovered-url>" --icon "bolt.fill" --color "#00FF00" --workspace <ws>
     cmux set-status "tests" "watching" --icon "magnifyingglass" --color "#FFB800" --workspace <ws>
-    cmux log --workspace <ws> "Workshop ready"
+    cmux log --workspace <ws> "Workshop ready — agent pane idle, inbox at .agents/inbox/coder/"
     ```
-14. Focus the dev server pane: `cmux focus-pane --pane <top> --workspace <ws>`
 
-### Launching agents into workshop panes
+### Launching an agent into the workshop
 
-You can send a `claude -p` command into any workshop pane to have an agent investigate or fix issues autonomously. But **`-p` mode is non-interactive** — the agent cannot prompt for permission approvals. Before launching:
+Use the prompt-via-inbox pattern to dispatch work to the agent pane:
 
-1. Check the project's `.claude/settings.local.json` has permissions for the commands the agent will need (e.g., `Bash(bun install:*)`, `Bash(bun run:*)`)
-2. If permissions are missing, add them first — the agent will silently fail otherwise
-3. Update the sidebar to reflect the agent is working:
+1. Write the task to the coder's inbox (see "Prompt via Inbox" above)
+2. Launch the agent in the top-left pane:
    ```bash
-   cmux set-status "dev-server" "agent fixing build" --icon "hammer.fill" --color "#FFB800"
+   cmux send --workspace <ws> --surface <top> "claude -p 'Check your inbox at .agents/inbox/coder/new/ and execute the task. Use cmux browser to validate your work. Use cmux read-screen to check test output. Report results to .agents/inbox/orchestrator/.'"
+   cmux send-key --workspace <ws> --surface <top> Enter
+   ```
+3. Update sidebar:
+   ```bash
+   cmux set-status "agent" "working" --icon "hammer.fill" --color "#FFB800" --workspace <ws>
    ```
 
-**After the agent finishes**: `claude -p` exits when done, which kills any long-running process (like a dev server) it started for verification. Restart the process yourself using whichever command originally started it (`scripts/run`, `bun run dev`, etc.).
+The agent has full access to the workshop — it can read the test watcher output via `cmux read-screen`, interact with the browser via `cmux browser snapshot/click/fill`, and report back via agent-inbox. The human can switch to the agent pane at any time to observe or take over.
+
+**`-p` mode is non-interactive** — the agent cannot prompt for permission approvals. Ensure the project's `.claude/settings.local.json` has permissions for the commands the agent will need.
+
+**After the agent finishes**: `claude -p` exits when done. Check the orchestrator inbox for results, then update sidebar status.
 
 ### Adapting the workshop
 
-- **No browser preview?** Skip the right split, use the full top pane as terminal
+- **No browser preview?** Skip the right split, give the agent the full top row
 - **Multiple browsers?** Add tabs to the browser pane: `cmux new-surface --type browser --pane <right> --url <url>`
 - **Docs instead of preview?** Point the browser URL at docs instead of localhost
-- **Different test runner?** Swap the send command: `vitest --watch`, `bun test --watch`, `cargo watch -x test`
+- **Human-only mode?** Use the agent pane as a regular terminal — the inbox is still there if you want to dispatch later
 
 ## Convention: "Ops Deck"
 
@@ -253,37 +322,65 @@ All connected via agent-inbox protocol.
    cmux set-status "test-runner" "spawning" --icon "hourglass" --color "#FFB800"
    cmux set-status "linter" "spawning" --icon "hourglass" --color "#FFB800"
    ```
-4. Spawn agent workspaces with inbox instructions baked into the prompt:
+4. **Write task prompts to each agent's inbox** (prompt-via-inbox pattern):
+   ```bash
+   TIMESTAMP=$(date -u +%Y%m%dT%H%M%S)
+
+   cat > .agents/inbox/test-runner/tmp/${TIMESTAMP}-task.md << 'EOF'
+   ---
+   from: orchestrator
+   to: test-runner
+   reply_to: ../orchestrator/tmp/
+   timestamp: 2026-03-21T18:00:00Z
+   thread: ops-deck
+   ---
+   Run the test suite. Include pass/fail counts and any failure details in your reply.
+   EOF
+   mv .agents/inbox/test-runner/tmp/${TIMESTAMP}-task.md .agents/inbox/test-runner/new/
+
+   cat > .agents/inbox/linter/tmp/${TIMESTAMP}-task.md << 'EOF'
+   ---
+   from: orchestrator
+   to: linter
+   reply_to: ../orchestrator/tmp/
+   timestamp: 2026-03-21T18:00:00Z
+   thread: ops-deck
+   ---
+   Run the linter. Report any warnings or errors in your reply.
+   EOF
+   mv .agents/inbox/linter/tmp/${TIMESTAMP}-task.md .agents/inbox/linter/new/
+   ```
+5. **Spawn agent workspaces** with a simple inbox-check command:
    ```bash
    cmux new-workspace --cwd ~/code/myproject \
-     --command "claude -p 'Run npm test. When done, send results to .agents/inbox/orchestrator/ using agent-inbox protocol (write to tmp/, mv to new/). Your name is test-runner. Include pass/fail counts.'"
+     --command "claude -p 'Check your inbox at .agents/inbox/test-runner/new/ and execute the task. Report results to .agents/inbox/orchestrator/ using agent-inbox protocol.'"
 
    cmux new-workspace --cwd ~/code/myproject \
-     --command "claude -p 'Run the linter. When done, send results to .agents/inbox/orchestrator/ using agent-inbox protocol. Your name is linter.'"
+     --command "claude -p 'Check your inbox at .agents/inbox/linter/new/ and execute the task. Report results to .agents/inbox/orchestrator/ using agent-inbox protocol.'"
    ```
-5. Name everything so the user can identify each workspace and tab at a glance:
+6. Name everything so the user can identify each workspace and tab at a glance:
    ```bash
    cmux rename-workspace --workspace <ref1> "tests"
    cmux rename-workspace --workspace <ref2> "lint"
    cmux rename-tab --surface <surface1> "test-runner"
    cmux rename-tab --surface <surface2> "linter"
    ```
-6. **Verify each workspace started correctly**: `cmux read-screen --surface <agent-surface> --lines 15` — confirm the agent is running, not stuck on an error. If a workspace failed to start (wrong cwd, missing deps, command error), fix it before proceeding.
-7. Update progress as agents come online:
+7. **Verify each workspace started correctly**: `cmux read-screen --surface <agent-surface> --lines 15` — confirm the agent is running, not stuck on an error. If a workspace failed to start (wrong cwd, missing deps, command error), fix it before proceeding.
+8. Update progress as agents come online:
    ```bash
    cmux set-progress 0.33 --label "Agents running..."
    cmux set-status "test-runner" "running" --icon "bolt.fill" --color "#00BFFF"
    cmux set-status "linter" "running" --icon "bolt.fill" --color "#00BFFF"
    ```
-8. Monitor with dual channels:
+9. Monitor with dual channels:
    - **Quick check**: `cmux read-screen --surface <agent-surface> --lines 20`
    - **Structured results**: `ls .agents/inbox/orchestrator/new/`
-9. When inbox messages arrive, read and archive:
+10. When inbox messages arrive, read and archive:
    ```bash
    cat .agents/inbox/orchestrator/new/<message>.md
    mv .agents/inbox/orchestrator/new/<message>.md .agents/inbox/orchestrator/archive/
    ```
-10. Update sidebar with final results:
+11. Update sidebar with final results:
    ```bash
    cmux set-progress 1.0 --label "All agents complete"
    cmux set-status "test-runner" "42 passed" --icon "checkmark.circle" --color "#00FF00"
