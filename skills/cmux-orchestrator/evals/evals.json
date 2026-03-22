@@ -3,26 +3,51 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "I'm working on a web app. Set me up with a split layout — my terminal on the left, browser showing localhost:3000 on the right, and a test watcher below.",
-      "expected_output": "Creates right split with browser surface at localhost:3000, creates down split with terminal running test watcher, uses cmux new-split/new-pane commands correctly",
+      "prompt": "Set up a workshop for bread-builder",
+      "expected_output": "Creates three-pane workshop layout (terminal left, browser right, test watcher bottom full-width), detects project commands from lockfile/scripts, verifies commands started, sets sidebar dashboard",
+      "expectations": [
+        "Recognizes 'workshop' as a named convention and builds the specific layout",
+        "Sets up sidebar dashboard with meaningful status entries and renames workspace",
+        "Splits down FIRST for full-width bottom pane, then splits top pane right",
+        "Verifies commands worked via read-screen after sending them"
+      ],
       "files": []
     },
     {
       "id": 2,
-      "prompt": "Open the Hono docs site in a browser pane, find the middleware section, and set a sidebar status showing what you found.",
-      "expected_output": "Opens browser pane with Hono docs URL, uses browser snapshot/click/find to navigate to middleware section, calls cmux set-status with meaningful content and appropriate icon",
+      "prompt": "Set up an ops deck to run tests and lint on planventura",
+      "expected_output": "Spawns separate agent workspaces with agent-inbox coordination, sidebar progress tracking, and dual-channel monitoring",
+      "expectations": [
+        "Recognizes 'ops deck' as a named convention and spawns multiple agent workspaces",
+        "Sets up agent-inbox directories for orchestrator, test-runner, and linter",
+        "Bakes inbox protocol instructions into each spawned agent's prompt",
+        "Uses sidebar dashboard with per-agent status tracking and progress bar",
+        "Describes the dual-channel monitoring pattern (read-screen for real-time, inbox for results)"
+      ],
       "files": []
     },
     {
       "id": 3,
-      "prompt": "Spawn a new workspace to run `npm test` in ~/code/bread-builder, set up agent-inbox so it can report back, and show progress in the sidebar while it runs.",
-      "expected_output": "Creates new workspace with --cwd and --command, sets up .agents/inbox directories, sets progress with cmux set-progress, monitors via read-screen or inbox polling",
+      "prompt": "Open the Cloudflare Workers docs in a browser and find the D1 bindings section",
+      "expected_output": "Opens browser pane, uses snapshot discovery to navigate, sets sidebar status with findings",
+      "expectations": [
+        "Opens browser pane with Cloudflare Workers docs URL",
+        "Uses snapshot --interactive or --compact to discover navigation elements rather than guessing selectors",
+        "Navigates to the D1 bindings section using discovered elements",
+        "Sets sidebar status summarizing what was found"
+      ],
       "files": []
     },
     {
       "id": 4,
       "prompt": "I have two Claude agents running in separate cmux workspaces — one doing a code review in workspace:3 and one running tests in workspace:4. Set up agent-inbox so they can coordinate, and have the test runner send its results to the reviewer when done.",
-      "expected_output": "Creates .agents/inbox directories for both agents (reviewer and test-runner), constructs proper agent-inbox messages with frontmatter (from, to, reply_to, timestamp, thread), uses atomic write pattern (tmp/ then mv to new/), shows how to check for and read messages",
+      "expected_output": "Creates inbox directories, constructs proper messages with YAML frontmatter, uses atomic write pattern, shows bidirectional message flow",
+      "expectations": [
+        "Creates inbox directories for both agents with proper new/tmp/archive structure",
+        "Constructs agent-inbox messages with correct YAML frontmatter (from, to, reply_to, timestamp, thread)",
+        "Uses atomic write pattern: writes to tmp/ then mv to new/",
+        "Shows the message flow direction correctly (test-runner sends results TO reviewer)"
+      ],
       "files": []
     }
   ]
