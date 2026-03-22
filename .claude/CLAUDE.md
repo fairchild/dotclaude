@@ -1,8 +1,7 @@
 # dotclaude
 
-**THIS IS ~/.claude** - the global Claude Code configuration directory.
+**THIS IS ~/.claude** — the global Claude Code configuration directory.
 
-You are working inside the user's home Claude config, not a regular project.
 Everything here affects ALL Claude Code sessions globally:
 
 - `skills/` → available in every session
@@ -23,27 +22,16 @@ This repo is public on GitHub but serves as Michael's actual working config.
 
 ## Licensing
 
-All skills are Apache 2.0 - consistent with Anthropic skills.
-
-## Frontmatter
-
-```yaml
-license: Apache 2.0              # all skills (root LICENSE applies)
-status: experimental              # optional — absent means production-ready
-```
-
-Attribution is handled per-skill in each skill's README.md.
+All skills are Apache 2.0 — consistent with Anthropic skills. Attribution is handled per-skill in each skill's README.md.
 
 ## Skill Status Convention
 
-Skills use a top-level `status` key in SKILL.md frontmatter. No directory prefix needed.
+Skills use a top-level `status` key in SKILL.md frontmatter.
 
 | Frontmatter | Meaning |
 |-------------|---------|
 | (none) | Production-ready, auto-invoked |
 | `status: experimental` | Usable but incomplete |
-
-To promote a skill: remove the `status` field from frontmatter.
 
 ## Conventions
 
@@ -64,23 +52,54 @@ See `.github/copilot-instructions.md` for code review style (shared with Copilot
 
 ## Development Architecture
 
-`~/.claude` is a **git worktree** of `~/code/dotclaude` on the `runtime` branch.
+Two independent clones of this repo, both on `main`:
 
 | Path | Branch | Role |
 |------|--------|------|
-| `~/code/dotclaude` | `main` | Development — branches, PRs, worktrees |
-| `~/.claude` | `runtime` | Live runtime — Claude Code reads this |
+| `~/code/dotclaude` | `main` + feature branches | **Development** — branches, PRs |
+| `~/.claude` | `main` | **Deploy target** — Claude Code reads this |
 
-**After merging a PR**: `git -C ~/.claude merge main --ff-only`
+### After Merging a PR
 
-**Detect drift**: `git -C ~/.claude status` shows anything untracked and not gitignored.
+```bash
+~/.claude/scripts/deploy.sh
+```
 
-**Skill sources in runtime**:
-- Git-tracked (canonical)
-- Ecosystem-installed (untracked, runtime-only)
-- External symlinks (`~/.agents/`, `~/code/Skill_Seekers/`)
+The deploy script removes dev symlinks and fast-forwards `~/.claude` to `origin/main`. A `SessionStart` hook runs this automatically.
 
-**Key rules**:
-- Never develop directly in `~/.claude`
-- Keep `.gitignore` comprehensive for runtime ephemeral data
-- Symlink direction for testing: `~/.claude/skills/<name>` → `~/code/dotclaude/skills/<name>`
+### Developing Skills
+
+```bash
+# 1. Feature branch in dev repo
+git -C ~/code/dotclaude checkout -b feat/my-skill main
+mkdir -p ~/code/dotclaude/skills/my-skill
+
+# 2. Symlink into runtime for live testing
+ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
+
+# 3. Develop, test, commit, push, PR, merge
+
+# 4. Deploy (removes symlink, pulls new code)
+~/.claude/scripts/deploy.sh
+```
+
+### Runtime Config Changes
+
+Claude Code sometimes modifies `settings.json` automatically (adding permissions, changing model, etc.). These small mechanical changes push directly from `~/.claude` — no branch or PR needed:
+
+```bash
+git -C ~/.claude add settings.json
+git -C ~/.claude commit -m "chore: update settings from runtime"
+git -C ~/.claude push origin main
+# Dev repo catches up: git -C ~/code/dotclaude pull
+```
+
+All other development (new skills, workflow changes, doc updates) goes through feature branches and PRs in `~/code/dotclaude`.
+
+### Key Rules
+
+- **All development happens in `~/code/dotclaude`** — feature branches, PRs, code review
+- **`~/.claude` is deploy-only** — only commit small runtime config changes there
+- **Symlink direction**: `~/.claude/skills/<name>` → `~/code/dotclaude/skills/<name>`
+- **Ecosystem installs** (`npx skills install`) land in `~/.claude/skills/` as real directories, not tracked
+- **Full workflow docs**: `skills/dotclaude-config/references/development-workflow.md`
