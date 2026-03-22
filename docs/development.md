@@ -48,9 +48,9 @@ ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
 ~/.claude/scripts/deploy.sh
 ```
 
-## Runtime Changes
+## Runtime Config Changes
 
-Claude Code sometimes modifies tracked files at runtime (e.g., `settings.json`). Push directly:
+Claude Code sometimes modifies `settings.json` automatically (adding permissions, changing model, etc.). These small mechanical changes push directly — no branch or PR needed:
 
 ```bash
 git -C ~/.claude add settings.json
@@ -60,6 +60,8 @@ git -C ~/.claude push origin main
 # Dev repo catches up whenever needed:
 git -C ~/code/dotclaude pull
 ```
+
+All other development (new skills, workflow changes, doc updates) goes through feature branches and PRs in `~/code/dotclaude`.
 
 ## Gitignore
 

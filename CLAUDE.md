@@ -78,9 +78,9 @@ ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
 ~/.claude/scripts/deploy.sh
 ```
 
-### Runtime Changes
+### Runtime Config Changes
 
-When Claude Code modifies settings.json or other tracked files:
+Claude Code sometimes modifies `settings.json` automatically (adding permissions, changing model, etc.). These small mechanical changes push directly from `~/.claude` — no branch or PR needed:
 
 ```bash
 git -C ~/.claude add settings.json
@@ -89,9 +89,12 @@ git -C ~/.claude push origin main
 # Dev repo catches up: git -C ~/code/dotclaude pull
 ```
 
+All other development (new skills, workflow changes, doc updates) goes through feature branches and PRs in `~/code/dotclaude`.
+
 ### Key Rules
 
-- **Never develop directly in `~/.claude`** — only commit runtime changes there
+- **All development happens in `~/code/dotclaude`** — feature branches, PRs, code review
+- **`~/.claude` is deploy-only** — only commit small runtime config changes there
 - **Symlink direction**: `~/.claude/skills/<name>` → `~/code/dotclaude/skills/<name>`
 - **Ecosystem installs** (`npx skills install`) land in `~/.claude/skills/` as real directories, not tracked
 - **Full workflow docs**: `skills/dotclaude-config/references/development-workflow.md`
