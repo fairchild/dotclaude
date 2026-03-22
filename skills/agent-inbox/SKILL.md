@@ -14,8 +14,10 @@ File-based messaging for agents across harnesses (Claude Code, Codex, Cursor, Ge
 
 ## Setup
 
+Pick a goal-oriented slug for yourself (see **Self-naming**), then create your inbox:
+
 ```bash
-mkdir -p .agents/inbox/my-agent/{new,tmp,archive}
+mkdir -p .agents/inbox/<your-slug>/{new,tmp,archive}
 ```
 
 ## Send a message
@@ -54,9 +56,20 @@ mv .agents/inbox/my-agent/new/20260315T101500-auth-ready.md .agents/inbox/my-age
 
 Read `reply_to` from the message frontmatter — it points to the sender's `tmp/` directory. Write there, then `mv` to `new/`.
 
+## Self-naming
+
+When you first need an inbox and don't already have one, name yourself:
+
+1. Reflect on the conversation so far — what is the goal?
+2. Pick a short slug (1–3 words, kebab-case) that captures that goal: `auth-rewrite`, `sidebar-focus`, `lume-validation`
+3. Create your inbox: `mkdir -p .agents/inbox/<your-slug>/{new,tmp,archive}`
+4. Use that slug as your `from` in all messages
+
+Good names are **goal-oriented**, not role-oriented. Prefer `fix-split-focus` over `agent-1` or `debugger`. If the conversation pivots significantly, keep your original name — identity stability matters more than perfect accuracy.
+
 ## Discovery
 
-Human-brokered. Tell each agent the other's inbox path. Every message carries `reply_to` so the recipient can reply without prior setup.
+Tell each agent the other's inbox path, or let agents discover peers by listing `.agents/inbox/`. Every message carries `reply_to` so the recipient can reply without prior setup.
 
 ## Message format
 
