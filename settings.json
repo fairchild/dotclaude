@@ -116,7 +116,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/runtime-sync.sh"
+            "command": "~/.claude/hooks/dotclaude-deploy.sh"
           }
         ]
       },
