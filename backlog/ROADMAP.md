@@ -2,20 +2,32 @@
 
 ## Direction
 
-**Current focus**: Chronicle continuity and intelligence features
+**Current focus**: Agent orchestration patterns and developer workflow tooling
 
 ### Active
-- Chronicle dashboard enhancements (stale indicators, resolution display)
+- cmux-orchestrator conventions (workshop, ops deck) — live testing and refinement
+- prek pre-commit standardization (PR #130)
 
 ### Planned
 - Chronicle Phase 4: Cross-project intelligence
 - Native sync popup (see backlog/native-sync-popup.md)
+- prek adoption across ~/code/ portfolio
 
 ### Deferred
 - Hooks validation system
 - Video generation skill
+- Skill description optimization for cmux-orchestrator trigger accuracy
 
 ## Learnings
+
+### 2026-03-22 — cmux-orchestrator skill (#127) + prek pre-commit (#130)
+- Named conventions (workshop, ops deck) are the skill's unique value — commands are discoverable from `--help`, but orchestration patterns aren't
+- Prompt-via-inbox pattern works end-to-end: agent read inbox, updated cmux sidebar, sent results back to orchestrator inbox
+- `cmux send` with complex shell quoting is fragile — launcher scripts with stdin pipe (`echo "prompt" | claude -p`) are reliable
+- `--add-dir .agents/inbox` is required for sandbox access; `--dangerously-skip-permissions` works for trusted agent panes
+- Eval viewer helped iterate but the real signal came from live testing — the evals couldn't catch quoting and sandbox issues
+- Committing to main instead of feature branch caused a messy reconciliation — prek's `no-commit-to-branch` hook prevents this mechanically
+- Skill-creator's workspace convention is `<name>-workspace/` as a sibling, not inside the skill directory
 
 ### 2026-02-08 — Token Cache Enrichment (#88)
 - Detailed backlog plans with exact line numbers and code snippets make implementation trivial — this was a single-edit session
