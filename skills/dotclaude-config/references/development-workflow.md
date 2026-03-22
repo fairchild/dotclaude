@@ -220,9 +220,10 @@ This repo uses [prek](https://prek.j178.dev) (a Rust-based pre-commit framework)
 - **`no-commit-to-branch`** — blocks direct commits to `main` (use feature branches)
 - **`check-json`** / **`check-yaml`** / **`check-toml`** — validates config file syntax
 
-Install hooks after cloning:
+Install prek and set up hooks after cloning:
 
 ```bash
+brew install prek   # or: cargo install prek, uv tool install prek
 prek install
 ```
 
@@ -255,6 +256,12 @@ git reset --hard origin/main
 
 # 3. Switch to the feature branch and continue
 git checkout feat/my-work
+```
+
+If the commit was already pushed to `origin/main`, you'll need to force-push to reset it — coordinate with any collaborators first:
+
+```bash
+git push --force-with-lease origin main
 ```
 
 ### Why prek?

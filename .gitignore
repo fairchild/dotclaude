@@ -106,8 +106,8 @@ tasks/
 # Agent coordination
 .agents/
 
-# Skill workspaces
-skills/*/workspace/
+# Skill eval workspaces (skill-creator convention: <name>-workspace/ as sibling)
+skills/*-workspace/
 
 # claude chrome plugin
 chrome/
