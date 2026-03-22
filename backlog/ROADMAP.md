@@ -20,6 +20,13 @@
 
 ## Learnings
 
+### 2026-03-22 — Two-clone deploy workflow (#129, #131, #132, #133)
+- Worktree + cherry-pick model had compounding friction: divergent hashes broke ff-only, symlinks blocked rebase, hooks referenced files not yet synced
+- Two independent clones on `main` eliminates the entire category — runtime changes push directly, deploy is `git pull`
+- `scripts/deploy.sh` with SessionStart hook automates symlink cleanup + sync — silent on no-op, informative when it acts
+- Development workflow docs belong in project-level `.claude/CLAUDE.md`, not global — global CLAUDE.md loaded in every session
+- When brainstorming architecture changes, exploring 5+ options before committing avoids premature lock-in
+
 ### 2026-03-22 — cmux-orchestrator skill (#127) + prek pre-commit (#130)
 - Named conventions (workshop, ops deck) are the skill's unique value — commands are discoverable from `--help`, but orchestration patterns aren't
 - Prompt-via-inbox pattern works end-to-end: agent read inbox, updated cmux sidebar, sent results back to orchestrator inbox
