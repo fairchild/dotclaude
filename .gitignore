@@ -103,6 +103,12 @@ handoff.md
 notes.md
 tasks/
 
+# Agent coordination
+.agents/
+
+# Skill workspaces
+skills/*/workspace/
+
 # claude chrome plugin
 chrome/
 

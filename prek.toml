@@ -1,0 +1,10 @@
+#:schema https://www.schemastore.org/prek.json
+
+[[repos]]
+repo = "builtin"
+hooks = [
+    { id = "no-commit-to-branch", args = ["--branch", "main"] },
+    { id = "check-json" },
+    { id = "check-yaml" },
+    { id = "check-toml" },
+]
