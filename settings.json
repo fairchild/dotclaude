@@ -75,6 +75,7 @@
       "Bash(gh release list *)",
       "Bash(gh release view *)",
       "Bash(wt *)",
+      "Bash(cmux *)",
       "Read(~/.ai-memory/**)",
       "Write(~/.ai-memory/**)",
       "Edit(~/.ai-memory/**)"
@@ -126,6 +127,14 @@
             "command": "bun ~/.claude/skills/chronicle/scripts/session-start.ts"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$HOME/.claude/skills/signoz-log/scripts/signoz-log.sh\" INFO 'session started'"
+          }
+        ]
       }
     ],
     "Stop": [
@@ -134,6 +143,14 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/stop.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$HOME/.claude/skills/signoz-log/scripts/signoz-log.sh\" INFO 'session stopped'"
           }
         ]
       }
