@@ -11,6 +11,13 @@ My name is Michael.
 
 Detect package manager from lockfile: `bun.lock` → bun, `pnpm-lock.yaml` → pnpm, `uv.lock` → uv
 
+## Coordination, Scripts, and Memory
+
+- **Use agent-inbox for cross-agent coordination** when `.agents/inbox/*` is present or when the task benefits from explicit file-based messaging between agents.
+- **Use cmux-orchestrator when available** for multi-pane or multi-session orchestration workflows. Confirm the local skill/package shape before depending on it.
+- **Prefer project-scripts** when a repo supports them: use standardized `scripts/` entrypoints for setup, run, stop, and archive, with `mise` as the preferred orchestrator when present.
+- **Memory is available**. Use `chronicle`, `team-memory`, or `persona-memory` when continuity across sessions, recall, or durable context would help.
+
 ## Code Philosophy
 
 - Keep code well type hinted and concise

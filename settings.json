@@ -132,7 +132,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$HOME/.claude/skills/signoz-log/scripts/signoz-log.sh\" INFO 'session started'"
+            "command": "/opt/homebrew/bin/timeout 5 \"$HOME/.claude/skills/signoz-log/scripts/signoz-log.sh\" INFO 'session started' 2>/dev/null || echo 'signoz-log: start hook timed out'"
           }
         ]
       }
@@ -150,7 +150,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$HOME/.claude/skills/signoz-log/scripts/signoz-log.sh\" INFO 'session stopped'"
+            "command": "/opt/homebrew/bin/timeout 5 \"$HOME/.claude/skills/signoz-log/scripts/signoz-log.sh\" INFO 'session stopped' 2>/dev/null || echo 'signoz-log: stop hook timed out'"
           }
         ]
       }
