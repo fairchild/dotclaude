@@ -151,8 +151,9 @@ Report back when done.
 EOF
 mv .agents/inbox/coder/tmp/${TIMESTAMP}-task.md .agents/inbox/coder/new/
 
-# 3. Launch the agent — name it, grant inbox access, embed \n to auto-execute
-cmux send --surface <agent-surface> $'claude -p -n coder --add-dir .agents/inbox --allowedTools "Bash(cmux:*)" \'Check your inbox at .agents/inbox/coder/new/ and execute the task described there. When done, send results to .agents/inbox/orchestrator/ using the agent-inbox protocol.\'\n'
+# 3. Launch the agent — the inbox message has all the detail
+cmux send --surface <agent-surface> "echo 'Check your inbox at .agents/inbox/coder/new/ and execute the task. Reply to .agents/inbox/orchestrator/ when done.' | claude -p -n coder --add-dir .agents/inbox --dangerously-skip-permissions"
+cmux send-key --surface <agent-surface> Enter
 ```
 
 This pattern applies everywhere — workshop agents, ops deck agents, any spawned agent.
@@ -263,11 +264,11 @@ The top-left pane is the agent's workspace — typically launched from the orche
 Use the prompt-via-inbox pattern to dispatch work to the agent pane:
 
 1. Write the task to the coder's inbox (see "Prompt via Inbox" above)
-2. Launch the agent in the top-left pane. Use `-n` to name the session, `--add-dir` to grant inbox access, and `--allowedTools` for cmux:
+2. Launch the agent — the inbox message has all the detail:
    ```bash
-   cmux send --workspace <ws> --surface <top> $'claude -p -n coder --add-dir .agents/inbox --allowedTools "Bash(cmux:*)" \'Check your inbox at .agents/inbox/coder/new/ and execute the task. Use cmux browser to validate your work. Use cmux read-screen to check test output. Report results to .agents/inbox/orchestrator/.\'\n'
+   cmux send --workspace <ws> --surface <top> "echo 'Check your inbox at .agents/inbox/coder/new/ and execute the task. Reply to .agents/inbox/orchestrator/ when done.' | claude -p -n coder --add-dir .agents/inbox --dangerously-skip-permissions"
+   cmux send-key --workspace <ws> --surface <top> Enter
    ```
-   Note: embed `\n` at the end of the `send` text to execute immediately. Using `send` + `send-key Enter` separately is unreliable.
 3. Update sidebar:
    ```bash
    cmux set-status "agent" "working" --icon "hammer.fill" --color "#FFB800" --workspace <ws>
@@ -275,7 +276,12 @@ Use the prompt-via-inbox pattern to dispatch work to the agent pane:
 
 The agent has full access to the workshop — it can read the test watcher output via `cmux read-screen`, interact with the browser via `cmux browser snapshot/click/fill`, and report back via agent-inbox. The human can switch to the agent pane at any time to observe or take over.
 
-**`-p` mode is non-interactive** — the agent cannot prompt for permission approvals. The `--add-dir .agents/inbox` flag grants the agent read/write access to the inbox directory. The `--allowedTools "Bash(cmux:*)"` flag allows cmux commands without prompting. For other tools the agent needs (git, package managers, etc.), either add them to `--allowedTools` or ensure the project's `.claude/settings.local.json` has the permissions.
+**`-p` mode is non-interactive** — the agent cannot prompt for permission approvals.
+
+- `--add-dir .agents/inbox` grants filesystem visibility but NOT tool permissions
+- `--allowedTools` must include every tool the agent will use: `Bash(cmux:*)` for cmux, `Write` for creating inbox replies, `Read` and `Glob` and `Grep` for exploring code
+- For agents that need broad access (most workshop/ops-deck agents), use `--dangerously-skip-permissions` instead of enumerating tools — it's simpler and avoids silent permission blocks
+- If you use `--allowedTools`, test that the agent can complete the *full* task including writing its reply to the inbox
 
 **After the agent finishes**: `claude -p` exits when done. Check the orchestrator inbox for results, then update sidebar status.
 
@@ -349,13 +355,13 @@ All connected via agent-inbox protocol.
    EOF
    mv .agents/inbox/linter/tmp/${TIMESTAMP}-task.md .agents/inbox/linter/new/
    ```
-5. **Spawn agent workspaces** — name each session, grant inbox access:
+5. **Spawn agent workspaces** — each checks its inbox on start:
    ```bash
    cmux new-workspace --cwd ~/code/myproject \
-     --command "claude -p -n test-runner --add-dir .agents/inbox --allowedTools 'Bash(cmux:*)' 'Check your inbox at .agents/inbox/test-runner/new/ and execute the task. Report results to .agents/inbox/orchestrator/ using agent-inbox protocol.'"
+     --command "echo 'Check your inbox at .agents/inbox/test-runner/new/ and execute the task. Reply to .agents/inbox/orchestrator/ when done.' | claude -p -n test-runner --add-dir .agents/inbox --dangerously-skip-permissions"
 
    cmux new-workspace --cwd ~/code/myproject \
-     --command "claude -p -n linter --add-dir .agents/inbox --allowedTools 'Bash(cmux:*)' 'Check your inbox at .agents/inbox/linter/new/ and execute the task. Report results to .agents/inbox/orchestrator/ using agent-inbox protocol.'"
+     --command "echo 'Check your inbox at .agents/inbox/linter/new/ and execute the task. Reply to .agents/inbox/orchestrator/ when done.' | claude -p -n linter --add-dir .agents/inbox --dangerously-skip-permissions"
    ```
 6. Name everything so the user can identify each workspace and tab at a glance:
    ```bash
