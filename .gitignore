@@ -103,6 +103,12 @@ handoff.md
 notes.md
 tasks/
 
+# Agent coordination
+.agents/
+
+# Skill eval workspaces (skill-creator convention: <name>-workspace/ as sibling)
+skills/*-workspace/
+
 # claude chrome plugin
 chrome/
 

@@ -211,6 +211,68 @@ Three origins coexist in `~/.claude/skills/`:
 - **`settings.json` drifts** — Claude Code modifies it at runtime. Commit and push from `~/.claude` promptly.
 - **Claude Code recreates `~/.claude`** — if you move it while a session is active, Claude Code may recreate it. Close all sessions first.
 
+## Preventing Common Mistakes
+
+### Pre-commit Hooks via prek
+
+This repo uses [prek](https://prek.j178.dev) (a Rust-based pre-commit framework) to catch mistakes before they land. The `prek.toml` config runs:
+
+- **`no-commit-to-branch`** — blocks direct commits to `main` (use feature branches)
+- **`check-json`** / **`check-yaml`** / **`check-toml`** — validates config file syntax
+
+Install prek and set up hooks after cloning:
+
+```bash
+brew install prek   # or: cargo install prek, uv tool install prek
+prek install
+```
+
+Run manually against all files:
+
+```bash
+prek run --all-files
+```
+
+### Quick Verification Checklist
+
+Before committing:
+
+1. `prek run --all-files` — all hooks pass
+2. `git diff --cached` — review staged changes
+3. Branch is not `main` — feature branches only
+4. Conventional commit message (`feat:`, `fix:`, `chore:`)
+
+### Recovery: Accidental Commit to Main
+
+If you committed to `main` before hooks were installed:
+
+```bash
+# 1. Create a feature branch from current state
+git branch feat/my-work
+
+# 2. Reset main back to remote
+git checkout main
+git reset --hard origin/main
+
+# 3. Switch to the feature branch and continue
+git checkout feat/my-work
+```
+
+If the commit was already pushed to `origin/main`, you'll need to force-push to reset it — coordinate with any collaborators first:
+
+```bash
+git push --force-with-lease origin main
+```
+
+### Why prek?
+
+prek is the recommended pre-commit tool for this repo:
+
+- Fast — written in Rust, parallel hook execution
+- Compatible — runs standard pre-commit hooks from the ecosystem
+- Simple — single `prek.toml` config, `prek install` setup
+- No Python dependency — unlike `pre-commit`, prek is a standalone binary
+
 ## Rollback
 
 ```bash
