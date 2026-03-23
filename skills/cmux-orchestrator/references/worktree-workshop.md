@@ -126,16 +126,17 @@ From here, follow the standard Workshop convention (detect commands, build layou
            "$WORKTREE_PATH/.agents/inbox/coder/tmp" \
            "$WORKTREE_PATH/.agents/inbox/coder/archive"
   ```
-- **Orchestrator inbox** lives in the orchestrator's own directory — not the worktree. The orchestrator session reads from its own cwd, so replies must land there:
+- **Reply inbox** lives in the orchestrator's own directory — not the worktree. The calling session reads from its own cwd, so replies must land there. Use the calling session's name (not hardcoded "orchestrator" — the caller might be any named session):
   ```bash
-  # ORCHESTRATOR_DIR is where the orchestrator session runs (e.g., ~/code/dotclaude, or the current worktree)
-  mkdir -p "$ORCHESTRATOR_DIR/.agents/inbox/orchestrator/new" \
-           "$ORCHESTRATOR_DIR/.agents/inbox/orchestrator/tmp" \
-           "$ORCHESTRATOR_DIR/.agents/inbox/orchestrator/archive"
+  # CALLER_DIR is where the calling session runs (e.g., ~/code/dotclaude, the current worktree, etc.)
+  # CALLER_NAME is the calling session's agent name (e.g., "orchestrator", "michael", or whatever -n was)
+  mkdir -p "$CALLER_DIR/.agents/inbox/$CALLER_NAME/new" \
+           "$CALLER_DIR/.agents/inbox/$CALLER_NAME/tmp" \
+           "$CALLER_DIR/.agents/inbox/$CALLER_NAME/archive"
   ```
-  When writing the coder's task to the inbox, set `reply_to` to the **absolute path** of the orchestrator's inbox so the agent knows where to send results:
+  When writing the coder's task to the inbox, set `reply_to` to the **absolute path** of the caller's inbox:
   ```yaml
-  reply_to: /absolute/path/to/orchestrator/.agents/inbox/orchestrator/
+  reply_to: /absolute/path/to/caller-dir/.agents/inbox/<caller-name>/
   ```
 - **Sidebar status** includes the branch context:
   ```bash
@@ -185,14 +186,14 @@ If `wt` (git-worktree skill) is installed, these shortcuts work:
 Launch agents **interactively** by default — they can prompt for permissions and the human can take over:
 
 ```bash
-# --add-dir for both the local inbox AND the orchestrator's inbox (which is outside the worktree)
-cmux send --workspace <ws> --surface <surface> "claude -n coder --add-dir .agents/inbox --add-dir $ORCHESTRATOR_DIR/.agents/inbox \"Check your inbox at .agents/inbox/coder/new/ and execute the task. When done, send results to the reply_to path specified in the inbox message.\""
+# --add-dir for both the local inbox AND the caller's inbox (which is outside the worktree)
+cmux send --workspace <ws> --surface <surface> "claude -n coder --add-dir .agents/inbox --add-dir $CALLER_DIR/.agents/inbox \"Check your inbox at .agents/inbox/coder/new/ and execute the task. When done, send results to the reply_to path specified in the inbox message.\""
 cmux send-key --workspace <ws> --surface <surface> Enter
 ```
 
 The agent needs `--add-dir` for both inboxes:
 - `.agents/inbox` — its own inbox in the worktree (relative, in cwd)
-- `$ORCHESTRATOR_DIR/.agents/inbox` — the orchestrator's inbox (absolute, outside the worktree)
+- `$CALLER_DIR/.agents/inbox` — the calling session's inbox (absolute, outside the worktree)
 
 Without the second `--add-dir`, the agent won't have write access to deliver replies.
 
