@@ -120,11 +120,20 @@ This flow is self-contained — it uses `git worktree` directly, no external scr
 From here, follow the standard Workshop convention (detect commands, build layout, set up sidebar). The only differences:
 
 - **Project root** is `$WORKTREE_PATH`, not `~/code/<project>`
-- **Inbox directories** go inside the worktree:
+- **Coder inbox** goes inside the worktree (the agent reads from here):
   ```bash
-  mkdir -p "$WORKTREE_PATH/.agents/inbox/coder/{new,tmp,archive}"
-  mkdir -p "$WORKTREE_PATH/.agents/inbox/orchestrator/{new,tmp,archive}"
+  mkdir -p "$WORKTREE_PATH"/.agents/inbox/coder/{new,tmp,archive}
   ```
+- **Reply inbox** lives in the caller's directory — not the worktree. The calling session reads from its own cwd, so replies must land there. Use the calling session's name (not hardcoded — the caller might be any named session):
+  ```bash
+  # In the caller's directory (where the orchestrating session runs)
+  mkdir -p .agents/inbox/<caller-name>/{new,tmp,archive}
+  ```
+  When writing the coder's task, set `reply_to` to a **relative path** from the coder's inbox back to the caller's:
+  ```yaml
+  reply_to: ../../../.agents/inbox/<caller-name>/
+  ```
+  If the caller is in a different repo/worktree, the relative path won't work — use `--add-dir` on the agent launch to grant write access (see Dispatching below).
 - **Sidebar status** includes the branch context:
   ```bash
   cmux set-status "worktree" "$WORKTREE_PATH" --icon "arrow.triangle.branch" --color "#888888" --workspace <ws>
@@ -167,6 +176,31 @@ git -C "$MAIN_REPO" worktree prune
 If `wt` (git-worktree skill) is installed, these shortcuts work:
 - `wt apply --push --archive` — rebase, merge, push, and archive in one command
 - `wt archive <branch>` — run conductor archive script and move to `.archive/`
+
+## Dispatching an agent into the workshop
+
+The coder agent runs in the worktree but needs write access to the caller's inbox (which is outside its cwd). Grant access with `--add-dir`:
+
+```bash
+# CALLER_INBOX is the absolute path to the caller's .agents/inbox directory
+echo "Check your inbox at .agents/inbox/coder/new/ and execute the task. Reply to the reply_to path in the inbox message." \
+  | claude -p -n coder --add-dir .agents/inbox --add-dir "$CALLER_INBOX" --dangerously-skip-permissions
+```
+
+The agent needs `--add-dir` for both:
+- `.agents/inbox` — its own inbox in the worktree (relative, in cwd)
+- `$CALLER_INBOX` — the calling session's inbox (absolute, outside the worktree)
+
+### Gotchas discovered during live testing
+
+**1. `--allowedTools` swallows the positional prompt in `-p` mode.**
+`claude -p --allowedTools "..." "my prompt"` silently eats the prompt. Always pipe via stdin: `echo "prompt" | claude -p ...`
+
+**2. `-n <name>` can resume a prior session.**
+If a session named `coder` already exists in this project, `-n coder` resumes it instead of starting fresh. The agent may work on a stale task. If this happens, interrupt (Escape) and redirect.
+
+**3. Brace expansion breaks when braces are inside quotes.**
+`mkdir -p "$VAR/{a,b,c}"` creates a literal `{a,b,c}` directory. Keep braces outside the quoted portion: `mkdir -p "$VAR"/{a,b,c}` or spell out each path.
 
 ## Adapting the worktree workshop
 
