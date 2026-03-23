@@ -151,9 +151,12 @@ Report back when done.
 EOF
 mv .agents/inbox/coder/tmp/${TIMESTAMP}-task.md .agents/inbox/coder/new/
 
-# 3. Launch the agent — name it, grant inbox access, embed \n to auto-execute
-cmux send --surface <agent-surface> $'claude -p -n coder --add-dir .agents/inbox --allowedTools "Bash(cmux:*)" \'Check your inbox at .agents/inbox/coder/new/ and execute the task described there. When done, send results to .agents/inbox/orchestrator/ using the agent-inbox protocol.\'\n'
+# 3. Launch the agent interactively — it reads its inbox on startup
+cmux send --surface <agent-surface> 'claude -n coder --add-dir .agents/inbox "Check your inbox at .agents/inbox/coder/new/ and execute the task described there. When done, send results to .agents/inbox/orchestrator/ using the agent-inbox protocol."'
+cmux send-key --surface <agent-surface> Enter
 ```
+
+**Interactive by default.** The agent runs as a normal `claude` session so it can prompt for permission approvals and the human can take over at any time. Use `-p` (print mode) only for fully autonomous fire-and-forget agents where all permissions are pre-granted via `--allowedTools` or project settings.
 
 This pattern applies everywhere — workshop agents, ops deck agents, any spawned agent.
 
@@ -263,21 +266,21 @@ The top-left pane is the agent's workspace — typically launched from the orche
 Use the prompt-via-inbox pattern to dispatch work to the agent pane:
 
 1. Write the task to the coder's inbox (see "Prompt via Inbox" above)
-2. Launch the agent in the top-left pane. Use `-n` to name the session, `--add-dir` to grant inbox access, and `--allowedTools` for cmux:
+2. Launch the agent **interactively** in the top-left pane. Use `-n` to name the session and `--add-dir` to grant inbox access:
    ```bash
-   cmux send --workspace <ws> --surface <top> $'claude -p -n coder --add-dir .agents/inbox --allowedTools "Bash(cmux:*)" \'Check your inbox at .agents/inbox/coder/new/ and execute the task. Use cmux browser to validate your work. Use cmux read-screen to check test output. Report results to .agents/inbox/orchestrator/.\'\n'
+   cmux send --workspace <ws> --surface <top> 'claude -n coder --add-dir .agents/inbox "Check your inbox at .agents/inbox/coder/new/ and execute the task. Use cmux browser to validate your work. Use cmux read-screen to check test output. Report results to .agents/inbox/orchestrator/."'
+   cmux send-key --workspace <ws> --surface <top> Enter
    ```
-   Note: embed `\n` at the end of the `send` text to execute immediately. Using `send` + `send-key Enter` separately is unreliable.
 3. Update sidebar:
    ```bash
    cmux set-status "agent" "working" --icon "hammer.fill" --color "#FFB800" --workspace <ws>
    ```
 
-The agent has full access to the workshop — it can read the test watcher output via `cmux read-screen`, interact with the browser via `cmux browser snapshot/click/fill`, and report back via agent-inbox. The human can switch to the agent pane at any time to observe or take over.
+The agent has full access to the workshop — it can read the test watcher output via `cmux read-screen`, interact with the browser via `cmux browser snapshot/click/fill`, and report back via agent-inbox. The human can switch to the agent pane at any time to observe, approve permissions, or take over.
 
-**`-p` mode is non-interactive** — the agent cannot prompt for permission approvals. The `--add-dir .agents/inbox` flag grants the agent read/write access to the inbox directory. The `--allowedTools "Bash(cmux:*)"` flag allows cmux commands without prompting. For other tools the agent needs (git, package managers, etc.), either add them to `--allowedTools` or ensure the project's `.claude/settings.local.json` has the permissions.
+**Interactive by default.** The agent runs as a normal `claude` session so it can prompt for permission approvals. Use `-p` (print mode) only for fully autonomous fire-and-forget agents where all permissions are pre-granted via `--allowedTools` or project settings — and note that `-p` with `--allowedTools` requires piping the prompt via stdin (the positional arg gets swallowed).
 
-**After the agent finishes**: `claude -p` exits when done. Check the orchestrator inbox for results, then update sidebar status.
+**After the agent finishes**: Check the orchestrator inbox for results, then update sidebar status.
 
 ### Adapting the workshop
 

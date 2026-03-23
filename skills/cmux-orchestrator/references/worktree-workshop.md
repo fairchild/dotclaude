@@ -120,10 +120,14 @@ This flow is self-contained — it uses `git worktree` directly, no external scr
 From here, follow the standard Workshop convention (detect commands, build layout, set up sidebar). The only differences:
 
 - **Project root** is `$WORKTREE_PATH`, not `~/code/<project>`
-- **Inbox directories** go inside the worktree:
+- **Inbox directories** go inside the worktree. **Spell out each path** — brace expansion `{a,b,c}` doesn't work in heredocs or non-interactive shells and will create a literal directory named `{new,tmp,archive}`:
   ```bash
-  mkdir -p "$WORKTREE_PATH/.agents/inbox/coder/{new,tmp,archive}"
-  mkdir -p "$WORKTREE_PATH/.agents/inbox/orchestrator/{new,tmp,archive}"
+  mkdir -p "$WORKTREE_PATH/.agents/inbox/coder/new" \
+           "$WORKTREE_PATH/.agents/inbox/coder/tmp" \
+           "$WORKTREE_PATH/.agents/inbox/coder/archive" \
+           "$WORKTREE_PATH/.agents/inbox/orchestrator/new" \
+           "$WORKTREE_PATH/.agents/inbox/orchestrator/tmp" \
+           "$WORKTREE_PATH/.agents/inbox/orchestrator/archive"
   ```
 - **Sidebar status** includes the branch context:
   ```bash
@@ -167,6 +171,32 @@ git -C "$MAIN_REPO" worktree prune
 If `wt` (git-worktree skill) is installed, these shortcuts work:
 - `wt apply --push --archive` — rebase, merge, push, and archive in one command
 - `wt archive <branch>` — run conductor archive script and move to `.archive/`
+
+## Dispatching an agent into the workshop
+
+Launch agents **interactively** by default — they can prompt for permissions and the human can take over:
+
+```bash
+cmux send --workspace <ws> --surface <surface> 'claude -n coder --add-dir .agents/inbox "Check your inbox at .agents/inbox/coder/new/ and execute the task. When done, send results to .agents/inbox/orchestrator/."'
+cmux send-key --workspace <ws> --surface <surface> Enter
+```
+
+### Gotchas discovered during live testing
+
+**1. `--allowedTools` swallows the positional prompt in `-p` mode.**
+`claude -p --allowedTools "Bash(cmux:*)" "my prompt"` silently eats the prompt as an `--allowedTools` value. If you need `-p` mode, pipe the prompt via stdin:
+```bash
+echo "Your task prompt here" | claude -p --allowedTools "Bash(cmux:*)"
+```
+
+**2. `-n <name>` can resume a prior session.**
+If a session named `coder` already exists in this project, `-n coder` resumes it instead of starting fresh. The agent may start working on a stale task. If this happens, interrupt (Escape) and redirect: "Stop. Read .agents/inbox/coder/new/ and execute THAT task instead."
+
+**3. Brace expansion doesn't work in `mkdir -p` inside heredocs or non-interactive shells.**
+`mkdir -p dir/{a,b,c}` creates a literal directory named `{a,b,c}`. Always spell out each path:
+```bash
+mkdir -p dir/a dir/b dir/c
+```
 
 ## Adapting the worktree workshop
 
