@@ -12,14 +12,18 @@ export type { ChronicleBlock };
 
 const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;
 
-/**
- * Find an existing block file for a given sessionId.
- * Scans all JSON files in the blocks directory.
- */
+/** Find an existing block file for a given sessionId. */
 function findExistingBlock(sessionId: string): string | null {
   if (!existsSync(CHRONICLE_DIR)) return null;
-  for (const file of readdirSync(CHRONICLE_DIR)) {
-    if (!file.endsWith(".json")) continue;
+  const shortId = sessionId.substring(0, 8);
+  const files = readdirSync(CHRONICLE_DIR).filter(f => f.endsWith(".json"));
+
+  // Fast path: filename contains the shortId
+  const byName = files.find(f => f.includes(`-${shortId}.json`));
+  if (byName) return `${CHRONICLE_DIR}/${byName}`;
+
+  // Slow path: content scan (handles legacy filenames)
+  for (const file of files) {
     try {
       const content = JSON.parse(readFileSync(`${CHRONICLE_DIR}/${file}`, "utf-8"));
       if (content.sessionId === sessionId) return `${CHRONICLE_DIR}/${file}`;
@@ -334,7 +338,7 @@ function fallbackEntry(ctx: SessionContext): ExtractionResult {
     accomplished.push(`Completed ${ctx.messageCount}-message session`);
   }
 
-  return { summary, goal, accomplished, pending: [], challenges: [], nextSteps: [] };
+  return { summary, goal, accomplished, pending: [] };
 }
 
 /**
