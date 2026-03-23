@@ -292,6 +292,21 @@ The agent has full access to the workshop — it can read the test watcher outpu
 - **Docs instead of preview?** Point the browser URL at docs instead of localhost
 - **Human-only mode?** Use the agent pane as a regular terminal — the inbox is still there if you want to dispatch later
 
+## Convention: "Worktree Workshop"
+
+A Workshop that starts from a branch name instead of an existing directory. Creates an isolated worktree, then sets up the full Workshop layout inside it. Say **"set up a worktree workshop for `<branch>` on `<project>`"** and get:
+
+```
+~/.worktrees/<repo>/<branch>/
+  ├── Full Workshop layout (agent, dev server, tests, browser)
+  ├── Sidebar: "<repo>: <branch>"
+  └── .agents/inbox/ (ready for dispatch)
+```
+
+The flow: create worktree via `git worktree add` → `cmux new-workspace --cwd <worktree>` → standard Workshop layout. Supports both in-repo (default) and cross-repo (`--repo`) entry points. Self-contained — uses `git worktree` directly, no external scripts required.
+
+**Detailed flow:** See [`references/worktree-workshop.md`](references/worktree-workshop.md) for the full phased build instructions, edge case handling, and cleanup.
+
 ## Convention: "Ops Deck"
 
 A multi-agent monitoring layout for parallel work. Say **"set up an ops deck for [task] on [project]"** and get:
