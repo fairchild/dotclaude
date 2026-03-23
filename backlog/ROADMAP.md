@@ -20,6 +20,13 @@
 
 ## Learnings
 
+### 2026-03-22 — Chronicle extraction dedup & quality (#136)
+- Chronicle curator agent identified three systemic issues in auto-extraction — curation as a diagnostic tool, not just cleanup
+- cmux-orchestrator workshop pattern worked end-to-end: inbox prompt, agent workspace, sidebar status, inbox reply
+- `findExistingBlock` needed a fast-path (filename match) before content scan — midnight-spanning sessions change the date prefix but keep the shortId suffix
+- Deterministic filenames (`date-project-shortSessionId`) eliminate the slug-collision problem entirely
+- Fallback summaries should describe work done (files modified, actions taken), never echo the user's prompt text
+
 ### 2026-03-22 — Two-clone deploy workflow (#129, #131, #132, #133)
 - Worktree + cherry-pick model had compounding friction: divergent hashes broke ff-only, symlinks blocked rebase, hooks referenced files not yet synced
 - Two independent clones on `main` eliminates the entire category — runtime changes push directly, deploy is `git pull`
