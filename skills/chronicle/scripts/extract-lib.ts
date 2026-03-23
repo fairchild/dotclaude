@@ -3,7 +3,7 @@
  * Testable module - exports functions for unit testing.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "fs";
 import { basename } from "path";
 import { execSync } from "child_process";
 import { ChronicleBlock } from "./queries.ts";
@@ -11,6 +11,22 @@ import { ChronicleBlock } from "./queries.ts";
 export type { ChronicleBlock };
 
 const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;
+
+/**
+ * Find an existing block file for a given sessionId.
+ * Scans all JSON files in the blocks directory.
+ */
+function findExistingBlock(sessionId: string): string | null {
+  if (!existsSync(CHRONICLE_DIR)) return null;
+  for (const file of readdirSync(CHRONICLE_DIR)) {
+    if (!file.endsWith(".json")) continue;
+    try {
+      const content = JSON.parse(readFileSync(`${CHRONICLE_DIR}/${file}`, "utf-8"));
+      if (content.sessionId === sessionId) return `${CHRONICLE_DIR}/${file}`;
+    } catch {}
+  }
+  return null;
+}
 
 export interface SessionContext {
   projectName: string;
@@ -217,13 +233,17 @@ function buildExtractionPrompt(ctx: SessionContext): string {
 
   parts.push("\n---\n");
   parts.push("Output JSON with these fields:");
-  parts.push('- "summary": 1-2 sentence summary of what was accomplished');
-  parts.push('- "accomplished": array of 2-5 specific completions (past tense)');
-  parts.push('- "pending": array of 0-3 unfinished items or next steps (if any)');
+  parts.push('- "summary": 1-2 sentence summary of what was accomplished (describe the work, NOT the user\'s prompt)');
+  parts.push('- "goal": the high-level objective of this session (what the user was trying to achieve)');
+  parts.push('- "accomplished": array of 2-5 specific completions (past tense, be specific about what changed)');
+  parts.push('- "challenges": array of 0-3 obstacles encountered or tricky parts (empty array if none)');
+  parts.push('- "pending": array of 0-3 unfinished items (if any)');
+  parts.push('- "nextSteps": array of 0-3 logical follow-up actions (what should happen next)');
   parts.push('- "threadGroup": (optional) if pending items are sub-tasks of a larger goal, include:');
   parts.push('    - "slug": short kebab-case identifier (max 30 chars, e.g., "build-auth-system")');
   parts.push('    - "items": array of pending item texts that belong to this thread');
-  parts.push("\nBe specific and actionable. Use past tense for accomplished, imperative for pending.");
+  parts.push("\nBe specific and actionable. Use past tense for accomplished, imperative for pending/nextSteps.");
+  parts.push("The summary should describe the WORK DONE, not echo the user's prompt text.");
   parts.push("Only include threadGroup if there are 2+ related pending items from a decomposed task.");
   parts.push("If the session was trivial (just questions, no real work), use minimal entries.");
   parts.push("\nOutput ONLY valid JSON, no markdown formatting.");
@@ -233,8 +253,11 @@ function buildExtractionPrompt(ctx: SessionContext): string {
 
 interface ExtractionResult {
   summary: string;
+  goal?: string;
   accomplished: string[];
+  challenges?: string[];
   pending: string[];
+  nextSteps?: string[];
   threadGroup?: {
     slug: string;
     items: string[];
@@ -252,7 +275,7 @@ async function callHaiku(prompt: string): Promise<ExtractionResult | null> {
     const client = new Anthropic({ apiKey });
     const res = await client.messages.create({
       model: "claude-3-5-haiku-20241022",
-      max_tokens: 500,
+      max_tokens: 800,
       messages: [{ role: "user", content: prompt }],
     });
 
@@ -287,27 +310,36 @@ export function slugify(text: string, maxLen = 40): string {
 /**
  * Generate fallback chronicle entry without API.
  */
-function fallbackEntry(ctx: SessionContext): { summary: string; accomplished: string[]; pending: string[] } {
-  const summary = ctx.userMessages[0]
-    ? `Session: ${truncate(ctx.userMessages[0], 80)}`
-    : `${ctx.projectName} session`;
+function fallbackEntry(ctx: SessionContext): ExtractionResult {
+  // Build a meaningful summary from context rather than echoing the prompt
+  const fileList = ctx.filesModified.slice(0, 3).join(", ");
+  const summary = ctx.filesModified.length > 0
+    ? `Worked on ${ctx.projectName}: modified ${fileList}${ctx.filesModified.length > 3 ? ` and ${ctx.filesModified.length - 3} more` : ""}`
+    : ctx.assistantActions.length > 0
+      ? `${ctx.projectName} session with ${ctx.assistantActions.length} actions`
+      : `${ctx.projectName} session (${ctx.messageCount} messages)`;
+
+  const goal = ctx.userMessages[0] ? truncate(ctx.userMessages[0], 120) : undefined;
 
   const accomplished: string[] = [];
   if (ctx.filesModified.length > 0) {
-    accomplished.push(`Modified ${ctx.filesModified.length} file(s): ${ctx.filesModified.slice(0, 3).join(", ")}`);
+    accomplished.push(`Modified ${ctx.filesModified.slice(0, 5).join(", ")}`);
   }
-  if (ctx.toolsUsed.has("Bash")) {
-    accomplished.push("Ran shell commands");
+  for (const action of ctx.assistantActions.slice(0, 3)) {
+    if (action.startsWith("created git commit")) {
+      accomplished.push("Created git commit");
+    }
   }
-  if (ctx.messageCount > 0) {
-    accomplished.push(`Processed ${ctx.messageCount} user message(s)`);
+  if (accomplished.length === 0 && ctx.messageCount > 0) {
+    accomplished.push(`Completed ${ctx.messageCount}-message session`);
   }
 
-  return { summary, accomplished, pending: [] };
+  return { summary, goal, accomplished, pending: [], challenges: [], nextSteps: [] };
 }
 
 /**
  * Main entry point: extract and write a chronicle block.
+ * Upserts by sessionId — if a block for this session already exists, it's overwritten in place.
  */
 export async function extractChronicleBlock(
   sessionId: string,
@@ -335,13 +367,12 @@ export async function extractChronicleBlock(
         pendingThreads[item] = threadSlug;
       }
     }
-    // Only include if we have actual mappings
     if (Object.keys(pendingThreads).length === 0) {
       pendingThreads = undefined;
     }
   }
 
-  // Build the chronicle block
+  // Build the chronicle block with enriched fields
   const block: ChronicleBlock = {
     timestamp: new Date().toISOString(),
     sessionId,
@@ -349,25 +380,33 @@ export async function extractChronicleBlock(
     ...(ctx.worktreeName && { worktree: ctx.worktreeName }),
     branch: ctx.gitBranch,
     summary: extracted.summary,
+    ...(extracted.goal && { goal: extracted.goal }),
     accomplished: extracted.accomplished,
+    ...(extracted.challenges?.length && { challenges: extracted.challenges }),
     pending: extracted.pending,
+    ...(extracted.nextSteps?.length && { nextSteps: extracted.nextSteps }),
     filesModified: ctx.filesModified.slice(0, 10),
     messageCount: ctx.messageCount,
     ...(pendingThreads && { pendingThreads }),
   };
 
-  // Write to file
+  // Write to file — upsert by sessionId
   mkdirSync(CHRONICLE_DIR, { recursive: true });
 
-  const date = new Date().toISOString().split("T")[0];
-  const slug = slugify(extracted.summary) || sessionId.substring(0, 8);
-  const filename = `${date}-${slug}.json`;
-  const filepath = `${CHRONICLE_DIR}/${filename}`;
+  // Check for existing block with this sessionId
+  const existingPath = findExistingBlock(sessionId);
 
-  // Don't overwrite existing blocks (use session ID suffix if needed)
-  const finalPath = existsSync(filepath)
-    ? `${CHRONICLE_DIR}/${date}-${slug}-${sessionId.substring(0, 6)}.json`
-    : filepath;
+  let finalPath: string;
+  if (existingPath) {
+    // Overwrite existing block in place (same filename)
+    finalPath = existingPath;
+  } else {
+    // Deterministic filename: date-project-shortSessionId.json
+    const date = new Date().toISOString().split("T")[0];
+    const projectSlug = slugify(ctx.projectName, 20);
+    const shortId = sessionId.substring(0, 8);
+    finalPath = `${CHRONICLE_DIR}/${date}-${projectSlug}-${shortId}.json`;
+  }
 
   writeFileSync(finalPath, JSON.stringify(block, null, 2));
 
