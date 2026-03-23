@@ -185,11 +185,16 @@ If `wt` (git-worktree skill) is installed, these shortcuts work:
 Launch agents **interactively** by default — they can prompt for permissions and the human can take over:
 
 ```bash
-cmux send --workspace <ws> --surface <surface> 'claude -n coder --add-dir .agents/inbox "Check your inbox at .agents/inbox/coder/new/ and execute the task. When done, send results to the reply_to path specified in the inbox message."'
+# --add-dir for both the local inbox AND the orchestrator's inbox (which is outside the worktree)
+cmux send --workspace <ws> --surface <surface> "claude -n coder --add-dir .agents/inbox --add-dir $ORCHESTRATOR_DIR/.agents/inbox \"Check your inbox at .agents/inbox/coder/new/ and execute the task. When done, send results to the reply_to path specified in the inbox message.\""
 cmux send-key --workspace <ws> --surface <surface> Enter
 ```
 
-The agent uses the `reply_to` field from the inbox message to find the orchestrator's inbox. This is an absolute path so it works across directories.
+The agent needs `--add-dir` for both inboxes:
+- `.agents/inbox` — its own inbox in the worktree (relative, in cwd)
+- `$ORCHESTRATOR_DIR/.agents/inbox` — the orchestrator's inbox (absolute, outside the worktree)
+
+Without the second `--add-dir`, the agent won't have write access to deliver replies.
 
 ### Gotchas discovered during live testing
 
