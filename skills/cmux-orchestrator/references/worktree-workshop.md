@@ -2,6 +2,8 @@
 
 A Workshop that starts from a branch name instead of an existing directory. Creates an isolated worktree, then sets up the full Workshop layout inside it.
 
+This flow is self-contained — it uses `git worktree` directly, no external scripts required.
+
 ## Entry points
 
 ```
@@ -18,58 +20,100 @@ A Workshop that starts from a branch name instead of an existing directory. Crea
 
 1. **Resolve the repo directory.** If `--repo` was specified, use that path. Otherwise, use the current working directory. Confirm it's a git repo:
    ```bash
-   git -C <repo-dir> rev-parse --git-dir 2>/dev/null
+   REPO_DIR="<repo-dir>"  # cwd or --repo path
+   git -C "$REPO_DIR" rev-parse --git-dir 2>/dev/null || echo "Not a git repo"
    ```
 
-2. **Create the worktree** using `wt.sh` directly (it's a shell function, not available in Claude Code's Bash tool):
+2. **Derive the repo name and worktree path** from the origin remote:
    ```bash
-   WT_SCRIPT="$HOME/.claude/skills/git-worktree/scripts/wt.sh"
-   cd <repo-dir> && bash "$WT_SCRIPT" <branch> --no-editor
-   ```
-   `--no-editor` is important — cmux handles the terminal, not the editor.
-
-3. **Capture the worktree path** from the repo's origin remote:
-   ```bash
-   REPO_NAME=$(basename "$(git -C <repo-dir> remote get-url origin)" .git)
+   REPO_NAME=$(basename "$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null || basename "$(git -C "$REPO_DIR" rev-parse --show-toplevel)")" .git)
    WORKTREE_PATH="$HOME/.worktrees/$REPO_NAME/<branch>"
    ```
 
-4. **Check if `wt`/conductor already ran setup.** If `conductor.json` exists in the repo, `wt` ran its `scripts.setup` automatically — don't double-run. Only run `scripts/setup` (project-scripts convention) if conductor didn't handle it:
+3. **Check if the worktree already exists:**
    ```bash
-   # conductor.json present → setup already ran via wt
-   # No conductor.json but scripts/setup exists → run it
-   if [ ! -f "$WORKTREE_PATH/conductor.json" ] && [ -x "$WORKTREE_PATH/scripts/setup" ]; then
-     cd "$WORKTREE_PATH" && scripts/setup
+   if [ -d "$WORKTREE_PATH" ]; then
+     # Ask: "Worktree <branch> exists at <path>. Use it, or pick a different name?"
+     # If reusing, skip to Phase 2
+   fi
+   ```
+
+4. **Find the main repo root** (handles being called from inside an existing worktree):
+   ```bash
+   GIT_DIR=$(git -C "$REPO_DIR" rev-parse --git-dir)
+   if [ -f "$GIT_DIR" ]; then
+     # Inside a worktree — .git is a file pointing to main repo
+     MAIN_REPO=$(cat "$GIT_DIR" | sed 's/^gitdir: //' | sed 's|/\.git/worktrees/.*||')
+   else
+     MAIN_REPO=$(git -C "$REPO_DIR" rev-parse --show-toplevel)
+   fi
+   ```
+
+5. **Create the worktree** with `git worktree add`. Handle three cases — existing local branch, remote tracking branch, or new branch:
+   ```bash
+   mkdir -p "$(dirname "$WORKTREE_PATH")"
+
+   BRANCH="<branch>"
+   BASE_BRANCH="main"  # default, or user-specified
+
+   if git -C "$MAIN_REPO" show-ref --verify --quiet "refs/heads/$BRANCH" 2>/dev/null; then
+     # Existing local branch
+     git -C "$MAIN_REPO" worktree add "$WORKTREE_PATH" "$BRANCH"
+   elif git -C "$MAIN_REPO" show-ref --verify --quiet "refs/remotes/origin/$BRANCH" 2>/dev/null; then
+     # Remote tracking branch
+     git -C "$MAIN_REPO" worktree add "$WORKTREE_PATH" "$BRANCH"
+   else
+     # New branch from base
+     git -C "$MAIN_REPO" worktree add -b "$BRANCH" "$WORKTREE_PATH" "$BASE_BRANCH"
+   fi
+   ```
+
+6. **Copy environment files** from the main repo (these are typically gitignored):
+   ```bash
+   for f in .env .env.local .dev.vars; do
+     [ -f "$MAIN_REPO/$f" ] && cp "$MAIN_REPO/$f" "$WORKTREE_PATH/$f"
+   done
+   ```
+
+7. **Run setup if needed.** Check for `conductor.json` first (its `scripts.setup` runs with `CONDUCTOR_ROOT_PATH` pointing at the main repo), then fall back to `scripts/setup` (project-scripts convention):
+   ```bash
+   if [ -f "$MAIN_REPO/conductor.json" ] && command -v jq &>/dev/null; then
+     SETUP_CMD=$(jq -r '.scripts.setup // empty' "$MAIN_REPO/conductor.json")
+     if [ -n "$SETUP_CMD" ]; then
+       (cd "$WORKTREE_PATH" && CONDUCTOR_ROOT_PATH="$MAIN_REPO" eval "$SETUP_CMD")
+     fi
+   elif [ -x "$WORKTREE_PATH/scripts/setup" ]; then
+     (cd "$WORKTREE_PATH" && scripts/setup)
    fi
    ```
 
 ### Phase 2: Launch cmux workspace
 
-5. **Create the workspace** pointing at the worktree:
+8. **Create the workspace** pointing at the worktree:
    ```bash
    cmux new-workspace --cwd "$WORKTREE_PATH"
    ```
    Note the returned ref (e.g., `workspace:6`). **Pass `--workspace <ref>` to all subsequent commands** — your `$CMUX_WORKSPACE_ID` still points to the calling workspace.
 
-6. **Discover the surface ID** — `new-workspace` returns only the workspace ref. Query for the surface:
+9. **Discover the surface ID** — `new-workspace` returns only the workspace ref. Query for the surface:
    ```bash
    cmux list-panes --workspace <ws>
    ```
    Note the pane and surface refs.
 
-7. **Verify the workspace landed in the right directory:**
-   ```bash
-   cmux send --workspace <ws> --surface <surface> "pwd"
-   cmux send-key --workspace <ws> --surface <surface> Enter
-   # Wait briefly, then:
-   cmux read-screen --workspace <ws> --surface <surface> --lines 5
-   ```
-   Confirm the output shows `$WORKTREE_PATH`. If not, fix with `cmux send ... "cd $WORKTREE_PATH"`.
+10. **Verify the workspace landed in the right directory:**
+    ```bash
+    cmux send --workspace <ws> --surface <surface> "pwd"
+    cmux send-key --workspace <ws> --surface <surface> Enter
+    # Wait briefly, then:
+    cmux read-screen --workspace <ws> --surface <surface> --lines 5
+    ```
+    Confirm the output shows `$WORKTREE_PATH`. If not, fix with `cmux send ... "cd $WORKTREE_PATH"`.
 
-8. **Name the workspace** with the `<repo>: <branch>` convention:
-   ```bash
-   cmux rename-workspace --workspace <ws> "$REPO_NAME: <branch>"
-   ```
+11. **Name the workspace** with the `<repo>: <branch>` convention:
+    ```bash
+    cmux rename-workspace --workspace <ws> "$REPO_NAME: <branch>"
+    ```
 
 ### Phase 3: Standard Workshop setup
 
@@ -94,16 +138,40 @@ Refer to the Workshop "How to build it" steps 3–13 for the full layout build (
 | Situation | Behavior |
 |-----------|----------|
 | Worktree already exists | Ask: "Worktree `<branch>` exists at `<path>`. Use it, or pick a different name?" |
-| `wt.sh` not installed | Error: "git-worktree skill required. Install with `wt install`." |
 | Not in a git repo (no `--repo`) | Error: "Not in a git repo. Use `--repo ~/code/<project>` to specify one." |
+| No origin remote | Fall back to `basename $(git rev-parse --show-toplevel)` for repo name |
 | `conductor.json` ran setup | Skip `scripts/setup` — don't double-run |
 | No `scripts/run` or dev server | Skip dev server pane — give agent the full top row (same as Workshop adaptation) |
 | No test command detected | Skip test watcher pane |
+| Called from inside a worktree | Resolve main repo via `.git` file contents (step 4) |
+
+## Cleanup
+
+When done with the worktree workshop:
+
+```bash
+# From inside the worktree — merge back and archive:
+cd "$WORKTREE_PATH"
+git rebase main
+cd "$MAIN_REPO" && git merge --ff-only <branch>
+git push  # if desired
+
+# Remove the worktree:
+git -C "$MAIN_REPO" worktree remove "$WORKTREE_PATH"
+# Or move to archive:
+mkdir -p "$HOME/.worktrees/.archive/$REPO_NAME"
+mv "$WORKTREE_PATH" "$HOME/.worktrees/.archive/$REPO_NAME/<branch>"
+git -C "$MAIN_REPO" worktree prune
+```
+
+If `wt` (git-worktree skill) is installed, these shortcuts work:
+- `wt apply --push --archive` — rebase, merge, push, and archive in one command
+- `wt archive <branch>` — run conductor archive script and move to `.archive/`
 
 ## Adapting the worktree workshop
 
 All Workshop adaptations apply here. Additionally:
 
 - **Cross-repo orchestration?** Use `--repo` to target any repo from your current workspace. The orchestrator stays in its own workspace while the workshop runs in the worktree.
-- **Session fork?** Combine with the fork skill: `wt <branch> --context handoff.md` carries session context into the worktree before the workshop sets up around it.
-- **When done?** Use `wt apply --push --archive` from the worktree to merge back and clean up, or `wt archive <branch>` from the main repo.
+- **Session fork?** Write a handoff file before setup: `mkdir -p $WORKTREE_PATH/.context && cp handoff.md $WORKTREE_PATH/.context/handoff.md`
+- **When done?** See Cleanup above.

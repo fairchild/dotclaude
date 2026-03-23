@@ -297,9 +297,9 @@ A Workshop that starts from a branch name instead of an existing directory. Crea
   └── .agents/inbox/ (ready for dispatch)
 ```
 
-The flow: `wt <branch> --no-editor` → `cmux new-workspace --cwd <worktree>` → standard Workshop layout. Supports both in-repo (default) and cross-repo (`--repo`) entry points.
+The flow: create worktree via `git worktree add` → `cmux new-workspace --cwd <worktree>` → standard Workshop layout. Supports both in-repo (default) and cross-repo (`--repo`) entry points. Self-contained — uses `git worktree` directly, no external scripts required.
 
-**Detailed flow:** See [`references/worktree-workshop.md`](references/worktree-workshop.md) for the full phased build instructions, edge case handling, and adaptation patterns.
+**Detailed flow:** See [`references/worktree-workshop.md`](references/worktree-workshop.md) for the full phased build instructions, edge case handling, and cleanup.
 
 ## Convention: "Ops Deck"
 
