@@ -120,14 +120,22 @@ This flow is self-contained — it uses `git worktree` directly, no external scr
 From here, follow the standard Workshop convention (detect commands, build layout, set up sidebar). The only differences:
 
 - **Project root** is `$WORKTREE_PATH`, not `~/code/<project>`
-- **Inbox directories** go inside the worktree. **Spell out each path** — brace expansion `{a,b,c}` doesn't work in heredocs or non-interactive shells and will create a literal directory named `{new,tmp,archive}`:
+- **Coder inbox** goes inside the worktree (the agent reads from here). **Spell out each path** — brace expansion `{a,b,c}` doesn't work in heredocs or non-interactive shells:
   ```bash
   mkdir -p "$WORKTREE_PATH/.agents/inbox/coder/new" \
            "$WORKTREE_PATH/.agents/inbox/coder/tmp" \
-           "$WORKTREE_PATH/.agents/inbox/coder/archive" \
-           "$WORKTREE_PATH/.agents/inbox/orchestrator/new" \
-           "$WORKTREE_PATH/.agents/inbox/orchestrator/tmp" \
-           "$WORKTREE_PATH/.agents/inbox/orchestrator/archive"
+           "$WORKTREE_PATH/.agents/inbox/coder/archive"
+  ```
+- **Orchestrator inbox** lives in the orchestrator's own directory — not the worktree. The orchestrator session reads from its own cwd, so replies must land there:
+  ```bash
+  # ORCHESTRATOR_DIR is where the orchestrator session runs (e.g., ~/code/dotclaude, or the current worktree)
+  mkdir -p "$ORCHESTRATOR_DIR/.agents/inbox/orchestrator/new" \
+           "$ORCHESTRATOR_DIR/.agents/inbox/orchestrator/tmp" \
+           "$ORCHESTRATOR_DIR/.agents/inbox/orchestrator/archive"
+  ```
+  When writing the coder's task to the inbox, set `reply_to` to the **absolute path** of the orchestrator's inbox so the agent knows where to send results:
+  ```yaml
+  reply_to: /absolute/path/to/orchestrator/.agents/inbox/orchestrator/
   ```
 - **Sidebar status** includes the branch context:
   ```bash
@@ -177,9 +185,11 @@ If `wt` (git-worktree skill) is installed, these shortcuts work:
 Launch agents **interactively** by default — they can prompt for permissions and the human can take over:
 
 ```bash
-cmux send --workspace <ws> --surface <surface> 'claude -n coder --add-dir .agents/inbox "Check your inbox at .agents/inbox/coder/new/ and execute the task. When done, send results to .agents/inbox/orchestrator/."'
+cmux send --workspace <ws> --surface <surface> 'claude -n coder --add-dir .agents/inbox "Check your inbox at .agents/inbox/coder/new/ and execute the task. When done, send results to the reply_to path specified in the inbox message."'
 cmux send-key --workspace <ws> --surface <surface> Enter
 ```
+
+The agent uses the `reply_to` field from the inbox message to find the orchestrator's inbox. This is an absolute path so it works across directories.
 
 ### Gotchas discovered during live testing
 
