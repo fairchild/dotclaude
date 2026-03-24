@@ -22,7 +22,7 @@ mise tasks ls        # list all tasks
 
 | Script | Description |
 |--------|-------------|
-| `setup.sh` (root) | Bootstrap environment — mise, runtimes, Claude Code, symlink `~/.claude` |
+| `setup.sh` (root) | Bootstrap environment — mise, runtimes, Claude Code, clone `~/.claude` |
 | `run` | Start webui dev server |
 | `stop` | Stop webui server |
 | `archive` | Teardown workspace — stops processes, syncs git changes |

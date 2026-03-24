@@ -31,10 +31,16 @@ if ! command -v claude &>/dev/null; then
   npm install -g @anthropic-ai/claude-code
 fi
 
-# --- Link this repo as ~/.claude ---
-if [[ "$(readlink ~/.claude 2>/dev/null)" != "$DOTFILES_DIR" ]]; then
-  [[ -e ~/.claude ]] && rm -rf ~/.claude
-  ln -sfn "$DOTFILES_DIR" ~/.claude
+# --- Clone this repo to ~/.claude (independent deploy target) ---
+if [ ! -d ~/.claude/.git ]; then
+  if [ -L ~/.claude ] || [ -e ~/.claude ]; then
+    echo "Migrating existing ~/.claude to independent clone..."
+    rm -rf ~/.claude
+  fi
+  git clone "$(git -C "$DOTFILES_DIR" remote get-url origin)" ~/.claude
+  echo "Cloned dotclaude to ~/.claude (deploy target on main)"
+else
+  echo "~/.claude already exists as independent clone"
 fi
 
 # --- Python deps (core only, optional groups are lazy) ---
