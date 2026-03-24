@@ -123,7 +123,7 @@ npx skills check && npx skills update
 
 ## Development
 
-`~/.claude` is a git worktree of this repo on a `runtime` branch — not an independent clone. A `SessionStart` hook auto-syncs from `main` on every session start, so merged PRs are live immediately. See [docs/development.md](docs/development.md) for the full architecture, sync workflow, and skill development process.
+`~/.claude` is an independent git clone on `main`. A `SessionStart` hook runs `scripts/deploy.sh` to sync from `origin/main` on every session start, so merged PRs are live immediately. Development happens in `~/code/dotclaude` on feature branches. See [skills/dotclaude-config/references/development-workflow.md](skills/dotclaude-config/references/development-workflow.md) for the full architecture, sync workflow, and skill development process.
 
 ## Drawing from This
 

@@ -68,6 +68,7 @@
       "Bash(tsc *)",
       "Bash(bd *)",
       "Bash(~/.claude/skills/gh-apps/scripts/gh-apps.py *)",
+      "Bash(uv run ~/.claude/skills/cmux-orchestrator/scripts/pr-fetch-context.py *)",
       "Bash(gh run view *)",
       "Bash(gh run list *)",
       "Bash(gh pr checks *)",

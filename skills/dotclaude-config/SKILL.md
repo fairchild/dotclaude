@@ -187,21 +187,20 @@ When the current directory IS `~/.claude`:
 - **Everything is global** — changes affect all Claude Code sessions
 - Treat it as a public repo — never commit secrets
 
-### Worktree Setup (Recommended)
+### Two-Clone Architecture
 
-If `~/.claude` is a git repo with a development clone elsewhere, it should be a **worktree** — not an independent clone. Check:
+`~/.claude` is an independent clone that deploys from `origin/main`. Development happens in `~/code/dotclaude` on feature branches. Never commit directly to `~/.claude` — it's the deploy target.
 
 ```bash
-# File = worktree (good), Directory = standalone clone (migrate)
-[ -f ~/.claude/.git ] && echo "WORKTREE" || echo "STANDALONE — see development-workflow.md"
+# Verify: ~/.claude should be a standalone clone, NOT a worktree
+[ -d ~/.claude/.git ] && echo "STANDALONE (correct)" || echo "WORKTREE — see development-workflow.md to migrate"
 ```
 
-When `~/.claude` is a worktree:
-- Development happens in the dev repo (on `main`), never directly here
-- A SessionStart hook auto-syncs merged PRs — no manual maintenance
-- `git status` detects untracked/unignored files (gitignore covers ~30k ephemeral files)
+- **`~/code/dotclaude`** — feature branches, PRs, all development
+- **`~/.claude`** — always on `main`, updated by SessionStart hook (`scripts/deploy.sh`)
+- Runtime config changes (`settings.json`) push directly from `~/.claude` as the one exception
 
-To set up or migrate, see [references/development-workflow.md](references/development-workflow.md).
+See [references/development-workflow.md](references/development-workflow.md) for setup, symlink workflow, and migration from worktree.
 
 ## Detailed Documentation
 

@@ -307,6 +307,29 @@ The flow: create worktree via `git worktree add` → `cmux new-workspace --cwd <
 
 **Detailed flow:** See [`references/worktree-workshop.md`](references/worktree-workshop.md) for the full phased build instructions, edge case handling, and cleanup.
 
+## Convention: "PR Review Workshop"
+
+A Worktree Workshop variant for responding to PR code review. Say **"set up a pr-review workshop for PR #\<number\>"** and get:
+
+```
+~/.worktrees/<repo>/<branch>/
+  ├── Workshop layout (agent + browser on PR Files Changed + verification pane)
+  ├── Sidebar: "PR #<number>: <title>" with comment progress tracking
+  ├── Review comments pre-loaded as agent context
+  ├── Permissions pre-configured for autonomous verification
+  └── Re-review flow: commit → push → comment → request re-review
+```
+
+The flow: fetch PR context (`gh pr view` + `gh api`) → create/reuse worktree (idempotent) → Workshop layout with browser on PR → launch agent with review context → agent addresses feedback → agent requests re-review.
+
+**Key differences from Worktree Workshop:**
+- **Idempotent worktree**: reuses existing worktree on same branch instead of erroring
+- **Permission profile**: pre-approved tools for verification scripts (`swift test`, `uv run`, `python`)
+- **Re-review closing**: agent posts summary comment and requests re-review via helper script
+- **Context helper**: `uv run ~/.claude/skills/cmux-orchestrator/scripts/pr-fetch-context.py <number>` generates agent prompt
+
+**Detailed flow:** See [`references/pr-review-workshop.md`](references/pr-review-workshop.md) for the full phased build instructions, permission profile, and re-review protocol.
+
 ## Convention: "Ops Deck"
 
 A multi-agent monitoring layout for parallel work. Say **"set up an ops deck for [task] on [project]"** and get:

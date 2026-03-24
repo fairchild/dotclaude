@@ -49,6 +49,21 @@
         "Shows the message flow direction correctly (test-runner sends results TO reviewer)"
       ],
       "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Set up a pr-review workshop for PR #42 on the workspaces repo",
+      "expected_output": "Fetches PR context and review comments, creates/reuses worktree on PR branch, builds workshop layout with browser on PR Files Changed tab, launches agent with review context and correct permissions, sidebar shows PR number and comment progress",
+      "expectations": [
+        "Recognizes 'pr-review workshop' as a named convention and follows the PR Review Workshop flow",
+        "Fetches PR metadata and review comments using gh pr view and gh api before creating workspace",
+        "Creates or reuses worktree idempotently (doesn't error if worktree already exists)",
+        "Opens browser pane to the PR's Files Changed URL",
+        "Includes the permission profile for autonomous verification (swift test, uv run, python)",
+        "Describes the re-review closing flow: commit, push, comment summary, request re-review via script",
+        "Sets sidebar with PR number in title and comment-addressed progress tracking"
+      ],
+      "files": []
     }
   ]
 }
