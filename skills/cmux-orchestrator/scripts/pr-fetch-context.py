@@ -3,14 +3,18 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Fetch PR review context and manage re-review requests.
+"""Fetch PR review context and manage review lifecycle.
 
 Usage:
   uv run pr-fetch-context.py <pr-number> [--repo owner/repo]
+  uv run pr-fetch-context.py <pr-number> --reply-comment <comment-id> <body> [--repo owner/repo]
+  uv run pr-fetch-context.py <pr-number> --resolve-thread <comment-id> [--repo owner/repo]
   uv run pr-fetch-context.py <pr-number> --request-rereview [--repo owner/repo]
 
 Without flags: outputs markdown context for agent consumption.
-With --request-rereview: requests re-review from original reviewers.
+--reply-comment: posts a reply on a specific review comment thread.
+--resolve-thread: resolves a review thread by its first comment ID.
+--request-rereview: requests re-review from original reviewers.
 Requires `gh` CLI authenticated.
 """
 
@@ -81,12 +85,15 @@ def fetch_pr_context(pr_number: int, repo: str | None = None) -> str:
         lines.append("## Inline Review Comments")
         lines.append("")
         for i, c in enumerate(comments_json, 1):
-            lines.append(f"### Comment {i}: {c['path']}:{c.get('line', '?')}")
+            lines.append(f"### Comment {i} (id: {c['id']}): {c['path']}:{c.get('line', '?')}")
             lines.append(f"**Reviewer:** {c['user']['login']}")
             if c.get("diff_hunk"):
                 lines.append(f"```diff\n{c['diff_hunk']}\n```")
             lines.append(f"**Comment:** {c['body']}")
             lines.append("")
+
+    script = "uv run ~/.claude/skills/cmux-orchestrator/scripts/pr-fetch-context.py"
+    repo_flag_str = f" --repo {repo}" if repo else ""
 
     reviewers = list({c["user"]["login"] for c in comments_json})
     lines.append("## Your Task")
@@ -95,14 +102,94 @@ def fetch_pr_context(pr_number: int, repo: str | None = None) -> str:
     lines.append("1. Understand the reviewer's concern")
     lines.append("2. Verify whether the concern is valid (read the code, run tests, check imports)")
     lines.append("3. Fix the issue if valid, or gather evidence that it's already handled")
-    lines.append("4. After addressing ALL comments:")
+    lines.append("4. **For each comment**, close the loop:")
+    lines.append(f"   - If you **fixed it**: resolve the thread:")
+    lines.append(f"     `{script} {pr_number} --resolve-thread <comment-id>{repo_flag_str}`")
+    lines.append(f"   - If you're **responding without resolving** (disagreeing, needs discussion, etc.):")
+    lines.append(f"     `{script} {pr_number} --reply-comment <comment-id> \"your response\"{repo_flag_str}`")
+    lines.append("5. After addressing ALL comments:")
     lines.append("   - Commit and push your changes")
     lines.append(f"   - Post a summary comment on the PR with `gh pr comment {pr_number}`")
-    lines.append(f"   - Request re-review: `uv run ~/.claude/skills/cmux-orchestrator/scripts/pr-fetch-context.py {pr_number} --request-rereview`")
+    lines.append(f"   - Request re-review: `{script} {pr_number} --request-rereview{repo_flag_str}`")
     lines.append('   - Update cmux sidebar: `cmux set-status "review" "re-review requested" --icon "checkmark.circle" --color "#00FF00"`')
     lines.append("")
 
     return "\n".join(lines)
+
+
+def reply_comment(pr_number: int, comment_id: int, body: str, repo: str | None = None) -> None:
+    repo = repo or get_repo_from_git()
+    run_gh(
+        "api", f"repos/{repo}/pulls/{pr_number}/comments/{comment_id}/replies",
+        "--method", "POST",
+        "--field", f"body={body}",
+    )
+    print(f"Replied to comment {comment_id}")
+
+
+def resolve_thread(pr_number: int, comment_id: int, repo: str | None = None) -> None:
+    repo = repo or get_repo_from_git()
+    owner, name = repo.split("/")
+
+    # Find the thread node ID via GraphQL using the comment's database ID
+    query = """
+    query($owner: String!, $name: String!, $number: Int!) {
+      repository(owner: $owner, name: $name) {
+        pullRequest(number: $number) {
+          reviewThreads(first: 100) {
+            nodes {
+              id
+              isResolved
+              comments(first: 1) {
+                nodes { databaseId }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+    result = json.loads(run_gh(
+        "api", "graphql",
+        "-f", f"query={query}",
+        "-f", f"owner={owner}",
+        "-f", f"name={name}",
+        "-F", f"number={pr_number}",
+    ))
+
+    threads = result["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+    thread_id = None
+    for t in threads:
+        first_comments = t["comments"]["nodes"]
+        if first_comments and first_comments[0]["databaseId"] == comment_id:
+            thread_id = t["id"]
+            break
+
+    if not thread_id:
+        # Comment might not be the first in its thread — scan all comments
+        for t in threads:
+            all_comments = json.loads(run_gh(
+                "api", "graphql",
+                "-f", f"query=query {{ node(id: \"{t['id']}\") {{ ... on PullRequestReviewThread {{ comments(first: 100) {{ nodes {{ databaseId }} }} }} }} }}",
+            ))
+            nodes = all_comments["data"]["node"]["comments"]["nodes"]
+            if any(n["databaseId"] == comment_id for n in nodes):
+                thread_id = t["id"]
+                break
+
+    if not thread_id:
+        print(f"Could not find thread for comment {comment_id}", file=sys.stderr)
+        sys.exit(1)
+
+    if any(t["id"] == thread_id and t["isResolved"] for t in threads):
+        print(f"Thread for comment {comment_id} is already resolved")
+        return
+
+    run_gh(
+        "api", "graphql",
+        "-f", f"query=mutation {{ resolveReviewThread(input: {{threadId: \"{thread_id}\"}}) {{ thread {{ isResolved }} }} }}",
+    )
+    print(f"Resolved thread for comment {comment_id}")
 
 
 def request_rereview(pr_number: int, repo: str | None = None) -> None:
@@ -145,15 +232,25 @@ def request_rereview(pr_number: int, repo: str | None = None) -> None:
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: pr-fetch-context.py <pr-number> [--repo owner/repo] [--request-rereview]", file=sys.stderr)
+        print(__doc__, file=sys.stderr)
         sys.exit(1)
 
     pr_num = int(sys.argv[1])
     repo_arg = None
     if "--repo" in sys.argv:
-        repo_arg = sys.argv[sys.argv.index("--repo") + 1]
+        idx = sys.argv.index("--repo")
+        repo_arg = sys.argv[idx + 1]
 
-    if "--request-rereview" in sys.argv:
+    if "--reply-comment" in sys.argv:
+        idx = sys.argv.index("--reply-comment")
+        cid = int(sys.argv[idx + 1])
+        body = sys.argv[idx + 2]
+        reply_comment(pr_num, cid, body, repo_arg)
+    elif "--resolve-thread" in sys.argv:
+        idx = sys.argv.index("--resolve-thread")
+        cid = int(sys.argv[idx + 1])
+        resolve_thread(pr_num, cid, repo_arg)
+    elif "--request-rereview" in sys.argv:
         request_rereview(pr_num, repo_arg)
     else:
         print(fetch_pr_context(pr_num, repo_arg))
