@@ -38,6 +38,10 @@ Test behavior over implementation details
 
 - Conventional commits (`feat:`, `fix:`, `chore:`, etc.)
 
+## Safety
+
+- `~/.claude` must always be a standalone git clone on `main`. Never symlink, move, or replace it. Worktrees go in `~/.worktrees/`, never at `~/.claude`.
+
 ## References
 
 - `~/.claude/skills/dotclaude-config/references/permission-templates.md` - Copy-paste permission blocks
