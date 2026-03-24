@@ -5,13 +5,14 @@
 **Current focus**: Agent orchestration patterns and developer workflow tooling
 
 ### Active
-- cmux-orchestrator conventions (workshop, ops deck) — live testing and refinement
+- cmux-orchestrator conventions — worktree workshop shipped (#137), reference doc polish (#138)
 - prek pre-commit standardization (PR #130)
 
 ### Planned
 - Chronicle Phase 4: Cross-project intelligence
 - Native sync popup (see backlog/native-sync-popup.md)
 - prek adoption across ~/code/ portfolio
+- Worktree workshop: exercise the flow on more repos to find remaining friction
 
 ### Deferred
 - Hooks validation system
@@ -19,6 +20,14 @@
 - Skill description optimization for cmux-orchestrator trigger accuracy
 
 ## Learnings
+
+### 2026-03-23 — Worktree Workshop convention (#137, #138)
+- Live-testing the convention on `workspaces` repo caught 5 issues the spec didn't: brace expansion in quotes, `--allowedTools` eating positional args, `-n` resuming stale sessions, inbox routing across directories, and `--add-dir` for cross-directory reply delivery
+- Brace expansion breaks when braces are inside quotes (`"$VAR/{a,b,c}"`), not in shells generally — fix is `"$VAR"/{a,b,c}` or spell out paths
+- Reply inbox must live in the caller's directory, not the worktree — the agent needs `--add-dir` for the caller's inbox since it's outside its cwd
+- Don't hardcode "orchestrator" as the caller name — any named session can dispatch a worktree workshop
+- Inlining `git worktree add` commands (vs depending on `wt.sh`) makes the skill self-contained and portable
+- Ship the convention first, test it, then fix forward — the live test produced more useful feedback than additional planning would have
 
 ### 2026-03-22 — Chronicle extraction dedup & quality (#136)
 - Chronicle curator agent identified three systemic issues in auto-extraction — curation as a diagnostic tool, not just cleanup
