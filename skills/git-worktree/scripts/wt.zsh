@@ -73,6 +73,41 @@ wt() {
                 fi
             fi
             ;;
+        done)
+            # Archive current worktree and cd home — the "I'm finished" command
+            if ! git rev-parse --git-dir &>/dev/null; then
+                echo "Error: Not in a git repository"
+                return 1
+            fi
+
+            local git_dir
+            git_dir=$(git rev-parse --git-dir 2>/dev/null)
+            if [[ ! -f "$git_dir" ]]; then
+                echo "Error: Not in a worktree. Run from within a worktree."
+                return 1
+            fi
+
+            # Warn if dirty
+            if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
+                echo "[wt] Warning: uncommitted changes in this worktree"
+                printf "[wt] Continue anyway? [y/N] "
+                read -q || { echo ""; return 1; }
+                echo ""
+            fi
+
+            local main_repo
+            main_repo=$(_wt_get_main_repo)
+
+            # Pass remaining args (e.g. --delete-branch) to archive
+            shift
+            "$_WT_SCRIPT" archive "$@"
+            local rc=$?
+
+            # cd home regardless — the directory is gone
+            cd "$main_repo" || cd "$REPOS_ROOT" || cd "$HOME"
+
+            return $rc
+            ;;
         *)
             "$_WT_SCRIPT" "$@"
             ;;
@@ -97,6 +132,7 @@ _wt() {
                 'archive[Archive worktree]' \
                 'apply[Rebase and merge into branch]' \
                 'clean[Archive merged worktrees]' \
+                'done[Archive current worktree and cd home]' \
                 'install[Add wt to ~/.zshrc]'
             # Also complete branch names for direct create
             if git rev-parse --git-dir &>/dev/null; then

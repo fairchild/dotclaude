@@ -32,6 +32,8 @@ wt apply --archive       # Merge and archive without prompting
 wt apply --push          # Merge and push to remote
 wt archive [branch]      # Run archive script, move to ~/.worktrees/.archive
 wt archive --delete-branch  # Also delete local and remote branches
+wt done                  # Archive current worktree and cd home (shell function)
+wt done --delete-branch  # Also delete branches on the way out
 wt clean                 # Archive merged worktrees (current repo)
 wt clean --all           # Archive merged worktrees (all repos)
 wt clean --dry-run       # List merge candidates without archiving
@@ -70,13 +72,13 @@ wt feature-auth       # Creates worktree and opens editor
 wt apply              # Merge into main (prompts to archive)
 ```
 
-Or with the traditional archive workflow:
+Or archive from within the worktree when you're done:
 
 ```bash
 wt feature-auth       # Creates worktree and opens editor
 # ... work on feature ...
-wt home               # Back to main repo
-wt archive feature-auth  # Archive when done (moves to .archive)
+wt done               # Archive and cd home in one step
+wt done --delete-branch  # Same, but also delete the branch
 ```
 
 ## Carrying Work in Progress
