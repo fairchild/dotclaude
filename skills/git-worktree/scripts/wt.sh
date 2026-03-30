@@ -41,6 +41,7 @@ Commands:
     --all                 Scan all repos (default: current repo only)
     --dry-run             List candidates without archiving
     --delete-branch       Also delete branches
+  prune [days]            Delete archives older than N days (default: 30)
   list, ls                List all worktrees
     --all                 Include worktrees from other sources
   tree                    Tree view of worktrees with git status
@@ -938,6 +939,72 @@ cmd_clean() {
     done
 }
 
+cmd_prune() {
+    local days="${1:-30}"
+    local archive_root="$WORKTREES_ROOT/.archive"
+
+    if [[ ! -d "$archive_root" ]]; then
+        log_ok "No archives to prune"
+        return 0
+    fi
+
+    # Find archived worktrees (directories containing a .git file)
+    local candidates=()
+    local candidate_ages=()
+
+    while IFS= read -r git_file; do
+        local archive_dir
+        archive_dir=$(dirname "$git_file")
+        # stat -f %m on macOS gives mtime in epoch seconds
+        local mtime
+        mtime=$(stat -f %m "$archive_dir" 2>/dev/null || stat -c %Y "$archive_dir" 2>/dev/null)
+        local now
+        now=$(date +%s)
+        local age_days=$(( (now - mtime) / 86400 ))
+
+        if [[ $age_days -ge $days ]]; then
+            candidates+=("$archive_dir")
+            candidate_ages+=("$age_days")
+        fi
+    done < <(find "$archive_root" -name ".git" -type f 2>/dev/null)
+
+    if [[ ${#candidates[@]} -eq 0 ]]; then
+        log_ok "No archives older than $days days"
+        return 0
+    fi
+
+    log_info "Archives older than $days days:"
+    local total_size=0
+    for i in "${!candidates[@]}"; do
+        local dir="${candidates[$i]}"
+        local age="${candidate_ages[$i]}"
+        local name="${dir#$archive_root/}"
+        local size
+        size=$(du -sh "$dir" 2>/dev/null | cut -f1)
+        echo "  ${age}d  ${size}  $name"
+    done
+
+    echo ""
+    local total
+    total=$(du -sh "$archive_root" 2>/dev/null | cut -f1)
+    log_info "${#candidates[@]} archive(s) found ($total total archive size)"
+    read -p "[wt] Delete these ${#candidates[@]} archive(s)? [y/N] " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log_info "Cancelled"
+        return 0
+    fi
+
+    for dir in "${candidates[@]}"; do
+        rm -rf "$dir"
+    done
+
+    # Clean up empty directories
+    find "$archive_root" -type d -empty -delete 2>/dev/null
+
+    log_ok "Pruned ${#candidates[@]} archive(s)"
+}
+
 cmd_install() {
     local source_line='source ~/.claude/skills/git-worktree/scripts/wt.zsh'
     local zshrc="$HOME/.zshrc"
@@ -985,6 +1052,10 @@ main() {
         clean)
             shift
             cmd_clean "$@"
+            ;;
+        prune)
+            shift
+            cmd_prune "${1:-30}"
             ;;
         install)
             cmd_install
