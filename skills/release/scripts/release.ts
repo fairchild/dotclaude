@@ -13,7 +13,7 @@
  */
 
 import { $ } from "bun";
-import { existsSync, mkdirSync, appendFileSync, unlinkSync } from "fs";
+import { existsSync, mkdirSync, unlinkSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -115,30 +115,6 @@ function applyPrerelease(version: string, preid: string, lastTag: string | null)
 
 function formatDate(): string {
   return new Date().toISOString().split("T")[0];
-}
-
-async function logOutcome(
-  project: string,
-  version: string,
-  outcome: "success" | "failed",
-  error?: string
-) {
-  const dataDir = join(__dirname, "..", "data");
-  const outcomesFile = join(dataDir, "outcomes.jsonl");
-
-  if (!existsSync(dataDir)) {
-    mkdirSync(dataDir, { recursive: true });
-  }
-
-  const entry = {
-    date: formatDate(),
-    project,
-    version,
-    outcome,
-    ...(error && { error }),
-  };
-
-  appendFileSync(outcomesFile, JSON.stringify(entry) + "\n");
 }
 
 async function updateChangelog(
@@ -321,14 +297,10 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"`
       try { unlinkSync(notesFile); } catch { /* ignore */ }
     }
 
-    // 11. Log success
-    await logOutcome(analysis.context.repo, version, "success");
-
     console.log(`\n✅ Released ${version}`);
     console.log(`   https://github.com/${analysis.context.repo}/releases/tag/${version}\n`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await logOutcome(analysis.context.repo, version, "failed", message);
     console.error(`\n❌ Release failed: ${message}`);
     console.error("\nSee references/troubleshooting.md for recovery steps.\n");
     process.exit(1);
