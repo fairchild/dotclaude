@@ -35,6 +35,8 @@ Commands:
     --push                Push to remote after merge
   archive [branch]        Run conductor archive, move to .archive
     --delete-branch       Also delete local and remote branches
+  done [options]          Archive current worktree and cd home (shell function)
+    --delete-branch       Also delete local and remote branches
   clean                   Archive merged worktrees
     --all                 Scan all repos (default: current repo only)
     --dry-run             List candidates without archiving
@@ -987,7 +989,7 @@ main() {
         install)
             cmd_install
             ;;
-        cd|home)
+        cd|home|done)
             log_error "wt $cmd requires shell function. Add to ~/.zshrc:"
             echo "  source ~/.claude/skills/git-worktree/scripts/wt.zsh"
             exit 1
