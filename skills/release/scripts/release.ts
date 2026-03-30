@@ -305,7 +305,7 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"`
     console.error("\nSee references/troubleshooting.md for recovery steps.\n");
     process.exit(1);
   } finally {
-    // 12. Cleanup ephemeral worktree
+    // 11. Cleanup ephemeral worktree
     if (cleanupNeeded) {
       console.log("Cleaning up ephemeral worktree...");
       try {
