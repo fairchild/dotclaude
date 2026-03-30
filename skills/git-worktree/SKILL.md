@@ -31,7 +31,13 @@ wt apply [branch]        # Rebase onto branch and merge (default: main)
 wt apply --archive       # Merge and archive without prompting
 wt apply --push          # Merge and push to remote
 wt archive [branch]      # Run archive script, move to ~/.worktrees/.archive
+wt archive --delete-branch  # Also delete local and remote branches
+wt clean                 # Archive merged worktrees (current repo)
+wt clean --all           # Archive merged worktrees (all repos)
+wt clean --dry-run       # List merge candidates without archiving
+wt clean --delete-branch # Also delete branches when cleaning
 wt list                  # List all worktrees
+wt list --all            # Include worktrees from other sources (.claude, .codex, etc.)
 wt ls                    # Alias for list
 wt tree                  # Tree view with git status indicators
 wt status                # Show worktrees with Claude session activity
@@ -82,7 +88,7 @@ When you've been exploring and decide it should be its own branch:
 wt feature-x --carry  # Creates worktree with those files copied over
 ```
 
-Copies both untracked files and modified tracked files. Works from any branch.
+Copies untracked files to the new worktree. Works from any branch.
 
 ## conductor.json (Optional)
 

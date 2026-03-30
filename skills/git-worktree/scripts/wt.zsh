@@ -94,7 +94,10 @@ _wt() {
                 'tree[Tree view with status]' \
                 'status[Show worktrees with session activity]' \
                 'open[Open editor for worktree]' \
-                'archive[Archive worktree]'
+                'archive[Archive worktree]' \
+                'apply[Rebase and merge into branch]' \
+                'clean[Archive merged worktrees]' \
+                'install[Add wt to ~/.zshrc]'
             # Also complete branch names for direct create
             if git rev-parse --git-dir &>/dev/null; then
                 local branches
@@ -104,7 +107,7 @@ _wt() {
             ;;
         branch)
             if [[ "$words[2]" == "cd" || "$words[2]" == "archive" || "$words[2]" == "open" ]]; then
-                # Complete with existing worktrees
+                # Complete with existing worktrees (handles slashed branches)
                 local repo_name
                 if git rev-parse --git-dir &>/dev/null; then
                     local url
@@ -116,8 +119,12 @@ _wt() {
                     fi
                     local worktrees_dir="$WORKTREES_ROOT/$repo_name"
                     if [[ -d "$worktrees_dir" ]]; then
-                        local worktrees
-                        worktrees=(${(f)"$(ls "$worktrees_dir" 2>/dev/null)"})
+                        local worktrees=()
+                        local git_file
+                        while IFS= read -r git_file; do
+                            local wt_dir="${git_file%/.git}"
+                            worktrees+=("${wt_dir#$worktrees_dir/}")
+                        done < <(find "$worktrees_dir" -name ".git" -type f 2>/dev/null)
                         _values 'worktree' $worktrees
                     fi
                 fi

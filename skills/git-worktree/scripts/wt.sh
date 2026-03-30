@@ -34,10 +34,17 @@ Commands:
     --archive             Archive worktree after merge without prompting
     --push                Push to remote after merge
   archive [branch]        Run conductor archive, move to .archive
+    --delete-branch       Also delete local and remote branches
+  clean                   Archive merged worktrees
+    --all                 Scan all repos (default: current repo only)
+    --dry-run             List candidates without archiving
+    --delete-branch       Also delete branches
   list, ls                List all worktrees
+    --all                 Include worktrees from other sources
   tree                    Tree view of worktrees with git status
   status                  Show all worktrees with session activity
   open [branch]           Open editor for worktree (current or specified)
+  install                 Add wt to ~/.zshrc (one-time setup)
 
 Environment:
   WORKTREES_ROOT     Base directory for worktrees (default: ~/.worktrees)
@@ -171,34 +178,6 @@ copy_env_files() {
     fi
 }
 
-# --- CARRY MODIFIED FILES (experimental) ---
-# Copies modified tracked files to worktree, overwriting clean versions.
-# Remove this function and its call site to revert to untracked-only behavior.
-carry_modified_files() {
-    local worktree_path="$1"
-    local repo_root="$2"
-    local modified_files
-    modified_files=$(cd "$repo_root" && git diff --name-only --diff-filter=M)
-
-    if [[ -z "$modified_files" ]]; then
-        return 0
-    fi
-
-    local count
-    count=$(echo "$modified_files" | wc -l | tr -d ' ')
-    log_info "Copying $count modified files..."
-
-    local copied=0
-    while IFS= read -r file; do
-        [[ -z "$file" ]] && continue
-        mkdir -p "$worktree_path/$(dirname "$file")"
-        cp "$repo_root/$file" "$worktree_path/$file"
-        ((copied++))
-    done <<< "$modified_files"
-    log_ok "Carried $copied modified files"
-}
-# --- END CARRY MODIFIED FILES ---
-
 cmd_create() {
     local branch=""
     local base_branch="main"
@@ -314,11 +293,6 @@ cmd_create() {
         log_ok "Carried $copied files"
     fi
 
-    # Copy modified tracked files (experimental - see carry_modified_files)
-    if [[ "$carry_untracked" == true ]]; then
-        carry_modified_files "$worktree_path" "$main_repo"
-    fi
-
     # Run conductor setup if present, otherwise copy env files
     # (setup scripts typically handle env files themselves, e.g., via symlinks)
     if [[ -f "$conductor_json" ]]; then
@@ -389,7 +363,15 @@ cmd_create() {
 }
 
 cmd_archive() {
-    local branch="${1:-}"
+    local branch=""
+    local delete_branch=false
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --delete-branch) delete_branch=true; shift ;;
+            *) [[ -z "$branch" ]] && branch="$1"; shift ;;
+        esac
+    done
 
     if ! git rev-parse --git-dir &>/dev/null; then
         log_error "Not in a git repository"
@@ -400,9 +382,13 @@ cmd_archive() {
     repo_name=$(get_repo_name)
 
     if [[ -z "$branch" ]]; then
-        # Try to detect from current directory
+        # Detect from current worktree using git (handles slashed branches)
         if [[ "$PWD" == "$WORKTREES_ROOT/$repo_name/"* ]]; then
-            branch=$(basename "$PWD")
+            branch=$(git branch --show-current 2>/dev/null) || true
+            if [[ -z "$branch" ]]; then
+                log_error "Cannot detect branch. Specify explicitly: wt archive <branch>"
+                exit 1
+            fi
         else
             log_error "Usage: wt archive <branch>"
             exit 1
@@ -446,28 +432,43 @@ cmd_archive() {
 
     log_info "Archiving worktree: $branch"
 
-    # Move to .archive instead of deleting
-    local archive_dir="$WORKTREES_ROOT/.archive/$repo_name"
-    mkdir -p "$archive_dir"
-
-    # If archive already exists, add timestamp suffix
-    local archive_dest="$archive_dir/$branch"
+    # Move to .archive (mkdir -p handles slashed branch paths)
+    local archive_dest="$WORKTREES_ROOT/.archive/$repo_name/$branch"
     if [[ -d "$archive_dest" ]]; then
         archive_dest="${archive_dest}-$(date +%Y%m%d-%H%M%S)"
     fi
+    mkdir -p "$(dirname "$archive_dest")"
 
     mv "$worktree_path" "$archive_dest"
 
     # Clean up git worktree tracking
     (cd "$main_repo" && git worktree prune)
 
-    # Clean up empty repo directory
+    # Clean up empty parent directories up to repo level
     local repo_dir="$WORKTREES_ROOT/$repo_name"
+    local parent
+    parent=$(dirname "$worktree_path")
+    while [[ "$parent" != "$repo_dir" && "$parent" == "$repo_dir/"* ]]; do
+        if [[ -d "$parent" ]] && [[ -z "$(ls -A "$parent")" ]]; then
+            rmdir "$parent"
+            parent=$(dirname "$parent")
+        else
+            break
+        fi
+    done
     if [[ -d "$repo_dir" ]] && [[ -z "$(ls -A "$repo_dir")" ]]; then
         rmdir "$repo_dir"
     fi
 
     log_ok "Archived to: $archive_dest"
+
+    # Delete branches if requested
+    if [[ "$delete_branch" == true ]]; then
+        log_info "Deleting local branch: $branch"
+        (cd "$main_repo" && git branch -D "$branch" 2>/dev/null) || true
+        log_info "Deleting remote branch: $branch"
+        (cd "$main_repo" && git push origin --delete "$branch" 2>/dev/null) || true
+    fi
 
     # Print exit hint if we're in the archived directory
     if [[ "$PWD" == "$worktree_path" || "$PWD" == "$worktree_path/"* ]]; then
@@ -592,7 +593,15 @@ cmd_apply() {
 }
 
 cmd_list() {
-    local filter_repo="${1:-}"
+    local filter_repo=""
+    local show_all=false
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --all) show_all=true; shift ;;
+            *) filter_repo="$1"; shift ;;
+        esac
+    done
 
     if [[ ! -d "$WORKTREES_ROOT" ]]; then
         echo "No worktrees found. Directory $WORKTREES_ROOT does not exist."
@@ -602,23 +611,23 @@ cmd_list() {
     echo "REPO                 BRANCH                         PATH"
     echo "-------------------- ------------------------------ ----"
 
+    local -a seen_main_repos=()
+
     for repo_dir in "$WORKTREES_ROOT"/*; do
         [[ -d "$repo_dir" ]] || continue
+        [[ "$(basename "$repo_dir")" != "."* ]] || continue
         local repo_name
         repo_name=$(basename "$repo_dir")
 
-        # Apply filter if specified
         if [[ -n "$filter_repo" ]] && [[ "$repo_name" != "$filter_repo" ]]; then
             continue
         fi
 
-        for branch_dir in "$repo_dir"/*; do
-            [[ -d "$branch_dir" ]] || continue
+        while IFS= read -r git_file; do
+            local branch_dir
+            branch_dir=$(dirname "$git_file")
             local branch_name
-            branch_name=$(basename "$branch_dir")
-
-            # Check if it's a valid worktree
-            [[ -f "$branch_dir/.git" ]] || continue
+            branch_name=$(git -C "$branch_dir" branch --show-current 2>/dev/null || echo "${branch_dir#$repo_dir/}")
 
             local status=""
             if ! (cd "$branch_dir" && git status &>/dev/null); then
@@ -626,8 +635,45 @@ cmd_list() {
             fi
 
             printf "%-20s %-30s %s%s\n" "$repo_name" "$branch_name" "$branch_dir" "$status"
-        done
+
+            # Track main repos for --all
+            if [[ "$show_all" == true ]] && [[ -f "$git_file" ]]; then
+                local gitdir_content main_repo already_seen=false
+                gitdir_content=$(cat "$git_file")
+                main_repo=$(echo "${gitdir_content#gitdir: }" | sed 's|/\.git/worktrees/.*||')
+                for seen in "${seen_main_repos[@]:-}"; do
+                    [[ "$seen" == "$main_repo" ]] && already_seen=true && break
+                done
+                [[ "$already_seen" == false ]] && seen_main_repos+=("$main_repo")
+            fi
+        done < <(find "$repo_dir" -name ".git" -type f 2>/dev/null)
     done
+
+    # Show worktrees from other sources if --all
+    if [[ "$show_all" == true ]] && [[ ${#seen_main_repos[@]} -gt 0 ]]; then
+        for main_repo in "${seen_main_repos[@]}"; do
+            local main_repo_name
+            main_repo_name=$(basename "$main_repo")
+            while IFS= read -r line; do
+                if [[ "$line" == "worktree "* ]]; then
+                    local wt_path="${line#worktree }"
+                    [[ "$wt_path" == "$WORKTREES_ROOT/"* ]] && continue
+                    [[ "$wt_path" == "$main_repo" ]] && continue
+
+                    local source="other"
+                    case "$wt_path" in
+                        */.claude/worktrees/*) source=".claude" ;;
+                        */.cline/worktrees/*) source=".cline" ;;
+                        */.codex/worktrees/*) source=".codex" ;;
+                        */conductor/*) source="conductor" ;;
+                    esac
+                    local wt_branch
+                    wt_branch=$(git -C "$wt_path" branch --show-current 2>/dev/null || basename "$wt_path")
+                    printf "%-20s %-30s %s [%s]\n" "$main_repo_name" "$wt_branch" "$wt_path" "$source"
+                fi
+            done < <(git -C "$main_repo" worktree list --porcelain 2>/dev/null)
+        done
+    fi
 }
 
 cmd_tree() {
@@ -641,31 +687,28 @@ cmd_tree() {
 
     for repo_dir in "$WORKTREES_ROOT"/*; do
         [[ -d "$repo_dir" ]] || continue
+        [[ "$(basename "$repo_dir")" != "."* ]] || continue
         local repo_name
         repo_name=$(basename "$repo_dir")
 
         echo -e "${CYAN}${repo_name}${NC}"
 
-        # Collect valid worktrees first
+        # Collect valid worktrees via find (handles slashed branches)
         local branches=()
-        for branch_dir in "$repo_dir"/*; do
-            [[ -d "$branch_dir" ]] || continue
-            [[ -f "$branch_dir/.git" ]] || continue
-            branches+=("$branch_dir")
-        done
+        while IFS= read -r git_file; do
+            branches+=("$(dirname "$git_file")")
+        done < <(find "$repo_dir" -name ".git" -type f 2>/dev/null)
 
         local count=${#branches[@]}
         local i=0
         for branch_dir in "${branches[@]}"; do
             ((i++))
             local branch_name
-            branch_name=$(basename "$branch_dir")
+            branch_name=$(git -C "$branch_dir" branch --show-current 2>/dev/null || echo "${branch_dir#$repo_dir/}")
 
-            # Use └── for last item, ├── for others
             local connector="├──"
             [[ $i -eq $count ]] && connector="└──"
 
-            # Get git status indicators
             local status_indicator=""
             if (cd "$branch_dir" && git status &>/dev/null); then
                 local changes
@@ -674,7 +717,6 @@ cmd_tree() {
                     status_indicator=" ${YELLOW}*${NC}"
                 fi
 
-                # Check for unpushed commits
                 local ahead
                 ahead=$(cd "$branch_dir" && git rev-list --count @{u}..HEAD 2>/dev/null || echo "0")
                 if [[ "$ahead" -gt 0 ]]; then
@@ -705,24 +747,18 @@ cmd_status() {
         [[ -d "$repo_dir" ]] || continue
         [[ "$(basename "$repo_dir")" != "."* ]] || continue
 
-        for branch_dir in "$repo_dir"/*; do
-            [[ -d "$branch_dir" ]] || continue
-            [[ -f "$branch_dir/.git" ]] || continue
-
+        while IFS= read -r git_file; do
+            local branch_dir
+            branch_dir=$(dirname "$git_file")
             local branch_name
-            branch_name=$(basename "$branch_dir")
-            local git_branch
-            git_branch=$(git -C "$branch_dir" branch --show-current 2>/dev/null || echo "unknown")
+            branch_name=$(git -C "$branch_dir" branch --show-current 2>/dev/null || echo "${branch_dir#$repo_dir/}")
+            local git_branch="$branch_name"
 
-            # Get git status
             local changes
             changes=$(git -C "$branch_dir" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
             local status_text="clean"
             [[ "$changes" -gt 0 ]] && status_text="${changes} files"
 
-            # Get session activity
-            # Path encoding: /Users/x/.worktrees/y -> -Users-x--worktrees-y
-            # Both / and . become -
             local encoded_path
             encoded_path=$(echo "$branch_dir" | sed 's|[/.]|-|g')
             local claude_dir="$HOME/.claude/projects/$encoded_path"
@@ -752,7 +788,7 @@ cmd_status() {
 
             printf "%b %-20s %-20s %8s   %s\n" \
                 "$session_indicator" "$branch_name" "$git_branch" "$age_text" "$status_text"
-        done
+        done < <(find "$repo_dir" -name ".git" -type f 2>/dev/null)
     done
     echo ""
 }
@@ -809,6 +845,112 @@ cmd_open() {
     fi
 }
 
+cmd_clean() {
+    local scan_all=false
+    local dry_run=false
+    local delete_branch=false
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --all) scan_all=true; shift ;;
+            --dry-run) dry_run=true; shift ;;
+            --delete-branch) delete_branch=true; shift ;;
+            *) log_error "Unknown option: $1"; exit 1 ;;
+        esac
+    done
+
+    if [[ ! -d "$WORKTREES_ROOT" ]]; then
+        echo "No worktrees found."
+        return 0
+    fi
+
+    local has_gh=false
+    command -v gh &>/dev/null && has_gh=true
+
+    local candidates=()
+
+    for repo_dir in "$WORKTREES_ROOT"/*; do
+        [[ -d "$repo_dir" ]] || continue
+        [[ "$(basename "$repo_dir")" != "."* ]] || continue
+
+        if [[ "$scan_all" == false ]]; then
+            if git rev-parse --git-dir &>/dev/null; then
+                local current_repo
+                current_repo=$(get_repo_name)
+                [[ "$(basename "$repo_dir")" != "$current_repo" ]] && continue
+            fi
+        fi
+
+        while IFS= read -r git_file; do
+            local branch_dir
+            branch_dir=$(dirname "$git_file")
+            local branch
+            branch=$(git -C "$branch_dir" branch --show-current 2>/dev/null) || continue
+            [[ -z "$branch" ]] && continue
+            [[ "$branch" == "main" || "$branch" == "master" ]] && continue
+
+            local main_repo gitdir_content
+            gitdir_content=$(cat "$git_file")
+            main_repo=$(echo "${gitdir_content#gitdir: }" | sed 's|/\.git/worktrees/.*||')
+
+            local merged=false
+
+            # Tier 1: git merge-base (catches regular merges)
+            if (cd "$main_repo" && git merge-base --is-ancestor "$branch" main 2>/dev/null); then
+                merged=true
+            fi
+
+            # Tier 2: gh pr list (catches squash merges)
+            if [[ "$merged" == false ]] && [[ "$has_gh" == true ]]; then
+                local pr_count
+                pr_count=$(cd "$main_repo" && gh pr list --head "$branch" --state merged --json number --jq 'length' 2>/dev/null || echo "0")
+                [[ "$pr_count" -gt 0 ]] && merged=true
+            fi
+
+            if [[ "$merged" == true ]]; then
+                candidates+=("$branch")
+                local repo_name
+                repo_name=$(basename "$repo_dir")
+                if [[ "$dry_run" == true ]]; then
+                    log_info "Would archive: $repo_name/$branch"
+                fi
+            fi
+        done < <(find "$repo_dir" -name ".git" -type f 2>/dev/null)
+    done
+
+    if [[ ${#candidates[@]} -eq 0 ]]; then
+        log_ok "No merged worktrees found"
+        return 0
+    fi
+
+    if [[ "$dry_run" == true ]]; then
+        log_info "${#candidates[@]} candidate(s) found"
+        return 0
+    fi
+
+    log_info "Archiving ${#candidates[@]} merged worktree(s)..."
+    for branch in "${candidates[@]}"; do
+        local archive_args=("$branch")
+        [[ "$delete_branch" == true ]] && archive_args+=("--delete-branch")
+        cmd_archive "${archive_args[@]}"
+    done
+}
+
+cmd_install() {
+    local source_line='source ~/.claude/skills/git-worktree/scripts/wt.zsh'
+    local zshrc="$HOME/.zshrc"
+
+    if [[ -f "$zshrc" ]] && grep -qF "$source_line" "$zshrc"; then
+        log_ok "Already installed in ~/.zshrc"
+        return 0
+    fi
+
+    echo "" >> "$zshrc"
+    echo "# wt - Git worktree manager" >> "$zshrc"
+    echo "$source_line" >> "$zshrc"
+    log_ok "Added to ~/.zshrc — run: source ~/.zshrc"
+}
+
 main() {
     local cmd="${1:-}"
 
@@ -832,11 +974,18 @@ main() {
             ;;
         archive)
             shift
-            cmd_archive "${1:-}"
+            cmd_archive "$@"
             ;;
         apply)
             shift
             cmd_apply "$@"
+            ;;
+        clean)
+            shift
+            cmd_clean "$@"
+            ;;
+        install)
+            cmd_install
             ;;
         cd|home)
             log_error "wt $cmd requires shell function. Add to ~/.zshrc:"
