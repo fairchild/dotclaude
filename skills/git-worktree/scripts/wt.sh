@@ -39,6 +39,7 @@ Commands:
     --delete-branch       Also delete local and remote branches
   clean                   Archive merged worktrees
     --all                 Scan all repos (default: current repo only)
+    --all-sources         Also scan .claude, .cline, .codex, conductor worktrees
     --dry-run             List candidates without archiving
     --delete-branch       Also delete branches
   prune [days]            Delete archives older than N days (default: 30)
@@ -848,95 +849,173 @@ cmd_open() {
     fi
 }
 
+_is_branch_merged() {
+    local branch="$1"
+    local main_repo="$2"
+    local has_gh="$3"
+
+    # Tier 1: git merge-base (catches regular merges)
+    if (cd "$main_repo" && git merge-base --is-ancestor "$branch" main 2>/dev/null); then
+        return 0
+    fi
+
+    # Tier 2: gh pr list (catches squash merges)
+    if [[ "$has_gh" == true ]]; then
+        local pr_count
+        pr_count=$(cd "$main_repo" && gh pr list --head "$branch" --state merged --json number --jq 'length' 2>/dev/null || echo "0")
+        [[ "$pr_count" -gt 0 ]] && return 0
+    fi
+
+    return 1
+}
+
 cmd_clean() {
     local scan_all=false
     local dry_run=false
     local delete_branch=false
+    local all_sources=false
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --all) scan_all=true; shift ;;
             --dry-run) dry_run=true; shift ;;
             --delete-branch) delete_branch=true; shift ;;
+            --all-sources) all_sources=true; scan_all=true; shift ;;
             *) log_error "Unknown option: $1"; exit 1 ;;
         esac
     done
 
-    if [[ ! -d "$WORKTREES_ROOT" ]]; then
-        echo "No worktrees found."
-        return 0
-    fi
-
     local has_gh=false
     command -v gh &>/dev/null && has_gh=true
 
+    # wt-managed candidates (archive via cmd_archive)
     local candidates=()
+    # External candidates (remove via git worktree remove)
+    local ext_paths=()
+    local ext_branches=()
+    local ext_sources=()
+    local ext_repos=()
 
-    for repo_dir in "$WORKTREES_ROOT"/*; do
-        [[ -d "$repo_dir" ]] || continue
-        [[ "$(basename "$repo_dir")" != "."* ]] || continue
+    # Scan wt-managed worktrees
+    if [[ -d "$WORKTREES_ROOT" ]]; then
+        for repo_dir in "$WORKTREES_ROOT"/*; do
+            [[ -d "$repo_dir" ]] || continue
+            [[ "$(basename "$repo_dir")" != "."* ]] || continue
 
-        if [[ "$scan_all" == false ]]; then
-            if git rev-parse --git-dir &>/dev/null; then
-                local current_repo
-                current_repo=$(get_repo_name)
-                [[ "$(basename "$repo_dir")" != "$current_repo" ]] && continue
-            fi
-        fi
-
-        while IFS= read -r git_file; do
-            local branch_dir
-            branch_dir=$(dirname "$git_file")
-            local branch
-            branch=$(git -C "$branch_dir" branch --show-current 2>/dev/null) || continue
-            [[ -z "$branch" ]] && continue
-            [[ "$branch" == "main" || "$branch" == "master" ]] && continue
-
-            local main_repo gitdir_content
-            gitdir_content=$(cat "$git_file")
-            main_repo=$(echo "${gitdir_content#gitdir: }" | sed 's|/\.git/worktrees/.*||')
-
-            local merged=false
-
-            # Tier 1: git merge-base (catches regular merges)
-            if (cd "$main_repo" && git merge-base --is-ancestor "$branch" main 2>/dev/null); then
-                merged=true
-            fi
-
-            # Tier 2: gh pr list (catches squash merges)
-            if [[ "$merged" == false ]] && [[ "$has_gh" == true ]]; then
-                local pr_count
-                pr_count=$(cd "$main_repo" && gh pr list --head "$branch" --state merged --json number --jq 'length' 2>/dev/null || echo "0")
-                [[ "$pr_count" -gt 0 ]] && merged=true
-            fi
-
-            if [[ "$merged" == true ]]; then
-                candidates+=("$branch")
-                local repo_name
-                repo_name=$(basename "$repo_dir")
-                if [[ "$dry_run" == true ]]; then
-                    log_info "Would archive: $repo_name/$branch"
+            if [[ "$scan_all" == false ]]; then
+                if git rev-parse --git-dir &>/dev/null; then
+                    local current_repo
+                    current_repo=$(get_repo_name)
+                    [[ "$(basename "$repo_dir")" != "$current_repo" ]] && continue
                 fi
             fi
-        done < <(find "$repo_dir" -name ".git" -type f 2>/dev/null)
-    done
 
-    if [[ ${#candidates[@]} -eq 0 ]]; then
+            while IFS= read -r git_file; do
+                local branch_dir
+                branch_dir=$(dirname "$git_file")
+                local branch
+                branch=$(git -C "$branch_dir" branch --show-current 2>/dev/null) || continue
+                [[ -z "$branch" ]] && continue
+                [[ "$branch" == "main" || "$branch" == "master" ]] && continue
+
+                local main_repo gitdir_content
+                gitdir_content=$(cat "$git_file")
+                main_repo=$(echo "${gitdir_content#gitdir: }" | sed 's|/\.git/worktrees/.*||')
+
+                if _is_branch_merged "$branch" "$main_repo" "$has_gh"; then
+                    candidates+=("$branch")
+                    local repo_name
+                    repo_name=$(basename "$repo_dir")
+                    [[ "$dry_run" == true ]] && log_info "Would archive: $repo_name/$branch"
+                fi
+            done < <(find "$repo_dir" -name ".git" -type f 2>/dev/null)
+        done
+    fi
+
+    # Scan external worktrees (from .claude, .cline, .codex, conductor, etc.)
+    if [[ "$all_sources" == true ]] && git rev-parse --git-dir &>/dev/null; then
+        local main_repo
+        main_repo=$(get_main_repo)
+
+        while IFS= read -r line; do
+            if [[ "$line" == "worktree "* ]]; then
+                local wt_path="${line#worktree }"
+                # Skip wt-managed and main repo
+                [[ "$wt_path" == "$WORKTREES_ROOT/"* ]] && continue
+                [[ "$wt_path" == "$main_repo" ]] && continue
+
+                local branch
+                branch=$(git -C "$wt_path" branch --show-current 2>/dev/null || echo "")
+                local is_detached=false
+                [[ -z "$branch" ]] && is_detached=true
+
+                local source="other"
+                case "$wt_path" in
+                    */.claude/worktrees/*) source=".claude" ;;
+                    */.cline/worktrees/*)  source=".cline" ;;
+                    */.codex/worktrees/*)  source=".codex" ;;
+                    */conductor/*)         source="conductor" ;;
+                esac
+
+                local should_clean=false
+
+                if [[ "$is_detached" == true ]]; then
+                    # Detached HEAD worktrees are always candidates
+                    should_clean=true
+                    branch="(detached)"
+                elif _is_branch_merged "$branch" "$main_repo" "$has_gh"; then
+                    should_clean=true
+                fi
+
+                if [[ "$should_clean" == true ]]; then
+                    ext_paths+=("$wt_path")
+                    ext_branches+=("$branch")
+                    ext_sources+=("$source")
+                    ext_repos+=("$main_repo")
+                    [[ "$dry_run" == true ]] && log_info "Would remove: $branch [$source] $wt_path"
+                fi
+            fi
+        done < <(git -C "$main_repo" worktree list --porcelain 2>/dev/null)
+    fi
+
+    local total=$(( ${#candidates[@]} + ${#ext_paths[@]} ))
+
+    if [[ $total -eq 0 ]]; then
         log_ok "No merged worktrees found"
         return 0
     fi
 
     if [[ "$dry_run" == true ]]; then
-        log_info "${#candidates[@]} candidate(s) found"
+        log_info "$total candidate(s) found"
         return 0
     fi
 
-    log_info "Archiving ${#candidates[@]} merged worktree(s)..."
-    for branch in "${candidates[@]}"; do
-        local archive_args=("$branch")
-        [[ "$delete_branch" == true ]] && archive_args+=("--delete-branch")
-        cmd_archive "${archive_args[@]}"
-    done
+    # Archive wt-managed worktrees
+    if [[ ${#candidates[@]} -gt 0 ]]; then
+        log_info "Archiving ${#candidates[@]} wt-managed worktree(s)..."
+        for branch in "${candidates[@]}"; do
+            local archive_args=("$branch")
+            [[ "$delete_branch" == true ]] && archive_args+=("--delete-branch")
+            cmd_archive "${archive_args[@]}"
+        done
+    fi
+
+    # Remove external worktrees
+    if [[ ${#ext_paths[@]} -gt 0 ]]; then
+        log_info "Removing ${#ext_paths[@]} external worktree(s)..."
+        for i in "${!ext_paths[@]}"; do
+            local wt_path="${ext_paths[$i]}"
+            local branch="${ext_branches[$i]}"
+            local source="${ext_sources[$i]}"
+            local main_repo="${ext_repos[$i]}"
+            log_info "Removing: $branch [$source]"
+            git worktree remove --force "$wt_path" 2>/dev/null || log_error "Failed to remove: $wt_path"
+            if [[ "$delete_branch" == true ]] && [[ "$branch" != "(detached)" ]]; then
+                (cd "$main_repo" && git branch -D "$branch" 2>/dev/null) || true
+                (cd "$main_repo" && git push origin --delete "$branch" 2>/dev/null) || true
+            fi
+        done
+    fi
 }
 
 cmd_prune() {
