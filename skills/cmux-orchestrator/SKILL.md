@@ -446,6 +446,12 @@ Use screen reading for quick checks while agents run. Use inbox messages for fin
 - **Bidirectional?** Each inbox message has `reply_to` — agents can talk back and forth.
 - **Auto-notification?** Configure the agent-inbox stop hook so agents see `"📬 N unread"` automatically.
 
+## Convention: "Status Sweep"
+
+A quick reconnaissance pass across all workspaces to summarize what's in flight. Say **"what do I have in flight"** or **"status sweep"**. Uses `cmux tree --all` + `cmux read-screen` per workspace to build a scannable briefing.
+
+**Detailed flow:** See [`references/status-sweep.md`](references/status-sweep.md) for the steps and reporting format.
+
 ## Themes & Appearance
 
 ```bash
