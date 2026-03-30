@@ -1,8 +1,0 @@
-{"date":"2026-02-09","project":"fairchild/code-cadence","version":"v0.2.0","outcome":"success"}
-{"date":"2026-02-09","project":"fairchild/code-cadence","version":"v0.3.0","outcome":"success"}
-{"date":"2026-03-02","project":"fairchild/workspaces","version":"v0.2.0","outcome":"failed","error":"To https://github.com/fairchild/workspaces.git\n   7118171..271a583  HEAD -> main\n * [new tag]         v0.2.0 -> v0.2.0\n ! [rejected]        v0.1.0 -> v0.1.0 (already exists)\n ! [rejected]        v0.1.1 -> v0.1.1 (already exists)\n ! [rejected]        v0.1.2 -> v0.1.2 (already exists)\nerror: failed to push some refs to 'https://github.com/fairchild/workspaces.git'\nhint: Updates were rejected because the tag already exists in the remote.\n"}
-{"date":"2026-03-24","project":"fairchild/workspaces","version":"v0.7.0","outcome":"success"}
-{"date":"2026-03-24","project":"fairchild/workspaces","version":"v0.8.0","outcome":"success"}
-{"date":"2026-03-24","project":"fairchild/workspaces","version":"v0.8.1","outcome":"success"}
-{"date":"2026-03-24","project":"fairchild/workspaces","version":"v0.8.1","outcome":"failed","error":"fatal: tag 'v0.8.1' already exists\n"}
-{"date":"2026-03-24","project":"fairchild/workspaces","version":"v0.8.1","outcome":"success"}

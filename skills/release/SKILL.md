@@ -1,6 +1,6 @@
 ---
 name: release
-description: Create semantic versioned releases with AI-generated changelogs. Worktree-aware - works from any branch. Use when the user wants to create a release, cut a release, bump version, or publish a new version. Supports dry-run preview, pre-releases (alpha/beta/rc), CI status checks, and outcome tracking.
+description: Create semantic versioned releases with AI-generated changelogs. Worktree-aware - works from any branch. Use when the user wants to create a release, cut a release, bump version, or publish a new version. Supports dry-run preview, pre-releases (alpha/beta/rc), and CI status checks.
 license: Apache-2.0
 ---
 
@@ -88,8 +88,7 @@ The script:
 4. Commits: `release: vX.Y.Z`
 5. Creates and pushes tag
 6. Creates GitHub release
-7. Logs outcome to `data/outcomes.jsonl`
-8. Cleans up ephemeral worktree
+7. Cleans up ephemeral worktree
 
 ## Version Bumping
 
@@ -139,14 +138,3 @@ gh release create vX.Y.Z --title "vX.Y.Z" --generate-notes
 # Delete bad release
 gh release delete vX.Y.Z --yes --cleanup-tag
 ```
-
-## Outcome Tracking
-
-Releases are logged to `data/outcomes.jsonl`:
-
-```jsonl
-{"date":"2026-01-24","project":"user/repo","version":"v1.0.0","outcome":"success"}
-{"date":"2026-01-25","project":"user/repo","version":"v1.1.0","outcome":"failed","error":"push rejected"}
-```
-
-Use this to track release history and debug recurring issues.
