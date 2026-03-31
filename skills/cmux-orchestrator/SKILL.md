@@ -152,7 +152,7 @@ EOF
 mv .agents/inbox/coder/tmp/${TIMESTAMP}-task.md .agents/inbox/coder/new/
 
 # 3. Launch the agent — the inbox message has all the detail
-cmux send --surface <agent-surface> "echo 'Check your inbox at .agents/inbox/coder/new/ and execute the task. Reply to .agents/inbox/orchestrator/ when done.' | claude -p -n coder --add-dir .agents/inbox --dangerously-skip-permissions"
+cmux send --surface <agent-surface> "claude --dangerously-skip-permissions -n coder --add-dir .agents/inbox 'Check your inbox at .agents/inbox/coder/new/ and execute the task. Reply to .agents/inbox/orchestrator/ when done.'"
 cmux send-key --surface <agent-surface> Enter
 ```
 
@@ -266,7 +266,7 @@ Use the prompt-via-inbox pattern to dispatch work to the agent pane:
 1. Write the task to the coder's inbox (see "Prompt via Inbox" above)
 2. Launch the agent — the inbox message has all the detail:
    ```bash
-   cmux send --workspace <ws> --surface <top> "echo 'Check your inbox at .agents/inbox/coder/new/ and execute the task. Reply to .agents/inbox/orchestrator/ when done.' | claude -p -n coder --add-dir .agents/inbox --dangerously-skip-permissions"
+   cmux send --workspace <ws> --surface <top> "claude --dangerously-skip-permissions -n coder --add-dir .agents/inbox 'Check your inbox at .agents/inbox/coder/new/ and execute the task. Reply to .agents/inbox/orchestrator/ when done.'"
    cmux send-key --workspace <ws> --surface <top> Enter
    ```
 3. Update sidebar:
@@ -276,14 +276,12 @@ Use the prompt-via-inbox pattern to dispatch work to the agent pane:
 
 The agent has full access to the workshop — it can read the test watcher output via `cmux read-screen`, interact with the browser via `cmux browser snapshot/click/fill`, and report back via agent-inbox. The human can switch to the agent pane at any time to observe or take over.
 
-**`-p` mode is non-interactive** — the agent cannot prompt for permission approvals.
+- `--dangerously-skip-permissions` grants all tool permissions without prompting — use for autonomous agents
+- `--add-dir .agents/inbox` grants filesystem visibility to the inbox directory
+- `-n <name>` sets the session name for identification
+- Pass the initial message as a positional argument — the agent starts with full tool access and works autonomously
 
-- `--add-dir .agents/inbox` grants filesystem visibility but NOT tool permissions
-- `--allowedTools` must include every tool the agent will use: `Bash(cmux:*)` for cmux, `Write` for creating inbox replies, `Read` and `Glob` and `Grep` for exploring code
-- For agents that need broad access (most workshop/ops-deck agents), use `--dangerously-skip-permissions` instead of enumerating tools — it's simpler and avoids silent permission blocks
-- If you use `--allowedTools`, test that the agent can complete the *full* task including writing its reply to the inbox
-
-**After the agent finishes**: `claude -p` exits when done. Check the orchestrator inbox for results, then update sidebar status.
+**After the agent finishes**: The Claude session exits when done. Check the orchestrator inbox for results, then update sidebar status.
 
 ### Adapting the workshop
 
@@ -396,10 +394,10 @@ All connected via agent-inbox protocol.
 5. **Spawn agent workspaces** — each checks its inbox on start:
    ```bash
    cmux new-workspace --cwd ~/code/myproject \
-     --command "echo 'Check your inbox at .agents/inbox/test-runner/new/ and execute the task. Reply to .agents/inbox/orchestrator/ when done.' | claude -p -n test-runner --add-dir .agents/inbox --dangerously-skip-permissions"
+     --command "claude --dangerously-skip-permissions -n test-runner --add-dir .agents/inbox 'Check your inbox at .agents/inbox/test-runner/new/ and execute the task. Reply to .agents/inbox/orchestrator/ when done.'"
 
    cmux new-workspace --cwd ~/code/myproject \
-     --command "echo 'Check your inbox at .agents/inbox/linter/new/ and execute the task. Reply to .agents/inbox/orchestrator/ when done.' | claude -p -n linter --add-dir .agents/inbox --dangerously-skip-permissions"
+     --command "claude --dangerously-skip-permissions -n linter --add-dir .agents/inbox 'Check your inbox at .agents/inbox/linter/new/ and execute the task. Reply to .agents/inbox/orchestrator/ when done.'"
    ```
 6. Name everything so the user can identify each workspace and tab at a glance:
    ```bash

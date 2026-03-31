@@ -141,11 +141,11 @@ cmux send-key --surface <agent-surface> Enter
 
 **Autonomous mode** (fire-and-forget):
 ```bash
-cmux send --surface <agent-surface> 'cat /tmp/pr-<number>-context.md | claude -p --allowedTools "Bash(gh pr *)" "Bash(gh api *)" "Bash(gh run *)" "Bash(git diff *)" "Bash(git log *)" "Bash(git show *)" "Bash(git status *)" "Bash(git add *)" "Bash(git commit *)" "Bash(git fetch *)" "Bash(git pull *)" "Bash(git stash *)" "Bash(git checkout *)" "Bash(swift build *)" "Bash(swift test *)" "Bash(uv run *)" "Bash(python *)" "Bash(python3 *)" "Bash(grep *)" "Bash(find *)" "Bash(ls *)" "Bash(cat *)" "Bash(head *)" "Bash(tail *)" "Bash(wc *)" "Bash(tree *)" "Bash(mkdir *)" "Bash(echo *)" "Bash(pwd)" "Bash(cmux *)"'
+cmux send --surface <agent-surface> 'claude --dangerously-skip-permissions "$(cat /tmp/pr-<number>-context.md)"'
 cmux send-key --surface <agent-surface> Enter
 ```
 
-**Note:** Pipe via stdin (`cat ... | claude -p`) to avoid `--allowedTools` swallowing the positional prompt argument. This is a known gotcha from worktree-workshop testing.
+Interactive mode gives the agent full tool access to read files, run commands, and iterate autonomously.
 
 ## Phase 5: Agent Re-Review Flow
 

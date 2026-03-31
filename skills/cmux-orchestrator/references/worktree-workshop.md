@@ -183,8 +183,9 @@ The coder agent runs in the worktree but needs write access to the caller's inbo
 
 ```bash
 # CALLER_INBOX is the absolute path to the caller's .agents/inbox directory
-echo "Check your inbox at .agents/inbox/coder/new/ and execute the task. Reply to the reply_to path in the inbox message." \
-  | claude -p -n coder --add-dir .agents/inbox --add-dir "$CALLER_INBOX" --dangerously-skip-permissions
+claude --dangerously-skip-permissions -n coder \
+  --add-dir .agents/inbox --add-dir "$CALLER_INBOX" \
+  "Check your inbox at .agents/inbox/coder/new/ and execute the task. Reply to the reply_to path in the inbox message."
 ```
 
 The agent needs `--add-dir` for both:
@@ -193,8 +194,8 @@ The agent needs `--add-dir` for both:
 
 ### Gotchas discovered during live testing
 
-**1. `--allowedTools` swallows the positional prompt in `-p` mode.**
-`claude -p --allowedTools "..." "my prompt"` silently eats the prompt. Always pipe via stdin: `echo "prompt" | claude -p ...`
+**1. Pass the message as a positional argument.**
+Interactive mode with a positional message gives the agent full tool access. It reads files, runs commands, and iterates autonomously until done.
 
 **2. `-n <name>` can resume a prior session.**
 If a session named `coder` already exists in this project, `-n coder` resumes it instead of starting fresh. The agent may work on a stale task. If this happens, interrupt (Escape) and redirect.
