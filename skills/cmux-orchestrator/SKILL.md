@@ -450,6 +450,73 @@ A quick reconnaissance pass across all workspaces to summarize what's in flight.
 
 **Detailed flow:** See [`references/status-sweep.md`](references/status-sweep.md) for the steps and reporting format.
 
+## Pattern: Wake-on-Reply
+
+When a child agent finishes and writes a reply to the parent's inbox, the parent may be idle or closed. Wake-on-Reply bridges async inbox messages to session lifecycle.
+
+### Setup
+
+Add the inbox-startup hook to `settings.json` so every session checks for mail on start:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "bash ~/.claude/skills/agent-inbox/scripts/inbox-startup.sh"
+      }
+    ]
+  }
+}
+```
+
+### Child agent: write reply + wake parent
+
+After a child finishes work and writes its reply to the parent's inbox:
+
+```bash
+# 1. Write reply (standard inbox protocol)
+TIMESTAMP=$(date -u +%Y%m%dT%H%M%S)
+cat > .agents/inbox/orchestrator/tmp/${TIMESTAMP}-done.md << 'EOF'
+---
+from: coder
+to: orchestrator
+reply_to: ../coder/tmp/
+timestamp: 2026-04-03T05:30:00Z
+thread: my-task
+---
+
+Task complete. PR at #42.
+EOF
+mv .agents/inbox/orchestrator/tmp/${TIMESTAMP}-done.md .agents/inbox/orchestrator/new/
+
+# 2. Wake the parent
+bash ~/.claude/skills/agent-inbox/scripts/wake-parent.sh \
+  --surface <parent-surface> --agent orchestrator
+```
+
+### What happens
+
+| Parent state | Action |
+|-------------|--------|
+| Active claude session | Sends notification hint — stop hook shows "📬 unread" |
+| Idle shell prompt | Spawns `claude -p -n <agent>` that reads the inbox |
+| Surface closed | Logs warning, exits cleanly |
+
+### Full example: orchestrator dispatches, child wakes parent
+
+```bash
+# Orchestrator writes task to child inbox (prompt-via-inbox)
+# ... standard inbox write ...
+
+# Launch child with wake instructions baked in
+cmux send --surface <child> "echo 'Check your inbox. When done, reply to orchestrator inbox and run: bash ~/.claude/skills/agent-inbox/scripts/wake-parent.sh --surface <parent> --agent orchestrator' | claude -p -n coder --add-dir .agents/inbox --dangerously-skip-permissions"
+cmux send-key --surface <child> Enter
+```
+
+The child reads its task, does the work, writes its reply, wakes the parent, and the parent picks up seamlessly.
+
 ## Themes & Appearance
 
 ```bash
