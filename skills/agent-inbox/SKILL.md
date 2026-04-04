@@ -90,6 +90,42 @@ Markdown with YAML frontmatter. Filename: `<YYYYMMDDTHHMMSS>-<slug>.md`
 - **Archive after reading**: move from `new/` to `archive/`
 - **Gitignore contents**: messages are ephemeral coordination, not project state
 
-## Mail notifications
+## Hooks & Notifications
 
-`scripts/check-inbox-hook.sh` is a Stop hook that scans `.agents/inbox/*/new/` from the working directory. Silent when empty — no configuration needed.
+### Stop hook — check for new mail
+
+`scripts/check-inbox-hook.sh` scans `.agents/inbox/*/new/` from the working directory. Silent when empty — no configuration needed.
+
+### SessionStart hook — inbox summary
+
+`scripts/inbox-startup.sh` prints a summary of unread messages when a session starts. Agent name comes from `$CLAUDE_SESSION_NAME` (falls back to `orchestrator`). Silent when empty, fast (<200ms).
+
+Configure in `settings.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "bash ~/.claude/skills/agent-inbox/scripts/inbox-startup.sh"
+      }
+    ]
+  }
+}
+```
+
+### Wake-on-reply — notify parent via cmux
+
+`scripts/wake-parent.sh` bridges async inbox messages to session lifecycle. After writing a reply to a parent's inbox, call it to wake the parent:
+
+```bash
+wake-parent.sh --surface <cmux-surface-ref> [--inbox-path <path>] [--agent <name>]
+```
+
+Behavior based on surface state:
+- **Active claude session**: sends a notification hint (the stop hook picks up the inbox)
+- **Idle shell prompt**: spawns a new claude session that reads the inbox
+- **Surface gone**: warns and exits
+
+Requires cmux. See `cmux-orchestrator` skill for the full Wake-on-Reply pattern.
