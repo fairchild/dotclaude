@@ -16,6 +16,9 @@
 secrets/
 credentials/
 
+# Auto-memory (cross-session, personal)
+memory/
+
 # Session data (personal, ephemeral)
 sessions/
 history.jsonl
