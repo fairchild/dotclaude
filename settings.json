@@ -106,8 +106,7 @@
       "Bash(git reset *)",
       "Bash(git rebase *)",
       "Bash(git merge *)",
-      "Bash(rm -rf *)",
-      "Bash(curl *)"
+      "Bash(rm -rf *)"
     ],
     "defaultMode": "default"
   },
