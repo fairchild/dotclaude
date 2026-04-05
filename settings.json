@@ -64,7 +64,6 @@
       "Bash(touch *)",
       "Bash(mv *)",
       "Bash(cp *)",
-      "Bash(curl *)",
       "Bash(tsc *)",
       "Bash(bd *)",
       "Bash(~/.claude/skills/gh-apps/scripts/gh-apps.py *)",
@@ -106,7 +105,9 @@
       "Bash(git push *)",
       "Bash(git reset *)",
       "Bash(git rebase *)",
-      "Bash(rm -rf *)"
+      "Bash(git merge *)",
+      "Bash(rm -rf *)",
+      "Bash(curl *)"
     ],
     "defaultMode": "default"
   },
