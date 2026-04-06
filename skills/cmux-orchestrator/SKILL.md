@@ -502,8 +502,8 @@ bash ~/.claude/skills/agent-inbox/scripts/wake-parent.sh \
 
 | Parent state | Action |
 |-------------|--------|
-| Active claude session | Sends notification hint — stop hook shows "📬 unread" |
-| Idle shell prompt | Spawns `claude -p -n <agent>` that reads the inbox |
+| Active claude session | No-op — mail is in the inbox, stop hook surfaces it on next turn |
+| Idle shell prompt | Spawns headless `claude -p -n <agent>` that reads the inbox |
 | Surface closed | Logs warning, exits cleanly |
 
 ### Full example: orchestrator dispatches, child wakes parent
@@ -518,6 +518,8 @@ cmux send-key --surface <child> Enter
 ```
 
 The child reads its task, does the work, writes its reply, wakes the parent, and the parent picks up seamlessly.
+
+> **On `--dangerously-skip-permissions`:** Headless agent sessions use this flag because no human is present to approve tool calls. This is the current pragmatic approach — if Claude Code adds a permissions profile or allowlist mechanism, prefer that instead.
 
 ## Themes & Appearance
 
