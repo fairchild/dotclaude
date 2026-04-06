@@ -124,8 +124,10 @@ wake-parent.sh --surface <cmux-surface-ref> [--inbox-path <path>] [--agent <name
 ```
 
 Behavior based on surface state:
-- **Active claude session**: sends a notification hint (the stop hook picks up the inbox)
-- **Idle shell prompt**: spawns a new claude session that reads the inbox
+- **Active claude session**: no-op (mail is already in the inbox — the stop hook picks it up on next turn)
+- **Idle shell prompt**: spawns a headless `claude -p` session that reads the inbox
 - **Surface gone**: warns and exits
+
+> **Note:** The spawned headless session uses `--dangerously-skip-permissions` because there is no human at the terminal to approve tool calls. This is the pragmatic approach for now — a future permissions profile or allowlist flag would be preferable.
 
 Requires cmux. See `cmux-orchestrator` skill for the full Wake-on-Reply pattern.
