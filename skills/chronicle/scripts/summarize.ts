@@ -19,7 +19,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { loadAllBlocks, type ChronicleBlock } from "./queries.ts";
 import { getGlobalUsage, getRepoUsage, getToolBreakdown } from "./usage-queries.ts";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import {
   mkdirSync,
   writeFileSync,
@@ -93,8 +93,12 @@ function findProjectPath(project: string): string | null {
 
 function getGitLog(projectPath: string, days: number): string[] {
   try {
-    const out = execSync(
-      `git -C "${projectPath}" log --oneline --since="${days} days ago"`,
+    // execFileSync (not execSync) so no shell interpolation — projectPath
+    // is passed as a direct argv element, immune to shell metacharacters
+    // even if someone planted a malicious directory name in ~/code/.
+    const out = execFileSync(
+      "git",
+      ["-C", projectPath, "log", "--oneline", "--since", `${days} days ago`],
       { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }
     );
     return out.trim().split("\n").filter(Boolean).slice(0, 40);
@@ -315,7 +319,17 @@ Run \`/chronicle\` to capture the current session, or extend the window with \`-
 // Main generator
 // ---------------------------------------------------------------------------
 
+// Project names are interpolated into output filenames. Validate strictly
+// to prevent path traversal via --repo=../../etc/foo style inputs. The
+// allowed character class matches every real project in ~/code/.
+const VALID_REPO_NAME = /^[a-z0-9._-]+$/i;
+
 export async function generateSummary(opts: GenerateSummaryOptions): Promise<GenerateSummaryResult> {
+  if (opts.repoName !== undefined && !VALID_REPO_NAME.test(opts.repoName)) {
+    throw new Error(
+      `Invalid repoName "${opts.repoName}" — must match ${VALID_REPO_NAME}`
+    );
+  }
   const format: SummaryFormat = opts.format ?? "structured";
   // Narrative recaps always use Opus (lower frequency, higher quality).
   // Structured: Sonnet for short windows, Opus for week+.
