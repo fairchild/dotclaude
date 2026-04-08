@@ -61,6 +61,7 @@ Much of this config observes work rather than does it. The memory system is wher
 | **image-gen** | Generating images with AI (OpenAI, Imagen, fal.ai) |
 | **backlog** | Capturing explored work for later |
 | **chronicle** | Capturing and curating session memory |
+| **clone-explore** | Clone repos into a conventional ~/code path, inspect them, and recommend next steps |
 | **frontend-design** | Building web UIs, components, pages |
 | **webapp-testing** | Playwright testing (Python and TypeScript) |
 | **skill-creator** | Building new skills |
