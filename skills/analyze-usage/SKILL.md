@@ -1,12 +1,12 @@
 ---
 name: analyze-usage
-description: Analyze AI coding assistant usage patterns across Claude Code and Cursor. Use when user asks about their coding usage, tool statistics, productivity patterns, skill popularity, session history, or wants to query their AI coding logs. Triggers include "usage", "how much have I used", "most used tools", "skill popularity", "coding stats", "productivity patterns".
+description: Analyze AI coding assistant usage patterns across Claude Code, Codex, and Cursor. Use when user asks about their coding usage, tool statistics, productivity patterns, skill popularity, session history, or wants to query their AI coding logs. Triggers include "usage", "how much have I used", "most used tools", "skill popularity", "coding stats", "productivity patterns".
 license: Apache-2.0
 ---
 
 # AI Coding Usage
 
-Unified usage analyzer for Claude Code and Cursor. Loads logs into DuckDB for SQL analysis.
+Unified usage analyzer for Claude Code, Codex, and Cursor. Loads logs into DuckDB for SQL analysis.
 The skill also provisions a canonical cross-harness reference schema from
 `references/canonical-agent-schema.duckdb.sql` during database bootstrap.
 
@@ -67,6 +67,11 @@ SELECT * FROM tool_summary;
 -- Daily usage (last 2 weeks)
 SELECT * FROM daily_summary ORDER BY date DESC LIMIT 14;
 
+-- Compare harness usage
+SELECT source, COUNT(*) AS interactions
+FROM interactions
+GROUP BY source ORDER BY interactions DESC;
+
 -- Skill popularity
 SELECT regexp_extract(context, '"skill":"([^"]+)"', 1) as skill, COUNT(*) as uses
 FROM claude_tools WHERE tool_name = 'Skill'
@@ -122,6 +127,10 @@ The script tracks tokens and calculates API costs automatically:
 ### Core Tables
 - `claude_tools` - Tool invocations (with model, tokens, repo/branch, source_file)
 - `claude_sessions` - Session metadata
+- `codex_tools` - Codex tool invocations
+- `codex_sessions` - Codex session metadata
+- `codex_token_counts` - Codex per-turn token snapshots
+- `codex_developer_messages` - Codex developer-role instruction payloads
 - `messages` - Conversation content (user text, assistant text + thinking)
 - `system_events` - System records (turn_duration, api_error, stop_hook_summary)
 - `queue_operations` - User inputs queued during assistant response
@@ -143,7 +152,7 @@ The script tracks tokens and calculates API costs automatically:
 - `turn_durations` - Response timing from system events
 - `api_errors` - API error events
 - `session_overview` - Sessions joined with index metadata
-- `interactions` - Unified view (Claude + Cursor)
+- `interactions` - Unified view (Claude + Codex + Cursor)
 - `conversation_search` - Messages with content/thinking previews
 - `session_messages` - Per-session aggregation with topic
 - `recent_conversations` - Last 50 sessions
