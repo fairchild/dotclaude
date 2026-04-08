@@ -90,7 +90,7 @@ Blocks stored in `~/.claude/chronicle/blocks/`.
 
 ## Curate Mode (/chronicle curate)
 
-Invokes the **Chronicle Curator** agent for intelligent memory management.
+Invokes the **Chronicle Curator** agent for intelligent memory management. Safe to call mid-session as a chapter-break checkpoint — the curator updates today's block thoughtfully and idempotently. For end-of-session close-out with backlog/release housekeeping, use `/chronicle wrapup` instead.
 
 ### How to Use
 
@@ -301,6 +301,8 @@ Recap fidelity is bounded by block fidelity. The SessionEnd hook auto-extracts b
 Deliberate end-of-session close-out. Writes a high-fidelity chronicle block via the curator, then conditionally updates `backlog/` and `backlog/ROADMAP.md` only if the session actually touched them. This is the intentional version of what the SessionEnd hook does automatically.
 
 Use at the end of a focused work session when you know the themes, wins, and open threads and want them captured crisply — especially before merging a PR.
+
+> **Mid-session chapter break?** Use `/chronicle curate` instead — it runs the curator without the close-out housekeeping (no backlog commit, no release suggestion) and is safe to call repeatedly as a session evolves. Wrapup is the deliberate finality version: run it once when you're actually done.
 
 ### Flow
 
