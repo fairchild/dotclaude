@@ -46,7 +46,8 @@ Much of this config observes work rather than does it. The memory system is wher
 | `/reflect` | Pause to review work with fresh eyes |
 | `/reflection-log` | Log feedback to improve reflection prompt |
 | `/retro` | Review session trajectory and update todos |
-| `/session-wrapup` | Final step before merge, captures learnings |
+| `/chronicle wrapup` | Deliberate session close-out — curator + conditional backlog update |
+| `/chronicle recap` | Multi-session narrative recap for a project |
 | `/status_line` | Explain current session metrics |
 | `/update-dependencies` | Intelligent dependency updates with batching |
 | `/code-review` | Review recent work against plan and standards |

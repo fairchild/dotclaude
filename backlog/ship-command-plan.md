@@ -12,7 +12,7 @@ completed: null
 
 ## Problem Statement
 
-The current PR workflow requires three manual steps: `/reflect`, then `/session-wrapup`, then merge. Users forget to run these steps, leading to:
+The current PR workflow requires three manual steps: `/reflect`, then `/chronicle wrapup`, then merge. Users forget to run these steps, leading to:
 - PRs merged without reflection (bugs slip through)
 - Backlog items not moved to done
 - ROADMAP.md learnings not captured
@@ -70,7 +70,7 @@ A single `/ship` command would chain these steps and ensure consistent PR hygien
 
 ```markdown
 ---
-description: Ship a PR - combines reflect, session-wrapup, and PR finalization
+description: Ship a PR - combines reflect, chronicle wrapup, and PR finalization
 ---
 
 # Ship
@@ -128,7 +128,7 @@ If issues found:
 
 ### Step 4: Session Wrapup
 
-Run the session-wrapup workflow:
+Run the `/chronicle wrapup` workflow:
 
 1. **Backlog updates**:
    - Find related backlog item(s)
@@ -227,6 +227,6 @@ If `/ship` causes issues:
 
 ## References
 
-- `commands/session-wrapup.md` - Existing wrapup logic
+- `skills/chronicle/SKILL.md` § Wrapup - `/chronicle wrapup` flow (replaced former `commands/session-wrapup.md`)
 - `commands/reflect.md` - Reflection prompt
 - `skills/release/SKILL.md` - Release skill for milestone detection

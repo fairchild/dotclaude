@@ -1,6 +1,6 @@
 ---
 name: chronicle
-description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle catchup to restore context, /chronicle curate to organize memory, /chronicle insights for deep analysis, /chronicle summarize for AI summaries, /chronicle pending for open threads, /chronicle search to find sessions, /chronicle publish for digests, /chronicle ui for dashboard with repo-level views and usage stats.
+description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle catchup to restore context, /chronicle recap for multi-session narrative across last N sessions, /chronicle wrapup to deliberately close a session (curator + conditional backlog update), /chronicle curate to organize memory, /chronicle summarize for AI summaries, /chronicle search to find sessions, /chronicle publish for digests, /chronicle ui for dashboard.
 license: Apache-2.0
 metadata:
   status: experimental
@@ -13,6 +13,7 @@ A persistent journalist tracking your coding sessions.
 ## Usage
 
 ```
+/chronicle help               # Show categorized command list (start here if lost)
 /chronicle                    # Quick capture of current session
 /chronicle <note>             # Capture with a specific note
 /chronicle curate             # Invoke curator to organize memory (interactive)
@@ -22,6 +23,10 @@ A persistent journalist tracking your coding sessions.
 /chronicle blocks             # List recent memory blocks
 /chronicle catchup            # Restore context for current project
 /chronicle catchup --days=30  # Extend lookback to 30 days
+/chronicle recap              # Multi-session narrative for current project (7 days)
+/chronicle recap <project>    # Recap for a specific project
+/chronicle recap --days=14    # Extend window
+/chronicle wrapup             # Deliberate session close-out (curator + conditional backlog)
 /chronicle stale              # Show stale pending items (>14 days)
 /chronicle consolidate        # Consolidate old blocks (dry run)
 /chronicle consolidate apply  # Consolidate and drop stale pending
@@ -46,6 +51,57 @@ A persistent journalist tracking your coding sessions.
 /chronicle dev                # Start development session for Chronicle itself
 ```
 
+## Help (/chronicle help)
+
+When the user runs `/chronicle help` (or `/chronicle ?`), print a categorized command table — the Usage block above is comprehensive but flat, and the surface has grown enough that grouping helps.
+
+Render it as something like:
+
+```
+Chronicle commands by what they do
+===================================
+
+CAPTURE — write blocks
+  /chronicle [note]      Quick block from current session state
+  /chronicle curate      Editor-style update of today's block (mid-session safe)
+  /chronicle wrapup      Deliberate session close-out + conditional backlog/release
+
+READ — synthesize across blocks
+  /chronicle catchup     Last session + pending for current project (return-to-work)
+  /chronicle recap       Multi-session narrative for a project (Themes/Wins/Threads/Friction)
+  /chronicle summarize   Time-bucketed AI summaries (daily/weekly, by repo or global)
+  /chronicle insights    Deep cross-referenced analysis via subagents
+
+BROWSE — list and search
+  /chronicle blocks      Recent blocks listing
+  /chronicle pending     Open threads across all sessions
+  /chronicle stale       Pending items >14 days old
+  /chronicle search Q    Free-text search across all blocks
+
+MAINTAIN — keep the corpus healthy
+  /chronicle consolidate Merge old per-week blocks (also runs monthly via launchd)
+  /chronicle resolve T   Mark a pending item as resolved
+
+PUBLISH / EXPLORE
+  /chronicle publish     Markdown digest (daily/weekly/monthly)
+  /chronicle ui          Interactive web dashboard
+  /chronicle dev         Dev server for Chronicle itself
+
+Quick decision guide:
+  • "What was I doing yesterday?" → catchup
+  • "What's been happening on this project lately?" → recap
+  • "I want to mark this moment / chapter break" → curate
+  • "I'm done for the day, close it out" → wrapup
+  • "Show me everything still open" → pending (or stale for old ones)
+
+For the full details on any command, see its section below in this file
+or run /chronicle <command> with no args.
+```
+
+Render the table inline in the response — the user shouldn't have to open a file. Cite section anchors in this SKILL.md when they ask follow-up questions about a specific command.
+
+---
+
 ## Quick Capture (/chronicle or /chronicle <note>)
 
 Captures current session state as a memory block:
@@ -55,6 +111,8 @@ Captures current session state as a memory block:
 - Pending work
 
 Blocks stored in `~/.claude/chronicle/blocks/`.
+
+> **Want a thoughtful synthesis instead of a raw snapshot?** Use `/chronicle curate` — it invokes the curator agent which updates today's block with editor-level reasoning (continuation vs new vs resolution, cross-block linking). Quick capture is the fast path; curate is the considered path.
 
 ### Instructions for Quick Capture
 
@@ -85,7 +143,7 @@ Blocks stored in `~/.claude/chronicle/blocks/`.
 
 ## Curate Mode (/chronicle curate)
 
-Invokes the **Chronicle Curator** agent for intelligent memory management.
+Invokes the **Chronicle Curator** agent for intelligent memory management. Safe to call mid-session as a chapter-break checkpoint — the curator updates today's block thoughtfully and idempotently. For end-of-session close-out with backlog/release housekeeping, use `/chronicle wrapup` instead.
 
 ### How to Use
 
@@ -191,7 +249,9 @@ Show filename, date, and first line of summary for each.
 
 ## Catchup (/chronicle catchup)
 
-Restore context when returning to a project:
+Restore context when returning to a project — last session + aggregated pending. Optimized for "what was I doing yesterday."
+
+> **Want the longer view across the last several sessions?** Use `/chronicle recap` instead — it produces a Themes / Wins / Open threads / Friction narrative across a window of sessions, not just the last one. Catchup is for return-to-work; recap is for orienting after days away or producing a teammate handoff.
 
 ```bash
 bun ~/.claude/skills/chronicle/scripts/catchup.ts [--days=N]
@@ -238,6 +298,132 @@ Task(
 ```bash
 bun ~/.claude/skills/chronicle/scripts/resolve.ts "pending text"
 ```
+
+---
+
+## Recap (/chronicle recap)
+
+Generate a multi-session narrative recap for a project — the shape "returning to a repo after a few days and wanting to scan what happened," not "what was I doing in my last session."
+
+`recap.ts` is a thin wrapper that calls `summarize.ts` with `format=narrative`. The synthesis logic, fallback handling, and context-gathering all live in `summarize.ts` — recap is just the friendly entry point with project-and-window argument parsing.
+
+```bash
+bun ~/.claude/skills/chronicle/scripts/recap.ts [project] [--days=N] [--stdout-only]
+```
+
+Options:
+- `project` — positional, defaults to current project from `detectContext()`
+- `--days=N` — time window (default: 7)
+- `--stdout-only` — skip writing to `~/.claude/chronicle/recaps/`
+
+You can also call summarize directly for the same result, plus `--md` to print markdown to stdout:
+
+```bash
+bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=<project> --days=14 --format=narrative --with-context --md
+```
+
+### What it produces
+
+A Markdown recap with exactly four sections:
+
+1. **Themes** — what the user has been pushing on (clustered into arcs, not listed day-by-day)
+2. **Wins** — what shipped, cross-referenced with `git log` for PR numbers and feature names
+3. **Open threads** — unfinished or deferred work, pulled from pending items + curated project memory
+4. **Friction** — recurring gripes and preferences, pulled from curated feedback memory
+
+### Data sources
+
+- Chronicle blocks for `project` within the window (from `queries.ts`)
+- `git log --oneline --since=<window>` from the local project path (best-effort — skipped if the repo isn't found under `~/code/<project>` or cwd)
+- Curated memory at `~/.claude/projects/<slug>/memory/feedback_*.md` and `project_*.md`
+
+### Behavior
+
+- Output goes to stdout **and** to `~/.claude/chronicle/recaps/{project}-{YYYY-MM-DD}.md` (unless `--stdout-only`)
+- If fewer than 2 blocks in window: prints a "not enough data" message with pointers to raw session JSONLs under `~/.claude/projects/<slug>/` and exits 0
+- If the API call fails: falls back to a raw-facts dump (sessions + git log + memory file counts) so the command is still useful offline
+- Model: **Opus** (`claude-opus-4-5-20251101`) — recap is lower-frequency than summarize, quality matters more than cost
+
+### When to use it
+
+- Returning to a project after a few days
+- Producing a handoff for a teammate
+- Before `/chronicle wrapup` on a long-running branch, to see the full arc
+
+`/chronicle catchup` remains the right tool for "what was I doing yesterday" — recap is for the longer view. For *time-bucketed* summaries on a schedule (yesterday, last week, last month) rather than session-window narratives for a specific project, use `/chronicle summarize` — it's automated via launchd and feeds the dashboard.
+
+### Quality note
+
+Recap fidelity is bounded by block fidelity. The SessionEnd hook auto-extracts blocks with thin, file-list summaries like `"Worked on X: modified a.ts, b.ts and 14 more"`. Opus synthesizes what it can from those, but the Themes section is only as good as the inputs. **Running `/chronicle wrapup` at the end of focused sessions writes richer blocks via the curator, which makes future recaps materially better.** Over time the block pool gets denser and recap quality improves.
+
+---
+
+## Wrapup (/chronicle wrapup)
+
+Deliberate end-of-session close-out. Writes a high-fidelity chronicle block via the curator, then conditionally updates `backlog/` and `backlog/ROADMAP.md` only if the session actually touched them. This is the intentional version of what the SessionEnd hook does automatically.
+
+Use at the end of a focused work session when you know the themes, wins, and open threads and want them captured crisply — especially before merging a PR.
+
+> **Mid-session chapter break?** Use `/chronicle curate` instead — it runs the curator without the close-out housekeeping (no backlog commit, no release suggestion) and is safe to call repeatedly as a session evolves. Wrapup is the deliberate finality version: run it once when you're actually done.
+
+### Flow
+
+**1. Invoke the curator via `/chronicle curate`**
+
+Follow the Curate Mode section above: propose observations for the session, get user confirmation, then spawn or resume the `chronicle-curator` agent with goal / challenges / nextSteps. The curator writes or updates today's block.
+
+**2. Detect backlog / roadmap involvement**
+
+Before touching `backlog/` or `backlog/ROADMAP.md`, confirm the session actually worked on them. Check:
+
+- Were any files under `backlog/` created, edited, moved, or deleted this session? (check git status + session edits)
+- Was `backlog/ROADMAP.md` edited, or did the user explicitly reference it in the conversation?
+
+If **neither** is true → **skip step 3 entirely**. Do not touch backlog files, do not append to ROADMAP, do not commit. The curator block is the only artifact.
+
+**3. Conditional backlog / roadmap update** (only if step 2 detected involvement)
+
+For each completed backlog item:
+- Set `status: done`
+- Set `completed: YYYY-MM-DD`
+- Add a one-sentence `retro_summary`
+- Set `pr:` and `branch:` if not already set
+- Optionally set `score:` (0-5 effectiveness rating)
+- Move the file to `backlog/done/`
+
+For scope discovered but not implemented, create pending entries:
+```yaml
+---
+status: pending
+category: followup  # or: plan, task-list, ideas
+pr: null
+branch: null
+---
+```
+
+If ROADMAP was touched, append to `backlog/ROADMAP.md` under Learnings:
+```markdown
+### YYYY-MM-DD — milestone name (#PR)
+- What worked well
+- What caused friction
+- Anything worth documenting
+```
+
+Stage and commit:
+```bash
+git add backlog/
+git commit -m "chore: update backlog for <feature>"
+```
+
+**4. Milestone check**
+
+If the session completed a milestone (not just a task), suggest `/release` to bump version, generate changelog, and create a GitHub Release. Milestones often span multiple PRs — suggest release when a meaningful capability is complete, not after every PR.
+
+### What this does NOT do
+
+- **Does not write `handoff.md`** in the repo. The chronicle block is the handoff. `/chronicle catchup` at the start of the next session restores context; `/chronicle recap` synthesizes the longer arc.
+- **Does not touch `backlog/` or `backlog/ROADMAP.md`** unless the session explicitly worked on them. Most sessions will skip step 3.
+- **Does not emit a copy-pastable next-session prompt.** `/chronicle catchup` replaces that pattern.
 
 ---
 
@@ -521,17 +707,30 @@ For detailed development workflow, see **[docs/development.md](docs/development.
 
 ## Summarize (/chronicle summarize)
 
-Generate high-quality AI summaries using Claude.
+Generate high-quality AI summaries using Claude. **Time-bucketed** (daily / weekly / monthly), suitable for scheduled launchd jobs and the dashboard's "this week" view.
+
+> **Looking for a one-shot narrative across N sessions of a single project, not a fixed time bucket?** Use `/chronicle recap` instead. Summarize answers "what happened this week"; recap answers "what's been going on with project X lately." Recap is interactive and ad-hoc; summarize is automated and periodic.
 
 ### Manual Generation
 
 ```bash
-bun ~/.claude/skills/chronicle/scripts/summarize.ts              # Daily global + repo summaries
-bun ~/.claude/skills/chronicle/scripts/summarize.ts --weekly     # Weekly summaries (Opus)
-bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=name  # Single repo summary
+bun ~/.claude/skills/chronicle/scripts/summarize.ts                          # Daily global + repo summaries (cron path)
+bun ~/.claude/skills/chronicle/scripts/summarize.ts --weekly                 # Weekly summaries, Opus (cron path)
+bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=name              # Single repo, structured JSON, daily window
+bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=name --days=14    # Custom window
+bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=name --days=14 --format=narrative --with-context --md
+                                                                              # Narrative recap (also exposed as /chronicle recap)
 ```
 
-Summaries stored in `~/.claude/chronicle/summaries/{global,repos}/`.
+Structured (default) summaries stored in `~/.claude/chronicle/summaries/{global,repos}/` as JSON. Narrative summaries stored in `~/.claude/chronicle/recaps/` as markdown — see the Recap section above.
+
+Flags:
+- `--weekly` — preset for `--days=7` with weekly file naming
+- `--days=N` — explicit window override (any positive integer)
+- `--repo=NAME` — restrict to a single project
+- `--format=narrative` — produce 4-section markdown instead of structured JSON
+- `--with-context` — also pull `git log` and curated memory into the prompt (narrative format only)
+- `--md` — additionally print markdown body to stdout (narrative format only)
 
 ### Automated Generation (Launchd)
 
