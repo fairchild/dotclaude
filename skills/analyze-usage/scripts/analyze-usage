@@ -1743,6 +1743,7 @@ SELECT
     TRY_CAST(json_extract_string(json, '\$.timestamp') AS TIMESTAMP) as event_timestamp,
     json,
     filename as source_file,
+    MD5(filename || '|' || CAST(json AS VARCHAR)) as raw_event_id,
     REGEXP_EXTRACT(filename, 'rollout-[0-9T:-]+-([^.]+)\\.jsonl\$', 1) as session_id
 FROM read_ndjson_objects([${codex_file_list_sql}], filename=true);
 
@@ -1760,14 +1761,16 @@ SELECT
 FROM codex_raw
 WHERE json_extract_string(json, '\$.type') = 'turn_context';
 
-CREATE OR REPLACE TEMP VIEW codex_context_latest AS
+CREATE OR REPLACE TEMP TABLE codex_event_context AS
 SELECT
-    session_id,
-    FIRST(model ORDER BY timestamp DESC) as model,
-    FIRST(reasoning_effort ORDER BY timestamp DESC) as reasoning_effort,
-    FIRST(project_dir ORDER BY timestamp DESC) as project_dir
-FROM codex_context
-GROUP BY session_id;
+    raw.raw_event_id,
+    ctx.model,
+    ctx.reasoning_effort,
+    ctx.project_dir
+FROM codex_raw raw
+ASOF LEFT JOIN codex_context ctx
+    ON raw.session_id = ctx.session_id
+    AND raw.event_timestamp >= ctx.timestamp;
 
 INSERT INTO codex_session_meta
 WITH session_meta_rows AS (
@@ -1823,10 +1826,10 @@ WITH tool_rows AS (
                 WHEN json_valid(json_extract_string(raw.json, '\$.payload.arguments'))
                 THEN json_extract_string(json_extract_string(raw.json, '\$.payload.arguments'), '\$.workdir')
             END,
-            cl.project_dir,
+            ec.project_dir,
             sm.project_dir
         ) as project_dir,
-        cl.model as model,
+        ec.model as model,
         json_extract_string(raw.json, '\$.payload.name') as tool_name,
         COALESCE(
             CASE
@@ -1847,7 +1850,7 @@ WITH tool_rows AS (
         raw.source_file
     FROM codex_raw raw
     LEFT JOIN codex_session_meta sm ON raw.session_id = sm.session_id
-    LEFT JOIN codex_context_latest cl ON raw.session_id = cl.session_id
+    LEFT JOIN codex_event_context ec ON raw.raw_event_id = ec.raw_event_id
     WHERE json_extract_string(raw.json, '\$.type') = 'response_item'
     AND json_extract_string(raw.json, '\$.payload.type') IN ('function_call', 'custom_tool_call')
 )
@@ -1871,11 +1874,11 @@ SELECT
     raw.event_timestamp as timestamp,
     raw.session_id,
     COALESCE(
-        cl.project_dir,
+        ec.project_dir,
         sm.project_dir
     ) as project_dir,
-    cl.model as model,
-    cl.reasoning_effort as reasoning_effort,
+    ec.model as model,
+    ec.reasoning_effort as reasoning_effort,
     TRY_CAST(json_extract(raw.json, '\$.payload.info.last_token_usage.input_tokens') AS BIGINT) as input_tokens,
     TRY_CAST(json_extract(raw.json, '\$.payload.info.last_token_usage.cached_input_tokens') AS BIGINT) as cached_input_tokens,
     TRY_CAST(json_extract(raw.json, '\$.payload.info.last_token_usage.output_tokens') AS BIGINT) as output_tokens,
@@ -1885,7 +1888,7 @@ SELECT
     raw.source_file
 FROM codex_raw raw
 LEFT JOIN codex_session_meta sm ON raw.session_id = sm.session_id
-LEFT JOIN codex_context_latest cl ON raw.session_id = cl.session_id
+LEFT JOIN codex_event_context ec ON raw.raw_event_id = ec.raw_event_id
 WHERE json_extract_string(raw.json, '\$.type') = 'event_msg'
 AND json_extract_string(raw.json, '\$.payload.type') = 'token_count'
 AND raw.event_timestamp IS NOT NULL;
@@ -1893,13 +1896,14 @@ AND raw.event_timestamp IS NOT NULL;
 INSERT INTO codex_developer_messages
 WITH developer_rows AS (
     SELECT
+        raw.raw_event_id,
         raw.session_id,
         COALESCE(raw.event_timestamp, sm.started_at) as timestamp,
         COALESCE(
-            cl.project_dir,
+            ec.project_dir,
             sm.project_dir
         ) as project_dir,
-        cl.model as model,
+        ec.model as model,
         STRING_AGG(
             CASE
                 WHEN json_extract_string(block.value, '\$.text') IS NOT NULL
@@ -1910,7 +1914,7 @@ WITH developer_rows AS (
         raw.source_file
     FROM codex_raw raw
     LEFT JOIN codex_session_meta sm ON raw.session_id = sm.session_id
-    LEFT JOIN codex_context_latest cl ON raw.session_id = cl.session_id,
+    LEFT JOIN codex_event_context ec ON raw.raw_event_id = ec.raw_event_id,
     LATERAL UNNEST(
         from_json(COALESCE(json_extract(raw.json, '\$.payload.content')::VARCHAR, '[]'), '["JSON"]')
     ) as block(value)
@@ -1918,17 +1922,24 @@ WITH developer_rows AS (
     AND json_extract_string(raw.json, '\$.payload.type') = 'message'
     AND json_extract_string(raw.json, '\$.payload.role') = 'developer'
     GROUP BY
+        raw.raw_event_id,
         raw.session_id,
         COALESCE(raw.event_timestamp, sm.started_at),
-        COALESCE(cl.project_dir, sm.project_dir),
-        cl.model,
+        COALESCE(ec.project_dir, sm.project_dir),
+        ec.model,
         raw.source_file
 )
-SELECT *
+SELECT
+    session_id,
+    timestamp,
+    project_dir,
+    model,
+    content,
+    source_file
 FROM developer_rows
 WHERE content IS NOT NULL;
 
-DROP VIEW codex_context_latest;
+DROP TABLE codex_event_context;
 DROP VIEW codex_context;
 DROP VIEW codex_raw;
 EOF
@@ -1997,6 +2008,7 @@ SELECT
     TRY_CAST(json_extract_string(json, '\$.timestamp') AS TIMESTAMP) as event_timestamp,
     json,
     filename as source_file,
+    MD5(filename || '|' || CAST(json AS VARCHAR)) as raw_event_id,
     REGEXP_EXTRACT(filename, 'rollout-[0-9T:-]+-([^.]+)\\.jsonl\$', 1) as session_id
 FROM read_ndjson_objects([${codex_file_list_sql}], filename=true);
 
@@ -2009,13 +2021,15 @@ SELECT
 FROM codex_raw
 WHERE json_extract_string(json, '\$.type') = 'turn_context';
 
-CREATE OR REPLACE TEMP VIEW codex_context_latest AS
+CREATE OR REPLACE TEMP TABLE codex_event_context AS
 SELECT
-    session_id,
-    FIRST(model ORDER BY timestamp DESC) as model,
-    FIRST(project_dir ORDER BY timestamp DESC) as project_dir
-FROM codex_context
-GROUP BY session_id;
+    raw.raw_event_id,
+    ctx.model,
+    ctx.project_dir
+FROM codex_raw raw
+ASOF LEFT JOIN codex_context ctx
+    ON raw.session_id = ctx.session_id
+    AND raw.event_timestamp >= ctx.timestamp;
 
 INSERT INTO messages (
     uuid, parent_uuid, session_id, role, harness, interface, model,
@@ -2025,14 +2039,15 @@ INSERT INTO messages (
 )
 WITH codex_message_rows AS (
     SELECT
+        raw.raw_event_id,
         raw.session_id,
         json_extract_string(raw.json, '\$.payload.role') as role,
         COALESCE(raw.event_timestamp, sm.started_at) as timestamp,
         COALESCE(
-            cl.project_dir,
+            ec.project_dir,
             sm.project_dir
         ) as project_dir,
-        cl.model as model,
+        ec.model as model,
         STRING_AGG(
             CASE
                 WHEN json_extract_string(block.value, '\$.text') IS NOT NULL
@@ -2043,7 +2058,7 @@ WITH codex_message_rows AS (
         raw.source_file
     FROM codex_raw raw
     LEFT JOIN codex_session_meta sm ON raw.session_id = sm.session_id
-    LEFT JOIN codex_context_latest cl ON raw.session_id = cl.session_id,
+    LEFT JOIN codex_event_context ec ON raw.raw_event_id = ec.raw_event_id,
     LATERAL UNNEST(
         from_json(COALESCE(json_extract(raw.json, '\$.payload.content')::VARCHAR, '[]'), '["JSON"]')
     ) as block(value)
@@ -2051,15 +2066,16 @@ WITH codex_message_rows AS (
     AND json_extract_string(raw.json, '\$.payload.type') = 'message'
     AND json_extract_string(raw.json, '\$.payload.role') IN ('user', 'assistant')
     GROUP BY
+        raw.raw_event_id,
         raw.session_id,
         role,
         COALESCE(raw.event_timestamp, sm.started_at),
-        COALESCE(cl.project_dir, sm.project_dir),
-        cl.model,
+        COALESCE(ec.project_dir, sm.project_dir),
+        ec.model,
         raw.source_file
 )
 SELECT
-    MD5(session_id || CAST(timestamp AS VARCHAR) || role || COALESCE(content, '') || source_file) as uuid,
+    raw_event_id as uuid,
     NULL as parent_uuid,
     session_id,
     role,
@@ -2085,7 +2101,7 @@ FROM codex_message_rows
 WHERE content IS NOT NULL
 AND timestamp IS NOT NULL;
 
-DROP VIEW codex_context_latest;
+DROP TABLE codex_event_context;
 DROP VIEW codex_context;
 DROP VIEW codex_raw;
 EOF
