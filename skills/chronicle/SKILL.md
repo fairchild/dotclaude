@@ -13,6 +13,7 @@ A persistent journalist tracking your coding sessions.
 ## Usage
 
 ```
+/chronicle help               # Show categorized command list (start here if lost)
 /chronicle                    # Quick capture of current session
 /chronicle <note>             # Capture with a specific note
 /chronicle curate             # Invoke curator to organize memory (interactive)
@@ -51,6 +52,57 @@ A persistent journalist tracking your coding sessions.
 /chronicle dev                # Start development session for Chronicle itself
 ```
 
+## Help (/chronicle help)
+
+When the user runs `/chronicle help` (or `/chronicle ?`), print a categorized command table — the Usage block above is comprehensive but flat, and the surface has grown enough that grouping helps.
+
+Render it as something like:
+
+```
+Chronicle commands by what they do
+===================================
+
+CAPTURE — write blocks
+  /chronicle [note]      Quick block from current session state
+  /chronicle curate      Editor-style update of today's block (mid-session safe)
+  /chronicle wrapup      Deliberate session close-out + conditional backlog/release
+
+READ — synthesize across blocks
+  /chronicle catchup     Last session + pending for current project (return-to-work)
+  /chronicle recap       Multi-session narrative for a project (Themes/Wins/Threads/Friction)
+  /chronicle summarize   Time-bucketed AI summaries (daily/weekly, by repo or global)
+  /chronicle insights    Deep cross-referenced analysis via subagents
+
+BROWSE — list and search
+  /chronicle blocks      Recent blocks listing
+  /chronicle pending     Open threads across all sessions
+  /chronicle stale       Pending items >14 days old
+  /chronicle search Q    Free-text search across all blocks
+
+MAINTAIN — keep the corpus healthy
+  /chronicle consolidate Merge old per-week blocks (also runs monthly via launchd)
+  /chronicle resolve T   Mark a pending item as resolved
+
+PUBLISH / EXPLORE
+  /chronicle publish     Markdown digest (daily/weekly/monthly)
+  /chronicle ui          Interactive web dashboard
+  /chronicle dev         Dev server for Chronicle itself
+
+Quick decision guide:
+  • "What was I doing yesterday?" → catchup
+  • "What's been happening on this project lately?" → recap
+  • "I want to mark this moment / chapter break" → curate
+  • "I'm done for the day, close it out" → wrapup
+  • "Show me everything still open" → pending (or stale for old ones)
+
+For the full details on any command, see its section below in this file
+or run /chronicle <command> with no args.
+```
+
+Render the table inline in the response — the user shouldn't have to open a file. Cite section anchors in this SKILL.md when they ask follow-up questions about a specific command.
+
+---
+
 ## Quick Capture (/chronicle or /chronicle <note>)
 
 Captures current session state as a memory block:
@@ -60,6 +112,8 @@ Captures current session state as a memory block:
 - Pending work
 
 Blocks stored in `~/.claude/chronicle/blocks/`.
+
+> **Want a thoughtful synthesis instead of a raw snapshot?** Use `/chronicle curate` — it invokes the curator agent which updates today's block with editor-level reasoning (continuation vs new vs resolution, cross-block linking). Quick capture is the fast path; curate is the considered path.
 
 ### Instructions for Quick Capture
 
@@ -196,7 +250,9 @@ Show filename, date, and first line of summary for each.
 
 ## Catchup (/chronicle catchup)
 
-Restore context when returning to a project:
+Restore context when returning to a project — last session + aggregated pending. Optimized for "what was I doing yesterday."
+
+> **Want the longer view across the last several sessions?** Use `/chronicle recap` instead — it produces a Themes / Wins / Open threads / Friction narrative across a window of sessions, not just the last one. Catchup is for return-to-work; recap is for orienting after days away or producing a teammate handoff.
 
 ```bash
 bun ~/.claude/skills/chronicle/scripts/catchup.ts [--days=N]
@@ -288,7 +344,7 @@ A Markdown recap with exactly four sections:
 - Producing a handoff for a teammate
 - Before `/chronicle wrapup` on a long-running branch, to see the full arc
 
-`/chronicle catchup` remains the right tool for "what was I doing yesterday" — recap is for the longer view.
+`/chronicle catchup` remains the right tool for "what was I doing yesterday" — recap is for the longer view. For *time-bucketed* summaries on a schedule (yesterday, last week, last month) rather than session-window narratives for a specific project, use `/chronicle summarize` — it's automated via launchd and feeds the dashboard.
 
 ### Quality note
 
@@ -645,7 +701,9 @@ For detailed development workflow, see **[docs/development.md](docs/development.
 
 ## Summarize (/chronicle summarize)
 
-Generate high-quality AI summaries using Claude.
+Generate high-quality AI summaries using Claude. **Time-bucketed** (daily / weekly / monthly), suitable for scheduled launchd jobs and the dashboard's "this week" view.
+
+> **Looking for a one-shot narrative across N sessions of a single project, not a fixed time bucket?** Use `/chronicle recap` instead. Summarize answers "what happened this week"; recap answers "what's been going on with project X lately." Recap is interactive and ad-hoc; summarize is automated and periodic.
 
 ### Manual Generation
 
