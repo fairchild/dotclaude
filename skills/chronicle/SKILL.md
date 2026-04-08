@@ -1,6 +1,6 @@
 ---
 name: chronicle
-description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle catchup to restore context, /chronicle curate to organize memory, /chronicle insights for deep analysis, /chronicle summarize for AI summaries, /chronicle pending for open threads, /chronicle search to find sessions, /chronicle publish for digests, /chronicle ui for dashboard with repo-level views and usage stats.
+description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle catchup to restore context, /chronicle recap for multi-session narrative across last N sessions, /chronicle wrapup to deliberately close a session (curator + conditional backlog update), /chronicle curate to organize memory, /chronicle summarize for AI summaries, /chronicle search to find sessions, /chronicle publish for digests, /chronicle ui for dashboard.
 license: Apache-2.0
 metadata:
   status: experimental
@@ -22,6 +22,11 @@ A persistent journalist tracking your coding sessions.
 /chronicle blocks             # List recent memory blocks
 /chronicle catchup            # Restore context for current project
 /chronicle catchup --days=30  # Extend lookback to 30 days
+/chronicle recap              # Multi-session narrative for current project (7 days)
+/chronicle recap <project>    # Recap for a specific project
+/chronicle recap --days=14    # Extend window
+/chronicle recap --sessions=5 # Window by session count instead of days
+/chronicle wrapup             # Deliberate session close-out (curator + conditional backlog)
 /chronicle stale              # Show stale pending items (>14 days)
 /chronicle consolidate        # Consolidate old blocks (dry run)
 /chronicle consolidate apply  # Consolidate and drop stale pending
@@ -238,6 +243,123 @@ Task(
 ```bash
 bun ~/.claude/skills/chronicle/scripts/resolve.ts "pending text"
 ```
+
+---
+
+## Recap (/chronicle recap)
+
+Generate a multi-session narrative recap for a project — the shape "returning to a repo after a few days and wanting to scan what happened," not "what was I doing in my last session."
+
+```bash
+bun ~/.claude/skills/chronicle/scripts/recap.ts [project] [--days=N] [--sessions=N] [--stdout-only]
+```
+
+Options:
+- `project` — positional, defaults to current project from `detectContext()`
+- `--days=N` — time window (default: 7)
+- `--sessions=N` — window by session count instead (mutually exclusive with `--days`)
+- `--stdout-only` — skip writing to `~/.claude/chronicle/recaps/`
+
+### What it produces
+
+A Markdown recap with exactly four sections:
+
+1. **Themes** — what the user has been pushing on (clustered into arcs, not listed day-by-day)
+2. **Wins** — what shipped, cross-referenced with `git log` for PR numbers and feature names
+3. **Open threads** — unfinished or deferred work, pulled from pending items + curated project memory
+4. **Friction** — recurring gripes and preferences, pulled from curated feedback memory
+
+### Data sources
+
+- Chronicle blocks for `project` within the window (from `queries.ts`)
+- `git log --oneline --since=<window>` from the local project path (best-effort — skipped if the repo isn't found under `~/code/<project>` or cwd)
+- Curated memory at `~/.claude/projects/<slug>/memory/feedback_*.md` and `project_*.md`
+
+### Behavior
+
+- Output goes to stdout **and** to `~/.claude/chronicle/recaps/{project}-{YYYY-MM-DD}.md` (unless `--stdout-only`)
+- If fewer than 2 blocks in window: prints a "not enough data" message with pointers to raw session JSONLs under `~/.claude/projects/<slug>/` and exits 0
+- If the API call fails: falls back to a raw-facts dump (sessions + git log + memory file counts) so the command is still useful offline
+- Model: **Opus** (`claude-opus-4-5-20251101`) — recap is lower-frequency than summarize, quality matters more than cost
+
+### When to use it
+
+- Returning to a project after a few days
+- Producing a handoff for a teammate
+- Before `/chronicle wrapup` on a long-running branch, to see the full arc
+
+`/chronicle catchup` remains the right tool for "what was I doing yesterday" — recap is for the longer view.
+
+### Quality note
+
+Recap fidelity is bounded by block fidelity. The SessionEnd hook auto-extracts blocks with thin, file-list summaries like `"Worked on X: modified a.ts, b.ts and 14 more"`. Opus synthesizes what it can from those, but the Themes section is only as good as the inputs. **Running `/chronicle wrapup` at the end of focused sessions writes richer blocks via the curator, which makes future recaps materially better.** Over time the block pool gets denser and recap quality improves.
+
+---
+
+## Wrapup (/chronicle wrapup)
+
+Deliberate end-of-session close-out. Writes a high-fidelity chronicle block via the curator, then conditionally updates `backlog/` and `backlog/ROADMAP.md` only if the session actually touched them. This is the intentional version of what the SessionEnd hook does automatically.
+
+Use at the end of a focused work session when you know the themes, wins, and open threads and want them captured crisply — especially before merging a PR.
+
+### Flow
+
+**1. Invoke the curator via `/chronicle curate`**
+
+Follow the Curate Mode section above: propose observations for the session, get user confirmation, then spawn or resume the `chronicle-curator` agent with goal / challenges / nextSteps. The curator writes or updates today's block.
+
+**2. Detect backlog / roadmap involvement**
+
+Before touching `backlog/` or `backlog/ROADMAP.md`, confirm the session actually worked on them. Check:
+
+- Were any files under `backlog/` created, edited, moved, or deleted this session? (check git status + session edits)
+- Was `backlog/ROADMAP.md` edited, or did the user explicitly reference it in the conversation?
+
+If **neither** is true → **skip step 3 entirely**. Do not touch backlog files, do not append to ROADMAP, do not commit. The curator block is the only artifact.
+
+**3. Conditional backlog / roadmap update** (only if step 2 detected involvement)
+
+For each completed backlog item:
+- Set `status: done`
+- Set `completed: YYYY-MM-DD`
+- Add a one-sentence `retro_summary`
+- Set `pr:` and `branch:` if not already set
+- Optionally set `score:` (0-5 effectiveness rating)
+- Move the file to `backlog/done/`
+
+For scope discovered but not implemented, create pending entries:
+```yaml
+---
+status: pending
+category: followup  # or: plan, task-list, ideas
+pr: null
+branch: null
+---
+```
+
+If ROADMAP was touched, append to `backlog/ROADMAP.md` under Learnings:
+```markdown
+### YYYY-MM-DD — milestone name (#PR)
+- What worked well
+- What caused friction
+- Anything worth documenting
+```
+
+Stage and commit:
+```bash
+git add backlog/
+git commit -m "chore: update backlog for <feature>"
+```
+
+**4. Milestone check**
+
+If the session completed a milestone (not just a task), suggest `/release` to bump version, generate changelog, and create a GitHub Release. Milestones often span multiple PRs — suggest release when a meaningful capability is complete, not after every PR.
+
+### What this does NOT do
+
+- **Does not write `handoff.md`** in the repo. The chronicle block is the handoff. `/chronicle catchup` at the start of the next session restores context; `/chronicle recap` synthesizes the longer arc.
+- **Does not touch `backlog/` or `backlog/ROADMAP.md`** unless the session explicitly worked on them. Most sessions will skip step 3.
+- **Does not emit a copy-pastable next-session prompt.** `/chronicle catchup` replaces that pattern.
 
 ---
 
