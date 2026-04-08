@@ -26,7 +26,6 @@ A persistent journalist tracking your coding sessions.
 /chronicle recap              # Multi-session narrative for current project (7 days)
 /chronicle recap <project>    # Recap for a specific project
 /chronicle recap --days=14    # Extend window
-/chronicle recap --sessions=5 # Window by session count instead of days
 /chronicle wrapup             # Deliberate session close-out (curator + conditional backlog)
 /chronicle stale              # Show stale pending items (>14 days)
 /chronicle consolidate        # Consolidate old blocks (dry run)
@@ -306,15 +305,22 @@ bun ~/.claude/skills/chronicle/scripts/resolve.ts "pending text"
 
 Generate a multi-session narrative recap for a project — the shape "returning to a repo after a few days and wanting to scan what happened," not "what was I doing in my last session."
 
+`recap.ts` is a thin wrapper that calls `summarize.ts` with `format=narrative`. The synthesis logic, fallback handling, and context-gathering all live in `summarize.ts` — recap is just the friendly entry point with project-and-window argument parsing.
+
 ```bash
-bun ~/.claude/skills/chronicle/scripts/recap.ts [project] [--days=N] [--sessions=N] [--stdout-only]
+bun ~/.claude/skills/chronicle/scripts/recap.ts [project] [--days=N] [--stdout-only]
 ```
 
 Options:
 - `project` — positional, defaults to current project from `detectContext()`
 - `--days=N` — time window (default: 7)
-- `--sessions=N` — window by session count instead (mutually exclusive with `--days`)
 - `--stdout-only` — skip writing to `~/.claude/chronicle/recaps/`
+
+You can also call summarize directly for the same result, plus `--md` to print markdown to stdout:
+
+```bash
+bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=<project> --days=14 --format=narrative --with-context --md
+```
 
 ### What it produces
 
@@ -708,12 +714,23 @@ Generate high-quality AI summaries using Claude. **Time-bucketed** (daily / week
 ### Manual Generation
 
 ```bash
-bun ~/.claude/skills/chronicle/scripts/summarize.ts              # Daily global + repo summaries
-bun ~/.claude/skills/chronicle/scripts/summarize.ts --weekly     # Weekly summaries (Opus)
-bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=name  # Single repo summary
+bun ~/.claude/skills/chronicle/scripts/summarize.ts                          # Daily global + repo summaries (cron path)
+bun ~/.claude/skills/chronicle/scripts/summarize.ts --weekly                 # Weekly summaries, Opus (cron path)
+bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=name              # Single repo, structured JSON, daily window
+bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=name --days=14    # Custom window
+bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=name --days=14 --format=narrative --with-context --md
+                                                                              # Narrative recap (also exposed as /chronicle recap)
 ```
 
-Summaries stored in `~/.claude/chronicle/summaries/{global,repos}/`.
+Structured (default) summaries stored in `~/.claude/chronicle/summaries/{global,repos}/` as JSON. Narrative summaries stored in `~/.claude/chronicle/recaps/` as markdown — see the Recap section above.
+
+Flags:
+- `--weekly` — preset for `--days=7` with weekly file naming
+- `--days=N` — explicit window override (any positive integer)
+- `--repo=NAME` — restrict to a single project
+- `--format=narrative` — produce 4-section markdown instead of structured JSON
+- `--with-context` — also pull `git log` and curated memory into the prompt (narrative format only)
+- `--md` — additionally print markdown body to stdout (narrative format only)
 
 ### Automated Generation (Launchd)
 
