@@ -33,6 +33,7 @@
       "Bash(git show *)",
       "Bash(git stash *)",
       "Bash(git commit *)",
+      "Bash(git -C *)",
       "Bash(gh pr list *)",
       "Bash(gh pr view *)",
       "Bash(gh pr ready *)",
