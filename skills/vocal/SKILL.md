@@ -1,9 +1,6 @@
 ---
 name: vocal
-description: >-
-  Speak text aloud (TTS) and transcribe speech (STT). Supports local
-  (macOS say, mlx-whisper) and cloud (ElevenLabs) providers. Use when
-  user asks to speak, read aloud, listen, transcribe, or use vocal.
+description: Speak text aloud (TTS) and transcribe speech (STT). Supports local (macOS say, mlx-whisper) and cloud (ElevenLabs) providers. Use when user asks to speak, read aloud, listen, transcribe, or use vocal.
 license: Apache-2.0
 metadata:
   status: experimental

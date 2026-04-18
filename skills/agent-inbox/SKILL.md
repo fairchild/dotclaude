@@ -1,11 +1,7 @@
 ---
 name: agent-inbox
 license: Apache-2.0
-description: >
-  File-based messaging between agents across any harness. Invoke this skill
-  when you see "📬 unread in .agents/inbox", need to send or read agent
-  messages, or set up an inbox. Triggers on: "📬", ".agents/inbox",
-  "agent inbox", "send message to agent", "check inbox", "agent message".
+description: File-based messaging between agents across any harness. Invoke this skill when you see "📬 unread in .agents/inbox", need to send or read agent messages, or set up an inbox. Triggers on "📬", ".agents/inbox", "agent inbox", "send message to agent", "check inbox", "agent message".
 ---
 
 # Agent Inbox Protocol

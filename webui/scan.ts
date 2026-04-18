@@ -167,24 +167,50 @@ function parseFrontmatter(content: string): { frontmatter: Record<string, unknow
 
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
     const line = lines[lineIdx];
+    if (line.startsWith(" ") || line.startsWith("\t") || line.trim() === "") continue;
     const colonIdx = line.indexOf(":");
     if (colonIdx === -1) continue;
     const key = line.slice(0, colonIdx).trim();
-    let value: unknown = line.slice(colonIdx + 1).trim();
+    const rawValue = line.slice(colonIdx + 1).trim();
+    let value: unknown = rawValue;
 
-    // Handle arrays (tools list)
-    if (value === "") {
-      const nextLineIdx = lineIdx + 1;
-      const arrayItems: string[] = [];
-      for (let i = nextLineIdx; i < lines.length; i++) {
-        const item = lines[i];
-        if (item.trim().startsWith("- ")) {
-          arrayItems.push(item.trim().slice(2));
-        } else if (item.trim() && !item.trim().startsWith("-")) {
+    if (/^[>|][-+]?$/.test(rawValue)) {
+      const folded = rawValue.startsWith(">");
+      const parts: string[] = [];
+      let j = lineIdx + 1;
+      while (j < lines.length) {
+        const l = lines[j];
+        if (l.startsWith(" ") || l.startsWith("\t")) {
+          parts.push(l.trim());
+          j++;
+        } else if (l.trim() === "") {
+          parts.push("");
+          j++;
+        } else {
           break;
         }
       }
-      if (arrayItems.length > 0) value = arrayItems;
+      while (parts.length && parts[parts.length - 1] === "") parts.pop();
+      value = folded ? parts.filter((p) => p !== "").join(" ") : parts.join("\n");
+      lineIdx = j - 1;
+    } else if (rawValue === "") {
+      const arrayItems: string[] = [];
+      let j = lineIdx + 1;
+      while (j < lines.length) {
+        const item = lines[j];
+        if (item.trim().startsWith("- ")) {
+          arrayItems.push(item.trim().slice(2));
+          j++;
+        } else if (item.trim() === "") {
+          j++;
+        } else {
+          break;
+        }
+      }
+      if (arrayItems.length > 0) {
+        value = arrayItems;
+        lineIdx = j - 1;
+      }
     }
 
     frontmatter[key] = value;
