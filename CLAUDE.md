@@ -24,6 +24,21 @@ Detect package manager from lockfile: `bun.lock` → bun, `pnpm-lock.yaml` → p
 - Avoid comments and documentation that is clearly expressed by type hints and structure
 - Code can be poetry
 
+## Writing style
+
+See `docs/styleguide.md` for the full guide. The essentials:
+
+- **Intent before mechanism.** Lead with what something is for; mechanism follows.
+- **Prose over bullets** when thoughts are connected. Bullets only when items are genuinely parallel.
+- **One-arc sentences.** If the logic is one arc, let it be one sentence.
+- **Show the tradeoffs.** Recommendations without costs named are sales pitches.
+- **Principles over recipes.** Show the *why*, then the how.
+- **Trust the reader.** Don't over-explain. Don't condescend.
+- **No marketing vocabulary.** Banned: *unlock, empower, seamless, robust, delight, leverage (v.), revolutionary, cutting-edge*.
+- **No AI tells.** No "In today's fast-paced world...", no closing "Let me know if you'd like me to elaborate!", no bolding-the-first-few-words-of-every-bullet.
+
+The full guide has the vocabulary list, anti-patterns, audience modes, and before/after examples.
+
 ## Testing
 
 Test behavior over implementation details
