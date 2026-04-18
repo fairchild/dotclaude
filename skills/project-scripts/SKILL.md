@@ -1,12 +1,6 @@
 ---
 name: project-scripts
-description: >
-  Standardize project lifecycle scripts (setup, run, stop, archive) in scripts/
-  so agents can manage workspaces through a single interface across runtimes.
-  Scripts are portable bash; mise is the recommended orchestrator when available,
-  with adapters for Conductor, Claude Code hooks, devcontainers, Cursor, and Codex.
-  Use when bootstrapping lifecycle scripts, auditing a project's setup/run workflow,
-  or wiring scripts into a runtime config like mise.toml or conductor.json.
+description: Standardize project lifecycle scripts (setup, run, stop, archive) in scripts/ so agents can manage workspaces through a single interface across runtimes. Scripts are portable bash; mise is the recommended orchestrator when available, with adapters for Conductor, Claude Code hooks, devcontainers, Cursor, and Codex. Use when bootstrapping lifecycle scripts, auditing a project's setup/run workflow, or wiring scripts into a runtime config like mise.toml or conductor.json.
 license: Apache-2.0
 ---
 

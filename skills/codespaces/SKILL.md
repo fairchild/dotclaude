@@ -1,11 +1,7 @@
 ---
 name: codespaces
 license: Apache-2.0
-description: >
-  Manage GitHub Codespaces lifecycle via gh CLI. Use for: "create codespace",
-  "ssh into codespace", "stop codespace", "delete codespace", "codespace secrets",
-  "codespace logs", "list codespaces", "codespace ports", "rebuild codespace",
-  "gh cs", "codespace machine types".
+description: Manage GitHub Codespaces lifecycle via gh CLI. Use for "create codespace", "ssh into codespace", "stop codespace", "delete codespace", "codespace secrets", "codespace logs", "list codespaces", "codespace ports", "rebuild codespace", "gh cs", "codespace machine types".
 ---
 
 # GitHub Codespaces

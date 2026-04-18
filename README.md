@@ -4,7 +4,7 @@ My working `~/.claude/` configuration for Claude Code. Published for reference â
 
 ## What I'm Exploring
 
-Sessions are ephemeral but work is not. Most of this config is dedicated to an ongoing experiment: what happens when you treat each session as worth remembering?
+Sessions are ephemeral but work is not. Much of this config is dedicated to an ongoing experiment: what happens when you treat each session as worth remembering?
 
 **Chronicle** keeps a persistent journal of each session. A hook extracts a memory block at session end (what was accomplished, what's pending, key decisions). At session start, another hook injects relevant context: recent work in this project, pending items, stale threads. Over time: `/chronicle curate` to organize, `/chronicle insights` for cross-session patterns, `/chronicle publish` for digests.
 
