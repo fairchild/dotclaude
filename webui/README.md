@@ -6,12 +6,12 @@ A terminal-inspired web dashboard for visualizing your `~/.claude` configuration
 
 ## Features
 
-- **Commands** - Custom slash commands with descriptions and content preview
-- **Agents** - Agent definitions with model, color, and tool configurations
-- **Skills** - Skills with script/reference/asset indicators
-- **Marketplaces** - Known plugin marketplaces
-- **Plugins** - Installed plugins with scope and version info
-- **MCP Servers** - Model Context Protocol server configurations
+- Commands — custom slash commands with descriptions and content preview
+- Agents — agent definitions with model, color, and tool configurations
+- Skills — skills with script/reference/asset indicators
+- Marketplaces — known plugin marketplaces
+- Plugins — installed plugins with scope and version info
+- MCP Servers — Model Context Protocol server configurations
 
 ## Prerequisites
 
