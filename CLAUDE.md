@@ -26,7 +26,7 @@ Detect package manager from lockfile: `bun.lock` → bun, `pnpm-lock.yaml` → p
 
 ## Writing style
 
-See `docs/styleguide.md` for the full guide. The essentials:
+**Register: casual-technical** — engineer writing to another engineer they respect and don't want to waste the time of. Contractions and em-dashes fine; *I think* / *ostensibly* earn their keep when they distinguish mechanism from theory.
 
 - **Intent before mechanism.** Lead with what something is for; mechanism follows.
 - **Prose over bullets** when thoughts are connected. Bullets only when items are genuinely parallel.
@@ -36,8 +36,6 @@ See `docs/styleguide.md` for the full guide. The essentials:
 - **Trust the reader.** Don't over-explain. Don't condescend.
 - **No marketing vocabulary.** Banned: *unlock, empower, seamless, robust, delight, leverage (v.), revolutionary, cutting-edge*.
 - **No AI tells.** No "In today's fast-paced world...", no closing "Let me know if you'd like me to elaborate!", no bolding-the-first-few-words-of-every-bullet.
-
-The full guide has the vocabulary list, anti-patterns, audience modes, and before/after examples.
 
 ## Testing
 
