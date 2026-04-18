@@ -50,7 +50,7 @@ ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
 
 ## Runtime Config Changes
 
-Claude Code sometimes modifies `settings.json` automatically (adding permissions, changing model, etc.). These small mechanical changes push directly — no branch or PR needed:
+Claude Code sometimes modifies `settings.json` automatically (adding permissions, changing model). These small mechanical changes push directly — no branch or PR needed:
 
 ```bash
 git -C ~/.claude add settings.json

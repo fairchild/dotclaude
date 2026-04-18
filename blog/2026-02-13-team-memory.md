@@ -28,21 +28,19 @@ The core idea is borrowed from cognitive science (and [Letta/MemGPT](https://git
 | Archival | Searched on demand | Session insights, observed patterns, debugging discoveries |
 | Recall | Searched on demand | Session summaries, open threads |
 
-Each memory block is a markdown file with YAML frontmatter — type, confidence score, tags, timestamps. Git-friendly, human-readable, Claude-native.
+Each memory block is a markdown file with YAML frontmatter — type, confidence score, tags, timestamps. Plain markdown, readable in any editor, diffable in git.
 
 ## Two Memory Loops
 
 ![Active and passive memory loops — day brain with remember/recall, sleeping brain with extract/consolidate/reflect](images/team-memory-loops.png)
 
-**Active (during a session):** The teammate fires background agents to `remember` decisions and `recall` prior context — the same way you might jot a note or check your own notes mid-conversation.
-
-**Passive (after a session):** A SessionEnd hook triggers "sleep-time compute" — three agents that run sequentially:
+Two loops. During a session, the teammate fires background agents to `remember` decisions and `recall` prior context — the same way you might jot a note or check your own notes mid-conversation. After the session, a SessionEnd hook triggers "sleep-time compute": three agents run sequentially — extract, consolidate, reflect.
 
 1. **Extract** — scans the session transcript for memories the active loop missed
 2. **Consolidate** — merges duplicates, applies confidence decay, promotes strong memories to core, prunes stale ones
 3. **Reflect** — evolves the teammate's relationship file and (rarely) its personality
 
-Confidence decay is the secret sauce. Decisions decay slowly (0.01/week). Insights decay fast (0.05/week). Facts never decay. Anything below 0.3 gets pruned. The memory store stays lean without manual curation.
+Confidence decay is what keeps the store lean. Decisions decay slowly (0.01/week). Insights decay fast (0.05/week). Facts never decay. Anything below 0.3 gets pruned — no manual curation needed.
 
 ## The Build
 
@@ -87,7 +85,7 @@ vim ~/.ai-memory/bertram/personality.md
 ~/.claude/skills/team-memory/scripts/launch.sh --persona bertram
 ```
 
-After a few sessions, check `~/.ai-memory/bertram/archival/` — you'll find a growing collection of things your teammate learned about your projects, preferences, and patterns. Things it will remember next time.
+After a few sessions, check `~/.ai-memory/bertram/archival/` — you'll find a growing collection of things your teammate learned about your projects, preferences, and patterns.
 
 ---
 

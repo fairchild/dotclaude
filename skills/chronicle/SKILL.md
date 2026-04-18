@@ -8,7 +8,7 @@ metadata:
 
 # Chronicle
 
-A persistent journalist tracking your coding sessions.
+Captures and curates session memory so coding context survives across restarts.
 
 ## Usage
 
@@ -629,12 +629,12 @@ Opens browser to `http://localhost:3456`.
 
 ### Features
 
-- **Newspaper-style view** - Sessions as stories, grouped by time period
-- **Worktree sidebar** - Active worktrees with status indicators
-- **Repo-level view** - Click repo name to see aggregate stats, worktree cards, and AI summaries
-- **Usage stats** - Tokens used, peak productivity hours (from ai-coding-usage DB)
-- **Create worktrees** - Click + next to repo name
-- **Archive worktrees** - Click 📦 to archive
+- Newspaper-style view — sessions as stories, grouped by time period
+- Worktree sidebar — active worktrees with status indicators
+- Repo-level view — click repo name for aggregate stats, worktree cards, and AI summaries
+- Usage stats — tokens used, peak productivity hours (from ai-coding-usage DB)
+- Create worktrees — click + next to repo name
+- Archive worktrees — click 📦 to archive
 
 ### Run as Service
 
@@ -758,8 +758,7 @@ tail -f /tmp/chronicle-summarize-weekly.log
 
 ## Philosophy
 
-Chronicle is about **learning as we go**:
-- Start simple, evolve the structure
-- Manual curation builds intuition for automation
-- Memory blocks are living documents, not archives
-- The curator is an editor, not a stenographer
+- Start simple; evolve the structure.
+- Manual curation builds intuition for what to automate.
+- Memory blocks are living documents, not archives.
+- The curator is an editor, not a stenographer.

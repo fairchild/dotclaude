@@ -10,19 +10,9 @@ updated: 2026-03-01
 
 Persona Memory is a local-first framework for giving Claude Code a stable persona and durable memory across sessions.
 
-This README is for people new to the skill.
-
 ## Experimental Status
 
-This skill is currently **experimental**.
-
-What that means right now:
-- Data formats and script behavior may still change.
-- There are tests and a dashboard, but this is not a hard-stability release.
-- You should treat this as a fast-moving system for iteration, not a locked contract.
-
-Source of truth for status is also in:
-- `/Users/fairchild/code/dotclaude/skills/persona-memory/SKILL.md`
+**Experimental.** Data formats and script behavior may still change. Tests and a dashboard exist, but this isn't a stability release — treat it as fast-moving iteration, not a locked contract. Source of truth for status: `SKILL.md`.
 
 ## What It Does
 
@@ -46,18 +36,17 @@ Runtime loop:
 
 ## Key Files
 
-- `/Users/fairchild/code/dotclaude/skills/persona-memory/SKILL.md`
-- `/Users/fairchild/code/dotclaude/skills/persona-memory/scripts/bootstrap.ts`
-- `/Users/fairchild/code/dotclaude/skills/persona-memory/scripts/launch-claude.sh`
-- `/Users/fairchild/code/dotclaude/skills/persona-memory/references/hook-setup.md`
-- `/Users/fairchild/code/dotclaude/skills/persona-memory/references/memory-schema.md`
-- `/Users/fairchild/code/dotclaude/skills/persona-memory/references/TESTING.md`
+- `SKILL.md`
+- `scripts/bootstrap.ts`
+- `scripts/launch-claude.sh`
+- `references/hook-setup.md`
+- `references/memory-schema.md`
+- `references/TESTING.md`
 
 ## Quick Start
 
 1. Bootstrap:
 ```bash
-cd /Users/fairchild/code/dotclaude/skills/persona-memory
 bun scripts/bootstrap.ts --install-launcher
 ```
 
@@ -71,20 +60,17 @@ $EDITOR ~/.ai-memory/profiles/default/personality.md
 claude-persona
 ```
 
-4. Optional: wire hooks (recommended for lifecycle automation):
-- follow `/Users/fairchild/code/dotclaude/skills/persona-memory/references/hook-setup.md`
+4. Optional: wire hooks (recommended for lifecycle automation) — follow `references/hook-setup.md`.
 
 ## Testing and Evaluation
 
-- Deterministic suite:
+Deterministic suite:
 ```bash
-cd /Users/fairchild/code/dotclaude/skills/persona-memory
 bun tests/harness.ts --suite deterministic --report text
 ```
 
-- Eval dashboard:
+Eval dashboard:
 ```bash
-cd /Users/fairchild/code/dotclaude/skills/persona-memory
 bun scripts/serve-eval-dashboard.ts
 ```
 Then open: `http://127.0.0.1:8787/assets/eval-dashboard/`
@@ -93,5 +79,4 @@ Then open: `http://127.0.0.1:8787/assets/eval-dashboard/`
 
 - No guarantee of backward compatibility yet.
 - Not all end-to-end interactive paths are CI-gated.
-- Continuous autonomous memory loops are intentionally limited at this stage.
-
+- No always-on memory daemon yet; consolidation runs on demand or via session hooks.
