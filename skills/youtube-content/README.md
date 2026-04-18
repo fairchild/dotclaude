@@ -30,11 +30,11 @@ The skill does **not** auto-trigger when you simply paste a YouTube URL. You nee
 
 | Mode | Trigger Phrases |
 |------|-----------------|
-| **Wisdom** | "extract wisdom", "key insights", "what can I learn" |
-| **Summary** | "summarize", "TLDR", "overview", "main points" |
-| **Q&A** | "questions", "discussion topics", "what to ask" |
-| **Quotes** | "notable quotes", "key statements" |
-| **Custom** | Any specific request ("list the tools mentioned", "find statistics") |
+| Wisdom | "extract wisdom", "key insights", "what can I learn" |
+| Summary | "summarize", "TLDR", "overview", "main points" |
+| Q&A | "questions", "discussion topics", "what to ask" |
+| Quotes | "notable quotes", "key statements" |
+| Custom | Any specific request ("list the tools mentioned", "find statistics") |
 
 ## Supported URL Formats
 

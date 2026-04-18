@@ -11,7 +11,7 @@ Memory blocks    →    /catchup command    →    Ambient intelligence
 (you query)          (you ask, it briefs)     (it notices & suggests)
 ```
 
-**Core insight**: Sessions are ephemeral but work is continuous. Chronicle bridges that gap.
+**Core insight**: sessions are ephemeral but work is continuous.
 
 ## Current State (v1)
 
@@ -100,8 +100,6 @@ Memory blocks    →    /catchup command    →    Ambient intelligence
 - "You solved a similar auth issue in project-a, here's what worked"
 - "This pattern appears in 3 projects, consider extracting a library"
 - "Your TODOs about testing are accumulating across projects"
-
-**Metrics**: Reuse insights from one project in another.
 
 ---
 

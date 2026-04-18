@@ -142,9 +142,8 @@ Never delete without user confirmation.
 
 ### Two Memory Loops
 
-**Active (during session)**: The teammate's CLAUDE.md instructs it to dispatch background `remember` and `recall` agents when encountering decisions, patterns, or needing prior context.
+Two loops. During a session, the teammate's CLAUDE.md instructs it to dispatch background `remember` and `recall` agents when encountering decisions, patterns, or needing prior context. After the session, a SessionEnd hook fires the sleep pipeline — extract, consolidate, reflect.
 
-**Passive (session end)**: SessionEnd hook fires the sleep pipeline:
 1. **Extract** — find memories the active loop missed in the transcript
 2. **Consolidate** — merge duplicates, apply confidence decay, promote/demote
 3. **Reflect** — evolve relationship.md and mutable personality sections

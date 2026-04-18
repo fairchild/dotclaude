@@ -23,12 +23,11 @@ analyze-usage query "SELECT * FROM tool_summary"
 
 ## Features
 
-- **Unified**: Loads both Claude Code and Cursor data into one database
-- **Incremental**: Auto-detects new/changed files and updates only what's needed
-- **Persistent**: DuckDB database persists between runs (`~/.local/share/analyze-usage/usage.duckdb`)
-- **Safe**: Timestamped backup before every load/reload
-- **Agent-friendly**: `--help` and `--schema` provide complete documentation for AI agents
-- **Fast**: DuckDB is extremely fast for analytical queries
+- Unified — loads both Claude Code and Cursor data into one database
+- Incremental — auto-detects new/changed files and updates only what's needed
+- Persistent — DuckDB database persists between runs (`~/.local/share/analyze-usage/usage.duckdb`)
+- Safe — timestamped backup before every load/reload
+- Agent-friendly — `--help` and `--schema` document the schema for AI agents
 
 ## Commands
 
@@ -94,7 +93,6 @@ analyze-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
 | `messages` | Conversation content (user text, assistant text + thinking) |
 | `cursor_prompts` | Cursor user prompts |
 | `cursor_workspaces` | Cursor workspace metadata |
-
 | `system_events` | System records: turn_duration, api_error, stop_hook_summary |
 | `queue_operations` | User inputs queued during assistant responses |
 | `pr_links` | Session-to-PR mappings |
@@ -158,14 +156,18 @@ SELECT * FROM daily_summary
 ORDER BY date DESC
 LIMIT 14;
 
--- Turn durationsSELECT * FROM turn_durations ORDER BY duration_ms DESC LIMIT 10;
+-- Turn durations
+SELECT * FROM turn_durations ORDER BY duration_ms DESC LIMIT 10;
 
--- Session overview with summariesSELECT session_id, repo_name, summary FROM session_overview
+-- Session overview with summaries
+SELECT session_id, repo_name, summary FROM session_overview
 WHERE summary IS NOT NULL ORDER BY started_at DESC LIMIT 10;
 
--- API errorsSELECT * FROM api_errors ORDER BY timestamp DESC;
+-- API errors
+SELECT * FROM api_errors ORDER BY timestamp DESC;
 
--- PR linksSELECT * FROM pr_links;
+-- PR links
+SELECT * FROM pr_links;
 
 -- Skill usage
 SELECT context as skill_name, COUNT(*) as uses
