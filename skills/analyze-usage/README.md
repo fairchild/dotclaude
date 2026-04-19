@@ -8,8 +8,9 @@ Loads local logs into a **persistent DuckDB database** for SQL-based analysis. D
 
 ```bash
 # Install
-cp analyze-usage ~/.local/bin/
-chmod +x ~/.local/bin/analyze-usage
+install -Dm755 skills/analyze-usage/scripts/analyze-usage ~/.local/bin/analyze-usage
+install -Dm644 skills/analyze-usage/references/canonical-agent-schema.duckdb.sql \
+  ~/.local/share/analyze-usage/canonical-agent-schema.duckdb.sql
 
 # First run - loads data and shows summary
 analyze-usage
@@ -157,8 +158,8 @@ The skill now ships a normalized cross-harness reference schema at
 The analyzer loads this SQL file idempotently during database bootstrap, so new
 and upgraded databases have the canonical tables available before the harness-
 specific tables and views are populated.
-When the script is copied standalone into `~/.local/bin`, it falls back to an
-embedded copy of the same schema so the documented install path still works.
+When the script is installed standalone into `~/.local/bin`, it reads the same
+checked-in schema file from `~/.local/share/analyze-usage/`.
 
 ## Example Queries
 

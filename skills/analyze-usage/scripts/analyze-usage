@@ -23,6 +23,7 @@ VERSION="1.2.2"
 SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 SKILL_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
 REFERENCE_SCHEMA_PATH="$SKILL_DIR/references/canonical-agent-schema.duckdb.sql"
+INSTALLED_SCHEMA_PATH="${XDG_DATA_HOME:-$HOME/.local/share}/analyze-usage/canonical-agent-schema.duckdb.sql"
 
 DB_PATH="${ANALYZE_USAGE_DB:-$HOME/.local/share/analyze-usage/usage.duckdb}"
 DB_DIR=$(dirname "$DB_PATH")
@@ -553,172 +554,44 @@ backup_db() {
     fi
 }
 
-ensure_reference_schema() {
-    if [ -f "$REFERENCE_SCHEMA_PATH" ]; then
-        duckdb "$DB_PATH" < "$REFERENCE_SCHEMA_PATH"
-        return
+resolve_reference_schema_path() {
+    if [ -n "${ANALYZE_USAGE_SCHEMA:-}" ] && [ -f "${ANALYZE_USAGE_SCHEMA}" ]; then
+        echo "${ANALYZE_USAGE_SCHEMA}"
+        return 0
     fi
 
-    # Standalone copied-script installs do not have the sibling references/
-    # directory, so keep an embedded fallback that matches the reference DDL.
-    duckdb "$DB_PATH" << 'EOF'
-CREATE SEQUENCE IF NOT EXISTS agent_sessions_id_seq START 1;
-CREATE SEQUENCE IF NOT EXISTS agent_raw_events_id_seq START 1;
-CREATE SEQUENCE IF NOT EXISTS agent_contexts_id_seq START 1;
-CREATE SEQUENCE IF NOT EXISTS agent_events_id_seq START 1;
-CREATE SEQUENCE IF NOT EXISTS agent_parts_id_seq START 1;
-CREATE SEQUENCE IF NOT EXISTS agent_tool_calls_id_seq START 1;
-CREATE SEQUENCE IF NOT EXISTS agent_tool_results_id_seq START 1;
-CREATE SEQUENCE IF NOT EXISTS agent_tokens_id_seq START 1;
+    if [ -f "$REFERENCE_SCHEMA_PATH" ]; then
+        echo "$REFERENCE_SCHEMA_PATH"
+        return 0
+    fi
 
-CREATE TABLE IF NOT EXISTS agent_sessions (
-    id BIGINT PRIMARY KEY DEFAULT nextval('agent_sessions_id_seq'),
-    harness VARCHAR NOT NULL,
-    interface VARCHAR,
-    external_session_id VARCHAR,
-    title VARCHAR,
-    started_at TIMESTAMP,
-    ended_at TIMESTAMP,
-    cwd_first VARCHAR,
-    cwd_last VARCHAR,
-    repo_name VARCHAR,
-    worktree_branch VARCHAR,
-    summary_json JSON NOT NULL DEFAULT '{}',
-    metadata_json JSON NOT NULL DEFAULT '{}',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (harness, external_session_id)
-);
+    if [ -f "$INSTALLED_SCHEMA_PATH" ]; then
+        echo "$INSTALLED_SCHEMA_PATH"
+        return 0
+    fi
 
-CREATE TABLE IF NOT EXISTS agent_raw_events (
-    id BIGINT PRIMARY KEY DEFAULT nextval('agent_raw_events_id_seq'),
-    agent_session_id BIGINT NOT NULL REFERENCES agent_sessions(id),
-    harness VARCHAR NOT NULL,
-    source_file VARCHAR NOT NULL,
-    source_offset BIGINT,
-    occurred_at TIMESTAMP,
-    event_type VARCHAR NOT NULL,
-    external_event_id VARCHAR,
-    external_parent_event_id VARCHAR,
-    payload JSON NOT NULL,
-    payload_sha256 VARCHAR NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (harness, source_file, source_offset)
-);
+    return 1
+}
 
-CREATE TABLE IF NOT EXISTS agent_contexts (
-    id BIGINT PRIMARY KEY DEFAULT nextval('agent_contexts_id_seq'),
-    agent_session_id BIGINT NOT NULL REFERENCES agent_sessions(id),
-    agent_raw_event_id BIGINT REFERENCES agent_raw_events(id),
-    sequence INTEGER NOT NULL,
-    occurred_at TIMESTAMP,
-    provider VARCHAR,
-    model VARCHAR,
-    reasoning_effort VARCHAR,
-    cwd VARCHAR,
-    repo_name VARCHAR,
-    git_branch VARCHAR,
-    interface VARCHAR,
-    instructions_sha256 VARCHAR,
-    metadata_json JSON NOT NULL DEFAULT '{}',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (agent_session_id, sequence)
-);
+ensure_reference_schema() {
+    local schema_path
+    if ! schema_path=$(resolve_reference_schema_path); then
+        cat >&2 <<EOF
+Error: canonical schema file not found.
 
-CREATE TABLE IF NOT EXISTS agent_events (
-    id BIGINT PRIMARY KEY DEFAULT nextval('agent_events_id_seq'),
-    agent_session_id BIGINT NOT NULL REFERENCES agent_sessions(id),
-    agent_context_id BIGINT REFERENCES agent_contexts(id),
-    agent_raw_event_id BIGINT REFERENCES agent_raw_events(id),
-    parent_agent_event_id BIGINT REFERENCES agent_events(id),
-    sequence INTEGER NOT NULL,
-    occurred_at TIMESTAMP,
-    event_kind VARCHAR NOT NULL,
-    role VARCHAR,
-    phase VARCHAR,
-    status VARCHAR,
-    external_event_id VARCHAR,
-    metadata_json JSON NOT NULL DEFAULT '{}',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (agent_session_id, sequence)
-);
+Checked:
+  ${ANALYZE_USAGE_SCHEMA:-"(ANALYZE_USAGE_SCHEMA not set)"}
+  $REFERENCE_SCHEMA_PATH
+  $INSTALLED_SCHEMA_PATH
 
-CREATE TABLE IF NOT EXISTS agent_parts (
-    id BIGINT PRIMARY KEY DEFAULT nextval('agent_parts_id_seq'),
-    agent_event_id BIGINT NOT NULL REFERENCES agent_events(id),
-    sequence INTEGER NOT NULL,
-    part_kind VARCHAR NOT NULL,
-    mime_type VARCHAR,
-    text_value VARCHAR,
-    json_value JSON,
-    tool_call_id VARCHAR,
-    tool_name VARCHAR,
-    file_path VARCHAR,
-    file_url VARCHAR,
-    annotation_json JSON NOT NULL DEFAULT '{}',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (agent_event_id, sequence)
-);
-
-CREATE TABLE IF NOT EXISTS agent_tool_calls (
-    id BIGINT PRIMARY KEY DEFAULT nextval('agent_tool_calls_id_seq'),
-    agent_event_id BIGINT NOT NULL REFERENCES agent_events(id),
-    tool_call_id VARCHAR,
-    tool_name VARCHAR NOT NULL,
-    args_json JSON NOT NULL DEFAULT '{}',
-    transport VARCHAR,
-    server_name VARCHAR,
-    duration_ms INTEGER,
-    metadata_json JSON NOT NULL DEFAULT '{}',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS agent_tool_results (
-    id BIGINT PRIMARY KEY DEFAULT nextval('agent_tool_results_id_seq'),
-    agent_event_id BIGINT NOT NULL REFERENCES agent_events(id),
-    agent_tool_call_id BIGINT REFERENCES agent_tool_calls(id),
-    output_text VARCHAR,
-    output_json JSON,
-    is_error BOOLEAN NOT NULL DEFAULT FALSE,
-    error_type VARCHAR,
-    metadata_json JSON NOT NULL DEFAULT '{}',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS agent_tokens (
-    id BIGINT PRIMARY KEY DEFAULT nextval('agent_tokens_id_seq'),
-    agent_event_id BIGINT NOT NULL REFERENCES agent_events(id),
-    input_tokens INTEGER,
-    output_tokens INTEGER,
-    cache_write_tokens INTEGER,
-    cache_read_tokens INTEGER,
-    reasoning_tokens INTEGER,
-    cost_usd DOUBLE,
-    pricing_source VARCHAR,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (agent_event_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_agent_raw_events_session_time
-    ON agent_raw_events(agent_session_id, occurred_at);
-CREATE INDEX IF NOT EXISTS idx_agent_events_session_time
-    ON agent_events(agent_session_id, occurred_at);
-CREATE INDEX IF NOT EXISTS idx_agent_events_parent
-    ON agent_events(parent_agent_event_id);
-CREATE INDEX IF NOT EXISTS idx_agent_parts_event
-    ON agent_parts(agent_event_id, sequence);
-CREATE INDEX IF NOT EXISTS idx_agent_tool_calls_event
-    ON agent_tool_calls(agent_event_id);
-CREATE INDEX IF NOT EXISTS idx_agent_tool_results_call
-    ON agent_tool_results(agent_tool_call_id);
+Install the schema file alongside the script install, for example:
+  mkdir -p ~/.local/share/analyze-usage
+  cp skills/analyze-usage/references/canonical-agent-schema.duckdb.sql ~/.local/share/analyze-usage/
 EOF
+        exit 1
+    fi
+
+    duckdb "$DB_PATH" < "$schema_path"
 }
 
 ensure_cursor_tables() {
@@ -737,6 +610,40 @@ CREATE TABLE IF NOT EXISTS cursor_workspaces (
     db_path VARCHAR
 );
 EOF
+}
+
+reset_cursor_tables() {
+    duckdb "$DB_PATH" << 'EOF'
+DELETE FROM cursor_prompts;
+DELETE FROM cursor_workspaces;
+EOF
+}
+
+needs_interface_backfill() {
+    duckdb -csv -noheader "$DB_PATH" -c "
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'claude_tools' AND column_name = 'interface'
+    ) THEN 0
+    ELSE 1
+END;" 2>/dev/null || echo "0"
+}
+
+ensure_current_tables() {
+    duckdb "$DB_PATH" << 'ENSURE'
+CREATE TABLE IF NOT EXISTS system_events (uuid VARCHAR PRIMARY KEY, session_id VARCHAR, subtype VARCHAR, timestamp TIMESTAMP, project_dir VARCHAR, git_branch VARCHAR, duration_ms INTEGER, version VARCHAR, is_sidechain BOOLEAN, source_file VARCHAR, repo_name VARCHAR);
+CREATE TABLE IF NOT EXISTS queue_operations (session_id VARCHAR, timestamp TIMESTAMP, operation VARCHAR, content VARCHAR, source_file VARCHAR);
+CREATE TABLE IF NOT EXISTS pr_links (session_id VARCHAR, timestamp TIMESTAMP, pr_number INTEGER, pr_url VARCHAR, pr_repository VARCHAR, source_file VARCHAR);
+CREATE TABLE IF NOT EXISTS _loaded_files (file_path VARCHAR PRIMARY KEY, mtime_ns BIGINT, loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+
+-- Add columns to tables that may predate the current schema.
+ALTER TABLE claude_tools ADD COLUMN IF NOT EXISTS source_file VARCHAR;
+ALTER TABLE claude_tools ADD COLUMN IF NOT EXISTS interface VARCHAR;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS source_file VARCHAR;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS interface VARCHAR;
+ENSURE
 }
 
 # ============================================================================
@@ -1429,21 +1336,7 @@ load_cursor_data() {
 
     duckdb "$DB_PATH" -c "INSTALL sqlite; LOAD sqlite;" 2>/dev/null
 
-    duckdb "$DB_PATH" << 'EOF'
-CREATE OR REPLACE TABLE cursor_prompts (
-    timestamp TIMESTAMP,
-    workspace_id VARCHAR,
-    workspace_path VARCHAR,
-    prompt_text VARCHAR
-);
-
-CREATE OR REPLACE TABLE cursor_workspaces (
-    workspace_id VARCHAR,
-    workspace_path VARCHAR,
-    prompt_count INTEGER,
-    db_path VARCHAR
-);
-EOF
+    reset_cursor_tables
 
     find "$CURSOR_WORKSPACE" -name "state.vscdb" 2>/dev/null | while read -r db; do
         workspace_id=$(basename "$(dirname "$db")")
@@ -2109,37 +2002,16 @@ incremental_load() {
     ensure_reference_schema
     ensure_cursor_tables
 
-    local needs_interface_backfill
-    needs_interface_backfill=$(duckdb -csv -noheader "$DB_PATH" -c "
-SELECT CASE
-    WHEN EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_name = 'claude_tools' AND column_name = 'interface'
-    ) THEN 0
-    ELSE 1
-END;" 2>/dev/null || echo "0")
-
-    # Ensure current tables exist (upgrade path for older databases)
-    duckdb "$DB_PATH" << 'ENSURE'
-CREATE TABLE IF NOT EXISTS system_events (uuid VARCHAR PRIMARY KEY, session_id VARCHAR, subtype VARCHAR, timestamp TIMESTAMP, project_dir VARCHAR, git_branch VARCHAR, duration_ms INTEGER, version VARCHAR, is_sidechain BOOLEAN, source_file VARCHAR, repo_name VARCHAR);
-CREATE TABLE IF NOT EXISTS queue_operations (session_id VARCHAR, timestamp TIMESTAMP, operation VARCHAR, content VARCHAR, source_file VARCHAR);
-CREATE TABLE IF NOT EXISTS pr_links (session_id VARCHAR, timestamp TIMESTAMP, pr_number INTEGER, pr_url VARCHAR, pr_repository VARCHAR, source_file VARCHAR);
-CREATE TABLE IF NOT EXISTS _loaded_files (file_path VARCHAR PRIMARY KEY, mtime_ns BIGINT, loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
-
--- Add columns to tables that may predate the current schema
-ALTER TABLE claude_tools ADD COLUMN IF NOT EXISTS source_file VARCHAR;
-ALTER TABLE claude_tools ADD COLUMN IF NOT EXISTS interface VARCHAR;
-ALTER TABLE messages ADD COLUMN IF NOT EXISTS source_file VARCHAR;
-ALTER TABLE messages ADD COLUMN IF NOT EXISTS interface VARCHAR;
-ENSURE
+    local needs_backfill
+    needs_backfill=$(needs_interface_backfill)
+    ensure_current_tables
 
     local changed_csv
     changed_csv=$(find_changed_files)
     local count
     count=$(wc -l < "$changed_csv" | tr -d ' ')
 
-    if [ "$count" -eq 0 ] && [ "$needs_interface_backfill" -eq 0 ]; then
+    if [ "$count" -eq 0 ] && [ "$needs_backfill" -eq 0 ]; then
         rm -f "$changed_csv"
         echo "Data is current. No new or changed files."
         return 1
@@ -2159,7 +2031,7 @@ ENSURE
     local claude_changed_paths
     claude_changed_paths=$(mktemp)
 
-    if [ "$needs_interface_backfill" -eq 1 ]; then
+    if [ "$needs_backfill" -eq 1 ]; then
         echo "  Schema change detected: rebuilding Claude interface metadata from all session logs..."
 
         duckdb "$DB_PATH" << 'EOF'

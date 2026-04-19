@@ -73,6 +73,14 @@ def copy_standalone_script(target_dir: Path) -> Path:
     return script_copy
 
 
+def install_schema(home: Path) -> Path:
+    schema_source = Path(__file__).resolve().parent.parent / "references" / "canonical-agent-schema.duckdb.sql"
+    schema_target = home / ".local" / "share" / "analyze-usage" / "canonical-agent-schema.duckdb.sql"
+    schema_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(schema_source, schema_target)
+    return schema_target
+
+
 def write_fixture(home: Path) -> Path:
     claude_dir = home / ".claude" / "projects" / "demo"
     claude_dir.mkdir(parents=True, exist_ok=True)
@@ -248,12 +256,13 @@ def test_reload_bootstraps_schema() -> None:
         assert "updated_at" in schema_output.stdout
 
 
-@test("standalone copied script bootstraps embedded schema fallback")
+@test("standalone installed script boots from installed schema file")
 def test_standalone_script_bootstraps_schema() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp) / "home"
         home.mkdir()
         write_fixture(home)
+        installed_schema = install_schema(home)
         db_path = Path(tmp) / "usage.duckdb"
         bin_dir = Path(tmp) / "bin"
         bin_dir.mkdir()
@@ -278,6 +287,7 @@ def test_standalone_script_bootstraps_schema() -> None:
             "agent_tool_calls",
             "agent_tool_results",
         ], tables
+        assert installed_schema.exists()
 
 
 @test("update upgrades legacy table order safely")

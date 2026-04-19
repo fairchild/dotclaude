@@ -4,6 +4,8 @@
 -- - Every table has an `id` primary key.
 -- - Foreign keys follow `{table}_id` and reference `id`.
 -- - Provider-native identifiers use `external_*`.
+-- - This file is the single source of truth for the canonical schema. The
+--   loader script should read this file rather than carrying a second copy.
 --
 -- DuckDB note:
 -- - `updated_at` defaults on insert.
@@ -19,6 +21,9 @@ CREATE SEQUENCE IF NOT EXISTS agent_tool_calls_id_seq START 1;
 CREATE SEQUENCE IF NOT EXISTS agent_tool_results_id_seq START 1;
 CREATE SEQUENCE IF NOT EXISTS agent_tokens_id_seq START 1;
 
+-- One row per normalized conversation/session. Keep `external_session_id`
+-- separate from the internal surrogate key so multiple harnesses can coexist
+-- without leaking provider-specific ids into foreign keys.
 CREATE TABLE IF NOT EXISTS agent_sessions (
     id BIGINT PRIMARY KEY DEFAULT nextval('agent_sessions_id_seq'),
     harness VARCHAR NOT NULL,
@@ -38,6 +43,9 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     UNIQUE (harness, external_session_id)
 );
 
+-- Raw imported source records with provenance. `source_offset` is intentionally
+-- loader-defined: it may be a byte offset, line number, or synthetic ordinal,
+-- but it must be stable enough to uniquely identify a source row inside a file.
 CREATE TABLE IF NOT EXISTS agent_raw_events (
     id BIGINT PRIMARY KEY DEFAULT nextval('agent_raw_events_id_seq'),
     agent_session_id BIGINT NOT NULL REFERENCES agent_sessions(id),
@@ -55,6 +63,9 @@ CREATE TABLE IF NOT EXISTS agent_raw_events (
     UNIQUE (harness, source_file, source_offset)
 );
 
+-- Context snapshots capture changes in model, cwd, or provider configuration
+-- over time. `sequence` preserves the order that these context changes occurred
+-- within a session, so later loaders can attach nearby events to the right one.
 CREATE TABLE IF NOT EXISTS agent_contexts (
     id BIGINT PRIMARY KEY DEFAULT nextval('agent_contexts_id_seq'),
     agent_session_id BIGINT NOT NULL REFERENCES agent_sessions(id),
@@ -75,6 +86,9 @@ CREATE TABLE IF NOT EXISTS agent_contexts (
     UNIQUE (agent_session_id, sequence)
 );
 
+-- Normalized events are the canonical “things that happened” in a session.
+-- `parent_agent_event_id` is for conversational or event-tree linkage, while
+-- `agent_raw_event_id` preserves the original imported record when available.
 CREATE TABLE IF NOT EXISTS agent_events (
     id BIGINT PRIMARY KEY DEFAULT nextval('agent_events_id_seq'),
     agent_session_id BIGINT NOT NULL REFERENCES agent_sessions(id),
@@ -94,6 +108,8 @@ CREATE TABLE IF NOT EXISTS agent_events (
     UNIQUE (agent_session_id, sequence)
 );
 
+-- A single event may carry multiple parts (text, reasoning, tool call, file
+-- references, etc.). `sequence` preserves part ordering within that event.
 CREATE TABLE IF NOT EXISTS agent_parts (
     id BIGINT PRIMARY KEY DEFAULT nextval('agent_parts_id_seq'),
     agent_event_id BIGINT NOT NULL REFERENCES agent_events(id),
@@ -112,6 +128,8 @@ CREATE TABLE IF NOT EXISTS agent_parts (
     UNIQUE (agent_event_id, sequence)
 );
 
+-- Tool call rows model invocation metadata. `tool_call_id` is the provider's
+-- own call identifier and is not the primary key for this table.
 CREATE TABLE IF NOT EXISTS agent_tool_calls (
     id BIGINT PRIMARY KEY DEFAULT nextval('agent_tool_calls_id_seq'),
     agent_event_id BIGINT NOT NULL REFERENCES agent_events(id),
@@ -126,6 +144,8 @@ CREATE TABLE IF NOT EXISTS agent_tool_calls (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Tool results may arrive without a resolvable prior call row, so
+-- `agent_tool_call_id` is nullable even when the result is otherwise valid.
 CREATE TABLE IF NOT EXISTS agent_tool_results (
     id BIGINT PRIMARY KEY DEFAULT nextval('agent_tool_results_id_seq'),
     agent_event_id BIGINT NOT NULL REFERENCES agent_events(id),
@@ -139,6 +159,8 @@ CREATE TABLE IF NOT EXISTS agent_tool_results (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Token accounting is split from events so loaders can attach usage/cost data
+-- even when multiple harnesses expose different token shapes.
 CREATE TABLE IF NOT EXISTS agent_tokens (
     id BIGINT PRIMARY KEY DEFAULT nextval('agent_tokens_id_seq'),
     agent_event_id BIGINT NOT NULL REFERENCES agent_events(id),
@@ -154,6 +176,8 @@ CREATE TABLE IF NOT EXISTS agent_tokens (
     UNIQUE (agent_event_id)
 );
 
+-- These indexes support the most common access paths: session timelines,
+-- hierarchical traversal, and tool/result joins.
 CREATE INDEX IF NOT EXISTS idx_agent_raw_events_session_time
     ON agent_raw_events(agent_session_id, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_agent_events_session_time
