@@ -14,11 +14,15 @@
 
 set -euo pipefail
 
-VERSION="1.2.0"
+VERSION="1.2.1"
 
 # ============================================================================
 # Configuration
 # ============================================================================
+
+SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+SKILL_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
+REFERENCE_SCHEMA_PATH="$SKILL_DIR/references/canonical-agent-schema.duckdb.sql"
 
 DB_PATH="${ANALYZE_USAGE_DB:-$HOME/.local/share/analyze-usage/usage.duckdb}"
 DB_DIR=$(dirname "$DB_PATH")
@@ -179,9 +183,34 @@ analyze-usage DATABASE SCHEMA
 This document describes all tables in the analyze-usage database.
 Use this information to construct SQL queries for analysis.
 
+The database contains two schema layers:
+1. Loader-native tables such as `claude_tools` and `messages`
+2. Canonical `agent_*` tables provisioned from `references/canonical-agent-schema.duckdb.sql`
+
 DATABASE LOCATION
     Default: ~/.local/share/analyze-usage/usage.duckdb
     Override: ANALYZE_USAGE_DB environment variable
+
+================================================================================
+CANONICAL REFERENCE TABLES
+================================================================================
+The canonical `agent_*` tables follow Rails-style naming conventions:
+
+    id                  Primary key on every table
+    {table}_id          Foreign keys reference `id`
+    external_*          Provider-native ids
+    created_at          Insert timestamp
+    updated_at          Loader-managed modification timestamp
+
+Core canonical tables:
+    agent_sessions      Normalized session records
+    agent_raw_events    Raw imported source events with provenance
+    agent_contexts      Model/cwd/provider context changes within sessions
+    agent_events        Normalized message/tool/system events
+    agent_parts         Structured parts for each event
+    agent_tool_calls    Tool invocation records
+    agent_tool_results  Tool outputs / errors
+    agent_tokens        Token and cost metrics per event
 
 ================================================================================
 TABLE: claude_tools
@@ -193,6 +222,7 @@ COLUMNS:
     timestamp       TIMESTAMP   When the tool was invoked (ISO 8601)
     session_id      VARCHAR     Unique session identifier
     project_dir     VARCHAR     Working directory / project path
+    interface       VARCHAR     Wrapper/interface when detectable (e.g. conductor, cli)
     tool_name       VARCHAR     Name of tool (see TOOL NAMES below)
     context         VARCHAR     Tool-specific context (command, file path, etc.)
     input_tokens    INTEGER     Tokens consumed by this interaction (input)
@@ -244,6 +274,7 @@ COLUMNS:
     session_id      VARCHAR     Unique session identifier
     project_dir     VARCHAR     Working directory
     repo_name       VARCHAR     Repository name
+    interface       VARCHAR     Wrapper/interface when detectable
     worktree_branch VARCHAR     Branch name if worktree
     is_worktree     BOOLEAN     TRUE if worktree
     started_at      TIMESTAMP   First activity timestamp
@@ -263,6 +294,7 @@ COLUMNS:
     session_id      VARCHAR     Session identifier
     role            VARCHAR     'user' or 'assistant'
     harness         VARCHAR     'claude_code' or 'cursor'
+    interface       VARCHAR     Wrapper/interface when detectable
     model           VARCHAR     Model used (NULL for user messages)
     content         VARCHAR     User-facing text (concatenated text blocks)
     thinking        VARCHAR     Reasoning traces (concatenated thinking blocks)
@@ -521,6 +553,15 @@ backup_db() {
     fi
 }
 
+ensure_reference_schema() {
+    if [ ! -f "$REFERENCE_SCHEMA_PATH" ]; then
+        echo "Error: reference schema file not found: $REFERENCE_SCHEMA_PATH" >&2
+        exit 1
+    fi
+
+    duckdb "$DB_PATH" < "$REFERENCE_SCHEMA_PATH"
+}
+
 # ============================================================================
 # Worktree SQL fragment (shared by multiple loaders)
 # ============================================================================
@@ -565,22 +606,54 @@ END
 EOF
 }
 
+interface_sql() {
+    local cwd_col="${1:-project_dir}"
+    local entrypoint_col="${2:-NULL}"
+    cat << EOF
+CASE
+    WHEN LOWER(COALESCE(${cwd_col}, '')) LIKE '%/conductor/workspaces/%' THEN 'conductor'
+    WHEN LOWER(COALESCE(${cwd_col}, '')) LIKE '%/.t3code/%'
+      OR LOWER(COALESCE(${cwd_col}, '')) LIKE '%/t3code/workspaces/%' THEN 't3code'
+    WHEN LOWER(COALESCE(${cwd_col}, '')) LIKE '%/.warp/%'
+      OR LOWER(COALESCE(${cwd_col}, '')) LIKE '%/library/application support/dev.warp.warp-stable/%'
+      OR LOWER(COALESCE(${cwd_col}, '')) LIKE '%/library/application support/warp/%' THEN 'warp'
+    WHEN LOWER(COALESCE(${cwd_col}, '')) LIKE '%/.ghosty/%'
+      OR LOWER(COALESCE(${cwd_col}, '')) LIKE '%/.config/ghostty/%'
+      OR LOWER(COALESCE(${cwd_col}, '')) LIKE '%/library/application support/com.mitchellh.ghostty/%' THEN 'ghosty'
+    WHEN LOWER(COALESCE(${entrypoint_col}, '')) = 'cli' THEN 'cli'
+    ELSE NULL
+END
+EOF
+}
+
 # ============================================================================
 # File Change Detection
 # ============================================================================
 
-find_changed_files() {
-    local tmp_all=$(mktemp)
-    local tmp_changed=$(mktemp)
-
-    # Get all JSONL files with their mtimes (nanoseconds via stat)
+emit_tracked_files() {
     find "$CLAUDE_PROJECTS" -name "*.jsonl" -print0 2>/dev/null | while IFS= read -r -d '' f; do
         local mtime_ns
         mtime_ns=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo "0")
         # Convert to nanoseconds (stat gives seconds on macOS)
         mtime_ns=$((mtime_ns * 1000000000))
         printf '%s,%s\n' "$f" "$mtime_ns"
-    done > "$tmp_all"
+    done
+
+    if [ -n "$CURSOR_WORKSPACE" ] && [ -d "$CURSOR_WORKSPACE" ]; then
+        find "$CURSOR_WORKSPACE" \( -name "state.vscdb" -o -name "workspace.json" \) -print0 2>/dev/null | while IFS= read -r -d '' f; do
+            local mtime_ns
+            mtime_ns=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo "0")
+            mtime_ns=$((mtime_ns * 1000000000))
+            printf '%s,%s\n' "$f" "$mtime_ns"
+        done
+    fi
+}
+
+find_changed_files() {
+    local tmp_all=$(mktemp)
+    local tmp_changed=$(mktemp)
+
+    emit_tracked_files > "$tmp_all"
 
     local total_files
     total_files=$(wc -l < "$tmp_all" | tr -d ' ')
@@ -658,6 +731,7 @@ CREATE TABLE IF NOT EXISTS claude_tools (
     repo_name VARCHAR,
     worktree_branch VARCHAR,
     is_worktree BOOLEAN,
+    interface VARCHAR,
     source_file VARCHAR
 );
 
@@ -689,6 +763,7 @@ expanded AS (
         logs.message.usage.output_tokens as output_tokens,
         COALESCE(logs.message.usage.cache_creation_input_tokens, 0) as cache_write_tokens,
         COALESCE(logs.message.usage.cache_read_input_tokens, 0) as cache_read_tokens,
+        logs.entrypoint as entrypoint,
         logs.filename as source_file
     FROM raw_logs logs,
     LATERAL UNNEST(
@@ -703,13 +778,10 @@ expanded AS (
 ),
 with_worktree AS (
     SELECT *,
-        CASE
-            WHEN project_dir LIKE '%/conductor/workspaces/%' THEN 'conductor'
-            WHEN project_dir LIKE '%/.worktrees/%' THEN 'git'
-            ELSE NULL
-        END as worktree_type,
+        $(interface_sql project_dir entrypoint) as interface_calc,
         $(worktree_repo_sql project_dir) as repo_name_calc,
-        $(worktree_branch_sql project_dir) as worktree_branch_calc
+        $(worktree_branch_sql project_dir) as worktree_branch_calc,
+        $(worktree_is_sql project_dir) as is_worktree_calc
     FROM expanded
     WHERE tool_name IS NOT NULL
 )
@@ -718,7 +790,8 @@ SELECT
     input_tokens, output_tokens, cache_write_tokens, cache_read_tokens,
     repo_name_calc as repo_name,
     worktree_branch_calc as worktree_branch,
-    worktree_type IS NOT NULL as is_worktree,
+    is_worktree_calc as is_worktree,
+    interface_calc as interface,
     source_file
 FROM with_worktree;
 EOF
@@ -746,6 +819,7 @@ CREATE TABLE IF NOT EXISTS messages (
     session_id VARCHAR,
     role VARCHAR,
     harness VARCHAR,
+    interface VARCHAR,
     model VARCHAR,
     content VARCHAR,
     thinking VARCHAR,
@@ -780,6 +854,7 @@ user_string AS (
         logs.sessionId as session_id,
         'user' as role,
         'claude_code' as harness,
+        logs.entrypoint as entrypoint,
         NULL as model,
         logs.message.content::VARCHAR as content,
         NULL as thinking,
@@ -807,6 +882,7 @@ user_array AS (
         logs.sessionId as session_id,
         'user' as role,
         'claude_code' as harness,
+        logs.entrypoint as entrypoint,
         NULL as model,
         STRING_AGG(
             CASE WHEN json_extract_string(c.value, '\$.type') = 'text'
@@ -841,7 +917,7 @@ user_array AS (
         WHERE json_extract_string(chk.v, '\$.type') = 'text'
     )
     GROUP BY logs.uuid, logs.parentUuid, logs.sessionId, logs.timestamp,
-             logs.cwd, logs.isSidechain, logs.filename
+             logs.cwd, logs.isSidechain, logs.entrypoint, logs.filename
     HAVING content IS NOT NULL
 ),
 -- Assistant messages
@@ -852,6 +928,7 @@ assistant_msgs AS (
         logs.sessionId as session_id,
         'assistant' as role,
         'claude_code' as harness,
+        logs.entrypoint as entrypoint,
         logs.message.model as model,
         STRING_AGG(
             CASE WHEN json_extract_string(c.value, '\$.type') = 'text'
@@ -883,7 +960,7 @@ assistant_msgs AS (
     ) as c(value)
     WHERE logs.type = 'assistant'
     GROUP BY logs.uuid, logs.parentUuid, logs.sessionId, logs.message.model,
-             logs.timestamp, logs.cwd, logs.isSidechain,
+             logs.timestamp, logs.cwd, logs.isSidechain, logs.entrypoint,
              logs.message.usage.input_tokens, logs.message.usage.output_tokens,
              logs.message.usage.cache_creation_input_tokens,
              logs.message.usage.cache_read_input_tokens, logs.filename
@@ -897,13 +974,14 @@ all_messages AS (
 ),
 with_worktree AS (
     SELECT m.*,
+        $(interface_sql m.project_dir m.entrypoint) as interface_calc,
         $(worktree_repo_sql m.project_dir) as repo_name_calc,
         $(worktree_branch_sql m.project_dir) as worktree_branch_calc,
         $(worktree_is_sql m.project_dir) as is_worktree_calc
     FROM all_messages m
 )
 SELECT
-    uuid, parent_uuid, session_id, role, harness, model,
+    uuid, parent_uuid, session_id, role, harness, interface_calc as interface, model,
     content, thinking, timestamp, project_dir, git_branch,
     repo_name_calc as repo_name,
     worktree_branch_calc as worktree_branch,
@@ -1069,19 +1147,6 @@ load_sessions_index() {
         return
     fi
 
-    # Find all sessions-index.json files
-    local index_files
-    index_files=$(find "$CLAUDE_PROJECTS" -name "sessions-index.json" 2>/dev/null)
-
-    if [ -z "$index_files" ]; then
-        echo "  Sessions index: No index files found"
-        return
-    fi
-
-    local index_count
-    index_count=$(echo "$index_files" | wc -l | tr -d ' ')
-    echo "  Sessions index: Loading from $index_count index files..."
-
     duckdb "$DB_PATH" << 'EOF'
 CREATE TABLE IF NOT EXISTS _sessions_index (
     session_id VARCHAR PRIMARY KEY,
@@ -1096,6 +1161,19 @@ CREATE TABLE IF NOT EXISTS _sessions_index (
 
 DELETE FROM _sessions_index;
 EOF
+
+    # Find all sessions-index.json files
+    local index_files
+    index_files=$(find "$CLAUDE_PROJECTS" -name "sessions-index.json" 2>/dev/null)
+
+    if [ -z "$index_files" ]; then
+        echo "  Sessions index: No index files found"
+        return
+    fi
+
+    local index_count
+    index_count=$(echo "$index_files" | wc -l | tr -d ' ')
+    echo "  Sessions index: Loading from $index_count index files..."
 
     # Process each index file
     echo "$index_files" | while IFS= read -r idx_file; do
@@ -1184,15 +1262,42 @@ EOF
         duckdb "$DB_PATH" << EOF 2>/dev/null || true
 LOAD sqlite;
 INSERT INTO cursor_prompts
+WITH generation_payloads AS (
+    SELECT decode(value) as json_text
+    FROM sqlite_scan('$db', 'ItemTable')
+    WHERE key = 'aiService.generations'
+),
+prompt_payloads AS (
+    SELECT decode(value) as json_text
+    FROM sqlite_scan('$db', 'ItemTable')
+    WHERE key = 'aiService.prompts'
+    AND NOT EXISTS (SELECT 1 FROM generation_payloads)
+),
+generation_rows AS (
+    SELECT
+        TRY_CAST(to_timestamp(CAST(json_extract(p.value, '\$.unixMs') AS BIGINT) / 1000.0) AS TIMESTAMP) as timestamp,
+        json_extract_string(p.value, '\$.textDescription') as prompt_text
+    FROM generation_payloads t,
+    LATERAL UNNEST(from_json(t.json_text, '["JSON"]')) as p(value)
+),
+prompt_rows AS (
+    SELECT
+        NULL as timestamp,
+        json_extract_string(p.value, '\$.text') as prompt_text
+    FROM prompt_payloads t,
+    LATERAL UNNEST(from_json(t.json_text, '["JSON"]')) as p(value)
+)
 SELECT
-    TRY_CAST(json_extract_string(p.value, '\$.timestamp') AS TIMESTAMP) as timestamp,
+    r.timestamp,
     '$workspace_id' as workspace_id,
     '$workspace_path' as workspace_path,
-    json_extract_string(p.value, '\$.text') as prompt_text
-FROM sqlite_scan('$db', 'ItemTable') t,
-LATERAL UNNEST(from_json(t.value::VARCHAR, '["JSON"]')) as p(value)
-WHERE t.key = 'aiService.prompts'
-AND json_extract_string(p.value, '\$.text') IS NOT NULL;
+    r.prompt_text
+FROM (
+    SELECT * FROM generation_rows
+    UNION ALL
+    SELECT * FROM prompt_rows
+) r
+WHERE r.prompt_text IS NOT NULL;
 EOF
 
         local prompt_count
@@ -1219,6 +1324,8 @@ load_cursor_messages() {
     echo "  Cursor: Bridging $cursor_count prompts into messages..."
 
     duckdb "$DB_PATH" << 'EOF'
+DELETE FROM messages WHERE harness='cursor';
+
 INSERT INTO messages
 SELECT
     MD5(workspace_id || CAST(timestamp AS VARCHAR) || LEFT(prompt_text, 50)) as uuid,
@@ -1226,6 +1333,7 @@ SELECT
     workspace_id as session_id,
     'user' as role,
     'cursor' as harness,
+    NULL as interface,
     NULL as model,
     prompt_text as content,
     NULL as thinking,
@@ -1266,6 +1374,7 @@ SELECT
     session_id,
     project_dir,
     repo_name,
+    interface,
     worktree_branch,
     is_worktree,
     MIN(timestamp) as started_at,
@@ -1274,7 +1383,7 @@ SELECT
     COUNT(DISTINCT tool_name) as unique_tools
 FROM claude_tools
 WHERE session_id IS NOT NULL
-GROUP BY session_id, project_dir, repo_name, worktree_branch, is_worktree;
+GROUP BY session_id, project_dir, repo_name, interface, worktree_branch, is_worktree;
 
 -- ============================================================================
 -- TURN DURATIONS VIEW
@@ -1296,6 +1405,7 @@ CREATE OR REPLACE VIEW interactions AS
 SELECT
     TRY_CAST(timestamp AS TIMESTAMP) as timestamp,
     'claude_code' as source,
+    interface,
     session_id as session_id,
     project_dir as project,
     REGEXP_EXTRACT(project_dir, '[^/]+$') as project_name,
@@ -1319,6 +1429,7 @@ UNION ALL
 SELECT
     TRY_CAST(timestamp AS TIMESTAMP) as timestamp,
     'cursor' as source,
+    NULL as interface,
     workspace_id as session_id,
     workspace_path as project,
     REGEXP_EXTRACT(workspace_path, '[^/]+$') as project_name,
@@ -1344,10 +1455,11 @@ CREATE OR REPLACE VIEW hourly_activity AS
 SELECT
     DATE_TRUNC('hour', timestamp) as hour,
     source,
+    interface,
     COUNT(*) as interactions,
     COUNT(DISTINCT session_id) as sessions
 FROM interactions
-GROUP BY hour, source;
+GROUP BY hour, source, interface;
 
 -- ============================================================================
 -- PROJECT ACTIVITY VIEW
@@ -1357,6 +1469,7 @@ SELECT
     project_name,
     project,
     repo_name,
+    interface,
     worktree_branch,
     is_worktree,
     source,
@@ -1367,7 +1480,7 @@ SELECT
     COUNT(DISTINCT DATE_TRUNC('day', timestamp)) as active_days
 FROM interactions
 WHERE project_name IS NOT NULL AND project_name != 'unknown'
-GROUP BY project_name, project, repo_name, worktree_branch, is_worktree, source;
+GROUP BY project_name, project, repo_name, interface, worktree_branch, is_worktree, source;
 
 -- ============================================================================
 -- REPO ACTIVITY VIEW
@@ -1376,6 +1489,7 @@ CREATE OR REPLACE VIEW repo_activity AS
 SELECT
     repo_name,
     source,
+    interface,
     COUNT(*) as interactions,
     COUNT(DISTINCT session_id) as sessions,
     COUNT(DISTINCT worktree_branch) as worktrees,
@@ -1384,7 +1498,7 @@ SELECT
     COUNT(DISTINCT DATE_TRUNC('day', timestamp)) as active_days
 FROM interactions
 WHERE repo_name IS NOT NULL
-GROUP BY repo_name, source;
+GROUP BY repo_name, source, interface;
 
 -- ============================================================================
 -- CATEGORY BREAKDOWN VIEW
@@ -1392,14 +1506,15 @@ GROUP BY repo_name, source;
 CREATE OR REPLACE VIEW category_breakdown AS
 SELECT
     source,
+    interface,
     category,
     COUNT(*) as uses,
-    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY source), 2) as pct_of_source,
+    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY source, interface), 2) as pct_of_source,
     MIN(timestamp) as first_used,
     MAX(timestamp) as last_used
 FROM interactions
-GROUP BY source, category
-ORDER BY source, uses DESC;
+GROUP BY source, interface, category
+ORDER BY source, interface, uses DESC;
 
 -- ============================================================================
 -- DAILY ACTIVITY BY SOURCE VIEW
@@ -1408,11 +1523,12 @@ CREATE OR REPLACE VIEW daily_by_source AS
 SELECT
     DATE_TRUNC('day', timestamp)::DATE as date,
     source,
+    interface,
     COUNT(*) as interactions,
     COUNT(DISTINCT session_id) as sessions,
     COUNT(DISTINCT project_name) as projects
 FROM interactions
-GROUP BY date, source;
+GROUP BY date, source, interface;
 
 -- ============================================================================
 -- WEEKLY SUMMARY VIEW
@@ -1421,12 +1537,13 @@ CREATE OR REPLACE VIEW weekly_summary AS
 SELECT
     DATE_TRUNC('week', timestamp)::DATE as week_start,
     source,
+    interface,
     COUNT(*) as interactions,
     COUNT(DISTINCT session_id) as sessions,
     COUNT(DISTINCT project_name) as projects,
     COUNT(DISTINCT DATE_TRUNC('day', timestamp)) as active_days
 FROM interactions
-GROUP BY week_start, source;
+GROUP BY week_start, source, interface;
 
 -- ============================================================================
 -- SESSION SUMMARY VIEW
@@ -1435,6 +1552,7 @@ CREATE OR REPLACE VIEW session_summary AS
 SELECT
     session_id,
     source,
+    interface,
     project_name,
     project,
     repo_name,
@@ -1446,7 +1564,7 @@ SELECT
     COUNT(*) as interactions,
     COUNT(DISTINCT category) as unique_categories
 FROM interactions
-GROUP BY session_id, source, project_name, project, repo_name, worktree_branch, is_worktree;
+GROUP BY session_id, source, interface, project_name, project, repo_name, worktree_branch, is_worktree;
 
 -- ============================================================================
 -- PEAK HOURS VIEW
@@ -1455,11 +1573,12 @@ CREATE OR REPLACE VIEW peak_hours AS
 SELECT
     EXTRACT(HOUR FROM timestamp)::INTEGER as hour_of_day,
     source,
+    interface,
     COUNT(*) as interactions,
-    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY source), 2) as pct
+    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY source, interface), 2) as pct
 FROM interactions
-GROUP BY hour_of_day, source
-ORDER BY hour_of_day;
+GROUP BY hour_of_day, source, interface
+ORDER BY hour_of_day, source, interface;
 
 -- ============================================================================
 -- RECENT INTERACTIONS VIEW
@@ -1468,6 +1587,7 @@ CREATE OR REPLACE VIEW recent_interactions AS
 SELECT
     timestamp,
     source,
+    interface,
     category,
     repo_name,
     worktree_branch,
@@ -1577,7 +1697,7 @@ GROUP BY repo_name, model;
 -- ============================================================================
 CREATE OR REPLACE VIEW conversation_search AS
 SELECT
-    uuid, parent_uuid, session_id, role, harness, model,
+    uuid, parent_uuid, session_id, role, harness, interface, model,
     LEFT(content, 500) as content_preview,
     LEFT(thinking, 500) as thinking_preview,
     content, thinking,
@@ -1595,6 +1715,7 @@ CREATE OR REPLACE VIEW session_messages AS
 SELECT
     session_id,
     harness,
+    interface,
     repo_name,
     project_dir,
     MIN(timestamp) as started_at,
@@ -1607,14 +1728,14 @@ SELECT
     FIRST(CASE WHEN role = 'user' AND content IS NOT NULL
           THEN LEFT(content, 200) END ORDER BY timestamp) as topic
 FROM messages
-GROUP BY session_id, harness, repo_name, project_dir;
+GROUP BY session_id, harness, interface, repo_name, project_dir;
 
 -- ============================================================================
 -- SESSION OVERVIEW VIEW
 -- ============================================================================
 CREATE OR REPLACE VIEW session_overview AS
 SELECT
-    sm.session_id, sm.repo_name, sm.started_at, sm.ended_at,
+    sm.session_id, sm.repo_name, sm.interface, sm.started_at, sm.ended_at,
     sm.message_count, sm.user_messages, sm.assistant_messages,
     si.summary, si.first_prompt, si.git_branch,
     sm.total_input_tokens, sm.total_output_tokens
@@ -1638,6 +1759,7 @@ SELECT
     a.uuid as assistant_uuid,
     u.session_id,
     u.repo_name,
+    COALESCE(a.interface, u.interface) as interface,
     u.timestamp as user_timestamp,
     a.timestamp as assistant_timestamp,
     u.content as user_content,
@@ -1658,13 +1780,14 @@ CREATE OR REPLACE VIEW message_stats AS
 SELECT
     DATE_TRUNC('day', TRY_CAST(timestamp AS TIMESTAMP))::DATE as date,
     harness,
+    interface,
     role,
     COUNT(*) as message_count,
     SUM(COALESCE(input_tokens, 0)) as input_tokens,
     SUM(COALESCE(output_tokens, 0)) as output_tokens
 FROM messages
 WHERE timestamp IS NOT NULL
-GROUP BY date, harness, role;
+GROUP BY date, harness, interface, role;
 
 -- Metadata table
 CREATE TABLE IF NOT EXISTS _metadata (
@@ -1696,12 +1819,7 @@ populate_loaded_files() {
     echo "  Tracking loaded files..."
 
     local tmp_files=$(mktemp)
-    find "$CLAUDE_PROJECTS" -name "*.jsonl" -print0 2>/dev/null | while IFS= read -r -d '' f; do
-        local mtime_ns
-        mtime_ns=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo "0")
-        mtime_ns=$((mtime_ns * 1000000000))
-        printf '%s,%s\n' "$f" "$mtime_ns"
-    done > "$tmp_files"
+    emit_tracked_files > "$tmp_files"
 
     duckdb "$DB_PATH" << EOF
 CREATE TABLE IF NOT EXISTS _loaded_files (
@@ -1750,9 +1868,18 @@ DROP TABLE IF EXISTS cursor_prompts CASCADE;
 DROP TABLE IF EXISTS cursor_workspaces CASCADE;
 DROP TABLE IF EXISTS model_pricing CASCADE;
 DROP TABLE IF EXISTS _metadata CASCADE;
+DROP TABLE IF EXISTS agent_tokens CASCADE;
+DROP TABLE IF EXISTS agent_tool_results CASCADE;
+DROP TABLE IF EXISTS agent_tool_calls CASCADE;
+DROP TABLE IF EXISTS agent_parts CASCADE;
+DROP TABLE IF EXISTS agent_events CASCADE;
+DROP TABLE IF EXISTS agent_contexts CASCADE;
+DROP TABLE IF EXISTS agent_raw_events CASCADE;
+DROP TABLE IF EXISTS agent_sessions CASCADE;
 EOF
     fi
 
+    ensure_reference_schema
     load_claude_data
     load_claude_messages
     load_system_events
@@ -1775,6 +1902,7 @@ EOF
 
 incremental_load() {
     ensure_db_dir
+    ensure_reference_schema
 
     local changed_csv
     changed_csv=$(find_changed_files)
@@ -1794,47 +1922,91 @@ incremental_load() {
     local changed_paths=$(mktemp)
     cut -d',' -f1 "$changed_csv" > "$changed_paths"
 
-    # Ensure v1.2 tables exist (upgrade path from v1.1)
+    local needs_interface_backfill
+    needs_interface_backfill=$(duckdb -csv -noheader "$DB_PATH" -c "
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'claude_tools' AND column_name = 'interface'
+    ) THEN 0
+    ELSE 1
+END;" 2>/dev/null || echo "0")
+
+    # Ensure current tables exist (upgrade path for older databases)
     duckdb "$DB_PATH" << 'ENSURE'
 CREATE TABLE IF NOT EXISTS system_events (uuid VARCHAR PRIMARY KEY, session_id VARCHAR, subtype VARCHAR, timestamp TIMESTAMP, project_dir VARCHAR, git_branch VARCHAR, duration_ms INTEGER, version VARCHAR, is_sidechain BOOLEAN, source_file VARCHAR, repo_name VARCHAR);
 CREATE TABLE IF NOT EXISTS queue_operations (session_id VARCHAR, timestamp TIMESTAMP, operation VARCHAR, content VARCHAR, source_file VARCHAR);
 CREATE TABLE IF NOT EXISTS pr_links (session_id VARCHAR, timestamp TIMESTAMP, pr_number INTEGER, pr_url VARCHAR, pr_repository VARCHAR, source_file VARCHAR);
 CREATE TABLE IF NOT EXISTS _loaded_files (file_path VARCHAR PRIMARY KEY, mtime_ns BIGINT, loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
 
--- Add source_file column to tables that may predate v1.2
+-- Add columns to tables that may predate the current schema
 ALTER TABLE claude_tools ADD COLUMN IF NOT EXISTS source_file VARCHAR;
+ALTER TABLE claude_tools ADD COLUMN IF NOT EXISTS interface VARCHAR;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS source_file VARCHAR;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS interface VARCHAR;
 ENSURE
 
-    # Delete stale rows from changed files
-    duckdb "$DB_PATH" << EOF
-DELETE FROM claude_tools WHERE source_file IN (SELECT column0 FROM read_csv('${changed_paths}', header=false));
-DELETE FROM messages WHERE source_file IN (SELECT column0 FROM read_csv('${changed_paths}', header=false));
-DELETE FROM system_events WHERE source_file IN (SELECT column0 FROM read_csv('${changed_paths}', header=false));
-DELETE FROM queue_operations WHERE source_file IN (SELECT column0 FROM read_csv('${changed_paths}', header=false));
-DELETE FROM pr_links WHERE source_file IN (SELECT column0 FROM read_csv('${changed_paths}', header=false));
+    local claude_changed_paths
+    claude_changed_paths=$(mktemp)
+
+    if [ "$needs_interface_backfill" -eq 1 ]; then
+        echo "  Schema change detected: rebuilding Claude interface metadata from all session logs..."
+
+        duckdb "$DB_PATH" << 'EOF'
+DELETE FROM claude_tools;
+DELETE FROM messages WHERE harness = 'claude_code';
+DELETE FROM system_events;
+DELETE FROM queue_operations;
+DELETE FROM pr_links;
 EOF
 
-    # Build glob list from changed files for read_json_auto
-    local file_list
-    file_list=$(mktemp)
-    # Create a SQL-safe list of file paths
-    while IFS= read -r fpath; do
-        echo "'${fpath}'"
-    done < "$changed_paths" > "$file_list"
+        find "$CLAUDE_PROJECTS" -name "*.jsonl" > "$claude_changed_paths" 2>/dev/null || true
+    else
+        grep -E '\.jsonl$' "$changed_paths" > "$claude_changed_paths" || true
+    fi
 
-    local file_list_sql
-    file_list_sql=$(paste -sd',' "$file_list")
+    local claude_changed_count
+    claude_changed_count=$(wc -l < "$claude_changed_paths" | tr -d ' ')
 
-    # Re-load from changed files
-    load_claude_data "[${file_list_sql}]"
-    load_claude_messages "[${file_list_sql}]"
-    load_system_events "[${file_list_sql}]"
-    load_queue_operations "[${file_list_sql}]"
-    load_pr_links "[${file_list_sql}]"
+    if [ "$claude_changed_count" -gt 0 ]; then
+        # Delete stale rows from changed Claude files only.
+        duckdb "$DB_PATH" << EOF
+DELETE FROM claude_tools WHERE source_file IN (SELECT column0 FROM read_csv('${claude_changed_paths}', header=false));
+DELETE FROM messages WHERE source_file IN (SELECT column0 FROM read_csv('${claude_changed_paths}', header=false));
+DELETE FROM system_events WHERE source_file IN (SELECT column0 FROM read_csv('${claude_changed_paths}', header=false));
+DELETE FROM queue_operations WHERE source_file IN (SELECT column0 FROM read_csv('${claude_changed_paths}', header=false));
+DELETE FROM pr_links WHERE source_file IN (SELECT column0 FROM read_csv('${claude_changed_paths}', header=false));
+EOF
+
+        # Build glob list from changed Claude files for read_json_auto
+        local file_list
+        file_list=$(mktemp)
+        # Create a SQL-safe list of file paths
+        while IFS= read -r fpath; do
+            echo "'${fpath}'"
+        done < "$claude_changed_paths" > "$file_list"
+
+        local file_list_sql
+        file_list_sql=$(paste -sd',' "$file_list")
+
+        # Re-load from changed Claude files
+        load_claude_data "[${file_list_sql}]"
+        load_claude_messages "[${file_list_sql}]"
+        load_system_events "[${file_list_sql}]"
+        load_queue_operations "[${file_list_sql}]"
+        load_pr_links "[${file_list_sql}]"
+
+        rm -f "$file_list"
+    fi
 
     # Always reload sessions-index (small, not file-tracked)
     load_sessions_index
+
+    if grep -Eq '/Cursor/User/workspaceStorage/.*/(state\.vscdb|workspace\.json)$' "$changed_paths"; then
+        load_cursor_data
+        load_cursor_messages
+    fi
 
     # Recreate views and FTS
     create_views
@@ -1850,7 +2022,7 @@ FROM read_csv('${changed_csv}', header=false, auto_detect=false,
     columns={'column0': 'VARCHAR', 'column1': 'VARCHAR'});
 EOF
 
-    rm -f "$changed_csv" "$changed_paths" "$file_list"
+    rm -f "$changed_csv" "$changed_paths" "$claude_changed_paths"
 
     echo ""
     echo "Incremental update complete."

@@ -144,6 +144,20 @@ analyze-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
 
 Run `analyze-usage --schema` for complete documentation.
 
+## Canonical Schema Reference
+
+The skill now ships a normalized cross-harness reference schema at
+`references/canonical-agent-schema.duckdb.sql`.
+
+- every table has an `id` primary key
+- foreign keys use `{table}_id`
+- provider-native identifiers use `external_*`
+- every table includes `created_at` and `updated_at`
+
+The analyzer loads this SQL file idempotently during database bootstrap, so new
+and upgraded databases have the canonical tables available before the harness-
+specific tables and views are populated.
+
 ## Example Queries
 
 ```sql
