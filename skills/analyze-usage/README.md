@@ -8,8 +8,9 @@ Loads local logs into a **persistent DuckDB database** for SQL-based analysis. D
 
 ```bash
 # Install
-cp analyze-usage ~/.local/bin/
-chmod +x ~/.local/bin/analyze-usage
+install -Dm755 skills/analyze-usage/scripts/analyze-usage ~/.local/bin/analyze-usage
+install -Dm644 skills/analyze-usage/references/canonical-agent-schema.duckdb.sql \
+  ~/.local/share/analyze-usage/canonical-agent-schema.duckdb.sql
 
 # First run - loads data and shows summary
 analyze-usage
@@ -142,6 +143,22 @@ analyze-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
 
 Run `analyze-usage --schema` for complete documentation.
 
+## Canonical Schema Reference
+
+The skill now ships a normalized cross-harness reference schema at
+`references/canonical-agent-schema.duckdb.sql`.
+
+- every table has an `id` primary key
+- foreign keys use `{table}_id`
+- provider-native identifiers use `external_*`
+- every table includes `created_at` and `updated_at`
+
+The analyzer loads this SQL file idempotently during database bootstrap, so new
+and upgraded databases have the canonical tables available before the harness-
+specific tables and views are populated.
+When the script is installed standalone into `~/.local/bin`, it reads the same
+checked-in schema file from `~/.local/share/analyze-usage/`.
+
 ## Example Queries
 
 ```sql
@@ -219,3 +236,14 @@ ORDER BY week DESC;
 5. Database persists at `~/.local/share/analyze-usage/usage.duckdb`
 
 Use `reload` to force a full rebuild from scratch.
+
+## Testing
+
+Run the regression test harness with:
+
+```bash
+uv run skills/analyze-usage/tests/test_analyze_usage.py
+```
+
+The test covers fresh bootstrap, canonical schema discovery, and legacy upgrade
+behavior for the `update` path.

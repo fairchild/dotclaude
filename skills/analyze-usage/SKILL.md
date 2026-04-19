@@ -7,6 +7,8 @@ license: Apache-2.0
 # AI Coding Usage
 
 Unified usage analyzer for Claude Code and Cursor. Loads logs into DuckDB for SQL analysis.
+The skill also provisions a canonical cross-harness reference schema from
+`references/canonical-agent-schema.duckdb.sql` during database bootstrap.
 
 ## Quick Start
 
@@ -127,6 +129,16 @@ The script tracks tokens and calculates API costs automatically:
 - `_sessions_index` - Session metadata from sessions-index.json (summary, first_prompt)
 - `_loaded_files` - File mtime tracking for incremental loading
 
+### Canonical Reference Tables
+- `agent_sessions` - Canonical sessions with `id` primary key and `external_session_id`
+- `agent_raw_events` - Raw imported events keyed by `agent_session_id`
+- `agent_contexts` - Context changes keyed by `agent_session_id` / `agent_raw_event_id`
+- `agent_events` - Normalized events keyed by `agent_session_id`, `agent_context_id`, `agent_raw_event_id`
+- `agent_parts` - Structured event parts keyed by `agent_event_id`
+- `agent_tool_calls` - Tool invocations keyed by `agent_event_id`
+- `agent_tool_results` - Tool outputs keyed by `agent_event_id` / `agent_tool_call_id`
+- `agent_tokens` - Token and cost summaries keyed by `agent_event_id`
+
 ### Views
 - `turn_durations` - Response timing from system events
 - `api_errors` - API error events
@@ -144,3 +156,14 @@ The script tracks tokens and calculates API costs automatically:
 - `model_pricing` - API rates (editable)
 
 Run `--schema` for complete documentation.
+When the script is installed standalone, copy the same canonical schema file to
+`~/.local/share/analyze-usage/` so bootstrap still uses the checked-in DDL.
+
+## Testing
+
+```bash
+uv run skills/analyze-usage/tests/test_analyze_usage.py
+```
+
+This regression harness covers fresh bootstrap, canonical schema discovery, and
+legacy upgrade behavior for `update`.
