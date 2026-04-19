@@ -156,6 +156,9 @@ The script tracks tokens and calculates API costs automatically:
 - `model_pricing` - API rates (editable)
 
 Run `--schema` for complete documentation.
+When the script is copied standalone, it falls back to an embedded copy of the
+canonical schema so bootstrap still works without the sibling `references/`
+directory.
 
 ## Testing
 

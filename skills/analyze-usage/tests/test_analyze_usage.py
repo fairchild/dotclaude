@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -63,6 +64,13 @@ def make_env(home: Path, db_path: Path) -> dict[str, str]:
     env["HOME"] = str(home)
     env["ANALYZE_USAGE_DB"] = str(db_path)
     return env
+
+
+def copy_standalone_script(target_dir: Path) -> Path:
+    script_copy = target_dir / "analyze-usage"
+    shutil.copy2(SCRIPT_PATH, script_copy)
+    script_copy.chmod(0o755)
+    return script_copy
 
 
 def write_fixture(home: Path) -> Path:
@@ -240,6 +248,38 @@ def test_reload_bootstraps_schema() -> None:
         assert "updated_at" in schema_output.stdout
 
 
+@test("standalone copied script bootstraps embedded schema fallback")
+def test_standalone_script_bootstraps_schema() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        write_fixture(home)
+        db_path = Path(tmp) / "usage.duckdb"
+        bin_dir = Path(tmp) / "bin"
+        bin_dir.mkdir()
+        standalone_script = copy_standalone_script(bin_dir)
+        env = make_env(home, db_path)
+
+        result = run([str(standalone_script), "reload"], env=env)
+        assert_ok(result)
+
+        tables = duckdb_query(
+            db_path,
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema='main' AND table_name LIKE 'agent_%' ORDER BY table_name;",
+        )
+        assert tables == [
+            "agent_contexts",
+            "agent_events",
+            "agent_parts",
+            "agent_raw_events",
+            "agent_sessions",
+            "agent_tokens",
+            "agent_tool_calls",
+            "agent_tool_results",
+        ], tables
+
+
 @test("update upgrades legacy table order safely")
 def test_update_legacy_db_upgrade() -> None:
     with tempfile.TemporaryDirectory() as tmp:
@@ -277,10 +317,55 @@ def test_update_legacy_db_upgrade() -> None:
         assert canonical_count == ["8"], canonical_count
 
 
+@test("update migrates legacy db even when tracked files are unchanged")
+def test_update_legacy_db_no_change_migration() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_file = write_fixture(home)
+        db_path = Path(tmp) / "legacy-current.duckdb"
+        create_legacy_db(db_path)
+        env = make_env(home, db_path)
+
+        mtime_ns = session_file.stat().st_mtime_ns
+        subprocess.run(
+            [
+                "duckdb",
+                str(db_path),
+                "-c",
+                (
+                    "INSERT INTO _loaded_files (file_path, mtime_ns) "
+                    f"VALUES ('{session_file}', {mtime_ns});"
+                ),
+            ],
+            text=True,
+            check=True,
+            timeout=30,
+        )
+
+        result = run([str(SCRIPT_PATH), "update"], env=env)
+        assert_ok(result)
+
+        columns = duckdb_query(
+            db_path,
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name='claude_tools' ORDER BY ordinal_position;",
+        )
+        assert "interface" in columns, columns
+
+        interface_source = duckdb_query(
+            db_path,
+            "SELECT interface, source_file FROM claude_tools LIMIT 1;",
+        )
+        assert interface_source == [f"conductor,{session_file}"], interface_source
+
+
 def main() -> None:
     tests = [
         test_reload_bootstraps_schema,
+        test_standalone_script_bootstraps_schema,
         test_update_legacy_db_upgrade,
+        test_update_legacy_db_no_change_migration,
     ]
     for fn in tests:
         fn()

@@ -157,6 +157,8 @@ The skill now ships a normalized cross-harness reference schema at
 The analyzer loads this SQL file idempotently during database bootstrap, so new
 and upgraded databases have the canonical tables available before the harness-
 specific tables and views are populated.
+When the script is copied standalone into `~/.local/bin`, it falls back to an
+embedded copy of the same schema so the documented install path still works.
 
 ## Example Queries
 
