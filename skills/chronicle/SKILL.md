@@ -32,6 +32,7 @@ Use them like this:
 | Quick capture | `/chronicle` or `/chronicle <note>` | Summarize current state, write/update today's block, keep output concise. |
 | Return briefing | `/chronicle catchup` | Load recent blocks for the current project and surface active context first. |
 | Open loops | `/chronicle pending` | List pending items across blocks; group by project when helpful. |
+| Help | `/chronicle help` or `/chronicle ?` | Start with the three primary workflows; expand into advanced commands only if the user asks. |
 | Curated memory | `/chronicle curate` | Invoke the curator agent for a richer block instead of doing a thin capture. |
 | Session closeout | `/chronicle wrapup` | Run deliberate closeout: curate, inspect unresolved work, and update backlog only when warranted. |
 | Narrative recap | `/chronicle recap` | Generate a multi-session narrative, cross-checking git and blocks. |
