@@ -156,3 +156,12 @@ The script tracks tokens and calculates API costs automatically:
 - `model_pricing` - API rates (editable)
 
 Run `--schema` for complete documentation.
+
+## Testing
+
+```bash
+uv run skills/analyze-usage/tests/test_analyze_usage.py
+```
+
+This regression harness covers fresh bootstrap, canonical schema discovery, and
+legacy upgrade behavior for `update`.

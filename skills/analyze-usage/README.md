@@ -231,3 +231,14 @@ ORDER BY week DESC;
 5. Database persists at `~/.local/share/analyze-usage/usage.duckdb`
 
 Use `reload` to force a full rebuild from scratch.
+
+## Testing
+
+Run the regression test harness with:
+
+```bash
+uv run skills/analyze-usage/tests/test_analyze_usage.py
+```
+
+The test covers fresh bootstrap, canonical schema discovery, and legacy upgrade
+behavior for the `update` path.

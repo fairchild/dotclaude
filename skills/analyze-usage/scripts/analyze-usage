@@ -562,6 +562,24 @@ ensure_reference_schema() {
     duckdb "$DB_PATH" < "$REFERENCE_SCHEMA_PATH"
 }
 
+ensure_cursor_tables() {
+    duckdb "$DB_PATH" << 'EOF'
+CREATE TABLE IF NOT EXISTS cursor_prompts (
+    timestamp TIMESTAMP,
+    workspace_id VARCHAR,
+    workspace_path VARCHAR,
+    prompt_text VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS cursor_workspaces (
+    workspace_id VARCHAR,
+    workspace_path VARCHAR,
+    prompt_count INTEGER,
+    db_path VARCHAR
+);
+EOF
+}
+
 # ============================================================================
 # Worktree SQL fragment (shared by multiple loaders)
 # ============================================================================
@@ -735,7 +753,11 @@ CREATE TABLE IF NOT EXISTS claude_tools (
     source_file VARCHAR
 );
 
-INSERT INTO claude_tools
+INSERT INTO claude_tools (
+    timestamp, session_id, project_dir, model, tool_name, context,
+    input_tokens, output_tokens, cache_write_tokens, cache_read_tokens,
+    repo_name, worktree_branch, is_worktree, interface, source_file
+)
 WITH raw_logs AS (
     SELECT * FROM read_json_auto(${pattern_sql},
         ignore_errors=true,
@@ -838,7 +860,12 @@ CREATE TABLE IF NOT EXISTS messages (
     source_file VARCHAR
 );
 
-INSERT INTO messages
+INSERT INTO messages (
+    uuid, parent_uuid, session_id, role, harness, interface, model,
+    content, thinking, timestamp, project_dir, git_branch, repo_name,
+    worktree_branch, is_worktree, is_sidechain, input_tokens, output_tokens,
+    cache_write_tokens, cache_read_tokens, tool_use_count, source_file
+)
 WITH raw_logs AS (
     SELECT * FROM read_json_auto(${pattern_sql},
         ignore_errors=true,
@@ -1024,7 +1051,10 @@ CREATE TABLE IF NOT EXISTS system_events (
     repo_name VARCHAR
 );
 
-INSERT OR IGNORE INTO system_events
+INSERT OR IGNORE INTO system_events (
+    uuid, session_id, subtype, timestamp, project_dir, git_branch,
+    duration_ms, version, is_sidechain, source_file, repo_name
+)
 WITH raw_logs AS (
     SELECT * FROM read_json_auto(${pattern_sql},
         ignore_errors=true,
@@ -1073,7 +1103,9 @@ CREATE TABLE IF NOT EXISTS queue_operations (
     source_file VARCHAR
 );
 
-INSERT INTO queue_operations
+INSERT INTO queue_operations (
+    session_id, timestamp, operation, content, source_file
+)
 WITH raw_logs AS (
     SELECT * FROM read_json_auto(${pattern_sql},
         ignore_errors=true,
@@ -1117,7 +1149,9 @@ CREATE TABLE IF NOT EXISTS pr_links (
     source_file VARCHAR
 );
 
-INSERT INTO pr_links
+INSERT INTO pr_links (
+    session_id, timestamp, pr_number, pr_url, pr_repository, source_file
+)
 WITH raw_logs AS (
     SELECT * FROM read_json_auto(${pattern_sql},
         ignore_errors=true,
@@ -1217,6 +1251,8 @@ EOF
 # ============================================================================
 
 load_cursor_data() {
+    ensure_cursor_tables
+
     if [ -z "$CURSOR_WORKSPACE" ] || [ ! -d "$CURSOR_WORKSPACE" ]; then
         echo "  Cursor: Not found"
         return
@@ -1261,7 +1297,9 @@ EOF
 
         duckdb "$DB_PATH" << EOF 2>/dev/null || true
 LOAD sqlite;
-INSERT INTO cursor_prompts
+INSERT INTO cursor_prompts (
+    timestamp, workspace_id, workspace_path, prompt_text
+)
 WITH generation_payloads AS (
     SELECT decode(value) as json_text
     FROM sqlite_scan('$db', 'ItemTable')
@@ -1304,7 +1342,8 @@ EOF
         prompt_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM cursor_prompts WHERE workspace_id='$workspace_id';" 2>/dev/null || echo "0")
 
         duckdb "$DB_PATH" << EOF 2>/dev/null || true
-INSERT INTO cursor_workspaces VALUES ('$workspace_id', '$workspace_path', $prompt_count, '$db');
+INSERT INTO cursor_workspaces (workspace_id, workspace_path, prompt_count, db_path)
+VALUES ('$workspace_id', '$workspace_path', $prompt_count, '$db');
 EOF
     done
 
@@ -1326,7 +1365,12 @@ load_cursor_messages() {
     duckdb "$DB_PATH" << 'EOF'
 DELETE FROM messages WHERE harness='cursor';
 
-INSERT INTO messages
+INSERT INTO messages (
+    uuid, parent_uuid, session_id, role, harness, interface, model,
+    content, thinking, timestamp, project_dir, git_branch, repo_name,
+    worktree_branch, is_worktree, is_sidechain, input_tokens, output_tokens,
+    cache_write_tokens, cache_read_tokens, tool_use_count, source_file
+)
 SELECT
     MD5(workspace_id || CAST(timestamp AS VARCHAR) || LEFT(prompt_text, 50)) as uuid,
     NULL as parent_uuid,
@@ -1880,6 +1924,7 @@ EOF
     fi
 
     ensure_reference_schema
+    ensure_cursor_tables
     load_claude_data
     load_claude_messages
     load_system_events
@@ -1903,6 +1948,7 @@ EOF
 incremental_load() {
     ensure_db_dir
     ensure_reference_schema
+    ensure_cursor_tables
 
     local changed_csv
     changed_csv=$(find_changed_files)
