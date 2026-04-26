@@ -1,6 +1,6 @@
 ---
 name: chronicle
-description: Capture and curate session memory blocks. Use /chronicle to save current work, /chronicle catchup to restore context, /chronicle recap for multi-session narrative across last N sessions, /chronicle wrapup to deliberately close a session (curator + conditional backlog update), /chronicle curate to organize memory, /chronicle summarize for AI summaries, /chronicle search to find sessions, /chronicle publish for digests, /chronicle ui for dashboard.
+description: Session continuity for coding work. Default to /chronicle to capture, /chronicle catchup to resume, and /chronicle pending to review open threads. Use curate, recap, wrapup, summarize, publish, insights, search, and ui only when the user explicitly needs them.
 license: Apache-2.0
 metadata:
   status: experimental
@@ -10,50 +10,30 @@ metadata:
 
 Captures and curates session memory so coding context survives across restarts.
 
-## Usage
+## Start Here
+
+Prefer these three workflows unless the user explicitly asks for something else:
 
 ```
-/chronicle help               # Show categorized command list (start here if lost)
-/chronicle                    # Quick capture of current session
-/chronicle <note>             # Capture with a specific note
-/chronicle curate             # Invoke curator to organize memory (interactive)
-/chronicle insights           # Deep analysis with Explore subagents
-/chronicle insights <project> # Analyze specific project
-/chronicle pending            # Show pending threads across sessions
-/chronicle blocks             # List recent memory blocks
-/chronicle catchup            # Restore context for current project
-/chronicle catchup --days=30  # Extend lookback to 30 days
-/chronicle recap              # Multi-session narrative for current project (7 days)
-/chronicle recap <project>    # Recap for a specific project
-/chronicle recap --days=14    # Extend window
-/chronicle wrapup             # Deliberate session close-out (curator + conditional backlog)
-/chronicle stale              # Show stale pending items (>14 days)
-/chronicle consolidate        # Consolidate old blocks (dry run)
-/chronicle consolidate apply  # Consolidate and drop stale pending
-/chronicle resolve "text"     # Mark pending item as resolved
-/chronicle resolve --list     # Show all resolved items
-/chronicle resolve --undo "text"  # Undo a resolution
-/chronicle search <query>     # Search sessions by text
-/chronicle publish            # Generate weekly digest (markdown)
-/chronicle publish daily      # Generate daily digest
-/chronicle publish month      # Generate monthly digest
-/chronicle summarize          # Generate AI summaries (daily + repos)
-/chronicle summarize weekly   # Generate weekly AI summaries (Opus)
-/chronicle ui                 # Launch interactive web dashboard
-/chronicle ui watch           # Run with auto-restart on file changes
-/chronicle ui hot             # Run with hot module reloading
-/chronicle ui install         # Install dashboard as macOS service
-/chronicle ui start           # Start the dashboard service
-/chronicle ui stop            # Stop the dashboard service
-/chronicle ui status          # Check if dashboard service is running
-/chronicle ui logs            # View dashboard service logs
-/chronicle ui uninstall       # Remove dashboard service
-/chronicle dev                # Start development session for Chronicle itself
+/chronicle          # Save current session state
+/chronicle catchup  # Restore context for the current project
+/chronicle pending  # Show open threads across sessions
 ```
+
+Use them like this:
+- `/chronicle` when the user wants to save, checkpoint, or quickly wrap a session.
+- `/chronicle catchup` when the user is returning to a repo and wants to know where they left off.
+- `/chronicle pending` when the user wants a project-spanning open-loops list.
+
+Advanced but secondary:
+- `/chronicle curate` for thoughtful mid-session editing of today's block.
+- `/chronicle recap` for a multi-session narrative, not just the last session.
+- `/chronicle wrapup` for deliberate end-of-session close-out.
+- `/chronicle help` when the user wants the command map.
 
 ## Help (/chronicle help)
 
-When the user runs `/chronicle help` (or `/chronicle ?`), print a categorized command table — the Usage block above is comprehensive but flat, and the surface has grown enough that grouping helps.
+When the user runs `/chronicle help` (or `/chronicle ?`), keep the first response short. Start with the three primary workflows above, then add the advanced categories only if the user wants more than that.
 
 Render it as something like:
 
@@ -61,41 +41,42 @@ Render it as something like:
 Chronicle commands by what they do
 ===================================
 
-CAPTURE — write blocks
-  /chronicle [note]      Quick block from current session state
-  /chronicle curate      Editor-style update of today's block (mid-session safe)
-  /chronicle wrapup      Deliberate session close-out + conditional backlog/release
+START HERE
+  /chronicle          Quick capture for the current session
+  /chronicle catchup  Return-to-work briefing for the current project
+  /chronicle pending  Open threads across projects
 
-READ — synthesize across blocks
-  /chronicle catchup     Last session + pending for current project (return-to-work)
-  /chronicle recap       Multi-session narrative for a project (Themes/Wins/Threads/Friction)
-  /chronicle summarize   Time-bucketed AI summaries (daily/weekly, by repo or global)
-  /chronicle insights    Deep cross-referenced analysis via subagents
+ADVANCED CAPTURE
+  /chronicle curate    Editor-style update of today's block
+  /chronicle wrapup    Deliberate session close-out + conditional backlog/release
 
-BROWSE — list and search
+ADVANCED READ
+  /chronicle recap      Multi-session narrative for a project
+  /chronicle summarize  Time-bucketed AI summaries
+  /chronicle insights   Deep cross-referenced analysis via subagents
+
+BROWSE / MAINTAIN
   /chronicle blocks      Recent blocks listing
-  /chronicle pending     Open threads across all sessions
   /chronicle stale       Pending items >14 days old
   /chronicle search Q    Free-text search across all blocks
-
-MAINTAIN — keep the corpus healthy
-  /chronicle consolidate Merge old per-week blocks (also runs monthly via launchd)
   /chronicle resolve T   Mark a pending item as resolved
+  /chronicle consolidate Merge old per-week blocks
 
-PUBLISH / EXPLORE
+PUBLISH / UI
   /chronicle publish     Markdown digest (daily/weekly/monthly)
   /chronicle ui          Interactive web dashboard
   /chronicle dev         Dev server for Chronicle itself
 
 Quick decision guide:
   • "What was I doing yesterday?" → catchup
+  • "I want to save where I am" → /chronicle
+  • "Show me everything still open" → pending
   • "What's been happening on this project lately?" → recap
   • "I want to mark this moment / chapter break" → curate
   • "I'm done for the day, close it out" → wrapup
-  • "Show me everything still open" → pending (or stale for old ones)
 
-For the full details on any command, see its section below in this file
-or run /chronicle <command> with no args.
+Do not dump every subcommand variant unless the user asks for them.
+For full details on a command, see its section below in this file.
 ```
 
 Render the table inline in the response — the user shouldn't have to open a file. Cite section anchors in this SKILL.md when they ask follow-up questions about a specific command.

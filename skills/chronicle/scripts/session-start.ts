@@ -22,6 +22,10 @@ interface HookInput {
   cwd: string;
 }
 
+interface Recommendation {
+  command: string;
+}
+
 function formatTimeAgo(date: Date): string {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -43,6 +47,33 @@ function getPendingForProject(pending: PendingItemWithAge[], project: string): P
   return pending.filter(p => p.project.toLowerCase() === project.toLowerCase());
 }
 
+function formatPendingSummary(pending: PendingItemWithAge[]): string | null {
+  if (pending.length === 0) return null;
+
+  if (pending.length === 1) {
+    return `Open thread: ${pending[0].text.slice(0, 100)}${pending[0].text.length > 100 ? "..." : ""}`;
+  }
+
+  return `Open threads: ${pending.length}`;
+}
+
+function chooseRecommendation(
+  lastSession: ChronicleBlock | null,
+  pending: PendingItemWithAge[]
+): Recommendation | null {
+  const staleCount = pending.filter(p => p.isStale).length;
+
+  if (staleCount > 0) {
+    return { command: "/chronicle stale" };
+  }
+
+  if (lastSession || pending.length > 0) {
+    return { command: "/chronicle catchup" };
+  }
+
+  return null;
+}
+
 function formatSessionStartContext(
   project: string,
   lastSession: ChronicleBlock | null,
@@ -57,17 +88,19 @@ function formatSessionStartContext(
     lines.push(`Last session (${timeAgo}): ${lastSession.summary}`);
   }
 
-  if (pending.length > 0) {
-    const items = pending.slice(0, 3).map(p => p.text);
-    lines.push(`Pending: ${items.join("; ")}`);
-    if (pending.length > 3) {
-      lines.push(`  (+${pending.length - 3} more)`);
-    }
+  const pendingSummary = formatPendingSummary(pending);
+  if (pendingSummary) {
+    lines.push(pendingSummary);
   }
 
   const staleCount = pending.filter(p => p.isStale).length;
   if (staleCount > 0) {
-    lines.push(`⚠️ ${staleCount} stale item${staleCount > 1 ? "s" : ""} (>${STALE_THRESHOLD_DAYS} days)`);
+    lines.push(`Stale: ${staleCount} item${staleCount > 1 ? "s" : ""} (>${STALE_THRESHOLD_DAYS} days)`);
+  }
+
+  const recommendation = chooseRecommendation(lastSession, pending);
+  if (recommendation) {
+    lines.push(`Recommended: ${recommendation.command}`);
   }
 
   return lines.join("\n");
