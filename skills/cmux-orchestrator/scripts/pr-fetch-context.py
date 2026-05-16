@@ -3,7 +3,7 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Fetch PR review context and manage review lifecycle.
+"""Fetch review-response context and manage review lifecycle for our PR.
 
 Usage:
   uv run pr-fetch-context.py <pr-number> [--repo owner/repo]
@@ -98,16 +98,25 @@ def fetch_pr_context(pr_number: int, repo: str | None = None) -> str:
     reviewers = list({c["user"]["login"] for c in comments_json})
     lines.append("## Your Task")
     lines.append("")
-    lines.append("You are responding to PR code review feedback. For each comment above:")
+    lines.append("You are responding to code review comments on our PR. This is not a review of someone else's PR.")
+    lines.append("")
+    lines.append("First, read all unresolved comments together and reflect on them in the available code, test, product, and discussion context. If more context is needed, gather it before deciding.")
+    lines.append("")
+    lines.append("For each comment above:")
     lines.append("1. Understand the reviewer's concern")
     lines.append("2. Verify whether the concern is valid (read the code, run tests, check imports)")
-    lines.append("3. Fix the issue if valid, or gather evidence that it's already handled")
-    lines.append("4. **For each comment**, close the loop:")
+    lines.append("3. Decide **Do**, **Defer**, or **Decline**")
+    lines.append("   - Do: implement now, verify, and reply with what changed")
+    lines.append("   - Defer: acknowledge validity, explain why it should not block this PR, and name the follow-up path")
+    lines.append("   - Decline: explain why the requested change is not appropriate, with evidence")
+    lines.append("4. Present a brief decision summary before execution")
+    lines.append("5. Execute the decisions")
+    lines.append("6. **For each comment**, close the loop:")
     lines.append(f"   - If you **fixed it**: resolve the thread:")
     lines.append(f"     `{script} {pr_number} --resolve-thread <comment-id>{repo_flag_str}`")
     lines.append(f"   - If you're **responding without resolving** (disagreeing, needs discussion, etc.):")
     lines.append(f"     `{script} {pr_number} --reply-comment <comment-id> \"your response\"{repo_flag_str}`")
-    lines.append("5. After addressing ALL comments:")
+    lines.append("7. After addressing ALL comments:")
     lines.append("   - Commit and push your changes")
     lines.append(f"   - Post a summary comment on the PR with `gh pr comment {pr_number}`")
     lines.append(f"   - Request re-review: `{script} {pr_number} --request-rereview{repo_flag_str}`")
