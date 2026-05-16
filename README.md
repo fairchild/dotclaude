@@ -63,7 +63,8 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 | `/claude-webui` | Launch the web dashboard for this dotclaude repo |
 | `/opensource-precheck` | Audit repo before making public |
 | `/plan_retro` | Append retrospective to current plan |
-| `/pr-review` | Address PR feedback toward merge |
+| `/respond-to-pr-review` | Respond to feedback on our PR toward merge |
+| `/review-pr` | Review a PR someone else wrote |
 | `/project-health` | Review ~/code projects health |
 | `/reflect` | Pause to review work with fresh eyes |
 | `/reflection-log` | Log feedback to improve reflection prompt |

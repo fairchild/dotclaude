@@ -305,9 +305,9 @@ The flow: create worktree via `git worktree add` → `cmux new-workspace --cwd <
 
 **Detailed flow:** See [`references/worktree-workshop.md`](references/worktree-workshop.md) for the full phased build instructions, edge case handling, and cleanup.
 
-## Convention: "PR Review Workshop"
+## Convention: "Respond to PR Review Workshop"
 
-A Worktree Workshop variant for responding to PR code review. Say **"set up a pr-review workshop for PR #\<number\>"** and get:
+A Worktree Workshop variant for responding to code review comments on our PR. Say **"set up a respond-to-pr-review workshop for PR #\<number\>"** and get:
 
 ```
 ~/.worktrees/<repo>/<branch>/
@@ -318,11 +318,12 @@ A Worktree Workshop variant for responding to PR code review. Say **"set up a pr
   └── Re-review flow: commit → push → comment → request re-review
 ```
 
-The flow: fetch PR context (`gh pr view` + `gh api`) → create/reuse worktree (idempotent) → Workshop layout with browser on PR → launch agent with review context → agent addresses feedback → agent requests re-review.
+The flow: fetch PR context (`gh pr view` + `gh api`) → read all unresolved comments → reflect on them in code and project context → decide **do / defer / decline** → create/reuse worktree (idempotent) → Workshop layout with browser on PR → launch agent with review context → agent executes the response plan → agent requests re-review.
 
 **Key differences from Worktree Workshop:**
 - **Idempotent worktree**: reuses existing worktree on same branch instead of erroring
 - **Permission profile**: pre-approved tools for verification scripts (`swift test`, `uv run`, `python`)
+- **Decision-first response**: agent summarizes do / defer / decline decisions before executing
 - **Re-review closing**: agent posts summary comment and requests re-review via helper script
 - **Context helper**: `uv run ~/.claude/skills/cmux-orchestrator/scripts/pr-fetch-context.py <number>` generates agent prompt
 
