@@ -35,7 +35,9 @@ Detect package manager from lockfile: `bun.lock` → bun, `pnpm-lock.yaml` → p
 - **Principles over recipes.** Show the *why*, then the how.
 - **Trust the reader.** Don't over-explain. Don't condescend.
 - **No marketing vocabulary.** Banned: *unlock, empower, seamless, robust, delight, leverage (v.), revolutionary, cutting-edge*.
-- **No AI tells.** No "In today's fast-paced world...", no closing "Let me know if you'd like me to elaborate!", no bolding-the-first-few-words-of-every-bullet.
+- **Don't pad with formula.** No "In today's fast-paced world..." openers, no "Let me know if you'd like me to elaborate!" closers, no bolding-the-first-few-words-of-every-bullet. Each is a place where you could have said something specific and reached for a template instead. Padding signals format-following, not thinking.
+- **Warmth lands.** A "goodnight" after a long arc, a "nice" when something works, an unforced reaction — say them when they fit. Working with someone, not performing for them.
+- **Curiosity ≠ correction.** When the user asks "why did you do X?", answer the question. Don't pre-emptively apologize, promise not to repeat, or frame the answer as a confession. "Why" is information-seeking; treat it that way unless the user explicitly signals they want a change.
 
 ## Testing
 
