@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>~/.claude</title>
+  <meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f3ef" media="(prefers-color-scheme: light)">
+  <title>~/.claude · Config Visualizer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Anybody:wght@700;900&display=swap" rel="stylesheet">
@@ -17,6 +19,7 @@
   </script>
 </head>
 <body>
+  <a class="skip-link" href="#content">Skip to content</a>
   <div class="container">
     <header>
       <pre class="ascii-brand">
@@ -79,8 +82,8 @@
       <button id="tab-blog" class="tab" data-section="blog" role="tab" aria-selected="false" aria-controls="blog">blog</button>
     </nav>
 
-    <main id="content">
-      <div class="loading">Loading configuration_</div>
+    <main id="content" tabindex="-1">
+      <div class="loading" role="status" aria-live="polite">Loading configuration…</div>
     </main>
   </div>
 
