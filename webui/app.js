@@ -5,14 +5,16 @@ async function loadData() {
     const res = await fetch('/data.json');
     data = await res.json();
     render();
+    return true;
   } catch (err) {
     document.getElementById('content').innerHTML = `
-      <div class="empty">
+      <div class="empty" role="alert">
         <div class="empty-icon">⚠</div>
         <p>Failed to load data.json</p>
         <p style="font-size: 0.8rem; margin-top: 0.5rem;">Run: bun scan.ts</p>
       </div>
     `;
+    return false;
   }
 }
 
@@ -27,7 +29,7 @@ function formatDate(iso) {
 }
 
 function escapeHtml(str) {
-  return str
+  return String(str ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -36,7 +38,7 @@ function escapeHtml(str) {
 
 function truncate(str, len = 200) {
   if (str.length <= len) return str;
-  return str.slice(0, len) + '...';
+  return str.slice(0, len) + '…';
 }
 
 // Hash routing
@@ -71,6 +73,7 @@ function navigateToHash() {
   const activeTab = document.querySelector(`.tab[data-section="${targetSection}"]`);
   activeTab?.classList.add('active');
   activeTab?.setAttribute('aria-selected', 'true');
+  activeTab?.scrollIntoView({ block: 'nearest', inline: 'center' });
   document.querySelectorAll('.stat').forEach(s => s.classList.remove('active'));
   document.querySelector(`.stat[data-section="${targetSection}"]`)?.classList.add('active');
 
@@ -236,7 +239,7 @@ function renderSection(section) {
   }
 
   if (CARD_SECTIONS.has(section)) {
-    html = `<input class="filter-input" type="search" placeholder="filter…" aria-label="Filter cards">` + html;
+    html = `<input class="filter-input" type="search" name="filter" autocomplete="off" placeholder="filter…" aria-label="Filter cards">` + html;
   }
 
   const intro = data.sectionIntros?.[section];
@@ -601,6 +604,6 @@ document.addEventListener('keydown', (e) => {
 window.addEventListener('popstate', navigateToHash);
 
 // Load data on init, then navigate to hash
-loadData().then(() => {
-  navigateToHash();
+loadData().then((loaded) => {
+  if (loaded) navigateToHash();
 });
