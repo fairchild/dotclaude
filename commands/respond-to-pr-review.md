@@ -10,7 +10,6 @@ Respond to code review comments on a pull request we own. This is distinct from 
 
 - `/respond-to-pr-review` - Respond to review comments on the current branch's PR
 - `/respond-to-pr-review 123` - Respond to review comments on PR #123
-- `/pr-review` - Compatibility alias for this workflow
 
 ## Workflow
 

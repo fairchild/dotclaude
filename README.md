@@ -65,7 +65,6 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 | `/plan_retro` | Append retrospective to current plan |
 | `/respond-to-pr-review` | Respond to feedback on our PR toward merge |
 | `/review-pr` | Review a PR someone else wrote |
-| `/pr-review` | Compatibility alias for `/respond-to-pr-review` |
 | `/project-health` | Review ~/code projects health |
 | `/reflect` | Pause to review work with fresh eyes |
 | `/reflection-log` | Log feedback to improve reflection prompt |

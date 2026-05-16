@@ -14,11 +14,9 @@ A Worktree Workshop variant focused on responding to code review comments on our
 "set up a respond-to-pr-review workshop for PR #185"
 "respond-to-pr-review workshop for 185"
 "respond to review on PR 185"
-"set up a pr-review workshop for PR #185"
-"pr-review workshop for 185"
 ```
 
-The `pr-review workshop` phrasing is a compatibility alias. Use `respond-to-pr-review` for new documentation and requests. Use `/review-pr` when reviewing a PR someone else wrote.
+Use `/review-pr` when reviewing a PR someone else wrote.
 
 ## Phase 1: Read All Review Context
 

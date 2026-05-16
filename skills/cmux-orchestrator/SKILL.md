@@ -327,7 +327,7 @@ The flow: fetch PR context (`gh pr view` + `gh api`) → read all unresolved com
 - **Re-review closing**: agent posts summary comment and requests re-review via helper script
 - **Context helper**: `uv run ~/.claude/skills/cmux-orchestrator/scripts/pr-fetch-context.py <number>` generates agent prompt
 
-**Detailed flow:** See [`references/pr-review-workshop.md`](references/pr-review-workshop.md) for the full phased build instructions, permission profile, and re-review protocol. The older phrase "pr-review workshop" remains a compatibility alias for this respond-to-pr-review workflow.
+**Detailed flow:** See [`references/pr-review-workshop.md`](references/pr-review-workshop.md) for the full phased build instructions, permission profile, and re-review protocol.
 
 ## Convention: "Ops Deck"
 
