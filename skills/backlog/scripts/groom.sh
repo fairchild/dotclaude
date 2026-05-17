@@ -1,144 +1,220 @@
 #!/usr/bin/env bash
+# Groom the backlog: detect stuck doing/ items, unresolvable deps, cycles.
+# Advisory — never moves files.
+# Usage:
+#   groom.sh [--backlog=PATH] [--quiet-after=DUR] [--no-network]
+
 set -euo pipefail
 
-# Detect likely-completed pending backlog items by cross-referencing
-# git history, in-file references, and filesystem signals.
-# Usage: ~/.claude/skills/backlog/scripts/groom.sh [path/to/backlog]
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 
-backlog_dir="${1:-backlog}"
-
-if [[ ! -d "$backlog_dir" ]]; then
-  echo "No backlog/ directory found at: $backlog_dir"
-  exit 1
-fi
-
-likely_completed=()
-still_pending=()
-roadmap_notes=()
-
-extract_files_to_create() {
-  local file="$1"
-  awk '
-    /\*\*Files to create:\*\*/ { in_block=1; next }
-    in_block && /^\s*$/ { in_block=0 }
-    in_block && /^- `/ {
-      line=$0
-      gsub(/^.*`/, "", line)
-      gsub(/`.*$/, "", line)
-      print line
-    }
-  ' "$file" 2>/dev/null || true
-}
-
-for f in "$backlog_dir"/*.md; do
-  [[ ! -f "$f" ]] && continue
-
-  name=$(basename "$f")
-  [[ "$name" == "AGENTS.md" || "$name" == "CLAUDE.md" || "$name" == "ROADMAP.md" ]] && continue
-
-  signals=()
-
-  # Strategy 1: Explicit PR refs in file content (e.g., #123)
-  prs=$(grep -Eo '#[0-9]+' "$f" 2>/dev/null | tr -d '#' | sort -u || true)
-  for pr in $prs; do
-    if git log --oneline --all --grep="(#${pr})" 2>/dev/null | grep -q .; then
-      signals+=("PR #${pr} found in git log")
-      break
-    fi
-  done
-
-  # Strategy 2: Explicit branch refs in file content (e.g., feat/x, fix/x)
-  branches=$(grep -Eo '\b(feat|fix|chore|docs|refactor|test|perf)/[a-z0-9._/-]+' "$f" 2>/dev/null | sort -u || true)
-  for br in $branches; do
-    if git log --oneline --all --grep="$br" 2>/dev/null | grep -q . || \
-       git branch --merged main 2>/dev/null | grep -q "$br"; then
-      signals+=("branch '$br' merged or referenced")
-      break
-    fi
-  done
-
-  # Strategy 3: Keyword match from title
-  title=$(grep -m1 '^# ' "$f" 2>/dev/null | sed 's/^# //' || true)
-  if [[ -n "$title" ]]; then
-    keywords=$(echo "$title" | tr '[:upper:]' '[:lower:]' | tr ' -' '\n' | \
-      grep -E '^.{4,}$' | grep -vE '^(with|from|into|that|this|will|have|been|does|each|more|also|when|what|then)$' || true)
-    for kw in $keywords; do
-      if git log --oneline --since="60 days ago" 2>/dev/null | grep -qi "$kw"; then
-        signals+=("keyword '$kw' in recent commits")
-        break
-      fi
-    done
-  fi
-
-  # Strategy 4: File existence check from "Files to create"
-  while IFS= read -r filepath; do
-    [[ -z "$filepath" ]] && continue
-    if [[ -e "$filepath" ]]; then
-      signals+=("$filepath exists")
-      break
-    fi
-  done < <(extract_files_to_create "$f")
-
-  if [[ ${#signals[@]} -gt 0 ]]; then
-    reason=$(IFS='; '; echo "${signals[*]}")
-    likely_completed+=("$(printf "  %-35s - %s" "$name" "$reason")")
-  else
-    still_pending+=("$(printf "  %-35s - no matching commits or files" "$name")")
-  fi
+backlog_arg=""
+quiet_after="7d"
+no_network=0
+for arg in "$@"; do
+  case "$arg" in
+    --backlog=*)     backlog_arg="${arg#*=}" ;;
+    --quiet-after=*) quiet_after="${arg#*=}" ;;
+    --no-network)    no_network=1 ;;
+    --*) echo "unknown flag: $arg" >&2; exit 2 ;;
+    *) backlog_arg="$arg" ;;
+  esac
 done
 
-# Check ROADMAP.md for stale active items
-if [[ -f "$backlog_dir/ROADMAP.md" ]]; then
-  in_active=false
-  while IFS= read -r line; do
-    if echo "$line" | grep -qi '## active\|## in.progress\|### active'; then
-      in_active=true
+BACKLOG=$(find_backlog "$backlog_arg")
+
+# ---- Duration parsing -----------------------------------------------------
+
+# parse_dur "3d" → seconds
+parse_dur() {
+  local s="$1"
+  local n="${s%[smhdw]*}"
+  local unit="${s: -1}"
+  case "$unit" in
+    s) echo "$n" ;;
+    m) echo $(( n * 60 )) ;;
+    h) echo $(( n * 3600 )) ;;
+    d) echo $(( n * 86400 )) ;;
+    w) echo $(( n * 604800 )) ;;
+    *) echo 0 ;;
+  esac
+}
+
+iso_to_epoch() {
+  local iso="$1"
+  if command -v gdate >/dev/null 2>&1; then
+    gdate -d "$iso" +%s 2>/dev/null
+  elif date -j -f "%Y-%m-%dT%H:%M:%SZ" "$iso" +%s >/dev/null 2>&1; then
+    date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$iso" +%s
+  else
+    python3 -c "import datetime,sys; print(int(datetime.datetime.strptime('$iso','%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc).timestamp()))"
+  fi
+}
+
+now_epoch=$(date -u +%s)
+quiet_secs=$(parse_dur "$quiet_after")
+
+# ---- Buckets --------------------------------------------------------------
+
+merged_not_moved=()
+timed_out=()
+quiet=()
+unresolvable=()
+ok_doing=0
+ok_todo=0
+
+# ---- doing/ checks --------------------------------------------------------
+
+for f in "$BACKLOG"/doing/*.md; do
+  [[ -f "$f" ]] || continue
+  slug=$(slug_of "$f")
+  claimed_at=$(read_fm_scalar "$f" claimed_at)
+  timeout=$(read_fm_scalar "$f" timeout)
+  branch=$(read_fm_scalar "$f" branch)
+  pr=$(read_fm_scalar "$f" pr)
+
+  age=0
+  if [[ -n "$claimed_at" ]]; then
+    epoch=$(iso_to_epoch "$claimed_at" 2>/dev/null || echo 0)
+    [[ "$epoch" -gt 0 ]] && age=$(( now_epoch - epoch ))
+  fi
+
+  # Merged-but-not-moved: PR is set and merged, or branch is gone and present on main.
+  if (( ! no_network )) && [[ -n "$pr" && "$pr" != "null" ]] && command -v gh >/dev/null 2>&1; then
+    state=$(gh pr view "$pr" --json state -q .state 2>/dev/null || echo "")
+    if [[ "$state" == "MERGED" ]]; then
+      merged_not_moved+=("  $slug  (pr $pr merged — run complete.sh)")
       continue
     fi
-    if echo "$line" | grep -q '^## \|^### ' && [[ "$in_active" == true ]]; then
-      in_active=false
+  fi
+  if [[ -n "$branch" && "$branch" != "(no-branch)" ]]; then
+    if git -C "$BACKLOG" rev-parse --verify "$branch" >/dev/null 2>&1; then
+      :
+    elif git -C "$BACKLOG" log --oneline "main" 2>/dev/null | grep -q "$branch"; then
+      merged_not_moved+=("  $slug  (branch $branch merged into main — run complete.sh)")
       continue
     fi
-    if [[ "$in_active" == true ]] && echo "$line" | grep -qE '^\s*-\s+\S'; then
-      item=$(echo "$line" | sed 's/^\s*-\s*//')
-      kws=$(echo "$item" | tr '[:upper:]' '[:lower:]' | tr ' -' '\n' | \
-        grep -E '^.{4,}$' | grep -vE '^(with|from|into|that|this|will|have|been|does|each|more|also|when|what|then|adds?)$' | head -3 || true)
-      matched=false
-      for kw in $kws; do
-        if git log --oneline --since="30 days ago" 2>/dev/null | grep -qi "$kw"; then
-          matched=true
-          break
-        fi
-      done
-      if [[ "$matched" == false && -n "$kws" ]]; then
-        roadmap_notes+=("  ROADMAP.md active: \"$item\" - no recent commits")
-      fi
+  fi
+
+  # Timed out (author set a timeout).
+  if [[ -n "$timeout" ]]; then
+    limit=$(parse_dur "$timeout")
+    if (( limit > 0 && age > limit )); then
+      over=$(( age - limit ))
+      timed_out+=("  $slug  (claimed ${age}s ago, timeout $timeout, +$(( over / 3600 ))h over)")
+      continue
     fi
-  done < "$backlog_dir/ROADMAP.md"
+  fi
+
+  # Quiet (no timeout, but no activity in quiet_after window).
+  if (( age > quiet_secs )); then
+    quiet+=("  $slug  (claimed $(( age / 86400 ))d ago, no declared timeout)")
+    continue
+  fi
+
+  ok_doing=$(( ok_doing + 1 ))
+done
+
+# ---- Dep resolution checks (todo/ + doing/) ------------------------------
+
+# Build a set of all slugs in tree.
+all_slugs=$(find "$BACKLOG/todo" "$BACKLOG/doing" "$BACKLOG/done" -type f -name "*.md" 2>/dev/null \
+  | xargs -n1 basename 2>/dev/null | sed 's/\.md$//' | sort -u || true)
+
+slug_exists() {
+  echo "$all_slugs" | grep -Fxq "$1"
+}
+
+for f in "$BACKLOG"/todo/*.md "$BACKLOG"/doing/*.md; do
+  [[ -f "$f" ]] || continue
+  slug=$(slug_of "$f")
+  while IFS= read -r dep; do
+    [[ -z "$dep" ]] && continue
+    if ! slug_exists "$dep"; then
+      unresolvable+=("  $slug  → $dep (no such slug in tree)")
+    fi
+  done < <(read_fm_dep_slugs "$f")
+done
+
+# ---- Cycle detection (todo + doing graph) --------------------------------
+
+# Build adjacency: emit "src dst" pairs.
+edges=$(mktemp)
+trap 'rm -f "$edges"' EXIT
+for f in "$BACKLOG"/todo/*.md "$BACKLOG"/doing/*.md; do
+  [[ -f "$f" ]] || continue
+  src=$(slug_of "$f")
+  while IFS= read -r dep; do
+    [[ -z "$dep" ]] && continue
+    # Skip deps that are done (won't appear in active graph anyway).
+    dep_pile=""
+    dep_path=$(find "$BACKLOG/todo" "$BACKLOG/doing" -name "${dep}.md" -type f 2>/dev/null | head -1)
+    [[ -n "$dep_path" ]] && echo "$src $dep" >> "$edges"
+  done < <(read_fm_dep_slugs "$f")
+done
+
+cycles=()
+if [[ -s "$edges" ]]; then
+  # DFS-based cycle detection in awk.
+  cycles_out=$(awk '
+    {
+      from = $1; to = $2
+      adj[from] = (adj[from] == "" ? to : adj[from] " " to)
+      nodes[from] = 1; nodes[to] = 1
+    }
+    function dfs(node, path, _, n, i, parts, child) {
+      state[node] = 1   # gray
+      n = split(adj[node], parts, " ")
+      for (i = 1; i <= n; i++) {
+        child = parts[i]
+        if (child == "") continue
+        if (state[child] == 1) {
+          print path " -> " child
+          return
+        }
+        if (state[child] == 0) dfs(child, path " -> " child)
+      }
+      state[node] = 2   # black
+    }
+    END {
+      for (n in nodes) if (state[n] == 0) dfs(n, n)
+    }
+  ' "$edges")
+  if [[ -n "$cycles_out" ]]; then
+    while IFS= read -r line; do
+      [[ -n "$line" ]] && cycles+=("  $line")
+    done <<< "$cycles_out"
+  fi
 fi
+
+# ---- todo/ counts --------------------------------------------------------
+
+for f in "$BACKLOG"/todo/*.md; do
+  [[ -f "$f" ]] && ok_todo=$(( ok_todo + 1 ))
+done
+
+# ---- Report --------------------------------------------------------------
+
+print_bucket() {
+  # $1=title  $2=count  $3..=lines
+  local title="$1"; local count="$2"; shift 2
+  (( count == 0 )) && return
+  echo ""
+  echo "## $title ($count)"
+  printf '%s\n' "$@"
+}
 
 echo "Backlog Grooming Report"
 echo "======================="
-echo ""
-
-if [[ ${#likely_completed[@]} -gt 0 ]]; then
-  echo "Likely completed (needs review):"
-  printf '%s\n' "${likely_completed[@]}"
-else
-  echo "Likely completed: (none detected)"
-fi
+print_bucket "MERGED BUT NOT MOVED" "${#merged_not_moved[@]}" "${merged_not_moved[@]+"${merged_not_moved[@]}"}"
+print_bucket "TIMED OUT"            "${#timed_out[@]}"        "${timed_out[@]+"${timed_out[@]}"}"
+print_bucket "QUIET"                "${#quiet[@]}"            "${quiet[@]+"${quiet[@]}"}"
+print_bucket "UNRESOLVABLE DEPS"    "${#unresolvable[@]}"     "${unresolvable[@]+"${unresolvable[@]}"}"
+print_bucket "CYCLES"               "${#cycles[@]}"           "${cycles[@]+"${cycles[@]}"}"
 
 echo ""
-
-if [[ ${#still_pending[@]} -gt 0 ]]; then
-  echo "Still pending (no signals):"
-  printf '%s\n' "${still_pending[@]}"
-else
-  echo "Still pending: (none)"
-fi
-
-if [[ ${#roadmap_notes[@]} -gt 0 ]]; then
-  echo ""
-  echo "Roadmap sync:"
-  printf '%s\n' "${roadmap_notes[@]}"
-fi
+echo "## OK"
+echo "  todo:  $ok_todo"
+echo "  doing: $ok_doing (healthy)"

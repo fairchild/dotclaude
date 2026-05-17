@@ -1,180 +1,144 @@
 ---
 name: backlog
-description: Capture explored work as a backlog item for future implementation. Use when you've explored an enhancement, alternative approach, or feature but decided to defer it. Creates comprehensive plan files in backlog/ directory with enough context for a future session to execute efficiently.
+description: Maildir-style backlog for parallel agents. Tasks live as markdown files in todo/, doing/, or done/{YYYY}/ — location is status, claim is an atomic git mv. Use when adding a deferred work item, picking up the next task, recording progress, completing, cancelling, reopening, or grooming. Single writer per claim, append-only progress log, graph-native dependencies.
 license: Apache-2.0
 ---
 
 # Backlog
 
-Create a comprehensive backlog item for work we've explored but decided not to implement now.
+A task tracker shaped like a maildir. Each task is one markdown file. Its location *is* its state:
 
-## Instructions
+- `backlog/todo/`            — available to claim
+- `backlog/doing/`           — claimed, in flight
+- `backlog/done/{YYYY}/`     — completed, year-partitioned at write time
 
-### Step 1: Gather Context
+Claiming a task is `git mv todo/X.md doing/X.md`. Two agents racing the same task collide at merge — the right failure mode, not silent double-work.
 
-Ask these questions to understand what we're deferring:
+## Lifecycle Verbs
 
-1. **What feature/enhancement are we deferring?** (brief name)
-2. **Why did we explore it?** (what problem does it solve)
-3. **Why are we deferring?** (out of scope, lower priority, needs more info, etc.)
-4. **What did we learn?** (key findings from exploration)
+Everyday three:
 
-### Step 2: Determine Category (from filename suffix)
+- `/backlog add`       — create a task in `todo/`
+- `/backlog take`      — claim a task (todo → doing). With no argument, picks highest priority whose dependencies are all done.
+- `/backlog complete`  — mark done (doing → `done/{YYYY}/`)
 
-Choose the category and encode it in the filename suffix:
+In-flight (the claiming agent only):
 
-- **plan**: Comprehensive design for new features (most common for /backlog)
-- **followup**: Post-merge improvements and tech debt
-- **task-list**: Collection of related items
-- **ideas**: Ideas to explore, not yet developed into actionable plans
+- `/backlog progress "note"` — append a timestamped note to the body
+- `/backlog release`         — give the task back to `todo/` (with reason)
 
-Use filename format: `backlog/{task-name}-{category}.md`
+Lifecycle adjustments:
 
-Examples:
-- `backlog/docs-r2-storage-plan.md`
-- `backlog/session-cache-followups-task-list.md`
+- `/backlog cancel`  — this isn't going to happen (todo or doing → `done/{YYYY}/cancelled/`)
+- `/backlog reopen`  — done → todo, strips claim
 
-Notes:
-- Task name should be kebab-case (`{task-name}`)
-- Category is derived from suffix (`-{category}`), not frontmatter
-- Status is derived from location: `backlog/` = pending, `backlog/done/` = done
+Inspection:
 
-### Step 3: Create Backlog File
+- `/backlog status`  — what's in each pile
+- `/backlog next`    — dry-run of `take --auto`, shows what would be picked
+- `/backlog why`     — explain why a task isn't takeable
+- `/backlog groom`   — flag stuck, timed-out, merged-but-not-moved, unresolvable deps, cycles
 
-Create a file at `backlog/{task-name}-{category}.md` with this structure:
+## File Shape
+
+Frontmatter is structured metadata. The body is a task description followed by an append-only log of `started`, `progress`, and lifecycle entries. Every block — frontmatter, body, and each log entry — ends with `^---$`. This makes the file greppable, taillable, and append-friendly with a plain heredoc.
 
 ```markdown
 ---
-# Optional metadata only (omit keys you don't need)
-topic: {slug-topic-name}
-relates_to: {after:other-task-plan|until:other-task-plan}
-priority: {1|2|3...} # 1 = highest priority
-description: {short summary for UI/list views}
+topic: backlog-tooling
+description: Refactor backlog to maildir layout
+priority: 2
+timeout: 3d
+dependencies:
+  schema-migration: "needs new claim block format"
+claimed_at: 2026-05-16T14:22:00Z
+claimed_by: conductor:austin-v3
+branch: feat/backlog-maildir
+pr: null
 ---
 
-# {Feature Name}
+# Backlog Maildir Refactor
 
-## Problem Statement
+[problem statement, decisions, phases — whatever the task needs]
 
-{1-2 paragraphs explaining why this work matters and what problem it solves}
+---
 
-## Key Decisions
+### started — 2026-05-16T14:22:00Z
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| {decision point} | {what we'd choose} | {why} |
+claimed by conductor:austin-v3 on branch feat/backlog-maildir
 
-## Architecture
+---
 
-{ASCII diagram if helpful}
+### progress — 2026-05-16T16:45:00Z
 
-## Implementation Phases
+claim.sh + complete.sh ready; starting groom.sh
 
-### Phase 1: {Name}
-
-**Files to modify:**
-- `path/to/file.ts` - {what changes}
-
-**Files to create:**
-- `path/to/new-file.ts` - {purpose}
-
-**Acceptance criteria:**
-- [ ] {testable outcome}
-- [ ] {testable outcome}
-
-### Phase 2: {Name}
-...
-
-## Verification Commands
-
-```bash
-# Commands to verify the implementation works
+---
 ```
 
-## Rollback Plan
+See `references/agents-schema.md` for the full schema (frontmatter keys, filename rules, dependencies syntax).
 
-{How to undo if things go wrong}
+## Rules
+
+- **Single writer per claim.** Only the claiming agent appends to the body between take and complete. Claim is established by the `git mv`; the `started` block is documentation, not the lock.
+- **Frontmatter mutates only at lifecycle transitions.** `take` stamps claim fields; `complete` stamps `pr`. Nothing else edits frontmatter mid-flight.
+- **Timeout is set by the task author, not the claimer.** Absent = unbounded. Claimers cannot extend or shorten. If the budget is wrong, the right move is a progress note + release, not silent extension.
+- **Dependencies are parallel.** `dependencies: {slug: "reason"}` map of task slugs that must be in `done/**` before this one is takeable. Ordering among them is *their* problem (encoded in their own frontmatter). No array form.
+- **Year partition at write time.** `complete` derives the year from UTC `date +%Y`. Reopen-then-recomplete lands in the *current* year, not the original.
+
+## Quick Use
+
+```bash
+# Add a task interactively
+~/.claude/skills/backlog/scripts/add.sh
+
+# Take the next available task (no arg = auto-pick)
+~/.claude/skills/backlog/scripts/take.sh
+
+# Or take a specific one
+~/.claude/skills/backlog/scripts/take.sh backlog-maildir-plan
+
+# Log progress while working
+~/.claude/skills/backlog/scripts/progress.sh "auth migration prototype passing locally"
+
+# Finish
+~/.claude/skills/backlog/scripts/complete.sh
+
+# Or hand back if blocked
+~/.claude/skills/backlog/scripts/release.sh --reason "blocked on legal review"
+```
+
+All scripts accept an optional first positional argument for the backlog directory; default is `backlog` relative to cwd.
+
+## Setting Up backlog/ In a New Project
+
+```bash
+~/.claude/skills/backlog/scripts/init.sh
+```
+
+Creates `backlog/{todo,doing,done}/` and writes `backlog/AGENTS.md` with the conventions inline. See `references/agents-schema.md` for what gets written.
+
+## Migrating An Existing Flat Backlog
+
+If a project has the old flat layout (items at `backlog/*.md`, completed at `backlog/done/*.md`), run:
+
+```bash
+~/.claude/skills/backlog/scripts/migrate.sh [path/to/backlog]
+```
+
+Pending items move into `todo/`. Completed items move into `done/{year}/` where year comes from their last git-log timestamp.
+
+## Quality Checklist (when adding a task)
+
+- Enough context that a fresh session can execute without the original conversation
+- Specific file paths (with line numbers when relevant)
+- Verification commands or acceptance criteria
+- Dependencies declared if any (`dependencies: {slug: "why"}`)
+- `priority` set if it matters (1 = highest)
+- `timeout` set only if the author has a real budget in mind
 
 ## References
 
-- {Related files, PRs, docs, or external resources}
-```
-
-### Step 4: Include Research Artifacts
-
-Incorporate what we learned during exploration:
-- Code snippets we prototyped or found
-- Configuration examples
-- API patterns from existing code
-- External documentation links
-
-### Step 5: Commit
-
-Commit the backlog file with message:
-```
-chore: add {feature} to backlog
-
-{One sentence on what this enables}
-```
-
-## Quality Checklist
-
-Before finishing, verify the backlog file:
-
-- [ ] Has enough context that a fresh session can understand without the original conversation
-- [ ] Includes specific file paths (with line numbers when relevant)
-- [ ] Has verification commands or acceptance criteria
-- [ ] References related code patterns in the codebase
-- [ ] Uses minimal optional metadata only (`topic`, `relates_to`, `priority`, `description`) and omits unused keys
-- [ ] Uses kebab-case filename suffix format: `{task-name}-{category}.md`
-
-## List Backlog Items
-
-To see all backlog items, run:
-
-```bash
-~/.claude/skills/backlog/scripts/status.sh
-```
-
-## Grooming
-
-Detect stale or likely-completed backlog items that were never moved to `done/`.
-
-```bash
-~/.claude/skills/backlog/scripts/groom.sh [path/to/backlog]
-```
-
-The script cross-references pending items against git history (title/keyword matches and in-file references) and the filesystem (files that were supposed to be created). It flags items that look done so you can review and close them.
-
-See `references/grooming.md` for the full grooming workflow and checklist.
-
-## Example Usage
-
-```
-User: /backlog
-Claude: I'll help capture the work we explored for future implementation.
-
-What feature/enhancement are we deferring?
-> R2 storage for docs assets
-
-Why did we explore it?
-> Docs screenshots are gitignored, wanted persistent storage without git bloat
-
-Why are we deferring?
-> Works fine locally for now, R2 adds complexity we don't need yet
-
-What did we learn?
-> R2 bindings in wrangler.jsonc, Worker route pattern, wrangler CLI for uploads
-
-[Creates backlog/docs-r2-storage-plan.md with full implementation plan]
-```
-
-## Setting Up backlog/ Directory
-
-See `references/agents-schema.md` for directory setup, naming conventions, and metadata conventions.
-
-## References
-
-- `references/agents-schema.md` — Categories, lifecycle, filename conventions, directory setup
-- `references/grooming.md` — Backlog maintenance workflow and checklist
-- `references/README.md` — Background, design philosophy, and related projects
+- `references/agents-schema.md` — Directory layout, frontmatter schema, filename rules, dependencies syntax, body format
+- `references/grooming.md` — Stuck-detection buckets and the release/complete loop
+- `references/README.md` — Background, design philosophy, related projects

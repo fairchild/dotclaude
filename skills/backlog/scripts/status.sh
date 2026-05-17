@@ -1,89 +1,90 @@
 #!/usr/bin/env bash
+# Show what's in todo/, doing/, and done/{YYYY}/.
+# Usage: status.sh [--backlog=PATH] [--brief]
+
 set -euo pipefail
 
-# Summarize backlog items using kebab-case suffix categories.
-# Usage: ~/.claude/skills/backlog/scripts/status.sh [path/to/backlog]
-#
-# Conventions:
-# - Category from filename suffix: -plan, -followup, -task-list, -ideas
-# - Status from location: backlog/ = pending, backlog/done/ = done
-# - Frontmatter optional; only reads topic/priority when present
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 
-backlog_dir="${1:-backlog}"
+backlog_arg=""
+brief=0
+for arg in "$@"; do
+  case "$arg" in
+    --backlog=*) backlog_arg="${arg#*=}" ;;
+    --brief)     brief=1 ;;
+    --*) echo "unknown flag: $arg" >&2; exit 2 ;;
+    *) backlog_arg="$arg" ;;
+  esac
+done
 
-if [[ ! -d "$backlog_dir" ]]; then
-  echo "No backlog/ directory found at: $backlog_dir"
-  exit 1
-fi
+BACKLOG=$(find_backlog "$backlog_arg")
 
-category_from_name() {
-  local name="$1"
-  case "$name" in
-    *-plan.md) echo "plan" ;;
-    *-followup.md) echo "followup" ;;
-    *-task-list.md) echo "task-list" ;;
-    *-ideas.md) echo "ideas" ;;
-    *) echo "unknown" ;;
+category_of() {
+  case "$1" in
+    *-plan.md) echo plan ;;
+    *-followup.md) echo followup ;;
+    *-task-list.md) echo task-list ;;
+    *-ideas.md) echo ideas ;;
+    *) echo "-" ;;
   esac
 }
 
-fm_value() {
-  local file="$1"
-  local key="$2"
-
-  local first_line
-  first_line=$(head -1 "$file" 2>/dev/null || true)
-  [[ "$first_line" != "---" ]] && return 0
-
-  sed -n '2,/^---$/p' "$file" 2>/dev/null \
-    | sed '$d' \
-    | grep -E "^${key}:" \
-    | head -1 \
-    | cut -d: -f2- \
-    | sed 's/^ *//; s/ *$//' || true
-}
-
-print_rows() {
+print_pile() {
+  local pile="$1"; shift
   local dir="$1"
-  local status="$2"
+  [[ ! -d "$dir" ]] && return 0
 
+  local count
+  count=$(find "$dir" -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+  echo ""
+  printf "## %s (%d)\n" "$pile" "$count"
+  [[ "$count" -eq 0 ]] && return 0
+  echo ""
+  printf "  %-4s %-40s %-10s %-22s %s\n" "PRI" "SLUG" "CAT" "EXTRA" "TOPIC"
   for f in "$dir"/*.md; do
-    [[ ! -f "$f" ]] && continue
-
-    local base
+    [[ -f "$f" ]] || continue
+    local base slug cat prio topic extra
     base=$(basename "$f")
-    [[ "$base" == "AGENTS.md" || "$base" == "CLAUDE.md" || "$base" == "ROADMAP.md" ]] && continue
-
-    local category topic priority modified
-    category=$(category_from_name "$base")
-    topic=$(fm_value "$f" "topic")
-    priority=$(fm_value "$f" "priority")
-    [[ -z "$topic" ]] && topic="-"
-    [[ -z "$priority" ]] && priority="-"
-
-    modified=$(git log -1 --format=%cs -- "$f" 2>/dev/null || true)
-    [[ -z "$modified" ]] && modified=$(stat -f %Sm -t %Y-%m-%d "$f" 2>/dev/null || echo "?")
-
-    printf "%s| %-35s | %-10s | %-8s | %-8s | %-18s |\n" \
-      "$modified" "$base" "$category" "$status" "$priority" "$topic"
+    slug="${base%.md}"
+    cat=$(category_of "$base")
+    prio=$(read_fm_scalar "$f" priority); [[ -z "$prio" ]] && prio="-"
+    topic=$(read_fm_scalar "$f" topic);   [[ -z "$topic" ]] && topic="-"
+    case "$pile" in
+      doing)
+        local cb br
+        cb=$(read_fm_scalar "$f" claimed_by)
+        br=$(read_fm_scalar "$f" branch)
+        extra="${cb:-?}@${br:-?}"
+        ;;
+      todo)
+        local deps
+        deps=$(read_fm_dep_slugs "$f" | wc -l | tr -d ' ')
+        if [[ "$deps" -gt 0 ]]; then extra="deps:$deps"; else extra=""; fi
+        ;;
+      *)
+        extra=""
+        ;;
+    esac
+    printf "  %-4s %-40s %-10s %-22s %s\n" "$prio" "$slug" "$cat" "$extra" "$topic"
   done
 }
 
-echo "| File                                | Category   | Status   | Priority | Topic              |"
-echo "|-------------------------------------|------------|----------|----------|--------------------|"
-{
-  print_rows "$backlog_dir" "pending"
-  if [[ -d "$backlog_dir/done" ]]; then
-    print_rows "$backlog_dir/done" "done"
+print_pile todo  "$BACKLOG/todo"
+print_pile doing "$BACKLOG/doing"
+
+if (( ! brief )); then
+  # done is recursive (year subdirs, plus optional finer dirs and cancelled/)
+  echo ""
+  local_done_count=$(find "$BACKLOG/done" -type f -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+  printf "## done (%d total)\n" "$local_done_count"
+  if [[ -d "$BACKLOG/done" ]]; then
+    for year_dir in "$BACKLOG"/done/*/; do
+      [[ -d "$year_dir" ]] || continue
+      local_year=$(basename "$year_dir")
+      local_year_count=$(find "$year_dir" -type f -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+      printf "  %s  (%d)\n" "$local_year" "$local_year_count"
+    done
   fi
-} | sort -r | cut -d'|' -f2-
-
-echo ""
-pending_count=$(find "$backlog_dir" -maxdepth 1 -name "*.md" ! -name "AGENTS.md" ! -name "CLAUDE.md" ! -name "ROADMAP.md" | wc -l | tr -d ' ')
-done_count=0
-if [[ -d "$backlog_dir/done" ]]; then
-  done_count=$(find "$backlog_dir/done" -maxdepth 1 -name "*.md" ! -name "AGENTS.md" ! -name "CLAUDE.md" ! -name "ROADMAP.md" | wc -l | tr -d ' ')
 fi
-
-echo "Pending: $pending_count"
-echo "Done: $done_count"

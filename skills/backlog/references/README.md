@@ -1,13 +1,14 @@
-# Backlog Skill - Background & Inspiration
+# Backlog Skill — Background & Inspiration
 
-This skill captures **explored-but-deferred work** as comprehensive plan files. Unlike full project management tools, it solves one specific problem: preserving research and context so a future session can execute efficiently without re-discovering what we already learned.
+A maildir-style task tracker. Each task is a markdown file; its location (`todo/`, `doing/`, `done/{YYYY}/`) is its state. Claiming is `git mv`, which doubles as the lock — two agents racing the same task collide at merge instead of silently double-working.
 
 ## Philosophy
 
-- **Single-purpose**: Capture deferred work, not manage all tasks
-- **Comprehensive output**: Each backlog item is a complete plan, not a stub
-- **Lifecycle tracking**: pending (`backlog/`) → done (`backlog/done/`) via file movement
-- **Categories**: plan, followup, task-list, ideas
+- **Location is status.** No status field to keep in sync, no parser to write. `ls doing/` is in-flight work.
+- **Comprehensive content.** Each task carries enough context for a fresh session to execute without the original conversation.
+- **Append-only progress.** Body grows by heredoc, never edited. Every block ends with `^---$` so the file stays greppable and taillable.
+- **Single writer.** Between take and complete, only the claiming agent appends. The maildir mv is the actual lock; the `started` block is documentation.
+- **Graph-native deps.** `dependencies:` is a map of slugs; each task declares its own preconditions. Parallel by default; ordering encoded in the chain itself, not in any single task.
 
 ## Related Projects
 
