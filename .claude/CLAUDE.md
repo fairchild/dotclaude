@@ -103,3 +103,19 @@ All other development (new skills, workflow changes, doc updates) goes through f
 - **Symlink direction**: `~/.claude/skills/<name>` → `~/code/dotclaude/skills/<name>`
 - **Ecosystem installs** (`npx skills install`) land in `~/.claude/skills/` as real directories, not tracked
 - **Full workflow docs**: `skills/dotclaude-config/references/development-workflow.md`
+
+## Agent skills
+
+Per-repo configuration for the engineering skills (`to-issues`, `triage`, `to-prd`, `diagnose`, `tdd`, `improve-codebase-architecture`, `zoom-out`).
+
+### Issue tracker
+
+Work is captured as markdown files under `backlog/` following the `backlog` skill convention — not GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage state lives in a `status:` frontmatter field on each backlog file, mapped to the five canonical roles. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — `CONTEXT.md` + `docs/adr/` at the repo root, created lazily by `/grill-with-docs`. See `docs/agents/domain.md`.
