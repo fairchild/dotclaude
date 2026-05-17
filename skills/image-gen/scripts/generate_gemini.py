@@ -3,41 +3,30 @@
 # requires-python = ">=3.11"
 # dependencies = ["google-genai"]
 # ///
-"""Generate images using Google's Gemini image models (Nano Banana Pro)."""
+"""Generate images using Google's Gemini image models (Nano Banana)."""
 
 import argparse
-import os
-import sys
-from datetime import datetime
 from pathlib import Path
 
 from google import genai
 from google.genai import types
 from google.genai.errors import ClientError, ServerError
 
-
-MIME_TO_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
-EXT_TO_MIME = {v: k for k, v in MIME_TO_EXT.items()}
-
-
-def error_exit(msg: str, hint: str | None = None) -> None:
-    print(f"Error: {msg}", file=sys.stderr)
-    if hint:
-        print(f"\n{hint}", file=sys.stderr)
-    sys.exit(1)
+from common import (
+    error_exit,
+    ext_for_mime,
+    get_env_var,
+    normalize_output_path,
+    record_generation,
+    write_output,
+)
 
 
 def get_api_key() -> str:
-    api_key = os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        error_exit(
-            "GOOGLE_API_KEY environment variable not set",
-            "To fix, either:\n"
-            "  1. Add to ~/.env:      GOOGLE_API_KEY=your-key-here\n"
-            "  2. Or export in shell: export GOOGLE_API_KEY=your-key-here\n\n"
-            "Get your API key at: https://aistudio.google.com/apikey"
-        )
-    return api_key
+    return get_env_var(
+        ("GOOGLE_API_KEY", "GEMINI_API_KEY"),
+        "https://aistudio.google.com/apikey",
+    )
 
 
 def check_config() -> None:
@@ -58,7 +47,8 @@ def check_config() -> None:
 def generate_image(
     prompt: str,
     output: Path | None,
-    model: str = "gemini-3-pro-image-preview",
+    output_dir: Path | None = None,
+    model: str = "gemini-3.1-flash-image-preview",
     aspect_ratio: str = "1:1",
     image_size: str | None = None,
 ) -> Path:
@@ -67,14 +57,14 @@ def generate_image(
 
     image_config_kwargs = {"aspect_ratio": aspect_ratio}
     if image_size:
-        image_config_kwargs["output_image_size"] = image_size
+        image_config_kwargs["image_size"] = image_size
 
     try:
         response = client.models.generate_content(
             model=model,
             contents=prompt,
             config=types.GenerateContentConfig(
-                response_modalities=["IMAGE"],
+                response_modalities=["Image"],
                 image_config=types.ImageConfig(**image_config_kwargs),
             ),
         )
@@ -107,51 +97,78 @@ def generate_image(
     for part in response.parts:
         if part.inline_data is not None:
             mime_type = part.inline_data.mime_type
-            actual_ext = MIME_TO_EXT.get(mime_type, ".jpg")
-
-            if output is None:
-                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-                output = Path(f"./generated-{timestamp}{actual_ext}")
-            else:
-                user_ext = output.suffix.lower()
-                if user_ext and user_ext != actual_ext:
-                    corrected = output.with_suffix(actual_ext)
-                    print(f"Note: API returned {mime_type}, saving as {corrected.name} instead of {output.name}", file=sys.stderr)
-                    output = corrected
-
-            output.write_bytes(part.inline_data.data)
-            return output
+            actual_ext = ext_for_mime(mime_type)
+            output_path = normalize_output_path(output, actual_ext, output_dir, "gemini")
+            output_path = write_output(output_path, part.inline_data.data)
+            record_generation(
+                provider="gemini",
+                model=model,
+                prompt=prompt,
+                output_path=output_path,
+                parameters={
+                    "aspect_ratio": aspect_ratio,
+                    "image_size": image_size,
+                    "mime_type": mime_type,
+                },
+            )
+            return output_path
 
     error_exit("No image in response", "The API returned empty results. Try a different prompt.")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate images with Google Gemini (Nano Banana Pro)")
+    parser = argparse.ArgumentParser(description="Generate images with Google Gemini (Nano Banana)")
     parser.add_argument("--prompt", "-p", help="Text description of the image")
     parser.add_argument(
         "--output",
         "-o",
         type=Path,
         default=None,
-        help="Output file path (default: ./generated-{timestamp}.{ext} based on response format)",
+        help="Output file path (default: <output-dir>/gemini-{timestamp}.{ext})",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Default output directory when --output is omitted",
     )
     parser.add_argument(
         "--model",
         "-m",
-        default="gemini-3-pro-image-preview",
-        help="Model to use (default: gemini-3-pro-image-preview aka Nano Banana Pro)",
+        default="gemini-3.1-flash-image-preview",
+        help=(
+            "Model to use (default: gemini-3.1-flash-image-preview aka "
+            "Nano Banana 2; use gemini-3-pro-image-preview for Pro)"
+        ),
     )
     parser.add_argument(
         "--aspect-ratio",
         "-a",
         default="1:1",
-        help="Aspect ratio (default: 1:1, options: 1:1, 16:9, 9:16, 21:9)",
+        choices=[
+            "1:1",
+            "1:4",
+            "1:8",
+            "2:3",
+            "3:2",
+            "3:4",
+            "4:1",
+            "4:3",
+            "4:5",
+            "5:4",
+            "8:1",
+            "9:16",
+            "16:9",
+            "21:9",
+        ],
+        help="Aspect ratio (default: 1:1)",
     )
     parser.add_argument(
         "--image-size",
         "-s",
         default=None,
-        help="Output size for Pro model (options: 1K, 2K, 4K)",
+        choices=["512", "1K", "2K", "4K"],
+        help="Output size for supported models (options: 512, 1K, 2K, 4K)",
     )
     parser.add_argument(
         "--check",
@@ -170,6 +187,7 @@ def main() -> None:
     output_path = generate_image(
         prompt=args.prompt,
         output=args.output,
+        output_dir=args.output_dir,
         model=args.model,
         aspect_ratio=args.aspect_ratio,
         image_size=args.image_size,
