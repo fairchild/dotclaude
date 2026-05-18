@@ -32,14 +32,16 @@ Controls:
 
 ```bash
 # Disable prompt/output logging for sensitive generations
-IMAGE_GEN_DISABLE_HISTORY=1 uv run --script skills/image-gen/scripts/generate_openai.py ...
+IMAGE_GEN_DISABLE_HISTORY=1 skills/image-gen/scripts/generate_openai.py ...
 
 # Move local history outside the repo
-IMAGE_GEN_DATA_DIR=/path/to/image-gen-history uv run --script skills/image-gen/scripts/generate_gemini.py ...
+IMAGE_GEN_DATA_DIR=/path/to/image-gen-history skills/image-gen/scripts/generate_gemini.py ...
 
 # Move generated images outside the repo
-IMAGE_GEN_OUTPUT_DIR=/path/to/image-gen-outputs uv run --script skills/image-gen/scripts/generate_fal.py ...
+IMAGE_GEN_OUTPUT_DIR=/path/to/image-gen-outputs skills/image-gen/scripts/generate_fal.py ...
 ```
+
+The Python entrypoints are executable UV scripts. Prefer direct execution in docs and examples; `uv run --script ...` remains a fallback when executable bits are unavailable.
 
 The local history is useful for later analysis of prompts, model drift, cost/performance notes, and generated-image provenance. It is not a public benchmark and should stay out of git.
 
@@ -70,19 +72,19 @@ The local history is useful for later analysis of prompts, model drift, cost/per
 5. Run free verification.
 
 ```bash
-uv run --script skills/image-gen/tests/test_image_gen.py
-uv run --script skills/image-gen/scripts/run_examples.py --list
-uv run --script skills/image-gen/scripts/run_examples.py
-uv run --script skills/image-gen/scripts/generate_openai.py --help
-uv run --script skills/image-gen/scripts/generate_gemini.py --help
-uv run --script skills/image-gen/scripts/generate_imagen.py --help
-uv run --script skills/image-gen/scripts/generate_fal.py --help
+skills/image-gen/tests/test_image_gen.py
+skills/image-gen/scripts/run_examples.py --list
+skills/image-gen/scripts/run_examples.py
+skills/image-gen/scripts/generate_openai.py --help
+skills/image-gen/scripts/generate_gemini.py --help
+skills/image-gen/scripts/generate_imagen.py --help
+skills/image-gen/scripts/generate_fal.py --help
 ```
 
 6. Run paid comparisons only when useful.
 
 ```bash
-uv run --script skills/image-gen/scripts/run_examples.py --generate --example all
+skills/image-gen/scripts/run_examples.py --generate --example all
 ```
 
 Inspect the run directory under `outputs/examples/<timestamp>/`, open the generated gallery when present, and keep the manifest with the images. Do not commit generated outputs.
@@ -90,7 +92,7 @@ Inspect the run directory under `outputs/examples/<timestamp>/`, open the genera
 Review comparison outputs with:
 
 ```bash
-uv run --script skills/image-gen/scripts/review_gallery.py --run-dir <comparison-run-dir>
+skills/image-gen/scripts/review_gallery.py --run-dir <comparison-run-dir>
 ```
 
 The review server saves `feedback.json`, copies the selected winner to `winner.<ext>`, appends rankings to `data/rankings.jsonl`, and can regenerate one or all candidates by invoking the provider scripts.
@@ -98,7 +100,7 @@ The review server saves `feedback.json`, copies the selected winner to `winner.<
 After changing the review gallery or creating a comparison run that needs visual QA, run the evaluator:
 
 ```bash
-uv run --script skills/image-gen/scripts/evaluate_review_gallery.py --run-dir <comparison-run-dir>
+skills/image-gen/scripts/evaluate_review_gallery.py --run-dir <comparison-run-dir>
 ```
 
 It writes screenshots and machine-readable checks under `outputs/evaluations/<run-id>/<timestamp>/`. Inspect `default.png`, `interaction.png`, `mobile.png`, and `checks.json` before handing the gallery back to the user. With `--run-dir`, the evaluator serves a copied run under the evaluation directory so save and ranking checks do not mutate the source comparison. This is the place to grow the agent-driven evaluation loop: capture the rendered gallery, verify the default image-only state, check that `R` can reveal metadata without revealing the full chrome, check that metadata never obscures images, verify click-to-rank and keyboard flows, and optionally hand those artifacts to a sub-agent for visual critique.

@@ -7,15 +7,15 @@
 Image-gen skill test suite.
 
 Usage:
-  uv run --script tests/test_image_gen.py                    # Static checks only (free)
-  uv run --script tests/test_image_gen.py --check-env         # Report configured keys
-  uv run --script tests/test_image_gen.py --generate          # Generate and keep outputs (costs $)
-  uv run --script tests/test_image_gen.py --provider openai   # Test one provider
+  tests/test_image_gen.py                    # Static checks only (free)
+  tests/test_image_gen.py --check-env         # Report configured keys
+  tests/test_image_gen.py --generate          # Generate and keep outputs (costs $)
+  tests/test_image_gen.py --provider openai   # Test one provider
 
 Default mode checks:
   - provider scripts compile
-  - executable scripts include uv shebang and PEP 723 metadata
-  - SKILL.md usage examples use uv run --script
+  - executable scripts include uv shebang, executable bit, and PEP 723 metadata
+  - SKILL.md documents direct execution with uv run fallback
 
 With --check-env:
   - OPENAI_API_KEY present
@@ -102,18 +102,23 @@ def check_static() -> int:
         text = path.read_text()
         has_uv_shebang = text.startswith("#!/usr/bin/env -S uv run --script")
         has_pep_723 = "# /// script" in text and "# ///" in text and "requires-python" in text
-        if has_uv_shebang and has_pep_723:
+        is_executable = os.access(path, os.X_OK)
+        if has_uv_shebang and has_pep_723 and is_executable:
             print(f"  {path.name}: uv script metadata OK")
         else:
-            print(f"  {path.name}: missing uv shebang or PEP 723 metadata")
+            print(f"  {path.name}: missing uv shebang, executable bit, or PEP 723 metadata")
             failures += 1
 
     skill_md = SKILL_DIR / "SKILL.md"
     skill_text = skill_md.read_text()
-    if "uv run --script" in skill_text:
-        print("  SKILL.md: usage examples use uv run --script")
+    if (
+        "~/.claude/skills/image-gen/scripts/<script>.py" in skill_text
+        and "uv run --script" in skill_text
+        and "fallback" in skill_text.lower()
+    ):
+        print("  SKILL.md: direct execution and uv fallback documented")
     else:
-        print("  SKILL.md: usage examples do not use uv run --script")
+        print("  SKILL.md: direct execution or uv fallback documentation missing")
         failures += 1
 
     return failures
@@ -243,9 +248,6 @@ def run_generation(provider: str, output: Path) -> tuple[bool, str]:
     try:
         result = subprocess.run(
             [
-                "uv",
-                "run",
-                "--script",
                 str(script),
                 "--prompt",
                 TEST_PROMPT,

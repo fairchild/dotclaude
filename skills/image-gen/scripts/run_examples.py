@@ -205,9 +205,6 @@ def command_for(
     output = output_dir / f"{filename}{example.output_ext}"
     provider_args = list(example.args_by_provider.get(preset.provider, ()))
     command = [
-        "uv",
-        "run",
-        "--script",
         str(SCRIPTS_DIR / preset.script),
         "--model",
         preset.model,

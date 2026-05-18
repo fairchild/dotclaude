@@ -264,9 +264,6 @@ def build_regenerate_command(
         raise ValueError(f"unsupported provider: {provider}")
 
     command = [
-        "uv",
-        "run",
-        "--script",
         str(SCRIPTS_DIR / script),
         "--model",
         model,

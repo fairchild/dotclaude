@@ -16,9 +16,11 @@ The skill currently includes provider scripts for:
 Each provider script can still be used directly:
 
 ```bash
-uv run --script skills/image-gen/scripts/generate_openai.py \
+skills/image-gen/scripts/generate_openai.py \
   --prompt "a cat wearing a top hat"
 ```
+
+The scripts are executable UV scripts. Direct execution is the normal path; `uv run --script skills/image-gen/scripts/<script>.py ...` is still fine as a fallback if executable bits are unavailable.
 
 If `--output` is omitted, generated files go under `skills/image-gen/outputs/`. Successful generations are logged to `skills/image-gen/data/generations.jsonl`.
 
@@ -27,7 +29,7 @@ The current comparison runner is `scripts/run_examples.py`. It is meant for fixe
 Comparison run directories can be reviewed with `scripts/review_gallery.py`:
 
 ```bash
-uv run --script skills/image-gen/scripts/review_gallery.py \
+skills/image-gen/scripts/review_gallery.py \
   --run-dir skills/image-gen/outputs/comparisons/20260516-jrnlfish-logos
 ```
 
@@ -35,7 +37,7 @@ After UI changes or comparison runs, capture the gallery for agent review with
 `scripts/evaluate_review_gallery.py`:
 
 ```bash
-uv run --script skills/image-gen/scripts/evaluate_review_gallery.py \
+skills/image-gen/scripts/evaluate_review_gallery.py \
   --run-dir skills/image-gen/outputs/comparisons/20260516-jrnlfish-logos
 ```
 
@@ -123,7 +125,7 @@ Useful fields for future training data:
 Sensitive prompts can opt out of history logging:
 
 ```bash
-IMAGE_GEN_DISABLE_HISTORY=1 uv run --script skills/image-gen/scripts/generate_openai.py ...
+IMAGE_GEN_DISABLE_HISTORY=1 skills/image-gen/scripts/generate_openai.py ...
 ```
 
 ## Comparison UI
@@ -195,9 +197,9 @@ Image APIs and model names drift quickly. The maintenance workflow is:
 4. Run free verification:
 
 ```bash
-uv run --script skills/image-gen/tests/test_image_gen.py
-uv run --script skills/image-gen/scripts/run_examples.py --list
-uv run --script skills/image-gen/scripts/run_examples.py
+skills/image-gen/tests/test_image_gen.py
+skills/image-gen/scripts/run_examples.py --list
+skills/image-gen/scripts/run_examples.py
 ```
 
 5. Run paid comparisons only when useful.

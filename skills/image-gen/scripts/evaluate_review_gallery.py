@@ -106,9 +106,6 @@ def start_review_server(
         raise ValueError("--run-dir is required when --url is omitted")
     process = subprocess.Popen(
         [
-            "uv",
-            "run",
-            "--script",
             str(REVIEW_SERVER),
             "--run-dir",
             str(run_dir),
