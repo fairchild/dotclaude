@@ -113,6 +113,12 @@ tasks/
 # Skill eval workspaces (skill-creator convention: <name>-workspace/ as sibling)
 skills/*-workspace/
 
+# Image generation comparison outputs
+skills/image-gen/outputs/*
+!skills/image-gen/outputs/README.md
+skills/image-gen/data/*
+!skills/image-gen/data/README.md
+
 # claude chrome plugin
 chrome/
 

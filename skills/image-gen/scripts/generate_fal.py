@@ -7,71 +7,80 @@
 
 import argparse
 import os
-import sys
-from datetime import datetime
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 import fal_client
 import requests
 from fal_client.client import FalClientHTTPError
 
+from common import (
+    error_exit,
+    ext_for_mime,
+    get_env_var,
+    normalize_output_path,
+    output_format_from_path,
+    record_generation,
+    write_output,
+)
 
-CONTENT_TYPE_TO_EXT = {
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "image/webp": ".webp",
+FORMAT_TO_EXT = {
+    "jpeg": ".jpg",
+    "png": ".png",
 }
 
 
-def error_exit(msg: str, hint: str | None = None) -> None:
-    print(f"Error: {msg}", file=sys.stderr)
-    if hint:
-        print(f"\n{hint}", file=sys.stderr)
-    sys.exit(1)
-
-
 def get_api_key() -> str:
-    api_key = os.environ.get("FAL_KEY")
-    if not api_key:
-        error_exit(
-            "FAL_KEY environment variable not set",
-            "To fix, either:\n"
-            "  1. Add to ~/.env:      FAL_KEY=your-key-here\n"
-            "  2. Or export in shell: export FAL_KEY=your-key-here\n\n"
-            "Get your API key at: https://fal.ai/dashboard/keys"
-        )
-    return api_key
+    return get_env_var(("FAL_KEY",), "https://fal.ai/dashboard/keys")
 
 
 def check_config() -> None:
     api_key = get_api_key()
     os.environ["FAL_KEY"] = api_key
     try:
-        fal_client.api.api_key_status()
-        print("OK: FAL_KEY is valid")
-    except FalClientHTTPError as e:
-        if "401" in str(e) or "Unauthorized" in str(e):
-            error_exit(
-                "FAL_KEY is invalid",
-                "Get a new API key at: https://fal.ai/dashboard/keys"
-            )
-        raise
+        fal_client.auth.fetch_auth_credentials()
+        print("OK: FAL_KEY is set")
     except Exception:
-        print("OK: FAL_KEY is set (validation endpoint unavailable)")
+        error_exit(
+            "FAL_KEY could not be loaded",
+            "Get a new API key at: https://fal.ai/dashboard/keys",
+        )
 
 
 def generate_image(
     prompt: str,
-    output: Path,
-    model: str = "fal-ai/flux/dev",
+    output: Path | None,
+    output_dir: Path | None = None,
+    model: str = "fal-ai/flux-2-pro",
+    image_size: str | None = None,
+    output_format: str = "jpeg",
+    seed: int | None = None,
+    guidance_scale: float | None = None,
+    num_inference_steps: int | None = None,
+    num_images: int | None = None,
 ) -> Path:
     api_key = get_api_key()
     os.environ["FAL_KEY"] = api_key
 
+    arguments: dict[str, object] = {
+        "prompt": prompt,
+        "output_format": output_format,
+    }
+    if image_size:
+        arguments["image_size"] = image_size
+    if seed is not None:
+        arguments["seed"] = seed
+    if guidance_scale is not None:
+        arguments["guidance_scale"] = guidance_scale
+    if num_inference_steps is not None:
+        arguments["num_inference_steps"] = num_inference_steps
+    if num_images is not None:
+        arguments["num_images"] = num_images
+
     try:
         result = fal_client.subscribe(
             model,
-            arguments={"prompt": prompt, "num_images": 1},
+            arguments=arguments,
         )
     except FalClientHTTPError as e:
         err_str = str(e)
@@ -99,9 +108,21 @@ def generate_image(
 
     images = result.get("images", [])
     if not images:
-        error_exit("No images in response", "The API returned empty results. Try a different prompt.")
+        error_exit(
+            "No images in response",
+            "The API returned empty results. Try a different prompt.",
+        )
 
     image_url = images[0].get("url")
+    if not image_url:
+        error_exit("Image response did not include a URL")
+
+    if image_url.startswith("data:"):
+        error_exit(
+            "fal.ai returned an inline data URI",
+            "This script expects a downloadable image URL. "
+            "Retry without sync-mode models/settings.",
+        )
 
     try:
         image_response = requests.get(image_url, timeout=60)
@@ -110,16 +131,30 @@ def generate_image(
         error_exit(f"Failed to download image: {e}", "Check your internet connection")
 
     content_type = image_response.headers.get("content-type", "").split(";")[0].strip()
-    actual_ext = CONTENT_TYPE_TO_EXT.get(content_type, ".jpg")
+    actual_ext = ext_for_mime(content_type, FORMAT_TO_EXT[output_format])
+    if actual_ext == ".jpg":
+        url_path = Path(unquote(urlparse(image_url).path))
+        if url_path.suffix.lower() == ".png":
+            actual_ext = ".png"
 
-    user_ext = output.suffix.lower()
-    if user_ext and user_ext != actual_ext:
-        corrected = output.with_suffix(actual_ext)
-        print(f"Note: API returned {content_type}, saving as {corrected.name} instead of {output.name}", file=sys.stderr)
-        output = corrected
-
-    output.write_bytes(image_response.content)
-    return output
+    output_path = normalize_output_path(output, actual_ext, output_dir, "fal")
+    output_path = write_output(output_path, image_response.content)
+    record_generation(
+        provider="fal",
+        model=model,
+        prompt=prompt,
+        output_path=output_path,
+        parameters={
+            "image_size": image_size,
+            "output_format": output_format,
+            "seed": seed,
+            "guidance_scale": guidance_scale,
+            "num_inference_steps": num_inference_steps,
+            "num_images": num_images,
+            "content_type": content_type,
+        },
+    )
+    return output_path
 
 
 def main() -> None:
@@ -130,13 +165,64 @@ def main() -> None:
         "-o",
         type=Path,
         default=None,
-        help="Output file path (default: ./generated-{timestamp}.{ext} based on response format)",
+        help="Output file path (default: <output-dir>/fal-{timestamp}.{ext})",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Default output directory when --output is omitted",
     )
     parser.add_argument(
         "--model",
         "-m",
-        default="fal-ai/flux/dev",
-        help="Model to use (default: fal-ai/flux/dev)",
+        default="fal-ai/flux-2-pro",
+        help="Model to use (default: fal-ai/flux-2-pro)",
+    )
+    parser.add_argument(
+        "--image-size",
+        "-s",
+        default=None,
+        choices=[
+            "square_hd",
+            "square",
+            "portrait_4_3",
+            "portrait_16_9",
+            "landscape_4_3",
+            "landscape_16_9",
+        ],
+        help="fal image size preset",
+    )
+    parser.add_argument(
+        "--output-format",
+        "-f",
+        choices=["jpeg", "png"],
+        default=None,
+        help="Generated image format (default: inferred from --output suffix, otherwise jpeg)",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Seed for repeatable output when supported",
+    )
+    parser.add_argument(
+        "--guidance-scale",
+        type=float,
+        default=None,
+        help="Prompt guidance scale when supported",
+    )
+    parser.add_argument(
+        "--num-inference-steps",
+        type=int,
+        default=None,
+        help="Inference steps when supported",
+    )
+    parser.add_argument(
+        "--num-images",
+        type=int,
+        default=None,
+        help="Number of images when supported",
     )
     parser.add_argument(
         "--check",
@@ -152,14 +238,23 @@ def main() -> None:
     if not args.prompt:
         parser.error("--prompt is required unless using --check")
 
-    if args.output is None:
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        args.output = Path(f"./generated-{timestamp}.png")
+    output_format = args.output_format or output_format_from_path(args.output, default="jpeg")
+    if output_format not in FORMAT_TO_EXT:
+        parser.error(
+            "--output suffix must be .png, .jpg, or .jpeg unless --output-format is set"
+        )
 
     output_path = generate_image(
         prompt=args.prompt,
         output=args.output,
+        output_dir=args.output_dir,
         model=args.model,
+        image_size=args.image_size,
+        output_format=output_format,
+        seed=args.seed,
+        guidance_scale=args.guidance_scale,
+        num_inference_steps=args.num_inference_steps,
+        num_images=args.num_images,
     )
     print(output_path.resolve())
 

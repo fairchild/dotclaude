@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Image generation comparison workflow**: Added multi-provider example runs, an image-first ranking gallery, and a Playwright evaluator for reviewing generated image sets.
+- **Image generation history and storage**: Added documented, gitignored local roots for generated outputs and provenance data.
+- **Image-gen maintenance docs**: Added references for refreshing supported provider models, scripts, and comparison examples over time.
+
+### Changed
+
+- **Image-gen provider scripts**: Refreshed model defaults and shared common handling for environment loading, output paths, formats, and history logging.
+- **Image-gen skill guide and tests**: Streamlined the skill instructions, documented direct executable UV script usage, and expanded tests around comparison runs, shared helpers, and local history.
+
 ## [0.1.0] - 2026-01-24
 
 Initial release of dotclaude - a personal Claude Code configuration framework.
