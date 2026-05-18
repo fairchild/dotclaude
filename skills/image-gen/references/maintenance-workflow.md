@@ -64,6 +64,7 @@ The local history is useful for later analysis of prompts, model drift, cost/per
    - Add only CLI flags that are stable and useful for agent workflows.
    - Preserve the provider adapter protocol: executable UV script, `--prompt`, `--output`, `--output-dir`, `--model`, `--check`, history logging, and final stdout line as the resolved output path.
    - Keep `scripts/common.py` as the only shared local helper import for provider scripts.
+   - See `references/provider-protocol-architecture.html` when changing the adapter contract or exploring stricter copy-pastable provider files.
 
 4. Update comparison presets in `scripts/run_examples.py`.
    - Keep a small default comparison set that covers current best defaults.
