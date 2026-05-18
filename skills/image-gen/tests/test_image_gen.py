@@ -15,6 +15,7 @@ Usage:
 Default mode checks:
   - provider scripts compile
   - executable scripts include uv shebang, executable bit, and PEP 723 metadata
+  - provider scripts satisfy the image generation adapter protocol
   - SKILL.md documents direct execution with uv run fallback
 
 With --check-env:
@@ -31,6 +32,7 @@ Exit codes: 0 = all pass, 1 = failures
 """
 
 import argparse
+import ast
 import base64
 import json
 import os
@@ -55,6 +57,9 @@ PROVIDERS = {
     },
     "fal": {"env": ("FAL_KEY",), "script": "generate_fal.py", "ext": ".jpg"},
 }
+PROVIDER_REQUIRED_OPTIONS = ("--prompt", "--output", "--output-dir", "--model", "--check")
+PROVIDER_REQUIRED_FUNCTIONS = ("check_config", "generate_image", "main")
+ALLOWED_PROVIDER_LOCAL_IMPORTS = {"common"}
 
 SKILL_DIR = Path(__file__).parent.parent
 SCRIPTS_DIR = SKILL_DIR / "scripts"
@@ -122,6 +127,80 @@ def check_static() -> int:
         failures += 1
 
     return failures
+
+
+def check_provider_protocol() -> int:
+    failures = 0
+
+    print("\n=== Provider Adapter Protocol Check ===")
+    for provider, config in PROVIDERS.items():
+        path = SCRIPTS_DIR / config["script"]
+        text = path.read_text()
+        tree = ast.parse(text)
+        options = argparse_options(tree)
+        functions = top_level_functions(tree)
+        local_imports = local_script_imports(tree)
+
+        missing_options = [option for option in PROVIDER_REQUIRED_OPTIONS if option not in options]
+        missing_functions = [
+            function_name
+            for function_name in PROVIDER_REQUIRED_FUNCTIONS
+            if function_name not in functions
+        ]
+        disallowed_imports = sorted(local_imports - ALLOWED_PROVIDER_LOCAL_IMPORTS)
+
+        problems = []
+        if missing_options:
+            problems.append(f"missing options: {', '.join(missing_options)}")
+        if missing_functions:
+            problems.append(f"missing functions: {', '.join(missing_functions)}")
+        if disallowed_imports:
+            problems.append(f"disallowed local imports: {', '.join(disallowed_imports)}")
+        if "record_generation(" not in text:
+            problems.append("does not record successful generations")
+        if "print(output_path.resolve())" not in text:
+            problems.append("does not print resolved output path as final success line")
+
+        if problems:
+            print(f"  {provider}: failed ({'; '.join(problems)})")
+            failures += 1
+        else:
+            print(f"  {provider}: protocol OK")
+
+    return failures
+
+
+def argparse_options(tree: ast.AST) -> set[str]:
+    options: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if not isinstance(node.func, ast.Attribute) or node.func.attr != "add_argument":
+            continue
+        for arg in node.args:
+            if isinstance(arg, ast.Constant) and isinstance(arg.value, str) and arg.value.startswith("--"):
+                options.add(arg.value)
+    return options
+
+
+def top_level_functions(tree: ast.AST) -> set[str]:
+    return {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+
+
+def local_script_imports(tree: ast.AST) -> set[str]:
+    local_modules = {path.stem for path in SCRIPTS_DIR.glob("*.py")}
+    imports: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                root = alias.name.split(".", 1)[0]
+                if root in local_modules:
+                    imports.add(root)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            root = node.module.split(".", 1)[0]
+            if root in local_modules:
+                imports.add(root)
+    return imports
 
 
 def check_history_logging() -> int:
@@ -306,6 +385,7 @@ def main() -> None:
 
     providers = [args.provider] if args.provider else list(PROVIDERS.keys())
     failures = check_static()
+    failures += check_provider_protocol()
     failures += check_history_logging()
     failures += check_review_candidate_matching()
 

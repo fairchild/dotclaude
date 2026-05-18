@@ -38,6 +38,10 @@ The Python entrypoints are executable UV scripts. Prefer direct execution:
 
 `uv run --script ~/.claude/skills/image-gen/scripts/<script>.py ...` remains a valid fallback if a copied checkout has lost executable bits.
 
+Provider scripts are image generation adapters. Keep their interface stable: executable UV script, `--prompt`, `--output`, `--output-dir`, `--model`, `--check`, successful generation history, and resolved output path as the final stdout line.
+
+`scripts/common.py` is the only shared local helper.
+
 Common examples:
 
 ```bash
