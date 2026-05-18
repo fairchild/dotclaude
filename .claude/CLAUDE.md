@@ -101,7 +101,7 @@ All other development (new skills, workflow changes, doc updates) goes through f
 - **All development happens in `~/code/dotclaude`** — feature branches, PRs, code review
 - **`~/.claude` is deploy-only** — only commit small runtime config changes there
 - **Symlink direction**: `~/.claude/skills/<name>` → `~/code/dotclaude/skills/<name>`
-- **Ecosystem installs** (`npx skills install`) land in `~/.claude/skills/` as real directories, not tracked
+- **Ecosystem installs**: `npx skills add <repo>` places content at `~/.agents/skills/<name>/`, symlinked into `~/.claude/skills/<name>`. Provenance (origin URL, commit hash, install timestamps) is tracked by the CLI in `~/.agents/.skill-lock.json`. This repo does not vendor third-party skill content; the lockfile is the source of truth.
 - **Full workflow docs**: `skills/dotclaude-config/references/development-workflow.md`
 
 ## Agent skills
