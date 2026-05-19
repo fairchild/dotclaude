@@ -17,8 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import default_output_dir, load_dotenv_files  # noqa: E402
+from common import default_output_dir, load_dotenv_files
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parent

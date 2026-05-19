@@ -22,6 +22,12 @@ skills/image-gen/scripts/generate_openai.py \
 
 The scripts are executable UV scripts. Direct execution is the normal path; `uv run --script skills/image-gen/scripts/<script>.py ...` is still fine as a fallback if executable bits are unavailable.
 
+Provider scripts follow a small adapter protocol so the comparison and review tools can call them without provider-specific code. Each provider script is executable, declares UV/PEP 723 metadata, supports `--prompt`, `--output`, `--output-dir`, `--model`, and `--check`, records successful generations, and prints the resolved output path as the final stdout line.
+
+The only allowed local helper import is `scripts/common.py`.
+
+For the current architecture and the planned path toward stricter, copy-pastable provider files, read `references/provider-protocol-architecture.html`.
+
 If `--output` is omitted, generated files go under `skills/image-gen/outputs/`. Successful generations are logged to `skills/image-gen/data/generations.jsonl`.
 
 The current comparison runner is `scripts/run_examples.py`. It is meant for fixed example prompts and model benchmarking. It dry-runs by default and only generates images when passed `--generate`.
@@ -210,6 +216,7 @@ See also:
 - `SKILL.md`
 - `references/current-models.md`
 - `references/maintenance-workflow.md`
+- `references/provider-protocol-architecture.html`
 - `outputs/README.md`
 - `data/README.md`
 - `assets/README.md`

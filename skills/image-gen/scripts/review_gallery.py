@@ -10,21 +10,19 @@ from __future__ import annotations
 import argparse
 import json
 import mimetypes
+import re
 import shutil
 import socket
 import subprocess
-import sys
 import threading
 import time
-import re
 from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import SKILL_DIR, default_data_dir, image_dimensions  # noqa: E402
+from common import SKILL_DIR, default_data_dir, image_dimensions
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parent

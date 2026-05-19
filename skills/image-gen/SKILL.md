@@ -24,7 +24,7 @@ After generation, return the absolute output path and, when the client supports 
 | Specific Imagen requirement | `generate_imagen.py` | Imagen 4 GA models are listed by Google with a 2026-06-30 discontinuation date; prefer Gemini for new work unless Imagen is requested. |
 | Flux or fal model ecosystem | `generate_fal.py` | Defaults to `fal-ai/flux-2-pro`; supports fal size presets, seed, output format, and optional model-specific controls. |
 
-For the current comparison model matrix, read `references/current-models.md`. For model/API refreshes and long-term data handling, read `references/maintenance-workflow.md`.
+For the current comparison model matrix, read `references/current-models.md`. For model/API refreshes and long-term data handling, read `references/maintenance-workflow.md`. For the provider protocol architecture and future copy-pastable-file direction, read `references/provider-protocol-architecture.html`.
 
 ## Command Pattern
 
@@ -37,6 +37,10 @@ The Python entrypoints are executable UV scripts. Prefer direct execution:
 ```
 
 `uv run --script ~/.claude/skills/image-gen/scripts/<script>.py ...` remains a valid fallback if a copied checkout has lost executable bits.
+
+Provider scripts are image generation adapters. Keep their interface stable: executable UV script, `--prompt`, `--output`, `--output-dir`, `--model`, `--check`, successful generation history, and resolved output path as the final stdout line.
+
+`scripts/common.py` is the only shared local helper.
 
 Common examples:
 
