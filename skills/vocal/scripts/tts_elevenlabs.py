@@ -17,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 import httpx
+from env_helpers import get_elevenlabs_api_key
 
 API_BASE = "https://api.elevenlabs.io/v1"
 
@@ -29,7 +30,7 @@ def error_exit(msg: str, hint: str | None = None) -> None:
 
 
 def get_api_key() -> str:
-    api_key = os.environ.get("ELEVENLABS_API_KEY") or os.environ.get("ELEVEN_LABS_API_KEY")
+    api_key = get_elevenlabs_api_key()
     if not api_key:
         error_exit(
             "ELEVENLABS_API_KEY (or ELEVEN_LABS_API_KEY) environment variable not set",
