@@ -2,17 +2,18 @@
 
 ## Overview
 
-Three tiers of voice integration for Claude Code, each building on the last.
+Three tiers of voice integration for Claude Code, each building on the last. A local web console sits beside Tier 1 as a preference-tuning surface over the same provider scripts.
 
 ```
 Tier 1: Voice Scripts          Tier 2: Voice Mode           Tier 3: Voice Bridge
-(tools Claude calls)           (team-based loop)            (standalone process)
+(tools + web console)          (team-based loop)            (standalone process)
 
 ┌─────────────────┐           ┌──────────────────┐         ┌──────────────────┐
 │ tts_local.py    │           │ Main Session     │         │ voice_bridge.py  │
 │ tts_elevenlabs  │           │   ↕ SendMessage  │         │   mic → STT      │
 │ stt_local.py    │           │ Voice Listener   │         │   → Claude CLI   │
 │ stt_elevenlabs  │           │   (background)   │         │   → TTS → speak  │
+│ web_console.py  │           │                  │         │                  │
 └─────────────────┘           └──────────────────┘         └──────────────────┘
 User-initiated                Agent-initiated               Continuous loop
 "speak this" / "listen"       push when idle                hands-free conversation
@@ -28,6 +29,7 @@ Standalone Python scripts following the image-gen skill pattern. Claude calls th
 | `tts_elevenlabs.py` | ElevenLabs Flash v2.5 | `elevenlabs`, `httpx` | ~75ms | API |
 | `stt_local.py` | mlx-whisper | `mlx-whisper`, `sounddevice` | ~500-2000ms | Free |
 | `stt_elevenlabs.py` | ElevenLabs Scribe v2 | `elevenlabs`, `sounddevice` | ~150ms | API |
+| `web_console.py` | Local browser UI | stdlib only | Interactive | Free |
 
 Each script:
 - Uses PEP 723 uv inline deps
@@ -35,6 +37,14 @@ Each script:
 - Prints output to stdout (text for STT, file path for TTS with `--output`)
 - Logs to stderr
 - Matches image-gen conventions exactly
+
+### Local web console
+
+`web_console.py` hosts http://127.0.0.1:8765 by default. It exposes a browser workbench for comparing local `say` and ElevenLabs TTS, recording or uploading audio for STT, running provider checks, and saving personal defaults.
+
+The console intentionally calls the same scripts as the command-line workflow. Provider behavior stays centralized in `tts_local.py`, `stt_local.py`, `tts_elevenlabs.py`, and `stt_elevenlabs.py`; the web layer owns only preference persistence, HTTP upload/download handling, and the UI.
+
+Saved preferences live in `skills/vocal/data/preferences.json` by default and are gitignored. Set `VOCAL_DATA_DIR` to keep them outside the skill checkout.
 
 ## Tier 2: Voice Mode (Team + SendMessage)
 
