@@ -9,6 +9,8 @@ Tracked file:
 Ignored local files:
 
 - `generations.jsonl` - one JSON object per successful generated image
+- `rankings.jsonl` - saved review-gallery rankings, winner choices, and comments
+- `regenerations.jsonl` - review-gallery regeneration events
 - future local indexes or reports built from `generations.jsonl`
 
 Each history entry records the provider, model, prompt, prompt hash, output path, file size, detected dimensions when available, and non-secret generation parameters.

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Image-Gen Provider Protocol Architecture</title>
+  <title>Image-Gen Design Guide</title>
   <style>
     :root {
       color-scheme: light;
@@ -463,75 +463,102 @@
   <main class="page">
     <header class="hero">
       <div>
-        <p class="eyebrow">Image-gen architecture note</p>
-        <h1>Provider scripts as small adapters, tested by a shared protocol.</h1>
-        <p class="lede">This refactor keeps each image provider script understandable on its own, while making the comparison tools confident that every script behaves the same at the boundary.</p>
+        <p class="eyebrow">Image-gen design guide</p>
+        <h1>How the image-gen skill works.</h1>
+        <p class="lede">The skill is a small comparison-first image generation system: provider adapters create candidates, a local gallery captures preference, and protocol checks keep the pieces interchangeable.</p>
         <nav class="nav" aria-label="Page sections">
-          <a href="#now">Now</a>
+          <a href="#now">Design</a>
+          <a href="#workflow">Workflow</a>
           <a href="#protocol">Protocol</a>
-          <a href="#testing">Interface Tests</a>
-          <a href="#copyable">Copy-Pastable Files</a>
-          <a href="#principles">Principles</a>
-          <a href="#evolution">Evolution</a>
+          <a href="#testing">Tests</a>
+          <a href="#storage">Storage</a>
+          <a href="#evolution">Next</a>
         </nav>
       </div>
-      <aside class="summary-card" aria-label="Current decision summary">
-        <strong>Current decision</strong>
-        <p>Keep provider-specific code in provider-specific files. Share only boring mechanics in <code>scripts/common.py</code>. Let tests define the interface that comparison tools depend on.</p>
+      <aside class="summary-card" aria-label="Current design summary">
+        <strong>Chosen design</strong>
+        <p>Provider scripts stay small and provider-specific. The shared contract is command-line behavior and protocol JSON. Review and ranking data stays local by default.</p>
       </aside>
     </header>
 
     <section id="now" class="section section-grid">
-      <div class="section-kicker">What changed</div>
+      <div class="section-kicker">Implemented design</div>
       <div class="content-stack">
-        <h2>The refactor is architectural, but deliberately small.</h2>
-        <p>We are not building a provider framework. We are tightening the seam between provider scripts and the rest of the skill. The scripts remain executable UV files that can be run directly. The comparison runner, review gallery, regeneration flow, and future prompt comparer can treat them as adapters with a stable command-line contract.</p>
+        <h2>The skill is built from plain scripts with a tested boundary.</h2>
+        <p>There is no provider framework hidden behind the skill. The implementation uses directly executable UV scripts, one shared helper for local mechanics, a review gallery for ranking, and a test suite that checks the adapter interface before paid provider calls happen.</p>
         <div class="cards">
           <article class="card">
-            <span class="label"><span class="dot"></span>Provider scripts</span>
-            <p><code>generate_openai.py</code>, <code>generate_gemini.py</code>, <code>generate_imagen.py</code>, and <code>generate_fal.py</code> stay provider-specific. API differences remain visible where they belong.</p>
+            <span class="label"><span class="dot"></span>Provider adapters</span>
+            <p><code>generate_openai.py</code>, <code>generate_gemini.py</code>, <code>generate_imagen.py</code>, and <code>generate_fal.py</code> each own their provider API details and expose the same basic command shape.</p>
           </article>
           <article class="card">
-            <span class="label"><span class="dot"></span>Common helper</span>
-            <p><code>scripts/common.py</code> carries stable local mechanics: env loading, output paths, MIME handling, dimensions, and history logging. It is the only local helper import.</p>
+            <span class="label"><span class="dot"></span>Common local runtime</span>
+            <p><code>scripts/common.py</code> handles environment loading, output paths, MIME extensions, image dimensions, and generation history. It is the only shared local import for provider scripts.</p>
           </article>
           <article class="card">
-            <span class="label"><span class="dot"></span>Protocol checker</span>
-            <p>The test suite now checks that provider scripts expose the same adapter surface before anyone discovers the mismatch during a comparison run.</p>
+            <span class="label"><span class="dot"></span>Comparison loop</span>
+            <p><code>run_examples.py</code> can produce reviewable comparison manifests. <code>review_gallery.py</code> opens those runs, saves rankings, copies the winner, and supports regeneration.</p>
           </article>
           <article class="card">
-            <span class="label"><span class="dot"></span>Human docs</span>
-            <p>The README and maintenance workflow now name the adapter contract, so the design intent is not trapped in the test file.</p>
+            <span class="label"><span class="dot"></span>Visual evaluator</span>
+            <p><code>evaluate_review_gallery.py</code> captures screenshots and checks the gallery behavior, including the image-only default state and non-overlapping metadata rule.</p>
           </article>
         </div>
       </div>
     </section>
 
-    <section id="protocol" class="section section-grid">
-      <div class="section-kicker">Boundary</div>
+    <section id="workflow" class="section section-grid">
+      <div class="section-kicker">Workflow</div>
       <div class="content-stack">
-        <h2>The protocol is the public interface for generation.</h2>
-        <p>Every provider can have different API details, but each script must look the same from the outside. That is what lets comparison workflows call all enabled scripts without knowing about provider internals.</p>
+        <h2>There are two working paths: direct generation and comparison review.</h2>
+        <p>Direct generation is still the simplest path when the desired provider is known. Comparison review is the path for model comparison, ranking, feedback capture, and future training data.</p>
+        <div class="diagram" aria-label="Image-gen workflow">
+          <div class="node" data-tone="blue"><strong>Prompt</strong><span>User asks for an image or runs a fixed example</span></div>
+          <div class="node" data-tone="amber"><strong>Adapters</strong><span>Enabled provider scripts generate candidates</span></div>
+          <div class="node" data-tone="green"><strong>Manifest</strong><span>Prompt, candidates, providers, models, and paths</span></div>
+          <div class="node" data-tone="blue"><strong>Gallery</strong><span>Image-first ranking, comment, regenerate, save</span></div>
+          <div class="node" data-tone="green"><strong>Winner</strong><span>Leftmost image is copied as the selected output</span></div>
+        </div>
+        <div class="code-panel" aria-label="Current workflow commands">
+          <pre># Direct provider generation
+skills/image-gen/scripts/generate_openai.py \
+  --prompt "a quiet app icon for a journaling tool" \
+  --output /tmp/icon.png
+
+# Fixed comparison example, paid only with --generate
+skills/image-gen/scripts/run_examples.py --generate --example typography-poster
+
+# Open the generated run for ranking and feedback
+skills/image-gen/scripts/review_gallery.py --run-dir skills/image-gen/outputs/examples/&lt;timestamp&gt;</pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="protocol" class="section section-grid">
+      <div class="section-kicker">Provider protocol</div>
+      <div class="content-stack">
+        <h2>The protocol is the stable surface between providers and tools.</h2>
+        <p>Provider internals can differ. The outer behavior cannot. Runners and review tools depend on a small adapter contract instead of reaching into provider code.</p>
         <div class="flow">
           <div class="flow-row">
             <div class="flow-term">Executable</div>
-            <div class="flow-desc">Each provider is a directly executable UV script with a shebang and PEP 723 metadata. <code>uv run --script</code> stays a fallback, not the main path.</div>
+            <div class="flow-desc">Each provider is a directly executable UV script with a shebang, executable bit, and PEP 723 dependency metadata.</div>
           </div>
           <div class="flow-row">
             <div class="flow-term">Shared flags</div>
-            <div class="flow-desc">The common surface is <code>--prompt</code>, <code>--output</code>, <code>--output-dir</code>, <code>--model</code>, and <code>--check</code>. Provider-specific options can still exist when they are real capabilities.</div>
+            <div class="flow-desc">Every provider supports <code>--prompt</code>, <code>--output</code>, <code>--output-dir</code>, <code>--model</code>, <code>--check</code>, and <code>--protocol</code>.</div>
           </div>
           <div class="flow-row">
-            <div class="flow-term">Predictable output</div>
-            <div class="flow-desc">On success, the final stdout line is the resolved image path. That simple rule makes scripts easy for agents, shells, and higher-level tools to compose.</div>
+            <div class="flow-term">Protocol JSON</div>
+            <div class="flow-desc"><code>--protocol</code> prints machine-readable metadata without requiring API keys, provider credentials, or generation spend.</div>
           </div>
           <div class="flow-row">
-            <div class="flow-term">Local history</div>
-            <div class="flow-desc">Successful generations record provenance unless history is explicitly disabled. The data is local and gitignored, but stable enough to analyze later.</div>
+            <div class="flow-term">Final stdout</div>
+            <div class="flow-desc">On successful generation, the final stdout line is the resolved output path. That keeps shell and agent composition simple.</div>
           </div>
           <div class="flow-row">
-            <div class="flow-term">No hidden framework</div>
-            <div class="flow-desc">The checker allows only <code>common.py</code> as a local import today. That keeps the dependency graph flat and makes future copy-paste work feasible.</div>
+            <div class="flow-term">History</div>
+            <div class="flow-desc">Successful provider generations append to <code>data/generations.jsonl</code> unless <code>IMAGE_GEN_DISABLE_HISTORY=1</code> is set.</div>
           </div>
         </div>
       </div>
@@ -540,126 +567,85 @@
     <section id="testing" class="section section-grid">
       <div class="section-kicker">Interface tests</div>
       <div class="content-stack">
-        <h2>The protocol checker is an interface test, not just a lint rule.</h2>
-        <p>Most tests verify implementation behavior. This pattern verifies the contract that other tools depend on. The comparison workflow should fail fast if a provider script drops a required flag, stops logging history, or stops printing the resolved output path.</p>
-        <div class="diagram" aria-label="Provider protocol testing flow">
-          <div class="node" data-tone="blue"><strong>Script file</strong><span>Executable UV provider adapter</span></div>
-          <div class="node" data-tone="amber"><strong>Static scan</strong><span>Options, functions, imports, history call</span></div>
-          <div class="node" data-tone="green"><strong>Dry checks</strong><span>Help, compile, config checks, no paid call</span></div>
-          <div class="node" data-tone="blue"><strong>Comparison</strong><span>Runner invokes providers uniformly</span></div>
-          <div class="node" data-tone="green"><strong>Review data</strong><span>Images, manifest, ranking, comments, winner</span></div>
-        </div>
-        <p class="quote">A script can be internally different and still be externally interchangeable.</p>
+        <h2>The tests check the interface, not only the implementation.</h2>
+        <p>The default test suite stays free. It compiles scripts, checks executable UV metadata, validates the provider protocol surface, exercises <code>--protocol</code> JSON with no API keys, verifies history logging, and checks that generated example manifests are review-gallery compatible.</p>
+        <p class="quote">A provider can be internally different and still be externally interchangeable.</p>
         <div class="checks">
-          <div class="check"><p><strong>Free by default.</strong> The checker should catch interface drift without API keys or paid image calls.</p></div>
-          <div class="check"><p><strong>Behavior at the seam.</strong> The test names what the rest of the skill needs, instead of asserting incidental implementation details.</p></div>
-          <div class="check"><p><strong>Human-readable failure.</strong> A maintainer should know which provider broke and which part of the contract changed.</p></div>
-          <div class="check"><p><strong>Expandable.</strong> Later checks can cover JSON manifest output, cost metadata, or stricter copyability without redesigning the scripts.</p></div>
+          <div class="check"><p><strong>No-key protocol command.</strong> Tests call provider scripts with <code>--protocol</code> using the local Python interpreter, so provider SDKs and credentials are not needed.</p></div>
+          <div class="check"><p><strong>Static guardrails.</strong> Tests still scan options, top-level functions, local imports, history calls, and final stdout behavior.</p></div>
+          <div class="check"><p><strong>Manifest handoff.</strong> The example runner now records candidate entries in the shape that the review gallery already consumes.</p></div>
+          <div class="check"><p><strong>Paid calls separate.</strong> Real generation remains behind explicit <code>--generate</code> flags and provider key checks.</p></div>
         </div>
       </div>
     </section>
 
-    <section id="copyable" class="section section-grid">
-      <div class="section-kicker">Copyability</div>
+    <section id="storage" class="section section-grid">
+      <div class="section-kicker">Storage and review</div>
       <div class="content-stack">
-        <h2>The long-term ideal is a provider file you can copy by itself.</h2>
-        <p>We are not there yet because provider scripts still import <code>scripts/common.py</code>. That is acceptable for the current skill: it removes real duplication while keeping the shared surface small. But the architecture should continue moving toward files that can travel alone when needed.</p>
-        <div class="code-panel" aria-label="Future copy-pastable provider script checklist">
-          <pre>future provider file checklist
-
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = "&gt;=3.11"
-# dependencies = [...]
-# ///
-
-must support:
-  --prompt
-  --output
-  --output-dir
-  --model
-  --check
-
-must do:
-  create parent directories
-  save the image with the correct extension
-  record generation history, unless disabled
-  print the resolved output path as the final success line
-  avoid local imports, or include the shared helper code inline</pre>
-        </div>
-        <p>The protocol checker gives us a migration path. Today it allows exactly one helper import. Tomorrow it can run in a stricter mode that proves a provider script is fully standalone.</p>
-      </div>
-    </section>
-
-    <section id="principles" class="section section-grid">
-      <div class="section-kicker">Principles</div>
-      <div class="content-stack">
-        <h2>The architecture should stay boring at the boundary and honest inside the files.</h2>
-        <div class="principles">
-          <article class="principle">
-            <h3>Small over clever</h3>
-            <p>Use a small script per provider. Do not hide API differences behind an abstraction that makes debugging harder.</p>
+        <h2>The skill accumulates local evidence as it is used.</h2>
+        <p>Generated images, manifests, evaluation screenshots, rankings, regeneration events, and provenance logs are intentionally local and gitignored. The tracked repo carries the tools and reusable assets; the ignored directories carry private usage history.</p>
+        <div class="cards">
+          <article class="card">
+            <span class="label"><span class="dot"></span><code>outputs/</code></span>
+            <p>Generated images, example comparison runs, review manifests, winner copies, test runs, and visual evaluation screenshots.</p>
           </article>
-          <article class="principle">
-            <h3>Protocol over inheritance</h3>
-            <p>Define the interface with executable behavior and tests. A provider script conforms by doing the right things, not by subclassing a framework.</p>
+          <article class="card">
+            <span class="label"><span class="dot"></span><code>data/</code></span>
+            <p>Local JSONL history including <code>generations.jsonl</code>, <code>rankings.jsonl</code>, and <code>regenerations.jsonl</code>.</p>
           </article>
-          <article class="principle">
-            <h3>Copyable when possible</h3>
-            <p>Prefer file-local clarity, direct execution, explicit dependencies, and stable flags. Shared code has to earn its place.</p>
+          <article class="card">
+            <span class="label"><span class="dot"></span><code>assets/</code></span>
+            <p>Tracked reusable inputs such as the gallery template, prompt packs, masks, and safe reference materials.</p>
           </article>
-          <article class="principle">
-            <h3>Free checks first</h3>
-            <p>Most verification should run without credentials, network calls, or provider spend. Paid generation is an explicit later step.</p>
-          </article>
-          <article class="principle">
-            <h3>Data accumulates locally</h3>
-            <p>Prompts, outputs, rankings, winners, comments, and regeneration events should build a private training and evaluation trail.</p>
-          </article>
-          <article class="principle">
-            <h3>Human review stays visual</h3>
-            <p>The comparison UI should keep attention on images first. Details and mechanics should be available without dominating the task.</p>
+          <article class="card">
+            <span class="label"><span class="dot"></span><code>references/</code></span>
+            <p>Tracked maintenance notes, model matrices, and this human-facing design guide.</p>
           </article>
         </div>
       </div>
     </section>
 
     <section id="evolution" class="section section-grid">
-      <div class="section-kicker">Evolution path</div>
+      <div class="section-kicker">Next work</div>
       <div class="content-stack">
-        <h2>Where this can go next.</h2>
+        <h2>The remaining work is to make comparison the normal prompt path.</h2>
+        <p>The foundation is now in place: provider scripts advertise their protocol, tests enforce the interface, and example manifests can feed the review gallery. The next step is a single prompt-first command that runs enabled providers, opens review, waits for save, and prints only the winning image path.</p>
         <div class="timeline">
           <article class="phase">
-            <div class="phase-num">Phase 1 / now</div>
-            <h3>Adapter protocol</h3>
-            <p>Lock the current provider script interface with static and dry-run checks. Keep <code>common.py</code> as the only shared helper. Document the contract where humans and agents will find it.</p>
+            <div class="phase-num">Next 1</div>
+            <h3><code>compare_prompt.py</code></h3>
+            <p>Generate one candidate per enabled provider for arbitrary prompts, write a comparison manifest, launch the gallery, and return the selected winner.</p>
           </article>
           <article class="phase">
-            <div class="phase-num">Phase 2 / near</div>
-            <h3>Contract outputs</h3>
-            <p>Add an optional machine-readable self-description, such as <code>--protocol</code> or a dry-run JSON mode, so runners can discover capabilities without scraping help text.</p>
+            <div class="phase-num">Next 2</div>
+            <h3>Run history</h3>
+            <p>Add <code>comparison_runs.jsonl</code> so the skill can analyze prompts, model choices, rankings, comments, and winners over time.</p>
           </article>
           <article class="phase">
-            <div class="phase-num">Phase 3 / later</div>
-            <h3>Standalone mode</h3>
-            <p>Introduce a stricter checker mode that forbids local imports. Either inline the small shared runtime per provider file or generate standalone provider files from tested source.</p>
+            <div class="phase-num">Next 3</div>
+            <h3>Standalone export</h3>
+            <p>Add a stricter checker or export path for fully copy-pastable provider files after the protocol has stabilized.</p>
           </article>
         </div>
-        <div class="cards">
-          <article class="card">
-            <span class="label"><span class="dot"></span>Open question</span>
-            <p>Should copy-pastable provider files be handwritten, or generated from a canonical source plus a tiny embedded helper block?</p>
+        <div class="principles">
+          <article class="principle">
+            <h3>Small adapters</h3>
+            <p>Keep provider differences visible inside provider files.</p>
           </article>
-          <article class="card">
-            <span class="label"><span class="dot"></span>Open question</span>
-            <p>Should the protocol checker remain static, or should every provider expose a cheap <code>--protocol</code> command that returns JSON?</p>
+          <article class="principle">
+            <h3>Protocol first</h3>
+            <p>Make cross-script behavior explicit and testable.</p>
+          </article>
+          <article class="principle">
+            <h3>Image-first review</h3>
+            <p>Do not let controls, metadata, or commentary dominate the images being judged.</p>
           </article>
         </div>
       </div>
     </section>
 
     <footer class="footer">
-      <p>Tracked reference for <code>skills/image-gen</code>. Generated images, gallery runs, and evaluation screenshots still belong under ignored <code>outputs/</code>; reusable source inputs belong under tracked <code>assets/</code>.</p>
+      <p>Tracked reference for <code>skills/image-gen</code>. Generated images, gallery runs, feedback, and evaluation screenshots belong under ignored <code>outputs/</code> and <code>data/</code>; reusable source inputs belong under tracked <code>assets/</code>.</p>
     </footer>
   </main>
 </body>

@@ -8,7 +8,7 @@ Suggested layout:
 
 ```text
 outputs/
-├── examples/<timestamp>/      # comparison runner output
+├── examples/<timestamp>/      # comparison runner output, reviewable for single examples
 ├── test-runs/<timestamp>/     # paid test generation output
 └── generated-*.png            # one-off script output when --output is omitted
 ```

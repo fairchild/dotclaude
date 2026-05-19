@@ -5,14 +5,13 @@
 # ///
 """Generate images using fal.ai's Flux models."""
 
+from __future__ import annotations
+
 import argparse
+import json
 import os
 from pathlib import Path
 from urllib.parse import unquote, urlparse
-
-import fal_client
-import requests
-from fal_client.client import FalClientHTTPError
 
 from common import (
     error_exit,
@@ -29,12 +28,54 @@ FORMAT_TO_EXT = {
     "png": ".png",
 }
 
+PROTOCOL = {
+    "protocol_version": "image-gen-provider/v1",
+    "provider": "fal",
+    "default_model": "fal-ai/flux-2-pro",
+    "required_options": [
+        "--prompt",
+        "--output",
+        "--output-dir",
+        "--model",
+        "--check",
+        "--protocol",
+    ],
+    "final_stdout": "resolved_output_path",
+    "history": "generations.jsonl",
+    "local_helper_imports": ["common"],
+    "supports": {
+        "output_formats": ["jpeg", "png"],
+        "image_sizes": [
+            "square_hd",
+            "square",
+            "portrait_4_3",
+            "portrait_16_9",
+            "landscape_4_3",
+            "landscape_16_9",
+        ],
+        "provider_options": [
+            "--image-size",
+            "--output-format",
+            "--seed",
+            "--guidance-scale",
+            "--num-inference-steps",
+            "--num-images",
+        ],
+    },
+}
+
+
+def print_protocol() -> None:
+    print(json.dumps(PROTOCOL, indent=2, sort_keys=True))
+
 
 def get_api_key() -> str:
     return get_env_var(("FAL_KEY",), "https://fal.ai/dashboard/keys")
 
 
 def check_config() -> None:
+    import fal_client
+
     api_key = get_api_key()
     os.environ["FAL_KEY"] = api_key
     try:
@@ -59,6 +100,10 @@ def generate_image(
     num_inference_steps: int | None = None,
     num_images: int | None = None,
 ) -> Path:
+    import fal_client
+    import requests
+    from fal_client.client import FalClientHTTPError
+
     api_key = get_api_key()
     os.environ["FAL_KEY"] = api_key
 
@@ -229,7 +274,16 @@ def main() -> None:
         action="store_true",
         help="Validate API key configuration without generating an image",
     )
+    parser.add_argument(
+        "--protocol",
+        action="store_true",
+        help="Print the provider adapter protocol JSON without requiring API keys",
+    )
     args = parser.parse_args()
+
+    if args.protocol:
+        print_protocol()
+        return
 
     if args.check:
         check_config()

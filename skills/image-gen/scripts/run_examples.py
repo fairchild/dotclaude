@@ -252,6 +252,52 @@ def write_manifest(path: Path, manifest: dict[str, object]) -> None:
     path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
 
+def initial_manifest(
+    *,
+    output_dir: Path,
+    examples: list[Example],
+    presets: list[ModelPreset],
+) -> dict[str, object]:
+    prompts = {example.id: example.prompt for example in examples}
+    return {
+        "id": output_dir.name,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "output_dir": str(output_dir.resolve()),
+        "examples": [example.id for example in examples],
+        "prompts": prompts,
+        "prompt": examples[0].prompt if len(examples) == 1 else "",
+        "presets": [preset.id for preset in presets],
+        "outputs": [],
+        "runs": [],
+    }
+
+
+def output_entry(
+    *,
+    preset: ModelPreset,
+    example: Example,
+    result: dict[str, object],
+    output_dir: Path,
+) -> dict[str, object] | None:
+    if result.get("returncode") != 0 or not result.get("output_path"):
+        return None
+
+    output_path = Path(str(result["output_path"])).expanduser()
+    try:
+        relative_path = str(output_path.resolve().relative_to(output_dir.resolve()))
+    except ValueError:
+        relative_path = str(output_path)
+
+    return {
+        "candidate_id": f"{example.id}:{preset.id}",
+        "example": example.id,
+        "model": preset.model,
+        "path": relative_path,
+        "preset": preset.id,
+        "provider": preset.provider,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run image-gen comparison examples")
     parser.add_argument("--generate", action="store_true", help="Run paid image generation")
@@ -311,13 +357,7 @@ def main() -> None:
     load_dotenv_files()
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = output_dir / "manifest.json"
-    manifest: dict[str, object] = {
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "output_dir": str(output_dir.resolve()),
-        "examples": [example.id for example in examples],
-        "presets": [preset.id for preset in presets],
-        "runs": [],
-    }
+    manifest = initial_manifest(output_dir=output_dir, examples=examples, presets=presets)
     write_manifest(manifest_path, manifest)
 
     failures = 0
@@ -343,6 +383,14 @@ def main() -> None:
             }
         )
         manifest["runs"].append(result)
+        entry = output_entry(
+            preset=preset,
+            example=example,
+            result=result,
+            output_dir=output_dir,
+        )
+        if entry:
+            manifest["outputs"].append(entry)
         write_manifest(manifest_path, manifest)
 
         ok = result["returncode"] == 0 and result.get("output_path")
