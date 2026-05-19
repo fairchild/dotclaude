@@ -12,6 +12,7 @@
 
 - **Image-gen provider scripts**: Refreshed model defaults and shared common handling for environment loading, output paths, formats, and history logging.
 - **Image-gen provider protocol**: Added no-key `--protocol` metadata and reviewable single-example comparison manifests.
+- **Image-gen storage policy**: Documented the repo-local convention for ignored generated outputs and local history data.
 - **Image-gen skill guide and tests**: Streamlined the skill instructions, documented direct executable UV script usage, and expanded tests around the provider adapter protocol, comparison runs, shared helpers, and local history.
 
 ## [0.1.0] - 2026-01-24

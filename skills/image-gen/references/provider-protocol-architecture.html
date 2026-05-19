@@ -583,7 +583,7 @@ skills/image-gen/scripts/review_gallery.py --run-dir skills/image-gen/outputs/ex
       <div class="section-kicker">Storage and review</div>
       <div class="content-stack">
         <h2>The skill accumulates local evidence as it is used.</h2>
-        <p>Generated images, manifests, evaluation screenshots, rankings, regeneration events, and provenance logs are intentionally local and gitignored. The tracked repo carries the tools and reusable assets; the ignored directories carry private usage history.</p>
+        <p>Generated images, manifests, evaluation screenshots, rankings, regeneration events, and provenance logs are intentionally local and gitignored. The tracked repo carries the tools and reusable assets; the ignored directories carry private usage history. This is a documented local convention for this skill rather than a general Agent Skills standard.</p>
         <div class="cards">
           <article class="card">
             <span class="label"><span class="dot"></span><code>outputs/</code></span>
@@ -599,7 +599,7 @@ skills/image-gen/scripts/review_gallery.py --run-dir skills/image-gen/outputs/ex
           </article>
           <article class="card">
             <span class="label"><span class="dot"></span><code>references/</code></span>
-            <p>Tracked maintenance notes, model matrices, and this human-facing design guide.</p>
+            <p>Tracked maintenance notes, model matrices, this design guide, and the storage policy explaining why mutable data is separated from reusable skill resources.</p>
           </article>
         </div>
       </div>

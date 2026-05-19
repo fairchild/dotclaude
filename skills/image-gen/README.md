@@ -26,7 +26,7 @@ Provider scripts follow a small adapter protocol so the comparison and review to
 
 The only allowed local helper import is `scripts/common.py`.
 
-For the implemented design and provider protocol approach, read `references/provider-protocol-architecture.html`.
+For the implemented design and provider protocol approach, read `references/provider-protocol-architecture.html`. For the local storage convention, read `references/storage-policy.md`.
 
 If `--output` is omitted, generated files go under `skills/image-gen/outputs/`. Successful generations are logged to `skills/image-gen/data/generations.jsonl`.
 
@@ -135,6 +135,8 @@ Sensitive prompts can opt out of history logging:
 IMAGE_GEN_DISABLE_HISTORY=1 skills/image-gen/scripts/generate_openai.py ...
 ```
 
+This is a documented repo-local storage convention, not a general Agent Skills standard. The skill keeps generated files in ignored `outputs/` and local history in ignored `data/` so agents and scripts have stable paths, while `IMAGE_GEN_OUTPUT_DIR`, `IMAGE_GEN_DATA_DIR`, and `IMAGE_GEN_DISABLE_HISTORY` provide privacy and relocation controls. See `references/storage-policy.md`.
+
 ## Comparison UI
 
 The review UI optimizes for speed.
@@ -218,6 +220,7 @@ See also:
 - `references/current-models.md`
 - `references/maintenance-workflow.md`
 - `references/provider-protocol-architecture.html`
+- `references/storage-policy.md`
 - `outputs/README.md`
 - `data/README.md`
 - `assets/README.md`

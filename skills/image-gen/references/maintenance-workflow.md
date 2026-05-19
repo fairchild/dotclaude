@@ -15,6 +15,8 @@ Keep generated history local by default.
 
 Do not put routine generated outputs in `assets/`. Use `assets/` only for stable inputs that future runs should reuse.
 
+This is a repo-local convention for this skill, not a general Agent Skills standard. See `references/storage-policy.md` for the research notes, rationale, and rules.
+
 ## Local History
 
 Every provider script records successful generations to `data/generations.jsonl` unless disabled.
