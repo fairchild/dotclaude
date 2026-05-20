@@ -5,13 +5,12 @@
 # ///
 """Generate images using Google's Imagen models."""
 
+from __future__ import annotations
+
 import argparse
+import json
 import sys
 from pathlib import Path
-
-from google import genai
-from google.genai import types
-from google.genai.errors import ClientError, ServerError
 
 from common import (
     OUTPUT_FORMAT_TO_EXT,
@@ -29,6 +28,38 @@ FORMAT_TO_MIME = {
     "png": "image/png",
 }
 
+PROTOCOL = {
+    "protocol_version": "image-gen-provider/v1",
+    "provider": "imagen",
+    "default_model": "imagen-4.0-generate-001",
+    "required_options": [
+        "--prompt",
+        "--output",
+        "--output-dir",
+        "--model",
+        "--check",
+        "--protocol",
+    ],
+    "final_stdout": "resolved_output_path",
+    "history": "generations.jsonl",
+    "local_helper_imports": ["common"],
+    "supports": {
+        "output_formats": ["png", "jpeg"],
+        "aspect_ratios": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+        "provider_options": [
+            "--aspect-ratio",
+            "--image-size",
+            "--output-format",
+            "--output-compression",
+            "--no-enhance-prompt",
+        ],
+    },
+}
+
+
+def print_protocol() -> None:
+    print(json.dumps(PROTOCOL, indent=2, sort_keys=True))
+
 
 def get_api_key() -> str:
     return get_env_var(
@@ -38,6 +69,9 @@ def get_api_key() -> str:
 
 
 def check_config() -> None:
+    from google import genai
+    from google.genai.errors import ClientError
+
     api_key = get_api_key()
     client = genai.Client(api_key=api_key)
     try:
@@ -63,6 +97,10 @@ def generate_image(
     output_compression: int | None = None,
     enhance_prompt: bool | None = None,
 ) -> Path:
+    from google import genai
+    from google.genai import types
+    from google.genai.errors import ClientError, ServerError
+
     api_key = get_api_key()
     client = genai.Client(api_key=api_key)
 
@@ -213,7 +251,16 @@ def main() -> None:
         action="store_true",
         help="Validate API key configuration without generating an image",
     )
+    parser.add_argument(
+        "--protocol",
+        action="store_true",
+        help="Print the provider adapter protocol JSON without requiring API keys",
+    )
     args = parser.parse_args()
+
+    if args.protocol:
+        print_protocol()
+        return
 
     if args.check:
         check_config()

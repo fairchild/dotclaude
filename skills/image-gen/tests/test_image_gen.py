@@ -57,8 +57,26 @@ PROVIDERS = {
     },
     "fal": {"env": ("FAL_KEY",), "script": "generate_fal.py", "ext": ".jpg"},
 }
-PROVIDER_REQUIRED_OPTIONS = ("--prompt", "--output", "--output-dir", "--model", "--check")
-PROVIDER_REQUIRED_FUNCTIONS = ("check_config", "generate_image", "main")
+PROVIDER_REQUIRED_OPTIONS = (
+    "--prompt",
+    "--output",
+    "--output-dir",
+    "--model",
+    "--check",
+    "--protocol",
+)
+PROVIDER_REQUIRED_FUNCTIONS = ("check_config", "generate_image", "print_protocol", "main")
+PROVIDER_PROTOCOL_VERSION = "image-gen-provider/v1"
+PROVIDER_PROTOCOL_REQUIRED_KEYS = (
+    "protocol_version",
+    "provider",
+    "default_model",
+    "required_options",
+    "final_stdout",
+    "history",
+    "local_helper_imports",
+    "supports",
+)
 ALLOWED_PROVIDER_LOCAL_IMPORTS = {"common"}
 
 SKILL_DIR = Path(__file__).parent.parent
@@ -80,6 +98,7 @@ from review_gallery import (  # noqa: E402
     find_candidates,
     normalize_ranking,
 )
+from run_examples import Example, ModelPreset, initial_manifest, output_entry  # noqa: E402
 
 ONE_PIXEL_PNG = (
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8"
@@ -140,6 +159,7 @@ def check_provider_protocol() -> int:
         options = argparse_options(tree)
         functions = top_level_functions(tree)
         local_imports = local_script_imports(tree)
+        protocol = provider_protocol(path)
 
         missing_options = [option for option in PROVIDER_REQUIRED_OPTIONS if option not in options]
         missing_functions = [
@@ -148,6 +168,7 @@ def check_provider_protocol() -> int:
             if function_name not in functions
         ]
         disallowed_imports = sorted(local_imports - ALLOWED_PROVIDER_LOCAL_IMPORTS)
+        protocol_problems = validate_provider_protocol(provider, protocol)
 
         problems = []
         if missing_options:
@@ -156,6 +177,7 @@ def check_provider_protocol() -> int:
             problems.append(f"missing functions: {', '.join(missing_functions)}")
         if disallowed_imports:
             problems.append(f"disallowed local imports: {', '.join(disallowed_imports)}")
+        problems.extend(protocol_problems)
         if "record_generation(" not in text:
             problems.append("does not record successful generations")
         if "print(output_path.resolve())" not in text:
@@ -168,6 +190,65 @@ def check_provider_protocol() -> int:
             print(f"  {provider}: protocol OK")
 
     return failures
+
+
+def provider_protocol(path: Path) -> dict:
+    result = subprocess.run(
+        [sys.executable, str(path), "--protocol"],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    if result.returncode != 0:
+        return {"_error": result.stderr.strip() or result.stdout.strip() or "unknown error"}
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        return {"_error": f"invalid JSON: {error}"}
+
+
+def validate_provider_protocol(provider: str, protocol: dict) -> list[str]:
+    problems = []
+    if protocol.get("_error"):
+        return [f"--protocol failed: {protocol['_error']}"]
+
+    missing_keys = [key for key in PROVIDER_PROTOCOL_REQUIRED_KEYS if key not in protocol]
+    if missing_keys:
+        problems.append(f"protocol missing keys: {', '.join(missing_keys)}")
+
+    if protocol.get("protocol_version") != PROVIDER_PROTOCOL_VERSION:
+        problems.append("protocol_version is not image-gen-provider/v1")
+    if protocol.get("provider") != provider:
+        problems.append(f"protocol provider is {protocol.get('provider')!r}")
+    if not protocol.get("default_model"):
+        problems.append("protocol default_model is missing")
+    if protocol.get("final_stdout") != "resolved_output_path":
+        problems.append("protocol final_stdout must be resolved_output_path")
+    if protocol.get("history") != "generations.jsonl":
+        problems.append("protocol history must be generations.jsonl")
+
+    protocol_options = set(protocol.get("required_options") or [])
+    missing_protocol_options = [
+        option for option in PROVIDER_REQUIRED_OPTIONS if option not in protocol_options
+    ]
+    if missing_protocol_options:
+        problems.append(
+            "protocol missing required_options: " + ", ".join(missing_protocol_options)
+        )
+
+    protocol_imports = set(protocol.get("local_helper_imports") or [])
+    disallowed_protocol_imports = sorted(protocol_imports - ALLOWED_PROVIDER_LOCAL_IMPORTS)
+    if disallowed_protocol_imports:
+        problems.append(
+            "protocol disallowed local_helper_imports: "
+            + ", ".join(disallowed_protocol_imports)
+        )
+
+    supports = protocol.get("supports")
+    if not isinstance(supports, dict) or not supports:
+        problems.append("protocol supports must be a non-empty object")
+
+    return problems
 
 
 def argparse_options(tree: ast.AST) -> set[str]:
@@ -297,6 +378,62 @@ def check_review_candidate_matching() -> int:
     return 0
 
 
+def check_example_manifest_schema() -> int:
+    print("\n=== Example Manifest Schema Check ===")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_dir = Path(tmpdir)
+        example = Example(
+            id="logo",
+            prompt="Logo prompt",
+            output_ext=".png",
+            args_by_provider={"openai": ("--size", "1024x1024")},
+        )
+        preset = ModelPreset(
+            id="openai:gpt-image-2",
+            provider="openai",
+            script="generate_openai.py",
+            model="gpt-image-2",
+            note="test preset",
+        )
+        output = output_dir / "logo__openai-gpt-image-2.png"
+        output.write_bytes(base64.b64decode(ONE_PIXEL_PNG))
+        manifest = initial_manifest(output_dir=output_dir, examples=[example], presets=[preset])
+        entry = output_entry(
+            preset=preset,
+            example=example,
+            result={"returncode": 0, "output_path": str(output)},
+            output_dir=output_dir,
+        )
+        if entry is None:
+            print("  output entry: missing")
+            return 1
+        manifest["outputs"].append(entry)
+
+        if manifest.get("prompt") != example.prompt:
+            print("  prompt: missing top-level review prompt")
+            return 1
+        outputs = manifest.get("outputs")
+        if not isinstance(outputs, list) or len(outputs) != 1:
+            print("  outputs: missing review candidates")
+            return 1
+        output_entry_value = outputs[0]
+        expected = {
+            "candidate_id": "logo:openai:gpt-image-2",
+            "example": "logo",
+            "model": "gpt-image-2",
+            "path": "logo__openai-gpt-image-2.png",
+            "preset": "openai:gpt-image-2",
+            "provider": "openai",
+        }
+        for key, value in expected.items():
+            if output_entry_value.get(key) != value:
+                print(f"  {key}: expected {value!r}, got {output_entry_value.get(key)!r}")
+                return 1
+
+    print("  reviewable manifest: OK")
+    return 0
+
+
 def env_names(provider: str) -> tuple[str, ...]:
     return PROVIDERS[provider]["env"]
 
@@ -388,6 +525,7 @@ def main() -> None:
     failures += check_provider_protocol()
     failures += check_history_logging()
     failures += check_review_candidate_matching()
+    failures += check_example_manifest_schema()
 
     if args.check_env or args.require_env:
         failures += report_env(providers, require=args.require_env)

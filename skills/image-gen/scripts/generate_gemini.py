@@ -5,12 +5,11 @@
 # ///
 """Generate images using Google's Gemini image models (Nano Banana)."""
 
-import argparse
-from pathlib import Path
+from __future__ import annotations
 
-from google import genai
-from google.genai import types
-from google.genai.errors import ClientError, ServerError
+import argparse
+import json
+from pathlib import Path
 
 from common import (
     error_exit,
@@ -22,6 +21,49 @@ from common import (
 )
 
 
+PROTOCOL = {
+    "protocol_version": "image-gen-provider/v1",
+    "provider": "gemini",
+    "default_model": "gemini-3.1-flash-image-preview",
+    "required_options": [
+        "--prompt",
+        "--output",
+        "--output-dir",
+        "--model",
+        "--check",
+        "--protocol",
+    ],
+    "final_stdout": "resolved_output_path",
+    "history": "generations.jsonl",
+    "local_helper_imports": ["common"],
+    "supports": {
+        "output_formats": ["provider-returned-mime"],
+        "aspect_ratios": [
+            "1:1",
+            "1:4",
+            "1:8",
+            "2:3",
+            "3:2",
+            "3:4",
+            "4:1",
+            "4:3",
+            "4:5",
+            "5:4",
+            "8:1",
+            "9:16",
+            "16:9",
+            "21:9",
+        ],
+        "image_sizes": ["512", "1K", "2K", "4K"],
+        "provider_options": ["--aspect-ratio", "--image-size"],
+    },
+}
+
+
+def print_protocol() -> None:
+    print(json.dumps(PROTOCOL, indent=2, sort_keys=True))
+
+
 def get_api_key() -> str:
     return get_env_var(
         ("GOOGLE_API_KEY", "GEMINI_API_KEY"),
@@ -30,6 +72,9 @@ def get_api_key() -> str:
 
 
 def check_config() -> None:
+    from google import genai
+    from google.genai.errors import ClientError
+
     api_key = get_api_key()
     client = genai.Client(api_key=api_key)
     try:
@@ -52,6 +97,10 @@ def generate_image(
     aspect_ratio: str = "1:1",
     image_size: str | None = None,
 ) -> Path:
+    from google import genai
+    from google.genai import types
+    from google.genai.errors import ClientError, ServerError
+
     api_key = get_api_key()
     client = genai.Client(api_key=api_key)
 
@@ -175,7 +224,16 @@ def main() -> None:
         action="store_true",
         help="Validate API key configuration without generating an image",
     )
+    parser.add_argument(
+        "--protocol",
+        action="store_true",
+        help="Print the provider adapter protocol JSON without requiring API keys",
+    )
     args = parser.parse_args()
+
+    if args.protocol:
+        print_protocol()
+        return
 
     if args.check:
         check_config()

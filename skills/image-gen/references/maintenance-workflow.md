@@ -15,6 +15,8 @@ Keep generated history local by default.
 
 Do not put routine generated outputs in `assets/`. Use `assets/` only for stable inputs that future runs should reuse.
 
+This is a repo-local convention for this skill, not a general Agent Skills standard. See `references/storage-policy.md` for the research notes, rationale, and rules.
+
 ## Local History
 
 Every provider script records successful generations to `data/generations.jsonl` unless disabled.
@@ -62,14 +64,16 @@ The local history is useful for later analysis of prompts, model drift, cost/per
    - Prefer small provider-specific scripts over a generic abstraction that hides API differences.
    - Keep shared behavior in `scripts/common.py`: output paths, env loading, MIME handling, history logging.
    - Add only CLI flags that are stable and useful for agent workflows.
-   - Preserve the provider adapter protocol: executable UV script, `--prompt`, `--output`, `--output-dir`, `--model`, `--check`, history logging, and final stdout line as the resolved output path.
+   - Preserve the provider adapter protocol: executable UV script, `--prompt`, `--output`, `--output-dir`, `--model`, `--check`, `--protocol`, history logging, and final stdout line as the resolved output path.
    - Keep `scripts/common.py` as the only shared local helper import for provider scripts.
-   - See `references/provider-protocol-architecture.html` when changing the adapter contract or exploring stricter copy-pastable provider files.
+   - Keep `--protocol` free of provider credentials and paid API calls.
+   - See `references/provider-protocol-architecture.html` when changing the adapter contract or explaining how the skill works.
 
 4. Update comparison presets in `scripts/run_examples.py`.
    - Keep a small default comparison set that covers current best defaults.
    - Add older or niche models as available presets, not necessarily default presets.
    - Use prompts that reveal meaningful differences: text rendering, instruction following, icon/asset style, layout fidelity, and exact object constraints.
+   - Keep single-example generated manifests compatible with `scripts/review_gallery.py`.
 
 5. Run free verification.
 
@@ -81,6 +85,7 @@ skills/image-gen/scripts/generate_openai.py --help
 skills/image-gen/scripts/generate_gemini.py --help
 skills/image-gen/scripts/generate_imagen.py --help
 skills/image-gen/scripts/generate_fal.py --help
+skills/image-gen/scripts/generate_openai.py --protocol
 ```
 
 6. Run paid comparisons only when useful.
