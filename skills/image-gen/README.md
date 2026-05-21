@@ -178,6 +178,7 @@ Current scripts:
 - `scripts/generate_gemini.py`: Gemini / Nano Banana generation.
 - `scripts/generate_imagen.py`: Imagen generation.
 - `scripts/generate_fal.py`: fal.ai generation.
+- `scripts/check_protocol.py`: no-key provider adapter protocol checker.
 - `scripts/run_examples.py`: fixed example comparisons for current model presets.
 - `scripts/review_gallery.py`: local review server for choosing, ranking, commenting, and regenerating comparison outputs.
 - `scripts/evaluate_review_gallery.py`: Playwright capture and checks for review gallery screenshots, image loading, metadata placement, click-to-rank, and keyboard behavior.
@@ -206,10 +207,13 @@ Image APIs and model names drift quickly. The maintenance workflow is:
 4. Run free verification:
 
 ```bash
+skills/image-gen/scripts/check_protocol.py
 skills/image-gen/tests/test_image_gen.py
 skills/image-gen/scripts/run_examples.py --list
 skills/image-gen/scripts/run_examples.py
 ```
+
+The focused protocol checker is also wired into PR validation for changes under `skills/image-gen/`, so adapter breakage is caught before merge without provider keys or paid generation.
 
 5. Run paid comparisons only when useful.
 6. Keep `SKILL.md` compact. Put human explanation here and operational details in `references/`.

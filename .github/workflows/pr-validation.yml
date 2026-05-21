@@ -45,13 +45,23 @@ jobs:
             agents/*.md
             skills/**
 
+      - name: Run image-gen protocol checks
+        id: image_gen_protocol
+        if: contains(steps.changed.outputs.all_changed_files, 'skills/image-gen/')
+        run: python skills/image-gen/scripts/check_protocol.py
+        continue-on-error: true
+
       - name: Generate summary
         id: summary
         uses: actions/github-script@v7
         with:
           script: |
             const changedFiles = `${{ steps.changed.outputs.all_changed_files }}`.split(' ').filter(f => f);
-            const hasErrors = `${{ steps.validate.outcome }}` === 'failure';
+            const validationFailed = `${{ steps.validate.outcome }}` === 'failure';
+            const imageGenProtocolOutcome = `${{ steps.image_gen_protocol.outcome }}`;
+            const imageGenProtocolRan = imageGenProtocolOutcome !== '' && imageGenProtocolOutcome !== 'skipped';
+            const imageGenProtocolFailed = imageGenProtocolOutcome === 'failure';
+            const hasErrors = validationFailed || imageGenProtocolFailed;
 
             // Categorize changes
             const settings = changedFiles.filter(f => f === 'settings.json' || f === '.mcp.json');
@@ -93,11 +103,12 @@ jobs:
             body += '### Validation Checks\n\n';
             body += '| Check | Status |\n';
             body += '|-------|--------|\n';
-            body += `| JSON Schema (settings.json) | ${settings.includes('settings.json') ? (hasErrors ? ':x:' : ':white_check_mark:') : ':white_circle: N/A'} |\n`;
-            body += `| JSON Schema (.mcp.json) | ${settings.includes('.mcp.json') ? (hasErrors ? ':x:' : ':white_check_mark:') : ':white_circle: N/A'} |\n`;
-            body += `| Agent Frontmatter | ${agents.length > 0 ? (hasErrors ? ':x:' : ':white_check_mark:') : ':white_circle: N/A'} |\n`;
-            body += `| Skill Frontmatter | ${skills.length > 0 ? (hasErrors ? ':x:' : ':white_check_mark:') : ':white_circle: N/A'} |\n`;
-            body += `| Skill Integrity | ${skills.length > 0 ? (hasErrors ? ':x:' : ':white_check_mark:') : ':white_circle: N/A'} |\n`;
+            body += `| JSON Schema (settings.json) | ${settings.includes('settings.json') ? (validationFailed ? ':x:' : ':white_check_mark:') : ':white_circle: N/A'} |\n`;
+            body += `| JSON Schema (.mcp.json) | ${settings.includes('.mcp.json') ? (validationFailed ? ':x:' : ':white_check_mark:') : ':white_circle: N/A'} |\n`;
+            body += `| Agent Frontmatter | ${agents.length > 0 ? (validationFailed ? ':x:' : ':white_check_mark:') : ':white_circle: N/A'} |\n`;
+            body += `| Skill Frontmatter | ${skills.length > 0 ? (validationFailed ? ':x:' : ':white_check_mark:') : ':white_circle: N/A'} |\n`;
+            body += `| Skill Integrity | ${skills.length > 0 ? (validationFailed ? ':x:' : ':white_check_mark:') : ':white_circle: N/A'} |\n`;
+            body += `| Image-gen Provider Protocol | ${imageGenProtocolRan ? (imageGenProtocolFailed ? ':x:' : ':white_check_mark:') : ':white_circle: N/A'} |\n`;
 
             body += '\n---\n*Automated validation by [pr-validation.yml](.github/workflows/pr-validation.yml)*';
 
@@ -122,5 +133,5 @@ jobs:
           edit-mode: replace
 
       - name: Fail if validation errors
-        if: steps.validate.outcome == 'failure'
+        if: steps.validate.outcome == 'failure' || steps.image_gen_protocol.outcome == 'failure'
         run: exit 1

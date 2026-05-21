@@ -140,6 +140,7 @@ Inspect provider protocol metadata without API keys:
 
 ```bash
 ~/.claude/skills/image-gen/scripts/generate_openai.py --protocol
+~/.claude/skills/image-gen/scripts/check_protocol.py
 ```
 
 Generation may incur provider costs. If a key is missing or invalid, fix the env var rather than changing the script.
@@ -155,12 +156,13 @@ Generation may incur provider costs. If a key is missing or invalid, fix the env
 ## Testing
 
 ```bash
+~/.claude/skills/image-gen/scripts/check_protocol.py
 ~/.claude/skills/image-gen/tests/test_image_gen.py
 ~/.claude/skills/image-gen/tests/test_image_gen.py --check-env
 ~/.claude/skills/image-gen/tests/test_image_gen.py --generate --provider openai
 ```
 
-Default testing is free and does not require API keys. `--check-env` reports configured keys. `--generate` makes real API calls and stores outputs in `skills/image-gen/outputs/test-runs/`.
+Default testing is free and does not require API keys. `check_protocol.py` is the focused adapter-contract check and is also run by PR validation when `skills/image-gen/` changes. `--check-env` reports configured keys. `--generate` makes real API calls and stores outputs in `skills/image-gen/outputs/test-runs/`.
 
 ## References
 
