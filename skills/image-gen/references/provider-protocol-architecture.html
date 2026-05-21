@@ -568,10 +568,10 @@ skills/image-gen/scripts/review_gallery.py --run-dir skills/image-gen/outputs/ex
       <div class="section-kicker">Interface tests</div>
       <div class="content-stack">
         <h2>The tests check the interface, not only the implementation.</h2>
-        <p>The default test suite stays free. It compiles scripts, checks executable UV metadata, validates the provider protocol surface, exercises <code>--protocol</code> JSON with no API keys, verifies history logging, and checks that generated example manifests are review-gallery compatible.</p>
+        <p>The default test suite stays free. It compiles scripts, checks executable UV metadata, validates the provider protocol surface, exercises <code>--protocol</code> JSON with no API keys, verifies history logging, and checks that generated example manifests are review-gallery compatible. The focused <code>check_protocol.py</code> wrapper runs the adapter-contract checks directly and is part of PR validation for image-gen changes.</p>
         <p class="quote">A provider can be internally different and still be externally interchangeable.</p>
         <div class="checks">
-          <div class="check"><p><strong>No-key protocol command.</strong> Tests call provider scripts with <code>--protocol</code> using the local Python interpreter, so provider SDKs and credentials are not needed.</p></div>
+          <div class="check"><p><strong>No-key protocol command.</strong> <code>check_protocol.py</code> calls provider scripts with <code>--protocol</code> using the local Python interpreter, so provider SDKs and credentials are not needed.</p></div>
           <div class="check"><p><strong>Static guardrails.</strong> Tests still scan options, top-level functions, local imports, history calls, and final stdout behavior.</p></div>
           <div class="check"><p><strong>Manifest handoff.</strong> The example runner now records candidate entries in the shape that the review gallery already consumes.</p></div>
           <div class="check"><p><strong>Paid calls separate.</strong> Real generation remains behind explicit <code>--generate</code> flags and provider key checks.</p></div>

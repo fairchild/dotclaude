@@ -32,7 +32,6 @@ Exit codes: 0 = all pass, 1 = failures
 """
 
 import argparse
-import ast
 import base64
 import json
 import os
@@ -43,54 +42,17 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-PROVIDERS = {
-    "openai": {"env": ("OPENAI_API_KEY",), "script": "generate_openai.py", "ext": ".png"},
-    "imagen": {
-        "env": ("GOOGLE_API_KEY", "GEMINI_API_KEY"),
-        "script": "generate_imagen.py",
-        "ext": ".png",
-    },
-    "gemini": {
-        "env": ("GOOGLE_API_KEY", "GEMINI_API_KEY"),
-        "script": "generate_gemini.py",
-        "ext": ".png",
-    },
-    "fal": {"env": ("FAL_KEY",), "script": "generate_fal.py", "ext": ".jpg"},
-}
-PROVIDER_REQUIRED_OPTIONS = (
-    "--prompt",
-    "--output",
-    "--output-dir",
-    "--model",
-    "--check",
-    "--protocol",
-)
-PROVIDER_REQUIRED_FUNCTIONS = ("check_config", "generate_image", "print_protocol", "main")
-PROVIDER_PROTOCOL_VERSION = "image-gen-provider/v1"
-PROVIDER_PROTOCOL_REQUIRED_KEYS = (
-    "protocol_version",
-    "provider",
-    "default_model",
-    "required_options",
-    "final_stdout",
-    "history",
-    "local_helper_imports",
-    "supports",
-)
-ALLOWED_PROVIDER_LOCAL_IMPORTS = {"common"}
-
 SKILL_DIR = Path(__file__).parent.parent
 SCRIPTS_DIR = SKILL_DIR / "scripts"
 TEST_PROMPT = "a simple red circle on white background"
-EXECUTABLE_SCRIPTS = [SCRIPTS_DIR / p["script"] for p in PROVIDERS.values()] + [
-    SCRIPTS_DIR / "run_examples.py",
-    SCRIPTS_DIR / "review_gallery.py",
-    SCRIPTS_DIR / "evaluate_review_gallery.py",
-    Path(__file__),
-]
-PYTHON_FILES = EXECUTABLE_SCRIPTS + [SCRIPTS_DIR / "common.py"]
 
 sys.path.insert(0, str(SCRIPTS_DIR))
+from check_protocol import (  # noqa: E402
+    PROVIDERS,
+    check_provider_protocols,
+    failure_count,
+    print_protocol_report,
+)
 from common import default_output_dir, load_dotenv_files, record_generation  # noqa: E402
 from review_gallery import (  # noqa: E402
     candidate_identity,
@@ -99,6 +61,15 @@ from review_gallery import (  # noqa: E402
     normalize_ranking,
 )
 from run_examples import Example, ModelPreset, initial_manifest, output_entry  # noqa: E402
+
+EXECUTABLE_SCRIPTS = [SCRIPTS_DIR / p["script"] for p in PROVIDERS.values()] + [
+    SCRIPTS_DIR / "check_protocol.py",
+    SCRIPTS_DIR / "run_examples.py",
+    SCRIPTS_DIR / "review_gallery.py",
+    SCRIPTS_DIR / "evaluate_review_gallery.py",
+    Path(__file__),
+]
+PYTHON_FILES = EXECUTABLE_SCRIPTS + [SCRIPTS_DIR / "common.py"]
 
 ONE_PIXEL_PNG = (
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8"
@@ -149,139 +120,10 @@ def check_static() -> int:
 
 
 def check_provider_protocol() -> int:
-    failures = 0
-
-    print("\n=== Provider Adapter Protocol Check ===")
-    for provider, config in PROVIDERS.items():
-        path = SCRIPTS_DIR / config["script"]
-        text = path.read_text()
-        tree = ast.parse(text)
-        options = argparse_options(tree)
-        functions = top_level_functions(tree)
-        local_imports = local_script_imports(tree)
-        protocol = provider_protocol(path)
-
-        missing_options = [option for option in PROVIDER_REQUIRED_OPTIONS if option not in options]
-        missing_functions = [
-            function_name
-            for function_name in PROVIDER_REQUIRED_FUNCTIONS
-            if function_name not in functions
-        ]
-        disallowed_imports = sorted(local_imports - ALLOWED_PROVIDER_LOCAL_IMPORTS)
-        protocol_problems = validate_provider_protocol(provider, protocol)
-
-        problems = []
-        if missing_options:
-            problems.append(f"missing options: {', '.join(missing_options)}")
-        if missing_functions:
-            problems.append(f"missing functions: {', '.join(missing_functions)}")
-        if disallowed_imports:
-            problems.append(f"disallowed local imports: {', '.join(disallowed_imports)}")
-        problems.extend(protocol_problems)
-        if "record_generation(" not in text:
-            problems.append("does not record successful generations")
-        if "print(output_path.resolve())" not in text:
-            problems.append("does not print resolved output path as final success line")
-
-        if problems:
-            print(f"  {provider}: failed ({'; '.join(problems)})")
-            failures += 1
-        else:
-            print(f"  {provider}: protocol OK")
-
-    return failures
-
-
-def provider_protocol(path: Path) -> dict:
-    result = subprocess.run(
-        [sys.executable, str(path), "--protocol"],
-        capture_output=True,
-        text=True,
-        timeout=20,
-    )
-    if result.returncode != 0:
-        return {"_error": result.stderr.strip() or result.stdout.strip() or "unknown error"}
-    try:
-        return json.loads(result.stdout)
-    except json.JSONDecodeError as error:
-        return {"_error": f"invalid JSON: {error}"}
-
-
-def validate_provider_protocol(provider: str, protocol: dict) -> list[str]:
-    problems = []
-    if protocol.get("_error"):
-        return [f"--protocol failed: {protocol['_error']}"]
-
-    missing_keys = [key for key in PROVIDER_PROTOCOL_REQUIRED_KEYS if key not in protocol]
-    if missing_keys:
-        problems.append(f"protocol missing keys: {', '.join(missing_keys)}")
-
-    if protocol.get("protocol_version") != PROVIDER_PROTOCOL_VERSION:
-        problems.append("protocol_version is not image-gen-provider/v1")
-    if protocol.get("provider") != provider:
-        problems.append(f"protocol provider is {protocol.get('provider')!r}")
-    if not protocol.get("default_model"):
-        problems.append("protocol default_model is missing")
-    if protocol.get("final_stdout") != "resolved_output_path":
-        problems.append("protocol final_stdout must be resolved_output_path")
-    if protocol.get("history") != "generations.jsonl":
-        problems.append("protocol history must be generations.jsonl")
-
-    protocol_options = set(protocol.get("required_options") or [])
-    missing_protocol_options = [
-        option for option in PROVIDER_REQUIRED_OPTIONS if option not in protocol_options
-    ]
-    if missing_protocol_options:
-        problems.append(
-            "protocol missing required_options: " + ", ".join(missing_protocol_options)
-        )
-
-    protocol_imports = set(protocol.get("local_helper_imports") or [])
-    disallowed_protocol_imports = sorted(protocol_imports - ALLOWED_PROVIDER_LOCAL_IMPORTS)
-    if disallowed_protocol_imports:
-        problems.append(
-            "protocol disallowed local_helper_imports: "
-            + ", ".join(disallowed_protocol_imports)
-        )
-
-    supports = protocol.get("supports")
-    if not isinstance(supports, dict) or not supports:
-        problems.append("protocol supports must be a non-empty object")
-
-    return problems
-
-
-def argparse_options(tree: ast.AST) -> set[str]:
-    options: set[str] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        if not isinstance(node.func, ast.Attribute) or node.func.attr != "add_argument":
-            continue
-        for arg in node.args:
-            if isinstance(arg, ast.Constant) and isinstance(arg.value, str) and arg.value.startswith("--"):
-                options.add(arg.value)
-    return options
-
-
-def top_level_functions(tree: ast.AST) -> set[str]:
-    return {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
-
-
-def local_script_imports(tree: ast.AST) -> set[str]:
-    local_modules = {path.stem for path in SCRIPTS_DIR.glob("*.py")}
-    imports: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                root = alias.name.split(".", 1)[0]
-                if root in local_modules:
-                    imports.add(root)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            root = node.module.split(".", 1)[0]
-            if root in local_modules:
-                imports.add(root)
-    return imports
+    print()
+    results = check_provider_protocols()
+    print_protocol_report(results)
+    return failure_count(results)
 
 
 def check_history_logging() -> int:

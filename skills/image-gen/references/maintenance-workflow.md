@@ -78,6 +78,7 @@ The local history is useful for later analysis of prompts, model drift, cost/per
 5. Run free verification.
 
 ```bash
+skills/image-gen/scripts/check_protocol.py
 skills/image-gen/tests/test_image_gen.py
 skills/image-gen/scripts/run_examples.py --list
 skills/image-gen/scripts/run_examples.py
@@ -87,6 +88,8 @@ skills/image-gen/scripts/generate_imagen.py --help
 skills/image-gen/scripts/generate_fal.py --help
 skills/image-gen/scripts/generate_openai.py --protocol
 ```
+
+`check_protocol.py` is the focused adapter-contract check. It runs without API keys or provider SDK imports, and PR validation runs it automatically when `skills/image-gen/` changes.
 
 6. Run paid comparisons only when useful.
 

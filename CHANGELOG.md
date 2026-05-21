@@ -7,6 +7,7 @@
 - **Image generation comparison workflow**: Added multi-provider example runs, an image-first ranking gallery, and a Playwright evaluator for reviewing generated image sets.
 - **Image generation history and storage**: Added documented, gitignored local roots for generated outputs and provenance data.
 - **Image-gen maintenance docs**: Added references for refreshing supported provider models, scripts, and comparison examples over time.
+- **Image-gen protocol checker**: Added a focused no-key provider adapter checker and PR validation hook for image-gen changes.
 
 ### Changed
 
