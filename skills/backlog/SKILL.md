@@ -37,43 +37,37 @@ dependencies:
 - 2026-05-17T11:03:00Z completed PR=https://github.com/.../pull/123
 ```
 
-Frontmatter and description are **author-set and frozen after first commit** (one exception: `reopen` may edit them, since reopen IS a correction). Below the divider, each line is an append-only event log entry. `cat` tells the story in place; `git log -- backlog/.../X.md` tells the same story with author + commit context. They mirror because every recipe both appends a bullet AND commits.
+Frontmatter and description above the divider are author-set and frozen after first commit (one exception: `reopen` may edit them). Below the divider is an append-only event log written by workers — see `references/worker.md` for the verb recipes that maintain it.
 
-**Frontmatter is optional** — every field has a default (`priority: 999`, `timeout: 7d`, `dependencies: {}`). A minimal task is just a title, description, and the divider. Authors declare a field only when overriding the default matters. Defaults and override guidance: `references/agents-schema.md`.
+## Frontmatter (optional)
 
-## Log line format
+Every field has a default, so a minimal task can omit frontmatter entirely:
 
+```markdown
+# Quick fix
+
+The login button is misaligned on mobile.
+
+---
 ```
-- {ISO ts} {kind} key=value ... [| free prose]
-```
 
-Kinds: `started`, `recovered`, `progress`, `completed`, `released`, `cancelled`, `failed`, `reopened`.
+Defaults: `priority=999`, `timeout=7d`, `dependencies={}`. Add fields above the title to override.
 
-KV fields grep cleanly (`grep 'branch=feat/foo'`), free prose follows `|`, and long-form detail belongs in the commit body — the bullet is the index, git is the archive (`git show <sha>` retrieves the long form).
+- **`priority`** — integer, 1 = highest. Default `999` (sorts after every declared priority). Declare a number when scheduling order matters.
+- **`timeout`** — humanish: `4h`, `3d`, `2w`. Default `7d`. Starts at the most recent `started` log line. Use shorter for automated agent tasks; longer for tasks needing synchronous human input or external dependencies. Project-wide defaults can be stated in `backlog/AGENTS.md`.
+- **`dependencies`** — map of slug → reason. Default empty. Declare only hard preconditions; a task is takeable when every dep slug resolves to a file under `done/`.
 
-## Rules
+Additional keys an author writes are preserved but not interpreted by any recipe. Full schema, kinds table, and "reading state" queries: `references/agents-schema.md`.
 
-- **Frontmatter and description are frozen after first commit, except at reopen.** State changes go to the log below the divider. Reopen is the one place spec edits are permitted, because reopen IS a correction — the prior attempt failed or completed wrong, and the fix often lives in the spec (priority, timeout, dependencies, or the description itself).
-- **Commit after each log line.** That's what keeps `cat` and `git log` synchronized.
-- **Single writer per claim.** The `git mv` is the lock; bullets are documentation.
-- **Commit before claiming.** Uncommitted files can't be `git mv`'d, and other agents can't see them.
-- **Timeout is author-set, never claimer-extended.** Default `7d` if not declared. If the budget is wrong, release with a reason.
-- **Dependencies are parallel.** Task is takeable when every dep slug resolves under `done/`.
+## Add a task
 
-Schema details: `references/agents-schema.md`.
-First-time setup and migration: `references/workflows.md`.
-Grooming buckets: `references/grooming.md`.
-
-## Verbs
-
-### add
-
-Gather **slug** (kebab-case), **category** (`plan` / `followup` / `task-list` / `ideas`, filename suffix), **priority** (1 = highest, optional), **timeout** (`4h` / `3d` / `2w`, only if there's a real budget), **dependencies** (slug → one-line reason).
+Gather **slug** (kebab-case), **category** (`plan` / `followup` / `task-list` / `ideas`, filename suffix), and a description.
 
 ```bash
 slug=backlog-maildir
 category=plan
 filename="backlog/todo/${slug}-${category}.md"
+mkdir -p backlog/todo
 cat > "$filename" <<'EOF'
 ---
 priority: 2
@@ -92,178 +86,17 @@ EOF
 git add "$filename" && git commit -m "add($slug)"
 ```
 
-Fill the body, then commit.
+Quality: enough context that a fresh session can execute without the original conversation; specific file paths; verification commands; deps declared if any. Commit before anyone can claim.
 
-### take
+## Working the backlog
 
-Optional preamble: release any timed-out tasks first, so the failure-recovery and the take are one operation. Skip if a separate janitor is running on a schedule. See `references/parallel-agents.md` for the full pattern.
+For take, recover, progress, complete, release, cancel, fail, reopen, status, and groom — the verb recipes plus the rules workers must follow — see `references/worker.md`.
 
-```bash
-slug=backlog-maildir-plan
-branch=$(git rev-parse --abbrev-ref HEAD)
-claimer=${CONDUCTOR_WORKSPACE_NAME:+conductor:$CONDUCTOR_WORKSPACE_NAME}
-claimer=${claimer:-${CMUX_WORKSPACE_ID:+cmux:$CMUX_WORKSPACE_ID}}
-claimer=${claimer:-$(whoami)@$(hostname -s)}
-ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+## References
 
-git mv "backlog/todo/${slug}.md" "backlog/doing/${slug}.md"
-echo "- $ts started claimer=$claimer branch=$branch" >> "backlog/doing/${slug}.md"
-git add "backlog/doing/${slug}.md"
-git commit -m "take($slug) $claimer @ $branch"
-```
-
-**No-slug take:** glob `todo/`, filter to tasks whose every dep is in `done/`, sort by `priority` (default 999) ascending then oldest mtime, take the first. Agent does this with Glob+Read.
-
-### recover
-
-Pick up a `doing/` task whose claim has gone stale (timeout exceeded). In-place — no `git mv` — so kanban flow stays right-to-left. Inlined staleness check refuses if the existing claim is still active, preventing accidental claim-stealing.
-
-```bash
-slug=backlog-maildir-plan
-branch=$(git rev-parse --abbrev-ref HEAD)
-claimer=${CONDUCTOR_WORKSPACE_NAME:+conductor:$CONDUCTOR_WORKSPACE_NAME}
-claimer=${claimer:-${CMUX_WORKSPACE_ID:+cmux:$CMUX_WORKSPACE_ID}}
-claimer=${claimer:-$(whoami)@$(hostname -s)}
-ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-file="backlog/doing/${slug}.md"
-[[ -f "$file" ]] || { echo "not in doing/: $slug" >&2; exit 1; }
-
-# Staleness check: refuse if the prior claim hasn't exceeded its budget
-timeout=$(awk '/^---$/{n++; if(n==2) exit} n==1 && /^timeout:/ {sub(/^timeout:[[:space:]]*/, ""); print; exit}' "$file")
-[[ -z "$timeout" ]] && timeout=7d
-started=$(grep -E '^- [0-9TZ:-]+ (started|recovered) ' "$file" | tail -1 | awk '{print $2}')
-[[ -z "$started" ]] && { echo "no prior claim line in $file" >&2; exit 1; }
-n="${timeout%[smhdw]*}"; unit="${timeout: -1}"
-case "$unit" in s) secs=$n;; m) secs=$((n*60));; h) secs=$((n*3600));; d) secs=$((n*86400));; w) secs=$((n*604800));; *) secs=604800;; esac
-ep=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$started" +%s 2>/dev/null || gdate -d "$started" +%s 2>/dev/null || true)
-[[ -z "$ep" ]] && { echo "unparseable timestamp: $started" >&2; exit 1; }
-(( $(date -u +%s) - ep > secs )) || { echo "claim still active (under $timeout); refusing recover" >&2; exit 1; }
-
-echo "- $ts recovered claimer=$claimer branch=$branch" >> "$file"
-git add "$file"
-git commit -m "recover($slug) $claimer @ $branch"
-```
-
-After recovering, read the file's full log and skip activities prior progress notes already completed. See `references/parallel-agents.md` for the activity-skipping pattern and the take-prelude variant that bundles recover with detection.
-
-### progress
-
-```bash
-slug=backlog-maildir-plan
-note="auth prototype passing locally"
-ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-echo "- $ts progress | $note" >> "backlog/doing/${slug}.md"
-git add "backlog/doing/${slug}.md"
-git commit -m "progress($slug) $note"
-```
-
-If the slug isn't known, find the doing/ file on the current branch via the latest `branch=` field:
-
-```bash
-b=$(git rev-parse --abbrev-ref HEAD)
-for f in backlog/doing/*.md; do
-  last=$(grep -oE 'branch=[^ ]+' "$f" | tail -1 | cut -d= -f2)
-  [[ "$last" == "$b" ]] && echo "$f"
-done
-```
-
-### complete
-
-```bash
-slug=backlog-maildir-plan
-ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-pr_url=$(gh pr view --json url -q .url 2>/dev/null || true)
-
-git mv "backlog/doing/${slug}.md" "backlog/done/${slug}.md"
-echo "- $ts completed${pr_url:+ PR=$pr_url}" >> "backlog/done/${slug}.md"
-git add "backlog/done/${slug}.md"
-git commit -m "complete($slug)${pr_url:+ PR=$pr_url}"
-```
-
-### release
-
-Give a claimed task back to `todo/`. Requires a reason.
-
-```bash
-slug=backlog-maildir-plan
-reason="blocked on legal review"
-ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-
-git mv "backlog/doing/${slug}.md" "backlog/todo/${slug}.md"
-echo "- $ts released | $reason" >> "backlog/todo/${slug}.md"
-git add "backlog/todo/${slug}.md"
-git commit -m "release($slug) $reason"
-```
-
-### cancel
-
-Abandon (todo or doing → `done/`). Requires a reason. The `cancelled` log line discriminates from completion.
-
-```bash
-slug=this-isnt-going-to-happen-plan
-reason="superseded by the X redesign"
-ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-src=$(find backlog/todo backlog/doing -name "${slug}.md" -type f | head -1)
-
-git mv "$src" "backlog/done/${slug}.md"
-echo "- $ts cancelled | $reason" >> "backlog/done/${slug}.md"
-git add "backlog/done/${slug}.md"
-git commit -m "cancel($slug) $reason"
-```
-
-### fail
-
-Dead-letter: move a task to `backlog/failed/` when retries are exhausted or recovery is hopeless. Requires a reason. Operators investigate `failed/` and decide whether to `reopen` (move back to todo/) or `cancel` (mark terminal in done/).
-
-```bash
-slug=stuck-thing-plan
-reason="exhausted 3 retries after timeouts"
-ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-src=$(find backlog/todo backlog/doing -name "${slug}.md" -type f | head -1)
-[[ -z "$src" ]] && { echo "no such task: $slug" >&2; exit 1; }
-
-mkdir -p backlog/failed
-git mv "$src" "backlog/failed/${slug}.md"
-echo "- $ts failed | $reason" >> "backlog/failed/${slug}.md"
-git add "backlog/failed/${slug}.md"
-git commit -m "fail($slug) $reason"
-```
-
-### reopen
-
-`done/X.md` or `failed/X.md` → `todo/X.md`. Requires a reason.
-
-**Reopen is the one place spec edits are permitted.** Reopening signals "this needs fixing to succeed" — often the spec itself was wrong (priority, timeout, dependencies, or the description's plan). Edit the file between the log append and the commit if a fix is required; the reopen log line captures the why, the git diff captures the what. The log below the divider stays append-only as always.
-
-```bash
-slug=once-was-finished-plan
-reason="edge case Y discovered; raising timeout to 2w"
-ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-src=$(find backlog/done backlog/failed -name "${slug}.md" -type f | head -1)
-[[ -z "$src" ]] && { echo "not in done/ or failed/: $slug" >&2; exit 1; }
-
-git mv "$src" "backlog/todo/${slug}.md"
-echo "- $ts reopened | $reason" >> "backlog/todo/${slug}.md"
-
-# Optional: edit "backlog/todo/${slug}.md" here to correct the spec —
-# adjust timeout, add a missing dep, refine the description's approach.
-# Only the spec (frontmatter + description above the divider) may change.
-
-git add "backlog/todo/${slug}.md"
-git commit -m "reopen($slug) $reason"
-```
-
-A reopened task whose dependencies have since moved (e.g., a dep is now in `failed/`) won't be takeable until the dep chain is healthy again. Auto-pick will quietly skip it; reopen the deps first if you need them resolved.
-
-### status
-
-```bash
-for pile in todo doing done failed; do
-  printf "%s: %d\n" "$pile" "$(find backlog/$pile -name '*.md' -type f 2>/dev/null | wc -l | tr -d ' ')"
-done
-ls -lt backlog/doing/*.md 2>/dev/null | head -5
-```
-
-### groom
-
-Advisory walk; never moves files. Buckets and per-bucket checks: `references/grooming.md`.
+- `references/worker.md` — verb recipes for workers (take, recover, progress, complete, release, cancel, fail, reopen, status, groom)
+- `references/agents-schema.md` — frontmatter schema, log line format, kinds table, reading-state queries
+- `references/parallel-agents.md` — distributed-systems patterns and design rationale
+- `references/workflows.md` — `init` (first-time setup) and `migrate` (from flat layout)
+- `references/grooming.md` — advisory walk buckets
+- `references/README.md` — background, design philosophy, related projects

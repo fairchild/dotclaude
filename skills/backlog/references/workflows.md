@@ -60,4 +60,4 @@ for d in backlog/done/*/; do
 done
 ```
 
-Review the result with the `status` recipe in `SKILL.md`, then commit as a single "chore(backlog): migrate to maildir layout" commit. Reversible via `git revert` if anything looks wrong.
+Review the result with the `status` recipe in `worker.md`, then commit as a single "chore(backlog): migrate to maildir layout" commit. Reversible via `git revert` if anything looks wrong.

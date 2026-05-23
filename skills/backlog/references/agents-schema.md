@@ -1,6 +1,6 @@
 # Backlog Schema
 
-Canonical spec for backlog file structure, frontmatter, and body format. The skill recipes in `../SKILL.md` implement this; if there's a conflict between the recipes and this doc, the recipes win and this doc needs updating.
+Canonical spec for backlog file structure, frontmatter, and body format. The recipes in `../SKILL.md` (add) and `worker.md` (everything else) implement this; if there's a conflict between the recipes and this doc, the recipes win and this doc needs updating.
 
 ## Directory Layout
 
@@ -34,7 +34,7 @@ Slug = filename minus path and `.md`. Dependencies reference tasks by slug; the 
 
 ## Frontmatter (optional)
 
-YAML between two `---` lines at the top of the file. **Every field has a default**, so a minimal task can omit frontmatter entirely. Author-set at creation and frozen after first commit, with one exception: `reopen` may edit frontmatter to correct issues found during the prior attempt (see SKILL.md's reopen recipe).
+YAML between two `---` lines at the top of the file. **Every field has a default**, so a minimal task can omit frontmatter entirely. Author-set at creation and frozen after first commit, with one exception: `reopen` may edit frontmatter to correct issues found during the prior attempt (see `worker.md`'s reopen recipe).
 
 ```yaml
 ---
@@ -83,7 +83,7 @@ Two halves, divided by a `---` line with blank lines on either side (so markdown
 - 2026-05-17T11:03:00Z completed PR=https://github.com/.../pull/123
 ```
 
-**Above the divider** is the author-set description, frozen after first commit *except at reopen*. Reopen permits spec edits because reopen IS a correction (see the reopen recipe in SKILL.md). Otherwise, state changes go to the log below, not to the description.
+**Above the divider** is the author-set description, frozen after first commit *except at reopen*. Reopen permits spec edits because reopen IS a correction (see the reopen recipe in `worker.md`). Otherwise, state changes go to the log below, not to the description.
 
 **Below the divider** is the append-only event log. Each line is one event.
 
