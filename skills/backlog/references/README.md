@@ -6,9 +6,10 @@ A maildir-style task tracker. Each task is a markdown file; its location (`todo/
 
 - **Location is status.** No status field to keep in sync, no parser to write. `ls doing/` is in-flight work.
 - **Comprehensive content.** Each task carries enough context for a fresh session to execute without the original conversation.
-- **Append-only progress.** Body grows by heredoc, never edited. Every block ends with `^---$` so the file stays greppable and taillable.
+- **Append-only everything.** Body grows by heredoc; frontmatter is author-set at creation and never edited after. Every block ends with `^---$` so the file stays greppable and taillable. The log *is* the state — no separate mutable claim fields to drift out of sync.
 - **Single writer.** Between take and complete, only the claiming agent appends. The maildir mv is the actual lock; the `started` block is documentation.
 - **Graph-native deps.** `dependencies:` is a map of slugs; each task declares its own preconditions. Parallel by default; ordering encoded in the chain itself, not in any single task.
+- **No scripts.** Every verb is a small bash recipe the agent runs inline (`git mv` + heredoc append). The skill *is* the spec; no codepath drift between docs and behaviour.
 
 ## Related Projects
 

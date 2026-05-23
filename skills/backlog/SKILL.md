@@ -1,47 +1,22 @@
 ---
 name: backlog
-description: Maildir-style backlog for parallel agents. Tasks live as markdown files in todo/, doing/, or done/{YYYY}/ — location is status, claim is an atomic git mv. Use when adding a deferred work item, picking up the next task, recording progress, completing, cancelling, reopening, or grooming. Single writer per claim, append-only progress log, graph-native dependencies.
+description: Maildir-style backlog for parallel agents. Tasks are markdown files in todo/, doing/, or done/{YYYY}/ — location is status, claim is an atomic git mv. Use when adding deferred work, taking the next task, recording progress, completing, cancelling, reopening, releasing, or grooming the backlog. Append-only body log, graph-native dependencies, no scripts — every verb is a small bash recipe the agent runs inline.
 license: Apache-2.0
 ---
 
 # Backlog
 
-A task tracker shaped like a maildir. Each task is one markdown file. Its location *is* its state:
+A task tracker shaped like a maildir. Each task is one markdown file; its directory is its state:
 
-- `backlog/todo/`            — available to claim
-- `backlog/doing/`           — claimed, in flight
-- `backlog/done/{YYYY}/`     — completed, year-partitioned at write time
+- `backlog/todo/`        — available to claim
+- `backlog/doing/`       — claimed, in flight
+- `backlog/done/{YYYY}/` — completed, year-partitioned at write time
 
-Claiming a task is `git mv todo/X.md doing/X.md`. Two agents racing the same task collide at merge — the right failure mode, not silent double-work.
+Claiming a task is `git mv backlog/todo/X.md backlog/doing/X.md`. Two agents racing the same task collide at merge — the right failure mode, not silent double-work.
 
-## Lifecycle Verbs
+## Schema
 
-Everyday three:
-
-- `/backlog add`       — create a task in `todo/`
-- `/backlog take`      — claim a task (todo → doing). With no argument, picks highest priority whose dependencies are all done.
-- `/backlog complete`  — mark done (doing → `done/{YYYY}/`)
-
-In-flight (the claiming agent only):
-
-- `/backlog progress "note"` — append a timestamped note to the body
-- `/backlog release`         — give the task back to `todo/` (with reason)
-
-Lifecycle adjustments:
-
-- `/backlog cancel`  — this isn't going to happen (todo or doing → `done/{YYYY}/cancelled/`)
-- `/backlog reopen`  — done → todo, strips claim
-
-Inspection:
-
-- `/backlog status`  — what's in each pile
-- `/backlog next`    — dry-run of `take --auto`, shows what would be picked
-- `/backlog why`     — explain why a task isn't takeable
-- `/backlog groom`   — flag stuck, timed-out, merged-but-not-moved, unresolvable deps, cycles
-
-## File Shape
-
-Frontmatter is structured metadata. The body is a task description followed by an append-only log of `started`, `progress`, and lifecycle entries. Every block — frontmatter, body, and each log entry — ends with `^---$`. This makes the file greppable, taillable, and append-friendly with a plain heredoc.
+Frontmatter is **author-set at creation, never edited after**. The body grows by append-only log blocks. Claim metadata (claimer, branch, PR URL) lives inside those log blocks, not in frontmatter.
 
 ```markdown
 ---
@@ -51,15 +26,11 @@ priority: 2
 timeout: 3d
 dependencies:
   schema-migration: "needs new claim block format"
-claimed_at: 2026-05-16T14:22:00Z
-claimed_by: conductor:austin-v3
-branch: feat/backlog-maildir
-pr: null
 ---
 
 # Backlog Maildir Refactor
 
-[problem statement, decisions, phases — whatever the task needs]
+[problem statement, key decisions, phases, acceptance criteria]
 
 ---
 
@@ -71,74 +42,268 @@ claimed by conductor:austin-v3 on branch feat/backlog-maildir
 
 ### progress — 2026-05-16T16:45:00Z
 
-claim.sh + complete.sh ready; starting groom.sh
+take + complete recipes working; starting groom prompt
 
 ---
 ```
 
-See `references/agents-schema.md` for the full schema (frontmatter keys, filename rules, dependencies syntax).
+Every block — frontmatter, description, log entries — ends with a bare `^---$` line so the file stays greppable and append-friendly via heredoc.
 
-## Rules
+Full schema in `references/agents-schema.md`.
 
-- **Single writer per claim.** Only the claiming agent appends to the body between take and complete. Claim is established by the `git mv`; the `started` block is documentation, not the lock.
-- **Frontmatter mutates only at lifecycle transitions.** `take` stamps claim fields; `complete` stamps `pr`. Nothing else edits frontmatter mid-flight.
-- **Timeout is set by the task author, not the claimer.** Absent = unbounded. Claimers cannot extend or shorten. If the budget is wrong, the right move is a progress note + release, not silent extension.
-- **Dependencies are parallel.** `dependencies: {slug: "reason"}` map of task slugs that must be in `done/**` before this one is takeable. Ordering among them is *their* problem (encoded in their own frontmatter). No array form.
-- **Year partition at write time.** `complete` derives the year from UTC `date +%Y`. Reopen-then-recomplete lands in the *current* year, not the original.
+## Reading state
 
-## Quick Use
+- "Is X claimed?" — does it live under `doing/`?
+- "Who claims X?" — the body of the last `### started` block.
+- "How old is the claim?" — the ISO in the heading of that block.
+- "What's its PR?" — the body of the last `### completed` block.
 
-```bash
-# Add a task interactively
-~/.claude/skills/backlog/scripts/add.sh
+## Verbs
 
-# Take the next available task (no arg = auto-pick)
-~/.claude/skills/backlog/scripts/take.sh
+Each verb is a short bash recipe. Run them inline via the `Bash` tool from the project root (the one with `backlog/` as a sibling).
 
-# Or take a specific one
-~/.claude/skills/backlog/scripts/take.sh backlog-maildir-plan
+### add
 
-# Log progress while working
-~/.claude/skills/backlog/scripts/progress.sh "auth migration prototype passing locally"
+Create a task in `todo/`. Gather context first (don't dump the user into editor-of-empty-file mode):
 
-# Finish
-~/.claude/skills/backlog/scripts/complete.sh
+1. **Slug** (kebab-case, will be the filename minus `.md`)
+2. **Category**: `plan`, `followup`, `task-list`, or `ideas` — appended to slug as `{slug}-{category}.md`
+3. **One-line description**
+4. **Priority** (1 = highest, optional)
+5. **Topic** (optional grouping label)
+6. **Timeout** (only if there's a real budget: `4h`, `3d`, `2w`)
+7. **Dependencies** (slugs of tasks that must finish first, with a one-line reason each)
 
-# Or hand back if blocked
-~/.claude/skills/backlog/scripts/release.sh --reason "blocked on legal review"
-```
-
-All scripts accept an optional first positional argument for the backlog directory; default is `backlog` relative to cwd.
-
-## Setting Up backlog/ In a New Project
+Then write the file directly:
 
 ```bash
-~/.claude/skills/backlog/scripts/init.sh
+slug=backlog-maildir
+category=plan
+filename="backlog/todo/${slug}-${category}.md"
+cat > "$filename" <<'EOF'
+---
+topic: backlog-tooling
+description: One-line summary
+priority: 2
+# timeout: 3d
+# dependencies:
+#   other-slug: "why it blocks this"
+---
+
+# Backlog Maildir
+
+[problem statement, key decisions, phases, references, acceptance criteria]
+
+---
+EOF
+echo "$filename"
 ```
 
-Creates `backlog/{todo,doing,done}/` and writes `backlog/AGENTS.md` with the conventions inline. See `references/agents-schema.md` for what gets written.
-
-## Migrating An Existing Flat Backlog
-
-If a project has the old flat layout (items at `backlog/*.md`, completed at `backlog/done/*.md`), run:
-
-```bash
-~/.claude/skills/backlog/scripts/migrate.sh [path/to/backlog]
-```
-
-Pending items move into `todo/`. Completed items move into `done/{year}/` where year comes from their last git-log timestamp.
-
-## Quality Checklist (when adding a task)
+Then open the file and fill the body. Quality bar:
 
 - Enough context that a fresh session can execute without the original conversation
 - Specific file paths (with line numbers when relevant)
 - Verification commands or acceptance criteria
-- Dependencies declared if any (`dependencies: {slug: "why"}`)
-- `priority` set if it matters (1 = highest)
-- `timeout` set only if the author has a real budget in mind
+- Dependencies declared if any
+
+### take
+
+Claim a task (todo → doing). The `git mv` is the lock; the `started` block is documentation.
+
+```bash
+slug=backlog-maildir-plan
+branch=$(git rev-parse --abbrev-ref HEAD)
+claimer=${CONDUCTOR_WORKSPACE_NAME:+conductor:$CONDUCTOR_WORKSPACE_NAME}
+claimer=${claimer:-${CMUX_WORKSPACE_ID:+cmux:$CMUX_WORKSPACE_ID}}
+claimer=${claimer:-$(whoami)@$(hostname -s)}
+ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+git mv "backlog/todo/${slug}.md" "backlog/doing/${slug}.md"
+cat >> "backlog/doing/${slug}.md" <<EOF
+
+### started — ${ts}
+
+claimed by ${claimer} on branch ${branch}
+
+---
+EOF
+```
+
+**Take with no slug (auto-pick)**: list `backlog/todo/*.md`, read each file's `priority:` (default 999) and `dependencies:` block, filter to those whose every dep slug resolves to a file under `backlog/done/**/`, sort by priority ascending then oldest mtime, pick the first. Then run the take recipe above. The agent does this with `Glob` + `Read`; no script.
+
+### progress
+
+Append a timestamped note to the doing/ file. Only the claimer should call this — the maildir invariant is single-writer between take and complete.
+
+```bash
+slug=backlog-maildir-plan
+note="auth migration prototype passing locally"
+ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+cat >> "backlog/doing/${slug}.md" <<EOF
+
+### progress — ${ts}
+
+${note}
+
+---
+EOF
+```
+
+If the slug isn't known, the doing/ file on the current branch can be found via:
+
+```bash
+grep -l "on branch $(git rev-parse --abbrev-ref HEAD)" backlog/doing/*.md
+```
+
+### complete
+
+Finish (doing → `done/{YYYY}/`). Detects the PR via `gh` if available.
+
+```bash
+slug=backlog-maildir-plan
+year=$(date -u +%Y)
+ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+pr_url=$(gh pr view --json url -q .url 2>/dev/null || true)
+
+mkdir -p "backlog/done/${year}"
+git mv "backlog/doing/${slug}.md" "backlog/done/${year}/${slug}.md"
+{
+  printf '\n### completed — %s\n\n' "$ts"
+  printf 'marked complete'
+  [[ -n "$pr_url" ]] && printf ' (PR: %s)' "$pr_url"
+  printf '\n\n---\n'
+} >> "backlog/done/${year}/${slug}.md"
+```
+
+If a finer subdir already exists in the current year (e.g. `done/2026/Q2/`), drop the file there instead of flat. The agent decides at move time by checking `ls backlog/done/${year}/`.
+
+### release
+
+Give a claimed task back to todo/. Requires a reason — a verb without context rots the audit trail.
+
+```bash
+slug=backlog-maildir-plan
+reason="blocked on legal review"
+ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+git mv "backlog/doing/${slug}.md" "backlog/todo/${slug}.md"
+cat >> "backlog/todo/${slug}.md" <<EOF
+
+### released — ${ts}
+
+${reason}
+
+---
+EOF
+```
+
+### cancel
+
+Abandon a task (todo or doing → `done/{YYYY}/cancelled/`). Requires a reason.
+
+```bash
+slug=this-isnt-going-to-happen-plan
+reason="superseded by the X redesign"
+year=$(date -u +%Y)
+ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+src=$(find backlog/todo backlog/doing -name "${slug}.md" -type f | head -1)
+dst="backlog/done/${year}/cancelled/${slug}.md"
+mkdir -p "$(dirname "$dst")"
+git mv "$src" "$dst"
+cat >> "$dst" <<EOF
+
+### cancelled — ${ts}
+
+${reason}
+
+---
+EOF
+```
+
+### reopen
+
+`done/**/X.md` → `todo/X.md`. Lands in the *current* year if re-completed later.
+
+```bash
+slug=once-was-finished-plan
+reason="discovered the migration didn't cover edge case Y"
+ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+src=$(find backlog/done -name "${slug}.md" -type f | head -1)
+git mv "$src" "backlog/todo/${slug}.md"
+cat >> "backlog/todo/${slug}.md" <<EOF
+
+### reopened — ${ts}
+
+${reason}
+
+---
+EOF
+```
+
+### status
+
+Pile counts and recent activity. One-liner:
+
+```bash
+for pile in todo doing; do printf "%s: %d\n" "$pile" "$(find backlog/$pile -name '*.md' -type f 2>/dev/null | wc -l | tr -d ' ')"; done
+printf "done: %d\n" "$(find backlog/done -name '*.md' -type f 2>/dev/null | wc -l | tr -d ' ')"
+ls -lt backlog/doing/*.md 2>/dev/null | head -5
+```
+
+### groom
+
+An advisory walk over the backlog — never moves files automatically. See `references/grooming.md` for the buckets and the per-bucket checks.
+
+### init
+
+Set up `backlog/` in a fresh project.
+
+```bash
+mkdir -p backlog/{todo,doing,done}
+cat > backlog/AGENTS.md <<'EOF'
+# backlog/
+
+Deferred work, one markdown file per task. Location = status:
+
+- `todo/` — available
+- `doing/` — claimed, in flight
+- `done/{YYYY}/` — completed
+
+Use the `backlog` skill (add / take / progress / complete / release / cancel / reopen / groom / status) to interact. Schema and rules: `~/.claude/skills/backlog/references/agents-schema.md`.
+EOF
+```
+
+### migrate (one-shot)
+
+For a project with the old flat layout (items at `backlog/*.md`, completed at `backlog/done/*.md`):
+
+```bash
+mkdir -p backlog/todo backlog/doing
+# Pending items: anything directly under backlog/ that isn't AGENTS.md/CLAUDE.md/ROADMAP.md
+for f in backlog/*.md; do
+  base=$(basename "$f")
+  case "$base" in AGENTS.md|CLAUDE.md|ROADMAP.md) continue ;; esac
+  git mv "$f" "backlog/todo/$base"
+done
+# Completed items: backlog/done/*.md → backlog/done/{year}/X.md
+# Use the file's last git-log timestamp for the year.
+for f in backlog/done/*.md; do
+  [[ -f "$f" ]] || continue
+  year=$(git log -1 --format=%cd --date=format:%Y -- "$f" 2>/dev/null || date -u +%Y)
+  mkdir -p "backlog/done/${year}"
+  git mv "$f" "backlog/done/${year}/$(basename "$f")"
+done
+```
+
+## Rules
+
+- **Frontmatter is immutable after creation.** No script, no agent should `Edit` frontmatter mid-flight. If you need to record a state change, append a log block.
+- **Single writer per claim.** Between take and complete, only the claiming agent appends to the body. The maildir `git mv` is the actual lock.
+- **Timeout is set by the task author.** Absent = unbounded. Claimers cannot extend; if the budget is wrong, release with a reason.
+- **Dependencies are parallel.** `dependencies: {slug: "reason"}` is a map of slugs that must resolve under `done/**` before the task is takeable. No array form.
+- **Year partition at write time.** `complete` uses `date -u +%Y`. Reopen-then-recomplete lands in the current year, not the original.
 
 ## References
 
-- `references/agents-schema.md` — Directory layout, frontmatter schema, filename rules, dependencies syntax, body format
-- `references/grooming.md` — Stuck-detection buckets and the release/complete loop
+- `references/agents-schema.md` — Directory layout, frontmatter schema, body log format, dependencies syntax
+- `references/grooming.md` — Bucket checklist for the groom verb
 - `references/README.md` — Background, design philosophy, related projects
