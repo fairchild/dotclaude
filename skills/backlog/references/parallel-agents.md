@@ -62,41 +62,72 @@ The skill provides two ways to release timed-out tasks back to `todo/`. They com
 
 ### Take-prelude (recommended for high-traffic backlogs)
 
-Every `take` first releases any TIMED-OUT entries it finds, then proceeds with normal claim selection. The act of taking is what cleans the queue. No separate process needed; cleanup cadence equals take cadence.
+Before a take, scan `doing/` for stale claims. For each:
+
+- If `recovered` count ≥ `max_retries` (default 3, overridable per-task via `max_retries:` frontmatter): invoke `fail` — move to `failed/` with a "retries exhausted" reason. Out of the active queue.
+- Else if this is the task the agent wants to work on: invoke `recover` — claim in place, no `git mv`. Kanban flow stays right-to-left.
+- Else: invoke `release` — move back to `todo/` so another agent can pick up.
 
 ```bash
-# Composes the TIMED OUT detector (grooming.md) with the release recipe (SKILL.md).
-# Drop in front of any take.
-now=$(date -u +%s)
+now=$(date -u +%s); ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+target_slug="${1:-}"        # set if the agent has a specific slug in mind; empty for scan-only
+max_retries=3
+
 for f in backlog/doing/*.md; do
   [[ -f "$f" ]] || continue
   timeout=$(awk '/^---$/{n++; if(n==2) exit} n==1 && /^timeout:/ {sub(/^timeout:[[:space:]]*/, ""); print; exit}' "$f")
   [[ -z "$timeout" ]] && timeout=7d
-  started=$(grep -E '^- [0-9TZ:-]+ started ' "$f" | tail -1 | awk '{print $2}')
+  started=$(grep -E '^- [0-9TZ:-]+ (started|recovered) ' "$f" | tail -1 | awk '{print $2}')
   [[ -z "$started" ]] && continue
   n="${timeout%[smhdw]*}"; unit="${timeout: -1}"
   case "$unit" in s) secs=$n;; m) secs=$((n*60));; h) secs=$((n*3600));; d) secs=$((n*86400));; w) secs=$((n*604800));; *) continue;; esac
   ep=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$started" +%s 2>/dev/null || gdate -d "$started" +%s 2>/dev/null || true)
   [[ -z "$ep" ]] && continue
   (( now - ep > secs )) || continue
-  slug=$(basename "$f" .md); ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  git mv "$f" "backlog/todo/${slug}.md"
-  echo "- $ts released | timeout: budget=$timeout, claimed=$started" >> "backlog/todo/${slug}.md"
-  git add "backlog/todo/${slug}.md"
-  git commit -m "release($slug) timeout"
+
+  slug=$(basename "$f" .md)
+  recovered_count=$(grep -c '^- .*recovered' "$f")
+  task_max=$(awk '/^---$/{n++; if(n==2) exit} n==1 && /^max_retries:/ {sub(/^max_retries:[[:space:]]*/, ""); print; exit}' "$f")
+  [[ -z "$task_max" ]] && task_max=$max_retries
+
+  if (( recovered_count >= task_max )); then
+    # Dead-letter
+    mkdir -p backlog/failed
+    git mv "$f" "backlog/failed/${slug}.md"
+    echo "- $ts failed | retries exhausted: $recovered_count recoveries, budget $timeout" >> "backlog/failed/${slug}.md"
+    git add "backlog/failed/${slug}.md"
+    git commit -m "fail($slug) retries exhausted"
+  elif [[ "$slug" == "$target_slug" ]]; then
+    # Recover in place
+    branch=$(git rev-parse --abbrev-ref HEAD)
+    claimer=${CONDUCTOR_WORKSPACE_NAME:+conductor:$CONDUCTOR_WORKSPACE_NAME}
+    claimer=${claimer:-${CMUX_WORKSPACE_ID:+cmux:$CMUX_WORKSPACE_ID}}
+    claimer=${claimer:-$(whoami)@$(hostname -s)}
+    echo "- $ts recovered claimer=$claimer branch=$branch" >> "$f"
+    git add "$f"
+    git commit -m "recover($slug) $claimer @ $branch"
+  else
+    # Release back to todo/ — let any agent pick up
+    git mv "$f" "backlog/todo/${slug}.md"
+    echo "- $ts released | timeout: budget=$timeout, claimed=$started" >> "backlog/todo/${slug}.md"
+    git add "backlog/todo/${slug}.md"
+    git commit -m "release($slug) timeout"
+  fi
 done
-# Then run the normal take recipe.
+# Then run the normal take recipe (or auto-pick) for the target_slug if not recovered above.
 ```
 
 ### Periodic janitor (recommended for low-traffic backlogs)
 
-A scheduled job (cron, GitHub Action, Conductor hook) runs `groom` and releases TIMED-OUT entries. Catches the case where a task times out but no agent has taken anything in a while.
+A scheduled job (cron, GitHub Action, Conductor hook) runs the same loop above with `target_slug=""` (scan-only), which releases stale tasks back to `todo/` and routes retry-exhausted ones to `failed/`. The janitor never *recovers* — that requires an agent ready to take. Catches the case where tasks time out but no agent has taken anything in a while.
 
-Both patterns invoke the existing `release` recipe with a structured reason — no new verb, no new format. The released line in the log looks like:
+The released line in the log looks like:
 
 ```
 - 2026-05-17T00:00:00Z released | timeout: budget=3d, claimed=2026-05-14T00:00:00Z, claimer=conductor:austin-v3
 ```
+
+**`ls doing/` = active work, with an asterisk:** the invariant holds *as of the last detection sweep*. Either a janitor must run on a schedule, or workers must run preludes frequently enough that staleness windows stay bounded.
 
 ## Why release moves the file rather than tagging in place
 
@@ -163,12 +194,13 @@ For most cases, *the agents themselves are the scheduler* — each one reads the
 
 | Failure                                       | Handled by                                |
 |-----------------------------------------------|-------------------------------------------|
-| Worker crashes mid-activity                   | Timeout → release → next worker picks up  |
+| Worker crashes mid-activity                   | Timeout → next worker's prelude recovers in place (or janitor releases) |
 | Worker completes but never moves to `done/`   | MERGED-BUT-NOT-MOVED bucket; safe auto-fix |
 | Worker hangs (no progress, timeout not yet exceeded) | Waits until TIMED OUT fires (declared budget or 7d default) |
 | Worker writes ambiguous progress notes        | Next attempt redundantly redoes work — wasted time, not incorrectness |
 | Two workers race the same task                | Git merge conflict → one wins, one rebases |
 | Worker takes a task it can't handle           | `release` with reason; another worker picks up |
+| Task keeps timing out across many attempts    | `recovered` count exceeds `max_retries` → `fail` to `failed/`; operator investigates |
 
 ### What this skill deliberately doesn't help with
 

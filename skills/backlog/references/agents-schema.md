@@ -10,9 +10,12 @@ backlog/
   todo/       # available
   doing/      # claimed, in flight
   done/       # completed (and cancelled, discriminated by log line)
+  failed/     # dead-letter for tasks that exhausted retries (created on demand)
 ```
 
 Flat `done/` — no time partitioning. If it grows large enough to be annoying (years from now), operators can shard by hand; nothing migrates automatically and no recipe relies on the directory shape.
+
+`failed/` is created on demand by the `fail` recipe; it doesn't exist until the first failure. Operators review it manually and either `reopen` (back to todo/) or `cancel` (terminal in done/).
 
 ## Filename
 
@@ -97,22 +100,26 @@ Kinds and their KV / prose conventions:
 | kind        | written by | KV fields                      | prose after `|`         |
 |-------------|------------|--------------------------------|-------------------------|
 | `started`   | take       | `claimer=...`, `branch=...`    | rare                    |
+| `recovered` | recover    | `claimer=...`, `branch=...`    | rare                    |
 | `progress`  | progress   | none                           | the note                |
 | `completed` | complete   | `PR=<url>` (optional)          | rare                    |
 | `released`  | release    | none                           | the reason              |
 | `cancelled` | cancel     | none                           | the reason              |
+| `failed`    | fail       | none                           | the reason              |
 | `reopened`  | reopen     | none                           | the reason              |
 
 ### Reading state from the log
 
 | Question                  | How to answer                                                              |
 |---------------------------|----------------------------------------------------------------------------|
-| Is X claimed?             | Is `backlog/doing/X.md` a regular file?                                    |
+| Is X claimed?             | Is `backlog/doing/X.md` a regular file with a live (non-stale) claim?      |
 | Who claims X?             | `grep -oE 'claimer=[^ ]+' X.md \| tail -1 \| cut -d= -f2`                  |
 | What branch?              | `grep -oE 'branch=[^ ]+' X.md \| tail -1 \| cut -d= -f2`                   |
-| How old is the claim?     | Timestamp of the most recent `started` line                                |
+| How old is the claim?     | Timestamp of the most recent `started` or `recovered` line                 |
+| How many recovery attempts? | `grep -c '^- .*recovered' X.md`                                          |
 | What's the PR?            | `grep -oE 'PR=[^ ]+' X.md \| tail -1 \| cut -d= -f2-`                      |
 | Has it been marked done?  | `grep -q '^- .*completed' X.md`                                            |
+| Was it dead-lettered?     | Is `backlog/failed/X.md` a regular file?                                   |
 | Full history with context | `git log --follow -- backlog/.../X.md` (traces across the maildir renames) |
 
 Cat shows the story in place; `git log` shows the same events with author and ancestry. They stay synchronized because every recipe both appends one bullet AND commits.

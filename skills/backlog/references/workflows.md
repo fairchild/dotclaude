@@ -17,7 +17,7 @@ Deferred work, one markdown file per task. Location = status:
 - `doing/` — claimed, in flight
 - `done/`  — completed (and cancelled — discriminated by the `cancelled` log line)
 
-Use the `backlog` skill (add / take / progress / complete / release / cancel / reopen / groom / status) to interact. Schema and rules: `~/.claude/skills/backlog/references/agents-schema.md`.
+Use the `backlog` skill (add / take / recover / progress / complete / release / cancel / fail / reopen / groom / status) to interact. Schema and rules: `~/.claude/skills/backlog/references/agents-schema.md`.
 
 ## Defaults
 

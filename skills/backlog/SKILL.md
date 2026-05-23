@@ -8,9 +8,10 @@ license: Apache-2.0
 
 A task tracker shaped like a maildir. Each task is one markdown file; its directory is its state.
 
-- `backlog/todo/`  — available to claim
-- `backlog/doing/` — claimed, in flight
-- `backlog/done/`  — completed (and cancelled — the log line discriminates)
+- `backlog/todo/`   — available to claim
+- `backlog/doing/`  — claimed, in flight
+- `backlog/done/`   — completed (and cancelled — the log line discriminates)
+- `backlog/failed/` — dead-letter for tasks that exhausted retries (created on demand)
 
 Claiming is `git mv backlog/todo/X.md backlog/doing/X.md`. Two agents racing the same task collide at merge — the right failure mode, not silent double-work.
 
@@ -113,6 +114,38 @@ git commit -m "take($slug) $claimer @ $branch"
 
 **No-slug take:** glob `todo/`, filter to tasks whose every dep is in `done/`, sort by `priority` (default 999) ascending then oldest mtime, take the first. Agent does this with Glob+Read.
 
+### recover
+
+Pick up a `doing/` task whose claim has gone stale (timeout exceeded). In-place — no `git mv` — so kanban flow stays right-to-left. Inlined staleness check refuses if the existing claim is still active, preventing accidental claim-stealing.
+
+```bash
+slug=backlog-maildir-plan
+branch=$(git rev-parse --abbrev-ref HEAD)
+claimer=${CONDUCTOR_WORKSPACE_NAME:+conductor:$CONDUCTOR_WORKSPACE_NAME}
+claimer=${claimer:-${CMUX_WORKSPACE_ID:+cmux:$CMUX_WORKSPACE_ID}}
+claimer=${claimer:-$(whoami)@$(hostname -s)}
+ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+file="backlog/doing/${slug}.md"
+[[ -f "$file" ]] || { echo "not in doing/: $slug" >&2; exit 1; }
+
+# Staleness check: refuse if the prior claim hasn't exceeded its budget
+timeout=$(awk '/^---$/{n++; if(n==2) exit} n==1 && /^timeout:/ {sub(/^timeout:[[:space:]]*/, ""); print; exit}' "$file")
+[[ -z "$timeout" ]] && timeout=7d
+started=$(grep -E '^- [0-9TZ:-]+ (started|recovered) ' "$file" | tail -1 | awk '{print $2}')
+[[ -z "$started" ]] && { echo "no prior claim line in $file" >&2; exit 1; }
+n="${timeout%[smhdw]*}"; unit="${timeout: -1}"
+case "$unit" in s) secs=$n;; m) secs=$((n*60));; h) secs=$((n*3600));; d) secs=$((n*86400));; w) secs=$((n*604800));; *) secs=604800;; esac
+ep=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$started" +%s 2>/dev/null || gdate -d "$started" +%s 2>/dev/null || true)
+[[ -z "$ep" ]] && { echo "unparseable timestamp: $started" >&2; exit 1; }
+(( $(date -u +%s) - ep > secs )) || { echo "claim still active (under $timeout); refusing recover" >&2; exit 1; }
+
+echo "- $ts recovered claimer=$claimer branch=$branch" >> "$file"
+git add "$file"
+git commit -m "recover($slug) $claimer @ $branch"
+```
+
+After recovering, read the file's full log and skip activities prior progress notes already completed. See `references/parallel-agents.md` for the activity-skipping pattern and the take-prelude variant that bundles recover with detection.
+
 ### progress
 
 ```bash
@@ -178,16 +211,36 @@ git add "backlog/done/${slug}.md"
 git commit -m "cancel($slug) $reason"
 ```
 
+### fail
+
+Dead-letter: move a task to `backlog/failed/` when retries are exhausted or recovery is hopeless. Requires a reason. Operators investigate `failed/` and decide whether to `reopen` (move back to todo/) or `cancel` (mark terminal in done/).
+
+```bash
+slug=stuck-thing-plan
+reason="exhausted 3 retries after timeouts"
+ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+src=$(find backlog/todo backlog/doing -name "${slug}.md" -type f | head -1)
+[[ -z "$src" ]] && { echo "no such task: $slug" >&2; exit 1; }
+
+mkdir -p backlog/failed
+git mv "$src" "backlog/failed/${slug}.md"
+echo "- $ts failed | $reason" >> "backlog/failed/${slug}.md"
+git add "backlog/failed/${slug}.md"
+git commit -m "fail($slug) $reason"
+```
+
 ### reopen
 
-`done/X.md` → `todo/X.md`. Requires a reason.
+`done/X.md` or `failed/X.md` → `todo/X.md`. Requires a reason.
 
 ```bash
 slug=once-was-finished-plan
 reason="edge case Y discovered"
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+src=$(find backlog/done backlog/failed -name "${slug}.md" -type f | head -1)
+[[ -z "$src" ]] && { echo "not in done/ or failed/: $slug" >&2; exit 1; }
 
-git mv "backlog/done/${slug}.md" "backlog/todo/${slug}.md"
+git mv "$src" "backlog/todo/${slug}.md"
 echo "- $ts reopened | $reason" >> "backlog/todo/${slug}.md"
 git add "backlog/todo/${slug}.md"
 git commit -m "reopen($slug) $reason"
@@ -196,7 +249,7 @@ git commit -m "reopen($slug) $reason"
 ### status
 
 ```bash
-for pile in todo doing done; do
+for pile in todo doing done failed; do
   printf "%s: %d\n" "$pile" "$(find backlog/$pile -name '*.md' -type f 2>/dev/null | wc -l | tr -d ' ')"
 done
 ls -lt backlog/doing/*.md 2>/dev/null | head -5
