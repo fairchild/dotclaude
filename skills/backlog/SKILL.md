@@ -23,10 +23,10 @@ Two halves, divided by `---` with blank lines around it so markdown renders it a
 ---
 priority: 2
 dependencies:
-  schema-migration: ""
+  other-task-slug: "why we depend on it"
 ---
 
-# Backlog Maildir
+# Task Title
 
 [problem statement, key decisions, phases, acceptance criteria]
 
