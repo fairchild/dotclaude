@@ -96,9 +96,4 @@ echo "OK: $todo in todo/, $doing in doing/ (after subtracting items surfaced abo
 
 ## Operator Loop
 
-1. Run the groom prompt
-2. For each `MERGED BUT NOT MOVED`, run the `complete` recipe — safe
-3. For each `TIMED OUT` / `QUIET`, decide: release, follow up, or let the claimer add a progress note with what's happening
-4. For each `UNRESOLVABLE DEPS` / `CYCLES`, edit the file directly
-
-The agent never moves files itself during groom. `complete`, `release`, etc. are explicit verbs the operator runs after looking at the report.
+Run the prompt; act on each bucket via its suggested action above. Groom itself never moves files (one exception: it may release author-authorized TIMED OUT entries — see `references/parallel-agents.md`).

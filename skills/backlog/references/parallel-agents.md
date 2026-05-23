@@ -24,8 +24,6 @@ The atomic primitives, and nothing else:
 - **No heartbeat enforcement.** A claimer that goes silent isn't pinged; timeouts and grooming are the failure-detection mechanism.
 - **No cron / scheduler.** Periodic cleanup is the operator's responsibility — see "Two cleanup patterns" below.
 
-Composing the skill into a complete distributed system is design work that lives in the project that uses it, not in this skill.
-
 ## Default timeout: 7 days
 
 Tasks may declare a `timeout:` in frontmatter. **If they don't, groom and take-prelude treat the task as having `timeout: 7d`.** That way every task is recoverable from a dead claimer without forcing the author to think about budgets at add time.
@@ -76,13 +74,9 @@ Both patterns invoke the existing `release` recipe with a structured reason — 
 - 2026-05-17T00:00:00Z released | timeout: budget=3d, claimed=2026-05-14T00:00:00Z, claimer=conductor:austin-v3
 ```
 
-The next take sees the released line and the prior progress notes, then resumes the activity stream.
-
 ## The single permitted exception to "groom never moves files"
 
-Groom is advisory by default. The one exception: it may release a task back to `todo/` if and only if the task is in the TIMED-OUT bucket (author-declared budget exceeded). The move uses the existing `release` recipe with a `timeout: ...` reason.
-
-This works because the timeout was declared by the task author. The system isn't overriding human judgment — it's enforcing a contract the author wrote down. Untyped quiet tasks stay advisory; only timed-out ones are auto-actionable.
+Groom is advisory by default. The one exception: it may release a task back to `todo/` if and only if the task is in the TIMED-OUT bucket (author-declared budget exceeded, or default-inherited). Enforcing it is contract-keeping, not policy — untyped quiet tasks stay advisory.
 
 ## Limits worth knowing about
 

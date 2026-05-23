@@ -67,8 +67,6 @@ Grooming buckets: `references/grooming.md`.
 
 ## Verbs
 
-Every verb is the same shape: optionally `git mv`, append one log line, commit.
-
 ### add
 
 Gather **slug** (kebab-case), **category** (`plan` / `followup` / `task-list` / `ideas`, filename suffix), **priority** (1 = highest, optional), **timeout** (`4h` / `3d` / `2w`, only if there's a real budget), **dependencies** (slug → one-line reason).
@@ -95,7 +93,7 @@ EOF
 git add "$filename" && git commit -m "add($slug)"
 ```
 
-Fill the body above the `---` divider. The blank lines around the divider matter — they make markdown renderers treat it as a horizontal rule. The empty area below is where the log will append. Commit before anyone can claim.
+Fill the body, then commit.
 
 ### take
 

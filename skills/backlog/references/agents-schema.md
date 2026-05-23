@@ -123,16 +123,4 @@ Between `take` and `complete` (or `release`/`cancel`), only the claiming agent a
 
 ## Initial AGENTS.md
 
-The `init` recipe writes a short pointer at `backlog/AGENTS.md` so any agent landing in the project knows where to look:
-
-```markdown
-# backlog/
-
-Deferred work, one markdown file per task. Location = status:
-
-- `todo/` — available
-- `doing/` — claimed, in flight
-- `done/` — completed
-
-Use the `backlog` skill (add / take / progress / complete / release / cancel / reopen / groom / status) to interact. Schema and rules: `~/.claude/skills/backlog/references/agents-schema.md`.
-```
+Init recipe template: `references/workflows.md`.
