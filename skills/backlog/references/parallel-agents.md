@@ -98,6 +98,10 @@ Both patterns invoke the existing `release` recipe with a structured reason — 
 - 2026-05-17T00:00:00Z released | timeout: budget=3d, claimed=2026-05-14T00:00:00Z, claimer=conductor:austin-v3
 ```
 
+## Why release moves the file rather than tagging in place
+
+A `release` could append a `released` log line in place and leave the file in `doing/` — but that breaks location-is-status: `ls doing/` would no longer mean "in flight," every status check would have to read each file's log, and the `git mv` race that gives us the atomic lock would be decoupled from the state change. Keeping release as one operation (move + append + commit) preserves both invariants.
+
 ## The single permitted exception to "groom never moves files"
 
 Groom is advisory by default. The one exception: it may release a task back to `todo/` if and only if the task is in the TIMED-OUT bucket (author-declared budget exceeded, or default-inherited). Enforcing it is contract-keeping, not policy.
