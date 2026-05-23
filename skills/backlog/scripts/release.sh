@@ -30,20 +30,8 @@ done
 BACKLOG=$(find_backlog "$backlog_arg")
 
 if [[ -z "$slug" ]]; then
-  branch=$(current_branch)
-  matches=()
-  for f in "$BACKLOG"/doing/*.md; do
-    [[ -f "$f" ]] || continue
-    b=$(read_fm_scalar "$f" branch)
-    [[ "$b" == "$branch" ]] && matches+=("$f")
-  done
-  [[ ${#matches[@]} -eq 0 ]] && { echo "no doing/ task on branch '$branch' — pass a slug" >&2; exit 1; }
-  [[ ${#matches[@]} -gt 1 ]] && {
-    echo "multiple doing/ tasks on branch '$branch' — pass a slug:" >&2
-    printf '  %s\n' "${matches[@]}" >&2
-    exit 1
-  }
-  slug=$(slug_of "${matches[0]}")
+  found=$(find_doing_on_branch "$BACKLOG") || exit 1
+  slug=$(slug_of "$found")
 fi
 
 src="$BACKLOG/doing/${slug}.md"

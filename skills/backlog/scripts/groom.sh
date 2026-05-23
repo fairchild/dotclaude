@@ -117,30 +117,15 @@ for f in "$BACKLOG"/doing/*.md; do
   ok_doing=$(( ok_doing + 1 ))
 done
 
-# ---- Dep resolution checks (todo/ + doing/) ------------------------------
+# ---- Build slug caches once -----------------------------------------------
 
-# Build a set of all slugs in tree.
 all_slugs=$(find "$BACKLOG/todo" "$BACKLOG/doing" "$BACKLOG/done" -type f -name "*.md" 2>/dev/null \
   | xargs -n1 basename 2>/dev/null | sed 's/\.md$//' | sort -u || true)
+active_slugs=$(find "$BACKLOG/todo" "$BACKLOG/doing" -type f -name "*.md" 2>/dev/null \
+  | xargs -n1 basename 2>/dev/null | sed 's/\.md$//' | sort -u || true)
 
-slug_exists() {
-  echo "$all_slugs" | grep -Fxq "$1"
-}
+# ---- Dep resolution + adjacency in one pass ------------------------------
 
-for f in "$BACKLOG"/todo/*.md "$BACKLOG"/doing/*.md; do
-  [[ -f "$f" ]] || continue
-  slug=$(slug_of "$f")
-  while IFS= read -r dep; do
-    [[ -z "$dep" ]] && continue
-    if ! slug_exists "$dep"; then
-      unresolvable+=("  $slug  → $dep (no such slug in tree)")
-    fi
-  done < <(read_fm_dep_slugs "$f")
-done
-
-# ---- Cycle detection (todo + doing graph) --------------------------------
-
-# Build adjacency: emit "src dst" pairs.
 edges=$(mktemp)
 trap 'rm -f "$edges"' EXIT
 for f in "$BACKLOG"/todo/*.md "$BACKLOG"/doing/*.md; do
@@ -148,12 +133,18 @@ for f in "$BACKLOG"/todo/*.md "$BACKLOG"/doing/*.md; do
   src=$(slug_of "$f")
   while IFS= read -r dep; do
     [[ -z "$dep" ]] && continue
-    # Skip deps that are done (won't appear in active graph anyway).
-    dep_pile=""
-    dep_path=$(find "$BACKLOG/todo" "$BACKLOG/doing" -name "${dep}.md" -type f 2>/dev/null | head -1)
-    [[ -n "$dep_path" ]] && echo "$src $dep" >> "$edges"
+    if ! echo "$all_slugs" | grep -Fxq "$dep"; then
+      unresolvable+=("  $src  → $dep (no such slug in tree)")
+      continue
+    fi
+    # Only active-graph deps contribute to cycles.
+    if echo "$active_slugs" | grep -Fxq "$dep"; then
+      echo "$src $dep" >> "$edges"
+    fi
   done < <(read_fm_dep_slugs "$f")
 done
+
+# ---- Cycle detection -----------------------------------------------------
 
 cycles=()
 if [[ -s "$edges" ]]; then

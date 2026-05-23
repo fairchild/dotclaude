@@ -291,6 +291,32 @@ current_branch() {
   git rev-parse --abbrev-ref HEAD 2>/dev/null || echo ""
 }
 
+# find_doing_on_branch BACKLOG [BRANCH]
+# Echo the absolute path of the single doing/ task on the given branch
+# (default: current branch). Returns non-zero on 0 or >1 matches and
+# prints a diagnostic to stderr.
+find_doing_on_branch() {
+  local backlog="$1"
+  local branch="${2:-$(current_branch)}"
+  local matches=()
+  local f b
+  for f in "$backlog"/doing/*.md; do
+    [[ -f "$f" ]] || continue
+    b=$(read_fm_scalar "$f" branch)
+    [[ "$b" == "$branch" ]] && matches+=("$f")
+  done
+  if [[ ${#matches[@]} -eq 0 ]]; then
+    echo "no doing/ task on branch '$branch' — pass a slug" >&2
+    return 1
+  fi
+  if [[ ${#matches[@]} -gt 1 ]]; then
+    echo "multiple doing/ tasks on branch '$branch' — pass a slug:" >&2
+    printf '  %s\n' "${matches[@]}" >&2
+    return 1
+  fi
+  echo "${matches[0]}"
+}
+
 # move_in_backlog BACKLOG FROM_ABS TO_ABS
 # Uses git mv if FROM is a tracked file in a git repo; otherwise plain mv.
 # Creates the destination directory as needed.

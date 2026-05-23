@@ -18,35 +18,44 @@ done
 
 BACKLOG=$(find_backlog "$backlog_arg")
 
-is_takeable() {
-  local file="$1"
-  while IFS= read -r dep; do
-    [[ -z "$dep" ]] && continue
-    local hits
-    hits=$(find "$BACKLOG/done" -name "${dep}.md" -type f 2>/dev/null | head -1)
-    [[ -z "$hits" ]] && return 1
-  done < <(read_fm_dep_slugs "$file")
-  return 0
+# Build a newline-delimited set of done-slugs once. Membership test is a
+# fixed-string grep — works on bash 3.2 without associative arrays.
+done_slugs=$(find "$BACKLOG/done" -type f -name "*.md" 2>/dev/null \
+  | xargs -n1 basename 2>/dev/null | sed 's/\.md$//')
+
+dep_is_done() {
+  echo "$done_slugs" | grep -Fxq "$1"
 }
 
-# Emit "priority mtime path takeable" rows so we can sort uniformly.
 rows=$(mktemp)
-trap 'rm -f "$rows"' EXIT
+missing_per_file=$(mktemp)
+trap 'rm -f "$rows" "$missing_per_file"' EXIT
+
 for f in "$BACKLOG"/todo/*.md; do
   [[ -f "$f" ]] || continue
+  slug=$(slug_of "$f")
   p=$(read_fm_scalar "$f" priority); [[ -z "$p" ]] && p=999
   mt=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0)
-  if is_takeable "$f"; then takeable=1; else takeable=0; fi
-  printf "%06d %015d %d %s\n" "$p" "$mt" "$takeable" "$f"
-done > "$rows"
+  missing=()
+  while IFS= read -r dep; do
+    [[ -z "$dep" ]] && continue
+    dep_is_done "$dep" || missing+=("$dep")
+  done < <(read_fm_dep_slugs "$f")
+  takeable=$([[ ${#missing[@]} -eq 0 ]] && echo 1 || echo 0)
+  printf "%06d %015d %d %s\n" "$p" "$mt" "$takeable" "$f" >> "$rows"
+  if (( ${#missing[@]} > 0 )); then
+    printf "%s\t%s\n" "$slug" "$(IFS=,; echo "${missing[*]}")" >> "$missing_per_file"
+  fi
+done
 
 if [[ ! -s "$rows" ]]; then
   echo "todo/ is empty"
   exit 0
 fi
 
-takeable_sorted=$(sort -k1,1n -k2,2n "$rows" | awk '$3==1')
-blocked_sorted=$(sort -k1,1n -k2,2n "$rows" | awk '$3==0')
+sorted=$(sort -k1,1n -k2,2n "$rows")
+takeable_sorted=$(echo "$sorted" | awk '$3==1')
+blocked_sorted=$(echo "$sorted" | awk '$3==0')
 
 echo "## next up"
 if [[ -z "$takeable_sorted" ]]; then
@@ -64,12 +73,8 @@ if [[ -n "$blocked_sorted" ]]; then
   while read -r line; do
     file=$(echo "$line" | awk '{print $4}')
     base=$(basename "$file")
-    missing=()
-    while IFS= read -r dep; do
-      [[ -z "$dep" ]] && continue
-      hits=$(find "$BACKLOG/done" -name "${dep}.md" -type f 2>/dev/null | head -1)
-      [[ -z "$hits" ]] && missing+=("$dep")
-    done < <(read_fm_dep_slugs "$file")
-    printf "  %s — waiting on: %s\n" "$base" "$(IFS=,; echo "${missing[*]}")"
+    slug=$(slug_of "$file")
+    missing=$(awk -F '\t' -v s="$slug" '$1==s{print $2; exit}' "$missing_per_file")
+    printf "  %s — waiting on: %s\n" "$base" "$missing"
   done <<< "$blocked_sorted"
 fi
