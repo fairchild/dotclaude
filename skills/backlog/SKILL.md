@@ -48,9 +48,7 @@ Frontmatter and description are **author-set and immutable**. Below the divider,
 
 Kinds: `started`, `progress`, `completed`, `released`, `cancelled`, `reopened`.
 
-- **KV fields** are unambiguous to grep: `grep 'branch=feat/foo'`, `grep '^- .*completed'`.
-- **Free prose** goes after `|` for human notes.
-- Long-form detail belongs in the **commit body** (`git commit -m subject -m body`). The bullet is the index; git is the archive. `git show <sha>` pulls it out.
+KV fields grep cleanly (`grep 'branch=feat/foo'`), free prose follows `|`, and long-form detail belongs in the commit body — the bullet is the index, git is the archive (`git show <sha>` retrieves the long form).
 
 ## Rules
 
@@ -113,7 +111,7 @@ git add "backlog/doing/${slug}.md"
 git commit -m "take($slug) $claimer @ $branch"
 ```
 
-**With no slug (auto-pick):** glob `backlog/todo/*.md`, read each frontmatter's `priority:` (default `999`) and `dependencies:` block (default empty), filter to those whose every dep slug resolves under `backlog/done/`, sort by priority ascending then oldest mtime, take the first. The agent does this with Glob+Read.
+**No-slug take:** glob `todo/`, filter to tasks whose every dep is in `done/`, sort by `priority` (default 999) ascending then oldest mtime, take the first. Agent does this with Glob+Read.
 
 ### progress
 
@@ -207,11 +205,3 @@ ls -lt backlog/doing/*.md 2>/dev/null | head -5
 ### groom
 
 Advisory walk; never moves files. Buckets and per-bucket checks: `references/grooming.md`.
-
-## References
-
-- `references/agents-schema.md` — directory layout, frontmatter schema (with defaults), bullet log format, dependencies syntax
-- `references/parallel-agents.md` — mental model, failure detection, cleanup patterns, worker design sketch
-- `references/workflows.md` — `init` (first-time setup) and `migrate` (from flat layout)
-- `references/grooming.md` — bucket checklist for `groom`
-- `references/README.md` — background, design philosophy, related projects
