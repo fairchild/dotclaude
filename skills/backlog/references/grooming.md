@@ -15,23 +15,16 @@ When the user asks to groom the backlog, walk each bucket below and print what y
 
 ### `MERGED BUT NOT MOVED` (safe to auto-fix)
 
-A file in `doing/` whose latest `### completed` block exists (shouldn't happen — that should already be in `done/`), OR whose branch is gone from the remote and merged into main. The work shipped; the file just didn't move.
-
-Check:
+A file in `doing/` whose body already has a `### completed` block. The work was marked complete but the `git mv` to `done/` never ran — strict invariant violation, unambiguous.
 
 ```bash
 for f in backlog/doing/*.md; do
   [[ -f "$f" ]] || continue
-  branch=$(grep '^claimed by .* on branch ' "$f" | tail -1 | sed -E 's/.* on branch (.*)/\1/')
-  if [[ -n "$branch" ]] && ! git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-    # branch gone; check if merged
-    if git log --oneline main..."$branch" 2>/dev/null | grep -q .; then continue; fi
-    echo "MERGED BUT NOT MOVED: $f (branch $branch gone)"
-  fi
+  grep -q '^### completed — ' "$f" && echo "MERGED BUT NOT MOVED: $f"
 done
 ```
 
-Suggested fix: run the `complete` recipe on that slug. Safe because the merge is the proof.
+Suggested fix: run the `complete` recipe on that slug. Safe because the completed block is the proof. (A doing/ file whose *branch* shipped but never wrote a `### completed` block will surface in `QUIET` instead — same suggested action, lower confidence.)
 
 ### `TIMED OUT`
 
@@ -48,7 +41,8 @@ for f in backlog/doing/*.md; do
   # Parse timeout: 4h, 3d, 2w
   n="${timeout%[smhdw]*}"; unit="${timeout: -1}"
   case "$unit" in s) secs=$n;; m) secs=$((n*60));; h) secs=$((n*3600));; d) secs=$((n*86400));; w) secs=$((n*604800));; *) continue;; esac
-  started_epoch=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$started" +%s 2>/dev/null || gdate -d "$started" +%s)
+  started_epoch=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$started" +%s 2>/dev/null || gdate -d "$started" +%s 2>/dev/null || true)
+  [[ -z "$started_epoch" ]] && continue
   [[ $((now - started_epoch)) -gt $secs ]] && echo "TIMED OUT: $f (claimed $started, budget $timeout)"
 done
 ```

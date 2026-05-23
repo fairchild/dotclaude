@@ -11,11 +11,9 @@ backlog/
   doing/              # claimed, in flight
   done/
     2026/             # year-partitioned at write time
-    2026/Q1/          # optional finer subdir if a year gets crowded
-    2026/cancelled/   # cancelled tasks land here
 ```
 
-`done/{YYYY}/` is created at completion time using `date -u +%Y`. Finer subdirs (`done/2026/Q1/`, `done/2026/05/`) are opt-in — if a subdir already exists in the target year that fits the current date, `complete` places the file there; otherwise it lands flat under the year. Operators can split crowded years by hand; nothing migrates automatically.
+`done/{YYYY}/` is created at completion time using `date -u +%Y`. Cancellations land here too — the `### cancelled` log block distinguishes them from completions, no separate directory. Operators can shard a crowded year by hand (`mv done/2026/Q1*.md done/2026/Q1/`); nothing migrates automatically.
 
 ## Filename
 
@@ -38,8 +36,6 @@ YAML between two `---` lines. **Author-set at creation and never edited after.**
 
 ```yaml
 ---
-topic: backlog-tooling           # grouping label, freeform
-description: One-line summary    # for list views
 priority: 2                      # 1 = highest, lower number = higher priority
 timeout: 3d                      # humanish: 4h, 3d, 2w. Starts at the most recent `started` block. Absent = unbounded.
 dependencies:                    # map of slug → reason (reason may be empty string)
@@ -47,6 +43,8 @@ dependencies:                    # map of slug → reason (reason may be empty s
   auth-refactor: ""
 ---
 ```
+
+Three fields, all functional. Additional keys an author adds are preserved but not interpreted by any verb.
 
 ### Field rules
 

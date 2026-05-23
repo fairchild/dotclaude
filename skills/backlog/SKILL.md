@@ -20,8 +20,6 @@ Frontmatter is **author-set at creation, never edited after**. The body grows by
 
 ```markdown
 ---
-topic: backlog-tooling
-description: Refactor backlog to maildir layout
 priority: 2
 timeout: 3d
 dependencies:
@@ -68,11 +66,9 @@ Create a task in `todo/`. Gather context first (don't dump the user into editor-
 
 1. **Slug** (kebab-case, will be the filename minus `.md`)
 2. **Category**: `plan`, `followup`, `task-list`, or `ideas` — appended to slug as `{slug}-{category}.md`
-3. **One-line description**
-4. **Priority** (1 = highest, optional)
-5. **Topic** (optional grouping label)
-6. **Timeout** (only if there's a real budget: `4h`, `3d`, `2w`)
-7. **Dependencies** (slugs of tasks that must finish first, with a one-line reason each)
+3. **Priority** (1 = highest, optional)
+4. **Timeout** (only if there's a real budget: `4h`, `3d`, `2w`)
+5. **Dependencies** (slugs of tasks that must finish first, with a one-line reason each)
 
 Then write the file directly:
 
@@ -82,8 +78,6 @@ category=plan
 filename="backlog/todo/${slug}-${category}.md"
 cat > "$filename" <<'EOF'
 ---
-topic: backlog-tooling
-description: One-line summary
 priority: 2
 # timeout: 3d
 # dependencies:
@@ -98,6 +92,8 @@ priority: 2
 EOF
 echo "$filename"
 ```
+
+Commit before claiming. The maildir lock is committed git state — uncommitted files can't be `git mv`'d, and other agents can't see them.
 
 Then open the file and fill the body. Quality bar:
 
@@ -149,10 +145,14 @@ ${note}
 EOF
 ```
 
-If the slug isn't known, the doing/ file on the current branch can be found via:
+If the slug isn't known, find the doing/ file on the current branch via the *last* `### started` block (a released-then-re-taken file has two):
 
 ```bash
-grep -l "on branch $(git rev-parse --abbrev-ref HEAD)" backlog/doing/*.md
+b=$(git rev-parse --abbrev-ref HEAD)
+for f in backlog/doing/*.md; do
+  last=$(awk '/^### started — /{cap=1; next} cap && /^claimed by .* on branch /{line=$0; cap=0} END{print line}' "$f")
+  [[ "$last" == *" on branch $b" ]] && echo "$f"
+done
 ```
 
 ### complete
@@ -175,8 +175,6 @@ git mv "backlog/doing/${slug}.md" "backlog/done/${year}/${slug}.md"
 } >> "backlog/done/${year}/${slug}.md"
 ```
 
-If a finer subdir already exists in the current year (e.g. `done/2026/Q2/`), drop the file there instead of flat. The agent decides at move time by checking `ls backlog/done/${year}/`.
-
 ### release
 
 Give a claimed task back to todo/. Requires a reason — a verb without context rots the audit trail.
@@ -198,7 +196,7 @@ EOF
 
 ### cancel
 
-Abandon a task (todo or doing → `done/{YYYY}/cancelled/`). Requires a reason.
+Abandon a task (todo or doing → `done/{YYYY}/`). Requires a reason. The `### cancelled` log block tells you from completion, no separate directory needed.
 
 ```bash
 slug=this-isnt-going-to-happen-plan
@@ -206,10 +204,9 @@ reason="superseded by the X redesign"
 year=$(date -u +%Y)
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 src=$(find backlog/todo backlog/doing -name "${slug}.md" -type f | head -1)
-dst="backlog/done/${year}/cancelled/${slug}.md"
-mkdir -p "$(dirname "$dst")"
-git mv "$src" "$dst"
-cat >> "$dst" <<EOF
+mkdir -p "backlog/done/${year}"
+git mv "$src" "backlog/done/${year}/${slug}.md"
+cat >> "backlog/done/${year}/${slug}.md" <<EOF
 
 ### cancelled — ${ts}
 
