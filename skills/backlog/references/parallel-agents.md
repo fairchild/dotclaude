@@ -64,6 +64,30 @@ The skill provides two ways to release timed-out tasks back to `todo/`. They com
 
 Every `take` first releases any TIMED-OUT entries it finds, then proceeds with normal claim selection. The act of taking is what cleans the queue. No separate process needed; cleanup cadence equals take cadence.
 
+```bash
+# Composes the TIMED OUT detector (grooming.md) with the release recipe (SKILL.md).
+# Drop in front of any take.
+now=$(date -u +%s)
+for f in backlog/doing/*.md; do
+  [[ -f "$f" ]] || continue
+  timeout=$(awk '/^---$/{n++; if(n==2) exit} n==1 && /^timeout:/ {sub(/^timeout:[[:space:]]*/, ""); print; exit}' "$f")
+  [[ -z "$timeout" ]] && timeout=7d
+  started=$(grep -E '^- [0-9TZ:-]+ started ' "$f" | tail -1 | awk '{print $2}')
+  [[ -z "$started" ]] && continue
+  n="${timeout%[smhdw]*}"; unit="${timeout: -1}"
+  case "$unit" in s) secs=$n;; m) secs=$((n*60));; h) secs=$((n*3600));; d) secs=$((n*86400));; w) secs=$((n*604800));; *) continue;; esac
+  ep=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$started" +%s 2>/dev/null || gdate -d "$started" +%s 2>/dev/null || true)
+  [[ -z "$ep" ]] && continue
+  (( now - ep > secs )) || continue
+  slug=$(basename "$f" .md); ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  git mv "$f" "backlog/todo/${slug}.md"
+  echo "- $ts released | timeout: budget=$timeout, claimed=$started" >> "backlog/todo/${slug}.md"
+  git add "backlog/todo/${slug}.md"
+  git commit -m "release($slug) timeout"
+done
+# Then run the normal take recipe.
+```
+
 ### Periodic janitor (recommended for low-traffic backlogs)
 
 A scheduled job (cron, GitHub Action, Conductor hook) runs `groom` and releases TIMED-OUT entries. Catches the case where a task times out but no agent has taken anything in a while.

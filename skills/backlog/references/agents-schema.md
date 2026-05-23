@@ -121,6 +121,3 @@ Cat shows the story in place; `git log` shows the same events with author and an
 
 Between `take` and `complete` (or `release`/`cancel`), only the claiming agent appends. Enforcement is social — the maildir `git mv` is the actual lock. Two agents writing in parallel branches collide at merge, which is the correct failure.
 
-## Initial AGENTS.md
-
-Init recipe template: `references/workflows.md`.
