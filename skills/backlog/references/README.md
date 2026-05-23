@@ -11,6 +11,45 @@ A maildir-style task tracker. Each task is a markdown file; its location (`todo/
 - **Graph-native deps.** `dependencies:` is a map of slugs; each task declares its own preconditions. Parallel by default; ordering encoded in the chain itself, not in any single task.
 - **No scripts.** Every verb is a small bash recipe the agent runs inline (`git mv` + heredoc append). The skill *is* the spec; no codepath drift between docs and behaviour.
 
+## Minimal snippets
+
+### Write to the backlog (no frontmatter — defaults apply)
+
+```bash
+mkdir -p backlog/todo
+cat > backlog/todo/your-slug-plan.md <<'EOF'
+# Your Task Title
+
+Problem, decisions, phases, acceptance criteria — whatever a future
+session needs to execute without the original conversation.
+
+---
+
+EOF
+git add backlog && git commit -m "add(your-slug-plan)"
+```
+
+That's it. No frontmatter means `priority=999`, `timeout=7d`, `dependencies={}` apply by default. The `---` divider marks where the append-only log will live. Authors override defaults by adding fields above the divider.
+
+### Minimal worker prompt
+
+Drop this into any worker process or agent system prompt — it's the essence of the design without any scaffolding:
+
+> You're a worker on a maildir-style backlog at `backlog/{todo,doing,done,failed}/`. Each task is a markdown file; its directory is its state. Below a `---` divider, the file holds an append-only bullet log of timestamped events.
+>
+> **Log line format:** `- {ISO UTC} {kind} key=value ... [| free prose]`. One line per event. Long-form detail belongs in the commit body.
+>
+> **Verbs** (each is `git mv` if a transition + `echo >>` + `git commit`):
+>
+> - **take**: `git mv backlog/todo/X.md backlog/doing/X.md`, append `- $ts started claimer=YOU branch=BRANCH`. The mv is your lock.
+> - **progress**: append `- $ts progress | what just got done` to the file in `doing/`. Write notes semantically so a future claimer can skip what's already complete.
+> - **complete**: `git mv` to `done/`, append `- $ts completed PR=URL_IF_ANY`.
+> - **recover**: pick up a `doing/` task whose claim has exceeded its timeout. *In place* — no `git mv`. Append `- $ts recovered claimer=YOU branch=BRANCH`. Verify staleness first; refuse if the existing claim is still active. Then read prior progress notes to skip already-done activities.
+> - **release**: give a claim back. `git mv` to `todo/`, append `- $ts released | reason`.
+> - **fail**: dead-letter after retries exhausted. `git mv` to `failed/`, append `- $ts failed | reason`.
+>
+> Every verb commits after appending. `cat` and `git log --follow` both tell the file's story; they stay synchronized because every action is one bullet plus one commit.
+
 ## Related Projects
 
 These projects informed the design and represent alternative approaches:
