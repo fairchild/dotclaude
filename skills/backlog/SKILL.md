@@ -1,6 +1,6 @@
 ---
 name: backlog
-description: Backlog for parallel agents — tasks are markdown files in todo/, doing/, or done/, location is status. Use when adding deferred work, taking the next task, recording progress, completing, cancelling, reopening, releasing, or grooming.
+description: Markdown task backlog (todo/, doing/, done/) for parallel agents. Use when adding, taking, recording progress, completing, cancelling, reopening, releasing, or grooming.
 license: Apache-2.0
 ---
 
