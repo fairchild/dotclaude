@@ -127,3 +127,4 @@ These scripts serve both creation and evaluation workflows:
 | `references/report-template.md` | Evaluation report template |
 | `references/scoring-rubric.md` | Security, quality, value rating criteria |
 | `references/security-patterns.md` | Expected vs suspicious security patterns |
+| `references/refining-skill-descriptions.md` | Tightening the `description` field for invocation matching |
