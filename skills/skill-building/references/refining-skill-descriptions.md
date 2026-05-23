@@ -1,16 +1,23 @@
 # Refining Skill Descriptions
 
-The description field's job is **invocation matching** — helping the model decide when to invoke the skill. It is not the place to document the skill, list features, or explain design rationale; all of that belongs in `SKILL.md`'s body.
+The description field's primary job is **invocation matching** — helping the model decide when to invoke the skill. It also serves a secondary audience: humans browsing skill registries or catalogs who want to understand what each skill does at a glance. The two purposes overlap heavily, and the same shape serves both. It is not the place to document the skill, list features, or explain design rationale — those belong in `SKILL.md`'s body.
 
 This doc captures heuristics from real refinement sessions for making descriptions tight, intentional, and matcher-aligned.
 
 ## What the description is for
 
-The matcher compares a user request against each skill's description. Effective descriptions front-load the surface the matcher needs:
+Two overlapping audiences:
+
+- **Agent matching (primary)** — the model deciding when to invoke this skill against a user request.
+- **Human inspection (secondary)** — operators scanning a skill registry or catalog to understand at a glance what each skill does.
+
+Both want nearly the same surface. Effective descriptions front-load:
 
 1. **Primary keyword.** The noun a user would type for this domain (`backlog`, `prototype`, `chronicle`).
 2. **Trigger phrasings.** Verbs or gerunds matching how users actually phrase requests (`adding`, `taking`, `recording progress`).
 3. **Disambiguators.** Just enough context to differentiate from similar skills.
+
+Humans want a touch more "what is this" framing than the matcher strictly needs, but a well-shaped trigger list ("for adding, taking, recording progress, ...") does double duty — it tells the matcher what to invoke for *and* tells a human what the skill operates on. Optimize for the matcher; the inspection benefit follows for free.
 
 Nothing else earns its space.
 
