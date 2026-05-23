@@ -18,32 +18,7 @@ Two prompts designed to drop straight into a Claude Code session in any repo, wi
 ### Add a task (paste, fill in, send)
 
 ```
-Add this task to a maildir-style backlog in this repo. Create
-`backlog/todo/` if missing. Save the file at `backlog/todo/{slug}.md`
-(slug = kebab-case, optionally suffixed `-plan`, `-followup`,
-`-task-list`, or `-ideas`) with this shape:
-
-  # Title
-  
-  [description]
-  
-  ---
-
-The trailing `---` (with blank lines around it) marks the boundary
-between the immutable description (above) and the append-only event
-log (below — empty for a new task). No frontmatter is needed;
-defaults apply: priority=999, timeout=7d, dependencies={}. Add fields
-above the title only to override defaults.
-
-Commit with message `add({slug})`.
-
----
-
-# TITLE HERE
-
-DESCRIPTION HERE — problem, decisions, phases, acceptance criteria;
-enough that a future session can execute without the original
-conversation.
+Add tasks to our backlog by adding a markdown file describing the task in `backlog/todo/{slug}.md` ending with a trailing `---` with blank lines around it.
 ```
 
 ### Work the backlog (paste once, then drive)
@@ -58,7 +33,7 @@ Log line format: `- {ISO UTC} {kind} key=value ... [| free prose]`.
 One line per event; long-form detail goes in the commit body.
 
 Six verbs — each is an optional `git mv` + an `echo` append + a `git
-commit` (create any missing directory first):
+commit` (create any missing directory as needed):
 
 - **take**: `git mv backlog/todo/X.md backlog/doing/X.md`; append
   `- $ts started claimer=YOU branch=BRANCH`. The mv is your lock.
