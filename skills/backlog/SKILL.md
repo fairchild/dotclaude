@@ -1,6 +1,6 @@
 ---
 name: backlog
-description: Markdown task backlog (backlog/{todo,doing,done}/) for parallel agents. Use when adding, taking, recording progress, completing, cancelling, reopening, releasing, or grooming.
+description: Markdown task backlog (backlog/{todo,doing,done}/) for adding, taking, recording progress, completing, cancelling, reopening, releasing, or grooming tasks.
 license: Apache-2.0
 ---
 
