@@ -15,9 +15,19 @@ Deferred work, one markdown file per task. Location = status:
 
 - `todo/`  — available
 - `doing/` — claimed, in flight
-- `done/`  — completed (and cancelled — discriminated by the `### cancelled` log block)
+- `done/`  — completed (and cancelled — discriminated by the `cancelled` log line)
 
 Use the `backlog` skill (add / take / progress / complete / release / cancel / reopen / groom / status) to interact. Schema and rules: `~/.claude/skills/backlog/references/agents-schema.md`.
+
+## Defaults
+
+Frontmatter is optional; recipes apply these defaults when fields are omitted:
+
+- `priority: 999` (low — declare to drive auto-pick ordering)
+- `timeout: 7d` (override per-task: shorter for fast agent work, longer for human-paced or human-blocked)
+- `dependencies: {}` (declare only hard preconditions)
+
+Override the project default by stating it here (e.g., "default timeout in this project: 24h") and declaring `timeout:` per-task accordingly.
 EOF
 ln -s AGENTS.md backlog/CLAUDE.md
 ```

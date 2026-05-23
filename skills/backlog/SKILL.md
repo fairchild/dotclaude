@@ -38,6 +38,8 @@ dependencies:
 
 Frontmatter and description are **author-set and immutable**. Below the divider, each line is an append-only event log entry. `cat` tells the story in place; `git log -- backlog/.../X.md` tells the same story with author + commit context. They mirror because every recipe both appends a bullet AND commits.
 
+**Frontmatter is optional** — every field has a default (`priority: 999`, `timeout: 7d`, `dependencies: {}`). A minimal task is just a title, description, and the divider. Authors declare a field only when overriding the default matters. Defaults and override guidance: `references/agents-schema.md`.
+
 ## Log line format
 
 ```
@@ -56,7 +58,7 @@ Kinds: `started`, `progress`, `completed`, `released`, `cancelled`, `reopened`.
 - **Commit after each log line.** That's what keeps `cat` and `git log` synchronized.
 - **Single writer per claim.** The `git mv` is the lock; bullets are documentation.
 - **Commit before claiming.** Uncommitted files can't be `git mv`'d, and other agents can't see them.
-- **Timeout is author-set, never claimer-extended.** If the budget is wrong, release with a reason.
+- **Timeout is author-set, never claimer-extended.** Default `7d` if not declared. If the budget is wrong, release with a reason.
 - **Dependencies are parallel.** Task is takeable when every dep slug resolves under `done/`.
 
 Schema details: `references/agents-schema.md`.
@@ -97,6 +99,8 @@ Fill the body above the `---` divider. The blank lines around the divider matter
 
 ### take
 
+Optional preamble: release any timed-out tasks first, so the failure-recovery and the take are one operation. Skip if a separate janitor is running on a schedule. See `references/parallel-agents.md` for the full pattern.
+
 ```bash
 slug=backlog-maildir-plan
 branch=$(git rev-parse --abbrev-ref HEAD)
@@ -107,10 +111,11 @@ ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 git mv "backlog/todo/${slug}.md" "backlog/doing/${slug}.md"
 echo "- $ts started claimer=$claimer branch=$branch" >> "backlog/doing/${slug}.md"
-git commit -am "take($slug) $claimer @ $branch"
+git add "backlog/doing/${slug}.md"
+git commit -m "take($slug) $claimer @ $branch"
 ```
 
-**With no slug (auto-pick):** glob `backlog/todo/*.md`, read each frontmatter's `priority:` (default 999) and `dependencies:` block, filter to those whose every dep slug resolves under `backlog/done/`, sort by priority ascending then oldest mtime, take the first. The agent does this with Glob+Read.
+**With no slug (auto-pick):** glob `backlog/todo/*.md`, read each frontmatter's `priority:` (default `999`) and `dependencies:` block (default empty), filter to those whose every dep slug resolves under `backlog/done/`, sort by priority ascending then oldest mtime, take the first. The agent does this with Glob+Read.
 
 ### progress
 
@@ -119,7 +124,8 @@ slug=backlog-maildir-plan
 note="auth prototype passing locally"
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 echo "- $ts progress | $note" >> "backlog/doing/${slug}.md"
-git commit -am "progress($slug) $note"
+git add "backlog/doing/${slug}.md"
+git commit -m "progress($slug) $note"
 ```
 
 If the slug isn't known, find the doing/ file on the current branch via the latest `branch=` field:
@@ -141,7 +147,8 @@ pr_url=$(gh pr view --json url -q .url 2>/dev/null || true)
 
 git mv "backlog/doing/${slug}.md" "backlog/done/${slug}.md"
 echo "- $ts completed${pr_url:+ PR=$pr_url}" >> "backlog/done/${slug}.md"
-git commit -am "complete($slug)${pr_url:+ PR=$pr_url}"
+git add "backlog/done/${slug}.md"
+git commit -m "complete($slug)${pr_url:+ PR=$pr_url}"
 ```
 
 ### release
@@ -155,7 +162,8 @@ ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 git mv "backlog/doing/${slug}.md" "backlog/todo/${slug}.md"
 echo "- $ts released | $reason" >> "backlog/todo/${slug}.md"
-git commit -am "release($slug) $reason"
+git add "backlog/todo/${slug}.md"
+git commit -m "release($slug) $reason"
 ```
 
 ### cancel
@@ -170,7 +178,8 @@ src=$(find backlog/todo backlog/doing -name "${slug}.md" -type f | head -1)
 
 git mv "$src" "backlog/done/${slug}.md"
 echo "- $ts cancelled | $reason" >> "backlog/done/${slug}.md"
-git commit -am "cancel($slug) $reason"
+git add "backlog/done/${slug}.md"
+git commit -m "cancel($slug) $reason"
 ```
 
 ### reopen
@@ -184,7 +193,8 @@ ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 git mv "backlog/done/${slug}.md" "backlog/todo/${slug}.md"
 echo "- $ts reopened | $reason" >> "backlog/todo/${slug}.md"
-git commit -am "reopen($slug) $reason"
+git add "backlog/todo/${slug}.md"
+git commit -m "reopen($slug) $reason"
 ```
 
 ### status
@@ -202,7 +212,8 @@ Advisory walk; never moves files. Buckets and per-bucket checks: `references/gro
 
 ## References
 
-- `references/agents-schema.md` — directory layout, frontmatter schema, bullet log format, dependencies syntax
+- `references/agents-schema.md` — directory layout, frontmatter schema (with defaults), bullet log format, dependencies syntax
+- `references/parallel-agents.md` — mental model, failure detection, cleanup patterns, worker design sketch
 - `references/workflows.md` — `init` (first-time setup) and `migrate` (from flat layout)
 - `references/grooming.md` — bucket checklist for `groom`
 - `references/README.md` — background, design philosophy, related projects

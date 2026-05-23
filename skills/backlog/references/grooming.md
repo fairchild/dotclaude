@@ -28,14 +28,14 @@ Suggested fix: run the `complete` recipe on that slug. Safe because the complete
 
 ### `TIMED OUT`
 
-A file in `doing/` where `now - latest_started > timeout`. The task itself declared the budget.
+A file in `doing/` where `now - latest_started > timeout`. The task itself declared the budget — or inherits the `7d` skill-level default if no `timeout:` is in frontmatter.
 
 ```bash
 now=$(date -u +%s)
 for f in backlog/doing/*.md; do
   [[ -f "$f" ]] || continue
   timeout=$(awk '/^---$/{n++; if(n==2) exit} n==1 && /^timeout:/ {sub(/^timeout:[[:space:]]*/, ""); print; exit}' "$f")
-  [[ -z "$timeout" ]] && continue
+  [[ -z "$timeout" ]] && timeout=7d  # skill-level default
   started=$(grep -E '^- [0-9TZ:-]+ started ' "$f" | tail -1 | awk '{print $2}')
   [[ -z "$started" ]] && continue
   # Parse timeout: 4h, 3d, 2w
@@ -47,7 +47,9 @@ for f in backlog/doing/*.md; do
 done
 ```
 
-Suggested action: `release` with a reason, or follow up with the claimer.
+Groom may auto-release entries in this bucket — the timeout was author-authorized (or the documented default), so enforcing it is contract-keeping. Untyped quiet entries below stay advisory.
+
+Suggested action: `release` with a `timeout: ...` reason. See `references/parallel-agents.md` for the take-prelude vs janitor patterns.
 
 ### `QUIET`
 

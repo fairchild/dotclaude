@@ -29,27 +29,40 @@ Examples:
 
 Slug = filename minus path and `.md`. Dependencies reference tasks by slug; the agent resolves a slug by walking `todo/`, `doing/`, `done/**`.
 
-## Frontmatter
+## Frontmatter (optional)
 
-YAML between two `---` lines. **Author-set at creation and never edited after.** Mutating frontmatter mid-flight is forbidden — state transitions are recorded as appended log lines below the body divider.
+YAML between two `---` lines at the top of the file. **Every field has a default**, so a minimal task can omit frontmatter entirely. Author-set at creation and never edited after.
 
 ```yaml
 ---
-priority: 2                      # 1 = highest, lower number = higher priority
-timeout: 3d                      # humanish: 4h, 3d, 2w. Starts at the most recent `started` block. Absent = unbounded.
-dependencies:                    # map of slug → reason (reason may be empty string)
+priority: 2                      # 1 = highest. Default: 999 (sorts after every declared priority)
+timeout: 3d                      # humanish: 4h, 3d, 2w. Default: 7d
+dependencies:                    # map of slug → reason. Default: empty (no deps)
   schema-migration: "needs new claim block format"
-  auth-refactor: ""
 ---
 ```
 
-Three fields, all functional. Additional keys an author adds are preserved but not interpreted by any verb.
+A minimal task with no frontmatter at all is valid:
 
-### Field rules
+```markdown
+# Quick fix
 
-- `priority` — integer. Sort order in take's auto-pick is ascending; missing = treated as `999`.
-- `timeout` — set once by the author, never by the claimer. Starts at the most recent `started` log line. If the budget is wrong, release with a reason and let someone else re-take with the same budget.
-- `dependencies` — map only, no array. Parallel semantics: this task is takeable when every dep slug resolves to a file under `done/**`. Ordering among dependency tasks themselves is encoded in *their* frontmatter, not here.
+The login button is misaligned on mobile.
+
+---
+```
+
+This gets `priority=999`, `timeout=7d`, `dependencies={}`. Recipes treat it like any other task.
+
+### Defaults and when to override
+
+- **`priority` defaults to `999`** — sorts after every declared priority. Declare a number (1 = highest) when scheduling order matters. With few tasks the default is fine; with many in `todo/`, declare for clarity.
+- **`timeout` defaults to `7d`** — long enough for most knowledge work, short enough that a dead claim doesn't linger. Use shorter (`4h`, `1d`) for automated agent tasks; longer (`2w`, `1m`) for tasks needing synchronous human input or external dependencies. Projects with a fundamentally different rhythm can state their convention in `backlog/AGENTS.md`; the recipes still use `7d` as the hardcoded fallback but humans and agents adjust per-task accordingly.
+- **`dependencies` defaults to empty** — declare only hard preconditions (the task literally cannot start without X done). Soft "would be nice if X were done first" preferences belong in priority ordering, not deps.
+
+### Other fields
+
+Additional keys an author writes are preserved in the file but not interpreted by any recipe. Useful for ad-hoc project metadata (`assignee:`, `epic:`, etc.) your project's own workflows might read.
 
 ## Body
 
