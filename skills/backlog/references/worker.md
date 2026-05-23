@@ -34,10 +34,20 @@ claimer=${CONDUCTOR_WORKSPACE_NAME:+conductor:$CONDUCTOR_WORKSPACE_NAME}
 claimer=${claimer:-${CMUX_WORKSPACE_ID:+cmux:$CMUX_WORKSPACE_ID}}
 claimer=${claimer:-$(whoami)@$(hostname -s)}
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+file="backlog/doing/${slug}.md"
 
-git mv "backlog/todo/${slug}.md" "backlog/doing/${slug}.md"
-echo "- $ts started claimer=$claimer branch=$branch" >> "backlog/doing/${slug}.md"
-git add "backlog/doing/${slug}.md"
+git mv "backlog/todo/${slug}.md" "$file"
+
+# Resilience: ensure the body divider exists before appending. A task added
+# via SKILL.md will already have it, but a hand-edited or imported task
+# might not. Who writes the divider doesn't matter — it just needs to be
+# present before the log starts.
+if [[ "$(grep -v '^[[:space:]]*$' "$file" | tail -1)" != "---" ]]; then
+  printf '\n---\n' >> "$file"
+fi
+
+echo "- $ts started claimer=$claimer branch=$branch" >> "$file"
+git add "$file"
 git commit -m "take($slug) $claimer @ $branch"
 ```
 
@@ -195,4 +205,4 @@ ls -lt backlog/doing/*.md 2>/dev/null | head -5
 
 ### groom
 
-Advisory walk; never moves files (one exception: it may release author-authorized TIMED OUT entries — see `parallel-agents.md`). Buckets and per-bucket checks: `grooming.md`.
+Advisory walk; never moves files (one exception: it may release author-authorized TIMED OUT entries — see `parallel-agents.md`). Buckets and per-bucket checks: `maintain.md`.

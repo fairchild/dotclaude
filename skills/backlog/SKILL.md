@@ -1,6 +1,6 @@
 ---
 name: backlog
-description: Markdown task backlog (backlog/{todo,doing,done,failed}/) for adding, taking, recovering, recording progress, completing, cancelling, reopening, releasing, failing, or grooming tasks.
+description: Markdown task backlog and project roadmap (backlog/{todo,doing,done,failed}/, backlog/ROADMAP.md) for adding, taking, recovering, recording progress, completing, cancelling, reopening, releasing, failing, grooming, or reflecting on backlog priorities and roadmap direction.
 license: Apache-2.0
 ---
 
@@ -23,10 +23,10 @@ Two halves, divided by `---` with blank lines around it so markdown renders it a
 ---
 priority: 2
 dependencies:
-  schema-migration: ""
+  other-task-slug: "why we depend on it"
 ---
 
-# Backlog Maildir
+# Task Title
 
 [problem statement, key decisions, phases, acceptance criteria]
 
@@ -92,11 +92,17 @@ Quality: enough context that a fresh session can execute without the original co
 
 For take, recover, progress, complete, release, cancel, fail, reopen, status, and groom — the verb recipes plus the rules workers must follow — see `references/worker.md`.
 
+## Roadmap and reflection
+
+`backlog/ROADMAP.md` sits above the queue — Intent, Principles, Current Focus, Priorities (named arcs), Non-goals — and answers *why these tasks, in this order*. Tasks optionally link via `arc:` frontmatter. Shape and conventions: `references/roadmap.md`. For reflecting on the backlog, adding to the roadmap, or initializing one, load `references/reflect.md` and follow its posture.
+
 ## References
 
 - `references/worker.md` — verb recipes for workers (take, recover, progress, complete, release, cancel, fail, reopen, status, groom)
 - `references/agents-schema.md` — frontmatter schema, log line format, kinds table, reading-state queries
 - `references/parallel-agents.md` — distributed-systems patterns and design rationale
 - `references/workflows.md` — `init` (first-time setup) and `migrate` (from flat layout)
-- `references/grooming.md` — advisory walk buckets
+- `references/maintain.md` — advisory walk buckets (mechanical maintenance)
+- `references/roadmap.md` — `backlog/ROADMAP.md` shape and the `arc:` linkage convention
+- `references/reflect.md` — critical-collaborative planning posture for reflecting on the backlog or editing the roadmap
 - `references/README.md` — background, design philosophy, related projects

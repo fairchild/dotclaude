@@ -28,11 +28,45 @@ Frontmatter is optional; recipes apply these defaults when fields are omitted:
 - `dependencies: {}` (declare only hard preconditions)
 
 Override the project default by stating it here (e.g., "default timeout in this project: 24h") and declaring `timeout:` per-task accordingly.
+
+## ROADMAP
+
+Strategic counterpart at `backlog/ROADMAP.md` — Intent, Principles, Current Focus, Priorities (named arcs), Non-goals. Tasks optionally link via `arc: <name>` frontmatter. See `~/.claude/skills/backlog/references/roadmap.md`.
 EOF
 ln -s AGENTS.md backlog/CLAUDE.md
+
+# Scaffold ROADMAP.md if missing — comment-skeleton so the file exists even if
+# the operator skips the guided interview. To populate via interview instead,
+# hand control to `references/reflect.md`'s initialization submode (project-wide
+# scan, then walk the six sections one question at a time).
+[[ -f backlog/ROADMAP.md ]] || cat > backlog/ROADMAP.md <<'EOF'
+# ROADMAP
+
+## Intent
+<!-- One paragraph. What this project ultimately intends to be. -->
+
+## Principles
+<!-- 3–7 short statements. What values guide decisions when tradeoffs come up. -->
+
+## Glossary
+<!-- Optional. Only terms with real ambiguity in this project. -->
+
+## Current Focus
+<!-- 1–3 paragraphs. The active arc — what we're pushing on, why now,
+     what "done with this arc" looks like. -->
+
+## Priorities
+<!-- Ordered list of named arcs (kebab-case) with one or two sentences of
+     reasoning. Tasks queued under an arc declare `arc: <name>` in frontmatter. -->
+
+## Non-goals
+<!-- Things we are explicitly *not* doing right now. -->
+EOF
 ```
 
-The symlink lets Claude Code auto-load these conventions via its `CLAUDE.md` convention while keeping a single source of truth in `AGENTS.md` (the cross-tool default). Commit the new directories, `AGENTS.md`, and the symlink so collaborators see them.
+The symlink lets Claude Code auto-load these conventions via its `CLAUDE.md` convention while keeping a single source of truth in `AGENTS.md` (the cross-tool default). Commit the new directories, `AGENTS.md`, the symlink, and `ROADMAP.md` so collaborators see them.
+
+To populate `ROADMAP.md` properly rather than leaving the skeleton, hand control to `references/reflect.md`'s initialization submode: it runs a project-wide scan first (README, docs/, CONTEXT.md, ADRs, root AGENTS.md), synthesizes candidate principles and goals, then walks the six sections as a guided interview. Initialization is the highest-leverage moment — getting principles and goals right here shapes everything that follows.
 
 ## migrate
 
