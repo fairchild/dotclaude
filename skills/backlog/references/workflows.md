@@ -31,7 +31,7 @@ Override the project default by stating it here (e.g., "default timeout in this 
 
 ## ROADMAP
 
-Strategic counterpart at `backlog/ROADMAP.md` — North Star, Principles, Current Focus, Priorities (named arcs), Non-goals. Tasks optionally link via `arc: <name>` frontmatter. See `~/.claude/skills/backlog/references/roadmap.md`.
+Strategic counterpart at `backlog/ROADMAP.md` — Intent, Principles, Current Focus, Priorities (named arcs), Non-goals. Tasks optionally link via `arc: <name>` frontmatter. See `~/.claude/skills/backlog/references/roadmap.md`.
 EOF
 ln -s AGENTS.md backlog/CLAUDE.md
 
@@ -42,8 +42,8 @@ ln -s AGENTS.md backlog/CLAUDE.md
 [[ -f backlog/ROADMAP.md ]] || cat > backlog/ROADMAP.md <<'EOF'
 # ROADMAP
 
-## North Star
-<!-- One paragraph. What this project is ultimately for. -->
+## Intent
+<!-- One paragraph. What this project ultimately intends to be. -->
 
 ## Principles
 <!-- 3–7 short statements. What values guide decisions when tradeoffs come up. -->

@@ -11,9 +11,9 @@ The backlog answers *what's the next thing to do*; the roadmap answers *why thes
 ```markdown
 # ROADMAP
 
-## North Star
-[One paragraph. What this project is ultimately for. Stable across quarters —
-if it changes monthly, it isn't the north star.]
+## Intent
+[One paragraph. What this project ultimately intends to be. Stable across
+quarters — if it changes monthly, it isn't the intent.]
 
 ## Principles
 [3–7 short statements. What values guide decisions when tradeoffs come up.
@@ -40,7 +40,7 @@ against scope creep — when the same "no" gets said twice, promote it here
 so future-you doesn't re-litigate.]
 ```
 
-The skeleton survives drift; the prose inside each section stays human. Order matters because top sections (North Star, Principles) ground the rest — a reader scanning top-down gets the values before the tactics.
+The skeleton survives drift; the prose inside each section stays human. Order matters because top sections (Intent, Principles) ground the rest — a reader scanning top-down gets the values before the tactics.
 
 ## Reverse linkage: tasks reference arcs
 
@@ -78,7 +78,7 @@ The arc name is the contract; everything else is emergent. ROADMAP never enumera
 
 | Section        | Edit when                                                     |
 |----------------|---------------------------------------------------------------|
-| North Star     | The project's purpose actually changes (months apart, rare). |
+| Intent         | The project's intent actually shifts (months apart, rare). |
 | Principles     | A new principle emerges from real friction, or one stops mattering. |
 | Glossary       | A term has caused real ambiguity. Empty is fine.             |
 | Current Focus  | The active arc completes or the project pivots.              |
@@ -104,7 +104,7 @@ A fresh roadmap is the highest-leverage moment in the project's life; principles
 ```markdown
 # ROADMAP
 
-## North Star
+## Intent
 A working `~/.claude/` configuration that treats each Claude Code session as
 worth remembering. Memory is the throughline; everything else is supporting
 infrastructure.

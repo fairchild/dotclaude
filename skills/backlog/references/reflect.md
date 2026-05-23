@@ -6,12 +6,12 @@ Guiding execution for the critical-collaborative planning posture: how to read t
 
 - **Critical-collaborative, not argumentative.** Push back when the proposal genuinely conflicts with stated principles; agree when it genuinely fits. Don't manufacture disagreement to seem thorough; don't capitulate to seem agreeable.
 - **High bar to absolute agreement.** First instinct is to find the tension. If there isn't one after honest looking, say so clearly. Sycophantic "great idea!" is failure.
-- **Pushback comes from the project's own stated principles** — North Star, Principles, Non-goals — not from the agent's general opinions about software, design, or planning. When citing a tension, it should be quotable from ROADMAP.md.
+- **Pushback comes from the project's own stated principles** — Intent, Principles, Non-goals — not from the agent's general opinions about software, design, or planning. When citing a tension, it should be quotable from ROADMAP.md.
 - **Two-round limit on disagreement.** Surface the tension; if the operator considers it and still wants to proceed, the operator wins. The roadmap exists to be edited by humans, not enforced by agents.
 
 ## Lens — read first
 
-Always read `backlog/ROADMAP.md` first: North Star, Principles, Current Focus, Non-goals. Without it the agent has no principled-pushback authority — it's just opining.
+Always read `backlog/ROADMAP.md` first: Intent, Principles, Current Focus, Non-goals. Without it the agent has no principled-pushback authority — it's just opining.
 
 If ROADMAP.md doesn't exist, or exists only as the `init` comment-skeleton (no real content under any heading), the lens is hollow — enter the **initialization submode** below instead of reflecting from nothing.
 
@@ -37,7 +37,7 @@ When the operator proposes a new arc, Priority, principle, or non-goal:
 2. Hold the proposal against it:
    - Does it duplicate or restate something already there?
    - Does it contradict a stated principle or non-goal?
-   - Is the reasoning grounded in the North Star, or does it need its own justification?
+   - Is the reasoning grounded in the Intent, or does it need its own justification?
    - If a new arc: is the current Priorities list already crowded? Is something else moving down or out to make room?
 3. Surface what you find. Use the project's own language — quote or paraphrase from ROADMAP.md when citing.
 4. If the proposal stands after pushback, the **operator** edits ROADMAP.md. The agent doesn't write to ROADMAP.md unprompted. (Operator may ask the agent to draft the edit; that's fine. The default is operator-driven.)
@@ -57,7 +57,7 @@ The first roadmap is the highest-leverage thing the project will write. Principl
 
 Synthesize: what does this project *appear* to be for, based on what's already written? What principles are implicit in CLAUDE.md? What's stated vs. what's missing? Don't write the roadmap yet — just gather.
 
-**Step 2: interview.** Walk the six sections in order — North Star, Principles, Glossary (skip if empty), Current Focus, Priorities, Non-goals — leaning on the `grill-with-docs` discipline. Order matters; later sections lean on earlier ones.
+**Step 2: interview.** Walk the six sections in order — Intent, Principles, Glossary (skip if empty), Current Focus, Priorities, Non-goals — leaning on the `grill-with-docs` discipline. Order matters; later sections lean on earlier ones.
 
 - One question at a time; wait for the operator's response.
 - For each, propose a recommended answer drawn from the scan, with reasoning. If the scan already supports a confident draft, present it for confirmation rather than asking from scratch.

@@ -94,7 +94,7 @@ For take, recover, progress, complete, release, cancel, fail, reopen, status, an
 
 ## Roadmap and reflection
 
-`backlog/ROADMAP.md` sits above the queue — North Star, Principles, Current Focus, Priorities (named arcs), Non-goals — and answers *why these tasks, in this order*. Tasks optionally link via `arc:` frontmatter. Shape and conventions: `references/roadmap.md`. For reflecting on the backlog, adding to the roadmap, or initializing one, load `references/reflect.md` and follow its posture.
+`backlog/ROADMAP.md` sits above the queue — Intent, Principles, Current Focus, Priorities (named arcs), Non-goals — and answers *why these tasks, in this order*. Tasks optionally link via `arc:` frontmatter. Shape and conventions: `references/roadmap.md`. For reflecting on the backlog, adding to the roadmap, or initializing one, load `references/reflect.md` and follow its posture.
 
 ## References
 
