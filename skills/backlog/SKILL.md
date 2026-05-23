@@ -37,7 +37,7 @@ dependencies:
 - 2026-05-17T11:03:00Z completed PR=https://github.com/.../pull/123
 ```
 
-Frontmatter and description are **author-set and immutable**. Below the divider, each line is an append-only event log entry. `cat` tells the story in place; `git log -- backlog/.../X.md` tells the same story with author + commit context. They mirror because every recipe both appends a bullet AND commits.
+Frontmatter and description are **author-set and frozen after first commit** (one exception: `reopen` may edit them, since reopen IS a correction). Below the divider, each line is an append-only event log entry. `cat` tells the story in place; `git log -- backlog/.../X.md` tells the same story with author + commit context. They mirror because every recipe both appends a bullet AND commits.
 
 **Frontmatter is optional** — every field has a default (`priority: 999`, `timeout: 7d`, `dependencies: {}`). A minimal task is just a title, description, and the divider. Authors declare a field only when overriding the default matters. Defaults and override guidance: `references/agents-schema.md`.
 
@@ -53,7 +53,7 @@ KV fields grep cleanly (`grep 'branch=feat/foo'`), free prose follows `|`, and l
 
 ## Rules
 
-- **Frontmatter and description are immutable.** State changes go to the log below the divider.
+- **Frontmatter and description are frozen after first commit, except at reopen.** State changes go to the log below the divider. Reopen is the one place spec edits are permitted, because reopen IS a correction — the prior attempt failed or completed wrong, and the fix often lives in the spec (priority, timeout, dependencies, or the description itself).
 - **Commit after each log line.** That's what keeps `cat` and `git log` synchronized.
 - **Single writer per claim.** The `git mv` is the lock; bullets are documentation.
 - **Commit before claiming.** Uncommitted files can't be `git mv`'d, and other agents can't see them.
@@ -233,18 +233,27 @@ git commit -m "fail($slug) $reason"
 
 `done/X.md` or `failed/X.md` → `todo/X.md`. Requires a reason.
 
+**Reopen is the one place spec edits are permitted.** Reopening signals "this needs fixing to succeed" — often the spec itself was wrong (priority, timeout, dependencies, or the description's plan). Edit the file between the log append and the commit if a fix is required; the reopen log line captures the why, the git diff captures the what. The log below the divider stays append-only as always.
+
 ```bash
 slug=once-was-finished-plan
-reason="edge case Y discovered"
+reason="edge case Y discovered; raising timeout to 2w"
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 src=$(find backlog/done backlog/failed -name "${slug}.md" -type f | head -1)
 [[ -z "$src" ]] && { echo "not in done/ or failed/: $slug" >&2; exit 1; }
 
 git mv "$src" "backlog/todo/${slug}.md"
 echo "- $ts reopened | $reason" >> "backlog/todo/${slug}.md"
+
+# Optional: edit "backlog/todo/${slug}.md" here to correct the spec —
+# adjust timeout, add a missing dep, refine the description's approach.
+# Only the spec (frontmatter + description above the divider) may change.
+
 git add "backlog/todo/${slug}.md"
 git commit -m "reopen($slug) $reason"
 ```
+
+A reopened task whose dependencies have since moved (e.g., a dep is now in `failed/`) won't be takeable until the dep chain is healthy again. Auto-pick will quietly skip it; reopen the deps first if you need them resolved.
 
 ### status
 
