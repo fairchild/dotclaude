@@ -1,6 +1,6 @@
 ---
 name: backlog
-description: Maildir-style backlog for parallel agents. Tasks are markdown files in todo/, doing/, or done/ — location is status, claim is an atomic git mv. Use when adding deferred work, taking the next task, recording progress, completing, cancelling, reopening, releasing, or grooming. Append-only body log, graph-native dependencies, no scripts — every verb is a small bash recipe the agent runs inline.
+description: Maildir-style backlog for parallel agents. Tasks are markdown files in todo/, doing/, or done/ — location is status, claim is an atomic git mv. Body has two halves divided by `---`, an author-set description above and an append-only bullet log of timestamped events below. Use when adding deferred work, taking the next task, recording progress, completing, cancelling, reopening, releasing, or grooming. Every verb is a small bash recipe: optional `git mv`, append one log line, commit.
 license: Apache-2.0
 ---
 
@@ -10,28 +10,66 @@ A task tracker shaped like a maildir. Each task is one markdown file; its direct
 
 - `backlog/todo/`  — available to claim
 - `backlog/doing/` — claimed, in flight
-- `backlog/done/`  — completed (and cancelled — the body's `### cancelled` block discriminates)
+- `backlog/done/`  — completed (and cancelled — the log line discriminates)
 
 Claiming is `git mv backlog/todo/X.md backlog/doing/X.md`. Two agents racing the same task collide at merge — the right failure mode, not silent double-work.
 
-Schema, body log format, "reading state from the log": `references/agents-schema.md`.
-First-time setup and one-shot migration: `references/workflows.md`.
+## File shape
+
+Two halves, divided by `---` with blank lines around it so markdown renders it as a horizontal rule.
+
+```markdown
+---
+priority: 2
+dependencies:
+  schema-migration: ""
+---
+
+# Backlog Maildir
+
+[problem statement, key decisions, phases, acceptance criteria]
+
+---
+
+- 2026-05-16T14:22:00Z started claimer=conductor:austin-v3 branch=feat/foo
+- 2026-05-16T16:45:00Z progress | auth prototype passing locally
+- 2026-05-17T11:03:00Z completed PR=https://github.com/.../pull/123
+```
+
+Frontmatter and description are **author-set and immutable**. Below the divider, each line is an append-only event log entry. `cat` tells the story in place; `git log -- backlog/.../X.md` tells the same story with author + commit context. They mirror because every recipe both appends a bullet AND commits.
+
+## Log line format
+
+```
+- {ISO ts} {kind} key=value ... [| free prose]
+```
+
+Kinds: `started`, `progress`, `completed`, `released`, `cancelled`, `reopened`.
+
+- **KV fields** are unambiguous to grep: `grep 'branch=feat/foo'`, `grep '^- .*completed'`.
+- **Free prose** goes after `|` for human notes.
+- Long-form detail belongs in the **commit body** (`git commit -m subject -m body`). The bullet is the index; git is the archive. `git show <sha>` pulls it out.
 
 ## Rules
 
-- **Frontmatter is immutable after creation.** State changes are appended log blocks, never frontmatter edits.
-- **Single writer per claim.** Between take and complete, only the claiming agent appends. The `git mv` is the lock; the `### started` block is documentation.
-- **Commit before claiming.** Uncommitted files can't be `git mv`'d, and other agents can't see them. Add → commit → others can take.
+- **Frontmatter and description are immutable.** State changes go to the log below the divider.
+- **Commit after each log line.** That's what keeps `cat` and `git log` synchronized.
+- **Single writer per claim.** The `git mv` is the lock; bullets are documentation.
+- **Commit before claiming.** Uncommitted files can't be `git mv`'d, and other agents can't see them.
 - **Timeout is author-set, never claimer-extended.** If the budget is wrong, release with a reason.
-- **Dependencies are parallel.** `dependencies: {slug: "reason"}` — task is takeable when every dep slug resolves under `done/`.
+- **Dependencies are parallel.** Task is takeable when every dep slug resolves under `done/`.
+
+Schema details: `references/agents-schema.md`.
+First-time setup and migration: `references/workflows.md`.
+Grooming buckets: `references/grooming.md`.
 
 ## Verbs
 
-Each verb is a bash recipe. Run inline via the `Bash` tool from the project root (the one with `backlog/` as a sibling).
+Every verb is the same shape: optionally `git mv`, append one log line, commit.
 
 ### add
 
-Gather **slug** (kebab-case), **category** (`plan` / `followup` / `task-list` / `ideas` — filename suffix), **priority** (1 = highest, optional), **timeout** (only if there's a real budget: `4h` / `3d` / `2w`), **dependencies** (slug → one-line reason).
+Gather **slug** (kebab-case), **category** (`plan` / `followup` / `task-list` / `ideas`, filename suffix), **priority** (1 = highest, optional), **timeout** (`4h` / `3d` / `2w`, only if there's a real budget), **dependencies** (slug → one-line reason).
 
 ```bash
 slug=backlog-maildir
@@ -50,10 +88,12 @@ priority: 2
 [problem statement, key decisions, phases, references, acceptance criteria]
 
 ---
+
 EOF
+git add "$filename" && git commit -m "add($slug)"
 ```
 
-Fill the body. Quality: enough context for a fresh session, specific file paths, verification commands, deps declared. Commit before anyone can claim.
+Fill the body above the `---` divider. The blank lines around the divider matter — they make markdown renderers treat it as a horizontal rule. The empty area below is where the log will append. Commit before anyone can claim.
 
 ### take
 
@@ -66,43 +106,29 @@ claimer=${claimer:-$(whoami)@$(hostname -s)}
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 git mv "backlog/todo/${slug}.md" "backlog/doing/${slug}.md"
-cat >> "backlog/doing/${slug}.md" <<EOF
-
-### started — ${ts}
-
-claimed by ${claimer} on branch ${branch}
-
----
-EOF
+echo "- $ts started claimer=$claimer branch=$branch" >> "backlog/doing/${slug}.md"
+git commit -am "take($slug) $claimer @ $branch"
 ```
 
-**With no slug (auto-pick):** list `backlog/todo/*.md`, read each file's `priority:` (default 999) and `dependencies:` block, filter to those whose every dep slug resolves under `backlog/done/`, sort by priority ascending then oldest mtime, take the first. The agent does this with Glob+Read.
+**With no slug (auto-pick):** glob `backlog/todo/*.md`, read each frontmatter's `priority:` (default 999) and `dependencies:` block, filter to those whose every dep slug resolves under `backlog/done/`, sort by priority ascending then oldest mtime, take the first. The agent does this with Glob+Read.
 
 ### progress
 
-Append a timestamped note. Claimer only.
-
 ```bash
 slug=backlog-maildir-plan
-note="auth migration prototype passing locally"
+note="auth prototype passing locally"
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-cat >> "backlog/doing/${slug}.md" <<EOF
-
-### progress — ${ts}
-
-${note}
-
----
-EOF
+echo "- $ts progress | $note" >> "backlog/doing/${slug}.md"
+git commit -am "progress($slug) $note"
 ```
 
-If the slug isn't known, find the doing/ file on the current branch via the *last* `### started` block (a released-then-re-taken file has two):
+If the slug isn't known, find the doing/ file on the current branch via the latest `branch=` field:
 
 ```bash
 b=$(git rev-parse --abbrev-ref HEAD)
 for f in backlog/doing/*.md; do
-  last=$(awk '/^### started — /{cap=1; next} cap && /^claimed by .* on branch /{line=$0; cap=0} END{print line}' "$f")
-  [[ "$last" == *" on branch $b" ]] && echo "$f"
+  last=$(grep -oE 'branch=[^ ]+' "$f" | tail -1 | cut -d= -f2)
+  [[ "$last" == "$b" ]] && echo "$f"
 done
 ```
 
@@ -114,51 +140,37 @@ ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 pr_url=$(gh pr view --json url -q .url 2>/dev/null || true)
 
 git mv "backlog/doing/${slug}.md" "backlog/done/${slug}.md"
-{
-  printf '\n### completed — %s\n\n' "$ts"
-  printf 'marked complete'
-  [[ -n "$pr_url" ]] && printf ' (PR: %s)' "$pr_url"
-  printf '\n\n---\n'
-} >> "backlog/done/${slug}.md"
+echo "- $ts completed${pr_url:+ PR=$pr_url}" >> "backlog/done/${slug}.md"
+git commit -am "complete($slug)${pr_url:+ PR=$pr_url}"
 ```
 
 ### release
 
-Give a claimed task back to `todo/`. Requires a reason — a verb without context rots the trail.
+Give a claimed task back to `todo/`. Requires a reason.
 
 ```bash
 slug=backlog-maildir-plan
 reason="blocked on legal review"
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
 git mv "backlog/doing/${slug}.md" "backlog/todo/${slug}.md"
-cat >> "backlog/todo/${slug}.md" <<EOF
-
-### released — ${ts}
-
-${reason}
-
----
-EOF
+echo "- $ts released | $reason" >> "backlog/todo/${slug}.md"
+git commit -am "release($slug) $reason"
 ```
 
 ### cancel
 
-Abandon (todo or doing → `done/`). Requires a reason. The `### cancelled` block discriminates from completion.
+Abandon (todo or doing → `done/`). Requires a reason. The `cancelled` log line discriminates from completion.
 
 ```bash
 slug=this-isnt-going-to-happen-plan
 reason="superseded by the X redesign"
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 src=$(find backlog/todo backlog/doing -name "${slug}.md" -type f | head -1)
+
 git mv "$src" "backlog/done/${slug}.md"
-cat >> "backlog/done/${slug}.md" <<EOF
-
-### cancelled — ${ts}
-
-${reason}
-
----
-EOF
+echo "- $ts cancelled | $reason" >> "backlog/done/${slug}.md"
+git commit -am "cancel($slug) $reason"
 ```
 
 ### reopen
@@ -167,17 +179,12 @@ EOF
 
 ```bash
 slug=once-was-finished-plan
-reason="discovered the migration didn't cover edge case Y"
+reason="edge case Y discovered"
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
 git mv "backlog/done/${slug}.md" "backlog/todo/${slug}.md"
-cat >> "backlog/todo/${slug}.md" <<EOF
-
-### reopened — ${ts}
-
-${reason}
-
----
-EOF
+echo "- $ts reopened | $reason" >> "backlog/todo/${slug}.md"
+git commit -am "reopen($slug) $reason"
 ```
 
 ### status
@@ -191,11 +198,11 @@ ls -lt backlog/doing/*.md 2>/dev/null | head -5
 
 ### groom
 
-An advisory walk over the backlog — never moves files. Buckets and per-bucket checks: `references/grooming.md`.
+Advisory walk; never moves files. Buckets and per-bucket checks: `references/grooming.md`.
 
 ## References
 
-- `references/agents-schema.md` — directory layout, frontmatter schema, body log format, dependencies syntax
+- `references/agents-schema.md` — directory layout, frontmatter schema, bullet log format, dependencies syntax
 - `references/workflows.md` — `init` (first-time setup) and `migrate` (from flat layout)
 - `references/grooming.md` — bucket checklist for `groom`
 - `references/README.md` — background, design philosophy, related projects

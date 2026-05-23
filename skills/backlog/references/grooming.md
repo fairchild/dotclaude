@@ -15,20 +15,20 @@ When the user asks to groom the backlog, walk each bucket below and print what y
 
 ### `MERGED BUT NOT MOVED` (safe to auto-fix)
 
-A file in `doing/` whose body already has a `### completed` block. The work was marked complete but the `git mv` to `done/` never ran — strict invariant violation, unambiguous.
+A file in `doing/` whose log has a `completed` line. The work was marked complete but the `git mv` to `done/` never ran — strict invariant violation, unambiguous.
 
 ```bash
 for f in backlog/doing/*.md; do
   [[ -f "$f" ]] || continue
-  grep -q '^### completed — ' "$f" && echo "MERGED BUT NOT MOVED: $f"
+  grep -q '^- .*completed' "$f" && echo "MERGED BUT NOT MOVED: $f"
 done
 ```
 
-Suggested fix: run the `complete` recipe on that slug. Safe because the completed block is the proof. (A doing/ file whose *branch* shipped but never wrote a `### completed` block will surface in `QUIET` instead — same suggested action, lower confidence.)
+Suggested fix: run the `complete` recipe on that slug. Safe because the completed line is the proof. (A doing/ file whose *branch* shipped but never wrote a `completed` line will surface in `QUIET` instead — same suggested action, lower confidence.)
 
 ### `TIMED OUT`
 
-A file in `doing/` where `now - claim_started > timeout`. The task itself declared the budget. Check:
+A file in `doing/` where `now - latest_started > timeout`. The task itself declared the budget.
 
 ```bash
 now=$(date -u +%s)
@@ -36,7 +36,7 @@ for f in backlog/doing/*.md; do
   [[ -f "$f" ]] || continue
   timeout=$(awk '/^---$/{n++; if(n==2) exit} n==1 && /^timeout:/ {sub(/^timeout:[[:space:]]*/, ""); print; exit}' "$f")
   [[ -z "$timeout" ]] && continue
-  started=$(grep -oE '### started — [0-9TZ:-]+' "$f" | tail -1 | sed 's/### started — //')
+  started=$(grep -E '^- [0-9TZ:-]+ started ' "$f" | tail -1 | awk '{print $2}')
   [[ -z "$started" ]] && continue
   # Parse timeout: 4h, 3d, 2w
   n="${timeout%[smhdw]*}"; unit="${timeout: -1}"

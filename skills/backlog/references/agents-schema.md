@@ -9,7 +9,7 @@ backlog/
   AGENTS.md   # convention pointer for new sessions (optional)
   todo/       # available
   doing/      # claimed, in flight
-  done/       # completed (and cancelled, discriminated by log block)
+  done/       # completed (and cancelled, discriminated by log line)
 ```
 
 Flat `done/` — no time partitioning. If it grows large enough to be annoying (years from now), operators can shard by hand; nothing migrates automatically and no recipe relies on the directory shape.
@@ -31,7 +31,7 @@ Slug = filename minus path and `.md`. Dependencies reference tasks by slug; the 
 
 ## Frontmatter
 
-YAML between two `---` lines. **Author-set at creation and never edited after.** Mutating frontmatter mid-flight is forbidden — state transitions are recorded as appended log blocks.
+YAML between two `---` lines. **Author-set at creation and never edited after.** Mutating frontmatter mid-flight is forbidden — state transitions are recorded as appended log lines below the body divider.
 
 ```yaml
 ---
@@ -48,73 +48,65 @@ Three fields, all functional. Additional keys an author adds are preserved but n
 ### Field rules
 
 - `priority` — integer. Sort order in take's auto-pick is ascending; missing = treated as `999`.
-- `timeout` — set once by the author, never by the claimer. If the budget is wrong, release with a reason and let someone else re-take with the same budget.
+- `timeout` — set once by the author, never by the claimer. Starts at the most recent `started` log line. If the budget is wrong, release with a reason and let someone else re-take with the same budget.
 - `dependencies` — map only, no array. Parallel semantics: this task is takeable when every dep slug resolves to a file under `done/**`. Ordering among dependency tasks themselves is encoded in *their* frontmatter, not here.
 
 ## Body
 
-The body is markdown. Format:
-
-1. `# Title` and task description (problem, decisions, phases, references — whatever fits)
-2. A closing `^---$` line to mark the end of the description
-3. Zero or more log entries appended over time
-
-Every entry is delimited by a trailing `^---$`. This makes the file:
-
-- **greppable** — `grep -n '^---$' file.md` returns every section boundary as line numbers
-- **taillable** — `awk '/^---$/{n++} n>=N{print}'` gives the last N entries
-- **append-only** — a heredoc redirect adds a new block without parsing
-
-### Log entry format
-
-Each entry starts with `### {kind} — {ISO timestamp}` and ends with `---` on its own line. The em dash is literal (`U+2014`); the heredoc recipes in SKILL.md use it directly.
+Two halves, divided by a `---` line with blank lines on either side (so markdown renders it as a horizontal rule):
 
 ```markdown
-### started — 2026-05-16T14:22:00Z
+# Title
 
-claimed by conductor:austin-v3 on branch feat/backlog-maildir
-
----
-
-### progress — 2026-05-16T16:45:00Z
-
-free-form note, any markdown allowed except a bare `---` line
+[description: problem, decisions, phases, references, acceptance criteria]
 
 ---
 
-### completed — 2026-05-17T11:03:00Z
-
-marked complete (PR: https://github.com/anthropics/dotclaude/pull/123)
-
----
+- 2026-05-16T14:22:00Z started claimer=conductor:austin-v3 branch=feat/foo
+- 2026-05-16T16:45:00Z progress | auth prototype passing locally
+- 2026-05-17T11:03:00Z completed PR=https://github.com/.../pull/123
 ```
 
-Entry kinds:
+**Above the divider** is the author-set, immutable description. Edits after the first commit go to the log below, not to the description.
 
-- `started`     — written by `take`. Body: `claimed by <claimer> on branch <branch>`.
-- `progress`    — written by `progress`. Body: free-form note.
-- `released`    — written by `release`. Body: the reason.
-- `cancelled`   — written by `cancel`. Body: the reason.
-- `completed`   — written by `complete`. Body: `marked complete` optionally with `(PR: <url>)`.
-- `reopened`    — written by `reopen`. Body: the reason.
+**Below the divider** is the append-only event log. Each line is one event.
 
-### Reading claim state from the log
+### Log line format
 
-Because claim metadata lives in the body, not frontmatter:
+```
+- {ISO timestamp} {kind} key=value ... [| free prose]
+```
 
-| Question                  | How to answer                                                        |
-|---------------------------|----------------------------------------------------------------------|
-| Is X claimed?             | Is `backlog/doing/X.md` a regular file?                              |
-| Who claims X?             | Last `### started` block's body — `claimed by <claimer> on branch <branch>` |
-| How old is the claim?     | ISO in the heading of the last `### started` block                   |
-| What branch?              | Same body line as claimer                                            |
-| What's the PR?            | Last `### completed` block's body                                    |
+Strictly one line per event. Long-form detail belongs in the commit body — `git show <sha>` retrieves it. The bullet is the index; git is the archive.
 
-Single source of truth: the log. The grep target moves from frontmatter to body; net even on ergonomics.
+Kinds and their KV / prose conventions:
+
+| kind        | written by | KV fields                      | prose after `|`         |
+|-------------|------------|--------------------------------|-------------------------|
+| `started`   | take       | `claimer=...`, `branch=...`    | rare                    |
+| `progress`  | progress   | none                           | the note                |
+| `completed` | complete   | `PR=<url>` (optional)          | rare                    |
+| `released`  | release    | none                           | the reason              |
+| `cancelled` | cancel     | none                           | the reason              |
+| `reopened`  | reopen     | none                           | the reason              |
+
+### Reading state from the log
+
+| Question                  | How to answer                                                              |
+|---------------------------|----------------------------------------------------------------------------|
+| Is X claimed?             | Is `backlog/doing/X.md` a regular file?                                    |
+| Who claims X?             | `grep -oE 'claimer=[^ ]+' X.md \| tail -1 \| cut -d= -f2`                  |
+| What branch?              | `grep -oE 'branch=[^ ]+' X.md \| tail -1 \| cut -d= -f2`                   |
+| How old is the claim?     | Timestamp of the most recent `started` line                                |
+| What's the PR?            | `grep -oE 'PR=[^ ]+' X.md \| tail -1 \| cut -d= -f2`                       |
+| Has it been marked done?  | `grep -q '^- .*completed' X.md`                                            |
+| Full history with context | `git log --follow -- backlog/.../X.md` (traces across the maildir renames) |
+
+Cat shows the story in place; `git log` shows the same events with author and ancestry. They stay synchronized because every recipe both appends one bullet AND commits.
 
 ### Single-writer rule
 
-Between `take` and `complete` (or `release`/`cancel`), only the claiming agent appends to the body. Enforcement is social — the maildir `git mv` is the actual lock. Two agents writing in parallel branches collide at merge, which is the correct failure.
+Between `take` and `complete` (or `release`/`cancel`), only the claiming agent appends. Enforcement is social — the maildir `git mv` is the actual lock. Two agents writing in parallel branches collide at merge, which is the correct failure.
 
 ## Initial AGENTS.md
 
