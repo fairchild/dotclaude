@@ -111,7 +111,7 @@ Kinds and their KV / prose conventions:
 | Who claims X?             | `grep -oE 'claimer=[^ ]+' X.md \| tail -1 \| cut -d= -f2`                  |
 | What branch?              | `grep -oE 'branch=[^ ]+' X.md \| tail -1 \| cut -d= -f2`                   |
 | How old is the claim?     | Timestamp of the most recent `started` line                                |
-| What's the PR?            | `grep -oE 'PR=[^ ]+' X.md \| tail -1 \| cut -d= -f2`                       |
+| What's the PR?            | `grep -oE 'PR=[^ ]+' X.md \| tail -1 \| cut -d= -f2-`                      |
 | Has it been marked done?  | `grep -q '^- .*completed' X.md`                                            |
 | Full history with context | `git log --follow -- backlog/.../X.md` (traces across the maildir renames) |
 

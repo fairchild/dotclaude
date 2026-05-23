@@ -76,7 +76,7 @@ Both patterns invoke the existing `release` recipe with a structured reason — 
 
 ## The single permitted exception to "groom never moves files"
 
-Groom is advisory by default. The one exception: it may release a task back to `todo/` if and only if the task is in the TIMED-OUT bucket (author-declared budget exceeded, or default-inherited). Enforcing it is contract-keeping, not policy — untyped quiet tasks stay advisory.
+Groom is advisory by default. The one exception: it may release a task back to `todo/` if and only if the task is in the TIMED-OUT bucket (author-declared budget exceeded, or default-inherited). Enforcing it is contract-keeping, not policy.
 
 ## Limits worth knowing about
 
@@ -137,7 +137,7 @@ For most cases, *the agents themselves are the scheduler* — each one reads the
 |-----------------------------------------------|-------------------------------------------|
 | Worker crashes mid-activity                   | Timeout → release → next worker picks up  |
 | Worker completes but never moves to `done/`   | MERGED-BUT-NOT-MOVED bucket; safe auto-fix |
-| Worker hangs (no progress, no timeout exceeded yet) | QUIET bucket (advisory)              |
+| Worker hangs (no progress, timeout not yet exceeded) | Waits until TIMED OUT fires (declared budget or 7d default) |
 | Worker writes ambiguous progress notes        | Next attempt redundantly redoes work — wasted time, not incorrectness |
 | Two workers race the same task                | Git merge conflict → one wins, one rebases |
 | Worker takes a task it can't handle           | `release` with reason; another worker picks up |

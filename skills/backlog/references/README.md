@@ -6,7 +6,7 @@ A maildir-style task tracker. Each task is a markdown file; its location (`todo/
 
 - **Location is status.** No status field to keep in sync, no parser to write. `ls doing/` is in-flight work.
 - **Comprehensive content.** Each task carries enough context for a fresh session to execute without the original conversation.
-- **Append-only everything.** Body grows by heredoc; frontmatter is author-set at creation and never edited after. Every block ends with `^---$` so the file stays greppable and taillable. The log *is* the state — no separate mutable claim fields to drift out of sync.
+- **Append-only log.** Frontmatter and description are author-set at creation; the bullet log below the `---` divider grows by `echo >> file && git commit`. The log *is* the state — no separate mutable claim fields to drift out of sync.
 - **Single writer.** Between take and complete, only the claiming agent appends. The maildir mv is the actual lock; the `started` block is documentation.
 - **Graph-native deps.** `dependencies:` is a map of slugs; each task declares its own preconditions. Parallel by default; ordering encoded in the chain itself, not in any single task.
 - **No scripts.** Every verb is a small bash recipe the agent runs inline (`git mv` + heredoc append). The skill *is* the spec; no codepath drift between docs and behaviour.
@@ -26,7 +26,7 @@ Full-featured markdown-native task manager with Kanban visualization. Each task 
 
 Agent orchestration platform that manages AI coding agents as asynchronous workers. Creates isolated Git worktrees per task for parallel execution without conflicts.
 
-**Interesting pattern**: `/backlog start <item>` could create worktree + branch automatically
+**Interesting pattern**: a `take` recipe could create a worktree + branch automatically as part of the claim
 **What we skipped**: Full orchestration layer, Rust complexity
 
 ### [todo.ai](https://github.com/fxstein/todo.ai)

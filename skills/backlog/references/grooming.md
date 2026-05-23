@@ -24,7 +24,7 @@ for f in backlog/doing/*.md; do
 done
 ```
 
-Suggested fix: run the `complete` recipe on that slug. Safe because the completed line is the proof. (A doing/ file whose *branch* shipped but never wrote a `completed` line will surface in `QUIET` instead — same suggested action, lower confidence.)
+Suggested fix: run the `complete` recipe on that slug. Safe because the completed line is the proof. (A doing/ file whose *branch* shipped but never wrote a `completed` line will surface in `TIMED OUT` once the budget expires — same suggested action.)
 
 ### `TIMED OUT`
 
@@ -47,19 +47,9 @@ for f in backlog/doing/*.md; do
 done
 ```
 
-Groom may auto-release entries in this bucket — the timeout was author-authorized (or the documented default), so enforcing it is contract-keeping. Untyped quiet entries below stay advisory.
+Groom may auto-release entries in this bucket — the timeout was author-authorized (or the documented default), so enforcing it is contract-keeping.
 
 Suggested action: `release` with a `timeout: ...` reason. See `references/parallel-agents.md` for the take-prelude vs janitor patterns.
-
-### `QUIET`
-
-A file in `doing/` with no `timeout`, where:
-
-- claim age > 7d (default; configurable), AND
-- no commits to the file in that window, AND
-- branch has no commits in that window (or is gone)
-
-Lower confidence than *timed out*. Same suggested action.
 
 ### `UNRESOLVABLE DEPS`
 
@@ -82,7 +72,11 @@ Suggested fix: edit the file and either fix the slug or remove the dep.
 
 ### `CYCLES`
 
-The dependency graph (across `todo/` and `doing/`) has a cycle. Auto-pick refuses to schedule anything in a cycle. Build the graph, run a depth-first walk, report any back-edge as `a → b → c → a`. The agent does this in head — for ten-ish tasks the graph is tiny.
+The dependency graph (across `todo/` and `doing/`) has a cycle. Auto-pick refuses to schedule anything in a cycle.
+
+Sketch: for each file in `todo/` + `doing/`, treat its `dependencies:` map as outgoing edges to those slugs. Run DFS from each unvisited node, marking nodes *in-stack* on entry and *done* on exit; an edge to an *in-stack* node is a back-edge — report it as `a → b → c → a`.
+
+For ≤20 active tasks the agent does this in head. For larger graphs, write the edges to scratch and walk explicitly.
 
 ### `OK`
 
