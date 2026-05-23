@@ -205,4 +205,4 @@ ls -lt backlog/doing/*.md 2>/dev/null | head -5
 
 ### groom
 
-Advisory walk; never moves files (one exception: it may release author-authorized TIMED OUT entries — see `parallel-agents.md`). Buckets and per-bucket checks: `grooming.md`.
+Advisory walk; never moves files (one exception: it may release author-authorized TIMED OUT entries — see `parallel-agents.md`). Buckets and per-bucket checks: `maintain.md`.

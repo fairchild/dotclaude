@@ -1,6 +1,6 @@
-# Grooming
+# Maintain — the `groom` verb's buckets
 
-Groom is an **advisory prompt** the agent runs against the backlog. It surfaces work that probably needs attention; nothing moves automatically — the operator decides what to act on.
+Mechanical maintenance for the backlog. The `groom` verb (defined in `worker.md`) walks the buckets below and surfaces work needing attention; nothing moves automatically — the operator decides what to act on. For thinking-shaped work like reflecting on priorities or editing the roadmap, see `reflect.md` instead.
 
 ## When to groom
 
@@ -88,6 +88,4 @@ doing=$(find backlog/doing -name '*.md' -type f | wc -l | tr -d ' ')
 echo "OK: $todo in todo/, $doing in doing/ (after subtracting items surfaced above)"
 ```
 
-## Operator Loop
-
-Run the prompt; act on each bucket via its suggested action above. Groom itself never moves files (one exception: it may release author-authorized TIMED OUT entries — see `references/parallel-agents.md`).
+Groom itself never moves files (one exception: it may release author-authorized TIMED OUT entries — see `references/parallel-agents.md`). Operator runs the walk, acts on each bucket via its suggested action.

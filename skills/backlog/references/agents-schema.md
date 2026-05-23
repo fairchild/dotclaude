@@ -67,6 +67,8 @@ This gets `priority=999`, `timeout=7d`, `dependencies={}`. Recipes treat it like
 
 Additional keys an author writes are preserved in the file but not interpreted by any recipe. Useful for ad-hoc project metadata (`assignee:`, `epic:`, etc.) your project's own workflows might read.
 
+One convention worth naming: **`arc: <kebab-case-name>`** — a single scalar (one arc per task) linking a task to a named arc in `backlog/ROADMAP.md`'s Priorities section (see `references/roadmap.md`). Recipes preserve it but don't act on it; query via `grep -l '^arc: my-arc' backlog/{todo,doing,done}/*.md`.
+
 ## Body
 
 Two halves, divided by a `---` line with blank lines on either side (so markdown renders it as a horizontal rule):
