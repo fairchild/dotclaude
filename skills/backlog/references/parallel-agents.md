@@ -14,7 +14,7 @@ The atomic primitives, and nothing else:
 
 - **Maildir lock.** `git mv todo/X.md doing/X.md` is the claim. Two agents racing the same task collide at merge — the failure is surfaced, not silenced.
 - **Append-only log.** One bullet per event, in committed git history. Both `cat` and `git log --follow` are valid views.
-- **Immutable spec.** Frontmatter and description don't change after creation. State changes are log appends.
+- **Near-immutable spec.** Frontmatter and description are frozen after first commit, with one exception: `reopen` may edit them, since reopen IS a correction. State changes otherwise go to the log.
 - **Author-declared (or default) budgets.** `timeout:` in frontmatter is the contract for "release this if it sits in `doing/` past this duration." Absent = 7d (see "Default timeout" below).
 
 ## What's out of scope
@@ -58,7 +58,7 @@ For v1, timeout alone is enough because it requires nothing external. Add the ot
 
 ## Two cleanup patterns (both idempotent, both safe)
 
-The skill provides two ways to release timed-out tasks back to `todo/`. They compose — you can do either or both. Parallel runs collide at git the same way a real take-race would, which is the right failure mode.
+The skill provides two routes for handling timed-out tasks — `recover` in place, `release` back to `todo/`, or `fail` to `failed/` if retries are exhausted. The two patterns differ in *who runs the routing*, not in what actions are available. They compose — you can do either or both. Parallel runs collide at git the same way a real take-race would, which is the right failure mode.
 
 ### Take-prelude (recommended for high-traffic backlogs)
 
@@ -135,7 +135,7 @@ A `release` could append a `released` log line in place and leave the file in `d
 
 ## The single permitted exception to "groom never moves files"
 
-Groom is advisory by default. The one exception: it may release a task back to `todo/` if and only if the task is in the TIMED-OUT bucket (author-declared budget exceeded, or default-inherited). Enforcing it is contract-keeping, not policy.
+Groom is advisory by default. The one exception: for TIMED-OUT entries (author-declared budget exceeded, or default-inherited), groom may either `release` back to `todo/` or `fail` to `failed/` if the `recovered` count has exceeded `max_retries`. The author authorized the timeout; the retry threshold is the agreed escalation. Enforcing both is contract-keeping, not policy.
 
 ## Limits worth knowing about
 
@@ -166,6 +166,8 @@ while true:
 ```
 
 Stateless: each cycle reads everything it needs from the task file. No worker-side memory across tasks; restart equals re-read.
+
+The worker uses `release` (not `recover`) for its own voluntary handback — the worker is the active claimer giving up. `recover` is for *picking up someone else's* stale claim, which is what take-prelude does before a fresh take.
 
 ### Worker identity
 
@@ -208,6 +210,6 @@ For most cases, *the agents themselves are the scheduler* — each one reads the
 - Inter-backlog dependencies (deps are intra-backlog only)
 - Cross-backlog rate limiting or quota
 - Persistent worker registries or health dashboards
-- Failure-mode policy beyond "release with a reason" (e.g., dead-letter queues, backoff)
+- Retry policy beyond "count `recovered` lines, dead-letter via `fail` when count exceeds threshold" (e.g., exponential backoff, jittered retries)
 
 Build those *above* the skill, in your project, where they belong.

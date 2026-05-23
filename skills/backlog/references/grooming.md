@@ -36,7 +36,7 @@ for f in backlog/doing/*.md; do
   [[ -f "$f" ]] || continue
   timeout=$(awk '/^---$/{n++; if(n==2) exit} n==1 && /^timeout:/ {sub(/^timeout:[[:space:]]*/, ""); print; exit}' "$f")
   [[ -z "$timeout" ]] && timeout=7d  # skill-level default
-  started=$(grep -E '^- [0-9TZ:-]+ started ' "$f" | tail -1 | awk '{print $2}')
+  started=$(grep -E '^- [0-9TZ:-]+ (started|recovered) ' "$f" | tail -1 | awk '{print $2}')
   [[ -z "$started" ]] && continue
   # Parse timeout: 4h, 3d, 2w
   n="${timeout%[smhdw]*}"; unit="${timeout: -1}"

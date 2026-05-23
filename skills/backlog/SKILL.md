@@ -1,6 +1,6 @@
 ---
 name: backlog
-description: Markdown task backlog (backlog/{todo,doing,done}/) for adding, taking, recording progress, completing, cancelling, reopening, releasing, or grooming tasks.
+description: Markdown task backlog (backlog/{todo,doing,done,failed}/) for adding, taking, recovering, recording progress, completing, cancelling, reopening, releasing, failing, or grooming tasks.
 license: Apache-2.0
 ---
 
@@ -47,7 +47,7 @@ Frontmatter and description are **author-set and frozen after first commit** (on
 - {ISO ts} {kind} key=value ... [| free prose]
 ```
 
-Kinds: `started`, `progress`, `completed`, `released`, `cancelled`, `reopened`.
+Kinds: `started`, `recovered`, `progress`, `completed`, `released`, `cancelled`, `failed`, `reopened`.
 
 KV fields grep cleanly (`grep 'branch=feat/foo'`), free prose follows `|`, and long-form detail belongs in the commit body — the bullet is the index, git is the archive (`git show <sha>` retrieves the long form).
 

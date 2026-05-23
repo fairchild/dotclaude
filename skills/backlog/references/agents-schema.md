@@ -30,7 +30,7 @@ Examples:
 - `session-cache-followups-task-list.md`
 - `chronicle-extractor-quality-ideas.md`
 
-Slug = filename minus path and `.md`. Dependencies reference tasks by slug; the agent resolves a slug by walking `todo/`, `doing/`, `done/**`.
+Slug = filename minus path and `.md`. Dependencies reference tasks by slug; the agent resolves a slug by walking `todo/`, `doing/`, `done/`, and `failed/` (if present).
 
 ## Frontmatter (optional)
 
