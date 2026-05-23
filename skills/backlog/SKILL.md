@@ -1,6 +1,6 @@
 ---
 name: backlog
-description: Maildir-style backlog for parallel agents. Tasks are markdown files in todo/, doing/, or done/ — location is status, claim is an atomic git mv. Body has two halves divided by `---`, an author-set description above and an append-only bullet log of timestamped events below. Use when adding deferred work, taking the next task, recording progress, completing, cancelling, reopening, releasing, or grooming. Every verb is a small bash recipe: optional `git mv`, append one log line, commit.
+description: Backlog for parallel agents — tasks are markdown files in todo/, doing/, or done/, location is status. Use when adding deferred work, taking the next task, recording progress, completing, cancelling, reopening, releasing, or grooming.
 license: Apache-2.0
 ---
 
