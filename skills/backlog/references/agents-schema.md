@@ -6,14 +6,13 @@ Canonical spec for backlog file structure, frontmatter, and body format. The ski
 
 ```
 backlog/
-  AGENTS.md           # convention pointer for new sessions (optional)
-  todo/               # available
-  doing/              # claimed, in flight
-  done/
-    2026/             # year-partitioned at write time
+  AGENTS.md   # convention pointer for new sessions (optional)
+  todo/       # available
+  doing/      # claimed, in flight
+  done/       # completed (and cancelled, discriminated by log block)
 ```
 
-`done/{YYYY}/` is created at completion time using `date -u +%Y`. Cancellations land here too — the `### cancelled` log block distinguishes them from completions, no separate directory. Operators can shard a crowded year by hand (`mv done/2026/Q1*.md done/2026/Q1/`); nothing migrates automatically.
+Flat `done/` — no time partitioning. If it grows large enough to be annoying (years from now), operators can shard by hand; nothing migrates automatically and no recipe relies on the directory shape.
 
 ## Filename
 
@@ -128,7 +127,7 @@ Deferred work, one markdown file per task. Location = status:
 
 - `todo/` — available
 - `doing/` — claimed, in flight
-- `done/{YYYY}/` — completed
+- `done/` — completed
 
 Use the `backlog` skill (add / take / progress / complete / release / cancel / reopen / groom / status) to interact. Schema and rules: `~/.claude/skills/backlog/references/agents-schema.md`.
 ```

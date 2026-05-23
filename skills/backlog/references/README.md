@@ -1,6 +1,6 @@
 # Backlog Skill — Background & Inspiration
 
-A maildir-style task tracker. Each task is a markdown file; its location (`todo/`, `doing/`, `done/{YYYY}/`) is its state. Claiming is `git mv`, which doubles as the lock — two agents racing the same task collide at merge instead of silently double-working.
+A maildir-style task tracker. Each task is a markdown file; its location (`todo/`, `doing/`, `done/`) is its state. Claiming is `git mv`, which doubles as the lock — two agents racing the same task collide at merge instead of silently double-working.
 
 ## Philosophy
 
