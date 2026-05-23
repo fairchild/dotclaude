@@ -13,42 +13,78 @@ A maildir-style task tracker. Each task is a markdown file; its location (`todo/
 
 ## Minimal snippets
 
-### Write to the backlog (no frontmatter — defaults apply)
+Two prompts designed to drop straight into a Claude Code session in any repo, with no prep. The agent figures out missing directories, exact bash, commit hygiene.
 
-```bash
-mkdir -p backlog/todo
-cat > backlog/todo/your-slug-plan.md <<'EOF'
-# Your Task Title
+### Add a task (paste, fill in, send)
 
-Problem, decisions, phases, acceptance criteria — whatever a future
-session needs to execute without the original conversation.
+```
+Add this task to a maildir-style backlog in this repo. Create
+`backlog/todo/` if missing. Save the file at `backlog/todo/{slug}.md`
+(slug = kebab-case, optionally suffixed `-plan`, `-followup`,
+`-task-list`, or `-ideas`) with this shape:
+
+  # Title
+  
+  [description]
+  
+  ---
+
+The trailing `---` (with blank lines around it) marks the boundary
+between the immutable description (above) and the append-only event
+log (below — empty for a new task). No frontmatter is needed;
+defaults apply: priority=999, timeout=7d, dependencies={}. Add fields
+above the title only to override defaults.
+
+Commit with message `add({slug})`.
 
 ---
 
-EOF
-git add backlog && git commit -m "add(your-slug-plan)"
+# TITLE HERE
+
+DESCRIPTION HERE — problem, decisions, phases, acceptance criteria;
+enough that a future session can execute without the original
+conversation.
 ```
 
-That's it. No frontmatter means `priority=999`, `timeout=7d`, `dependencies={}` apply by default. The `---` divider marks where the append-only log will live. Authors override defaults by adding fields above the divider.
+### Work the backlog (paste once, then drive)
 
-### Minimal worker prompt
+```
+You're a worker on a maildir-style backlog at
+`backlog/{todo,doing,done,failed}/`. Each task is a markdown file;
+its directory is its state. Below a `---` divider, the file holds an
+append-only bullet log of timestamped events.
 
-Drop this into any worker process or agent system prompt — it's the essence of the design without any scaffolding:
+Log line format: `- {ISO UTC} {kind} key=value ... [| free prose]`.
+One line per event; long-form detail goes in the commit body.
 
-> You're a worker on a maildir-style backlog at `backlog/{todo,doing,done,failed}/`. Each task is a markdown file; its directory is its state. Below a `---` divider, the file holds an append-only bullet log of timestamped events.
->
-> **Log line format:** `- {ISO UTC} {kind} key=value ... [| free prose]`. One line per event. Long-form detail belongs in the commit body.
->
-> **Verbs** (each is `git mv` if a transition + `echo >>` + `git commit`):
->
-> - **take**: `git mv backlog/todo/X.md backlog/doing/X.md`, append `- $ts started claimer=YOU branch=BRANCH`. The mv is your lock.
-> - **progress**: append `- $ts progress | what just got done` to the file in `doing/`. Write notes semantically so a future claimer can skip what's already complete.
-> - **complete**: `git mv` to `done/`, append `- $ts completed PR=URL_IF_ANY`.
-> - **recover**: pick up a `doing/` task whose claim has exceeded its timeout. *In place* — no `git mv`. Append `- $ts recovered claimer=YOU branch=BRANCH`. Verify staleness first; refuse if the existing claim is still active. Then read prior progress notes to skip already-done activities.
-> - **release**: give a claim back. `git mv` to `todo/`, append `- $ts released | reason`.
-> - **fail**: dead-letter after retries exhausted. `git mv` to `failed/`, append `- $ts failed | reason`.
->
-> Every verb commits after appending. `cat` and `git log --follow` both tell the file's story; they stay synchronized because every action is one bullet plus one commit.
+Six verbs — each is an optional `git mv` + an `echo` append + a `git
+commit` (create any missing directory first):
+
+- **take**: `git mv backlog/todo/X.md backlog/doing/X.md`; append
+  `- $ts started claimer=YOU branch=BRANCH`. The mv is your lock.
+- **progress**: append `- $ts progress | what just got done` to the
+  file in `doing/`. Write semantically so a future claimer can skip
+  already-done activities.
+- **complete**: `git mv` to `done/`; append
+  `- $ts completed PR=URL_IF_ANY`.
+- **recover**: pick up a `doing/` task whose claim has exceeded its
+  timeout (declared `timeout:` in frontmatter or 7d default). In
+  place — no `git mv`. Append `- $ts recovered claimer=YOU
+  branch=BRANCH`. Verify staleness first; refuse if the existing
+  claim is still active. Then read prior progress notes to skip
+  already-done work.
+- **release**: give your claim back. `git mv` to `todo/`; append
+  `- $ts released | reason`.
+- **fail**: dead-letter after retries exhausted. `git mv` to
+  `backlog/failed/`; append `- $ts failed | reason`.
+
+Every verb commits after appending. `cat` and `git log --follow` both
+tell the file's story; they stay synchronized because every action is
+one bullet plus one commit.
+
+Now tell me what to do (e.g. "take the next task", "what's in
+doing/?", "complete the auth-migration task with PR https://...").
+```
 
 ## Related Projects
 
