@@ -1,6 +1,6 @@
 # Workflows
 
-One-shot recipes that aren't part of the daily verb loop — first-time setup in a fresh project, and migration from the older flat layout. Loaded on demand; `SKILL.md` doesn't need to carry these.
+One-shot recipes that aren't part of the daily verb loop — first-time setup in a fresh project, and migration from the older flat layout.
 
 ## init
 
@@ -19,9 +19,10 @@ Deferred work, one markdown file per task. Location = status:
 
 Use the `backlog` skill (add / take / progress / complete / release / cancel / reopen / groom / status) to interact. Schema and rules: `~/.claude/skills/backlog/references/agents-schema.md`.
 EOF
+ln -s AGENTS.md backlog/CLAUDE.md
 ```
 
-Commit the new directories and `AGENTS.md` so collaborators see them.
+The symlink lets Claude Code auto-load these conventions via its `CLAUDE.md` convention while keeping a single source of truth in `AGENTS.md` (the cross-tool default). Commit the new directories, `AGENTS.md`, and the symlink so collaborators see them.
 
 ## migrate
 
