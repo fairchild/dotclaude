@@ -2,26 +2,11 @@
 
 Advisory guidance for running multiple independent agents against a shared backlog. The skill provides primitives; this doc names the patterns that compose them into a working distributed system, and the failure modes you have to design around.
 
-## Mental model: a minimal, file-based take on durable workflows
+## Mental model
 
-The shape of the system is inspired by Temporal's durable workflow patterns — durable execution, recoverable activities, idempotent retries — but the implementation is much smaller. The skill borrows the *mental model*, not the runtime.
+A task file is a durable execution log: frontmatter + description is the spec, the bullet log is the event stream, the pile location is derived state — all in git. Loosely inspired by Temporal's durable-workflow pattern: `progress` lines are activity checkpoints that survive across attempts, and an agent picking up a re-released task can read prior progress and skip what's already done.
 
-What carries over:
-
-- **The task file is a durable workflow execution log.** Frontmatter + description is the spec; bullet log is the event stream; pile location is the derived state. Stored in git.
-- **`progress` lines are activities.** Each one records a unit of work that's been completed and survives across attempts.
-- **Recovery is replay-from-log.** An agent that picks up a re-released task reads the prior attempt's progress notes, identifies completed activities, and resumes from the next undone step.
-
-What does **not** carry over (out of scope here, build above if needed):
-
-- Signals / external interrupts to running workflows
-- Child workflows or saga compensation
-- Versioning of workflow definitions
-- A dedicated runtime, scheduler, or worker registry
-
-So: enough of the durable-workflow model to make resumable backlog burndown work, with nothing else added.
-
-This shape puts a usage obligation on progress notes: **write them semantically and idempotently**. "auth migration prototype passing locally" tells the next claimer what's done and is safe to skip. "still working" tells them nothing. Progress notes are activity checkpoints — write them the way you'd write commit messages for a future you who has lost context.
+This puts a usage obligation on progress notes: **write them semantically and idempotently**. "auth migration prototype passing locally" tells the next claimer what's done and is safe to skip; "still working" tells them nothing.
 
 ## What the skill provides
 
