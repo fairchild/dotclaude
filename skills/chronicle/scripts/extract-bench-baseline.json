@@ -1,39 +1,17 @@
 {
-  "generatedAt": "2026-05-24T06:27:22.249Z",
-  "totalBlocks": 177,
+  "generatedAt": "2026-05-24T20:34:21.901Z",
+  "totalBlocks": 181,
   "byClass": {
-    "fallback": 143,
+    "fallback": 147,
     "narrative": 0,
     "curator": 34,
     "thin-other": 0
   },
   "byClassPct": {
-    "fallback": 80.8,
+    "fallback": 81.2,
     "narrative": 0,
-    "curator": 19.2,
+    "curator": 18.8,
     "thin-other": 0
   },
-  "recentFallbackRatio30d": 0.59,
-  "goldenSetCandidates": [
-    "/Users/fairchild/.claude/chronicle/blocks/2026-04-07-dotclaude-chronicle-recap-wrapup.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-05-16-workspaces-managed-reviewer-ingress-wrapup.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-05-15-dotfiles-phase0-closeout-wrapup.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-01-01-chronicle-brainstorm.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-04-18-services-irc-production-deploy-closeout.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-05-10-workspaces-settings-shortcut-wrapup.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-05-04-workspaces-cd-playwright-auth-preview-wrapup.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-05-16-jrnlfish-fresh-worktree-setup-validation.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-05-16-workspaces-docs-deploy-recovery.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-05-04-workspaces-deployment-smoke-wrapup.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-05-13-jrnlfish-r2-attachments-production-wrapup.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-05-11-workspaces-settings-menu-smoke-wrapup.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-04-23-multiplexing-decision.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-04-07-workspaces-terminal-multi-provider-arc-close.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-05-10-workspaces-ghostty-routing-merge.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-05-02-workspaces-managed-reviewer-wrapup.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-05-03-workspaces-login-setup-flow-wrapup.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-05-04-workspaces-pr-reviewer-narrative-evidence-wrapup.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-05-02-workspaces-iphone-pr-approval-live-activity-wrapup.json",
-    "/Users/fairchild/.claude/chronicle/blocks/2026-04-09-workspaces-plan-execution-phase2-3.json"
-  ]
+  "recentFallbackRatio30d": 0.615
 }

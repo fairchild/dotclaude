@@ -40,6 +40,9 @@ function classify(b: ChronicleBlock): BlockClass {
   const accLen = b.accomplished?.length ?? 0;
   const challLen = b.challenges?.length ?? 0;
   const stepLen = b.nextSteps?.length ?? 0;
+  // `notes` is a curator-only field: the auto-extractor (extract-lib.fallbackEntry
+  // and the Haiku path) never populates it. Its presence is a strong origin
+  // signal regardless of how thin the rest of the block looks.
   const hasNotes = typeof b.notes === "string" && b.notes.length > 0;
 
   if (hasNotes || (accLen >= 5 && challLen >= 1 && stepLen >= 2)) return "curator";
@@ -87,7 +90,6 @@ interface Report {
   byClass: Record<BlockClass, number>;
   byClassPct: Record<BlockClass, number>;
   recentFallbackRatio30d: number | null;
-  goldenSetCandidates: string[];
 }
 
 function buildReport(rows: BlockRow[]): Report {
@@ -110,20 +112,21 @@ function buildReport(rows: BlockRow[]): Report {
     ? null
     : +(recent.filter((r) => r.klass === "fallback").length / recent.length).toFixed(3);
 
-  const goldenSetCandidates = rows
-    .filter((r) => r.klass === "curator")
-    .sort((a, b) => (b.accomplishedCount - a.accomplishedCount) || (b.messageCount - a.messageCount))
-    .slice(0, 20)
-    .map((r) => r.path);
-
   return {
     generatedAt: new Date().toISOString(),
     totalBlocks: total,
     byClass,
     byClassPct,
     recentFallbackRatio30d,
-    goldenSetCandidates,
   };
+}
+
+function goldenSetCandidates(rows: BlockRow[], limit = 20): string[] {
+  return rows
+    .filter((r) => r.klass === "curator")
+    .sort((a, b) => (b.accomplishedCount - a.accomplishedCount) || (b.messageCount - a.messageCount))
+    .slice(0, limit)
+    .map((r) => r.path);
 }
 
 function renderHuman(report: Report): string {
@@ -141,7 +144,6 @@ function renderHuman(report: Report): string {
   }
   out.push("");
   out.push(`30d fallback ratio: ${report.recentFallbackRatio30d ?? "n/a"}`);
-  out.push(`Golden set candidates: ${report.goldenSetCandidates.length} (curator-grade, ranked by accomplished count)`);
   return out.join("\n");
 }
 
@@ -151,7 +153,7 @@ function main() {
   const report = buildReport(rows);
 
   if (args.has("--golden-set")) {
-    for (const p of report.goldenSetCandidates) console.log(p);
+    for (const p of goldenSetCandidates(rows)) console.log(p);
     return;
   }
 
@@ -165,5 +167,5 @@ function main() {
 
 if (import.meta.main) main();
 
-export { classify, isFallbackSummary, buildReport, loadBlocks, FALLBACK_PATTERNS };
+export { classify, isFallbackSummary, buildReport, loadBlocks, goldenSetCandidates, FALLBACK_PATTERNS };
 export type { BlockClass, Report, BlockRow };
