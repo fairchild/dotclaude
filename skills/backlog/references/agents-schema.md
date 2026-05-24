@@ -74,6 +74,17 @@ Additional keys an author writes are preserved in the file but not interpreted b
 
 One convention worth naming: **`arc: <kebab-case-name>`** — a single scalar (one arc per task) linking a task to a named arc in `backlog/ROADMAP.md`'s Priorities section (see `references/roadmap.md`). Recipes preserve it but don't act on it; query via `grep -l '^arc: my-arc' backlog/{todo,doing,done}/*.md`.
 
+### Triage integration (optional)
+
+Projects that cooperate with external triage skills (e.g. Matt Pocock's `triage`/`to-issues`/`to-prd`) can layer triage sub-state onto pipeline location using named frontmatter keys. The field's *presence* indicates the sub-state; its *value* carries the actionable context that the triage skill would otherwise put in a label-time comment.
+
+- **`kind: bug | enhancement`** — category role.
+- **`needs-info: <what's missing — specific questions>`** — only meaningful on items in the triage-queue dir (e.g. `inbox/` if the pipeline declares one).
+- **`ready-for-human: <what kind of human work is needed>`** — only meaningful on items in the claim-ready dir (`todo/`). Absence means the default sub-state (ready-for-agent).
+- **`out-of-scope: <reason or .out-of-scope/<slug>.md link>`** — set when a wontfix-enhancement is `fail`ed, recording institutional memory durably alongside the `failed` log line.
+
+Recipes preserve these fields without acting on them — the skill code doesn't change. Each project should declare its convention in `backlog/AGENTS.md` so triage skills and operators agree on the mapping. Sample mapping for a project that extends the pipeline with an `inbox/` stage: `docs/agents/triage-labels.md` in this repo.
+
 ## Body
 
 Two halves, divided by a `---` line with blank lines on either side (so markdown renders it as a horizontal rule):

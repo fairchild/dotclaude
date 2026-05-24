@@ -1,37 +1,66 @@
 # Triage labels
 
-The engineering skills (`triage`, `to-issues`, `to-prd`) speak in terms of five canonical triage roles. In this repo those roles don't live as labels — the `backlog` skill encodes triage state in **directory location**, with `priority:` frontmatter as the in-bucket sort key.
+The engineering skills (`triage`, `to-issues`, `to-prd`) speak in terms of five canonical triage roles and two category roles. In this repo those roles map to **directory location** + **named frontmatter keys whose value carries the actionable context**. There are no GitHub labels involved.
 
-## Mapping
+## State roles → directory + named key
 
-| Canonical role | In this repo |
+| Canonical state | Where in this repo |
 |---|---|
-| `needs-triage` | File in `backlog/todo/` with no explicit `priority:` (defaults to 999 — sorts last). Run `scripts/backlog.sh maintain` to walk the bucket and assign priorities. |
-| `needs-info` | File in `backlog/todo/` whose body notes what's missing. No separate state — it stays in `todo/` until the gap is filled. A future iteration could split this out, but the current model keeps it as a body-content concern. |
-| `ready-for-agent` | File in `backlog/todo/` with declared `priority:` and a body specific enough for a fresh session to execute it cold. This is the canonical AFK-ready state — pickable by `take` or `worker`. |
-| `ready-for-human` | File in `backlog/todo/` whose body explicitly asks for human hands. No frontmatter field; convention is to call it out in the title or first line. |
-| `wontfix` | `scripts/backlog.sh fail <slug> "wontfix: <reason>"` — moves the file to `backlog/failed/`. The `failed` log line carries the reason. |
+| `needs-triage` | File in `backlog/inbox/`, no extra field. This is the default for `inbox/`. |
+| `needs-info` | File in `backlog/inbox/`, frontmatter key `needs-info: <what's missing — specific questions for the reporter>`. |
+| `ready-for-agent` | File in `backlog/todo/`, no extra field. This is the default for `todo/` — pickable by `take`/`worker`. |
+| `ready-for-human` | File in `backlog/todo/`, frontmatter key `ready-for-human: <what kind of human work is needed>`. |
+| `wontfix` | File in `backlog/failed/` via `scripts/backlog.sh fail <slug> "<reason>"`. Optional frontmatter key `out-of-scope: <reason or .out-of-scope/<slug>.md link>` records the rationale durably. |
 
-When a skill says "apply the AFK-ready triage label", that means: ensure the file is in `backlog/todo/`, has a declared `priority:`, and the body is executable cold. There's no field to flip.
+## Category roles
 
-## One axis, not two
+Matt's triage requires exactly one category. Use the `kind:` frontmatter field:
 
-The earlier version of this doc described a `status:` frontmatter axis layered on top of location. That model is gone — the `backlog` skill collapsed it. **Position in the pipeline IS the state**:
+```yaml
+kind: bug          # something is broken
+kind: enhancement  # new feature or improvement
+```
 
-- `todo/` — open, not yet claimed
+## Why named keys, not a flat `triage:` field
+
+The state's *name* and its *context* are paired. Applying `ready-for-human` without saying *what kind* of human work is needed is a label without substance — and Matt's triage skill already gates these transitions on mandatory comment templates (the needs-info template, the agent brief). The named key forces a sentence at label time and surfaces it inline; `grep '^ready-for-human:' backlog/todo/*.md` returns the labels *and* the substance in one pass.
+
+Absence is the default. An item in `inbox/` with no `needs-info:` field is `needs-triage`; an item in `todo/` with no `ready-for-human:` field is `ready-for-agent`. Adding the field flips it into the corresponding sub-state.
+
+## The `.out-of-scope/` knowledge base
+
+Wontfix-enhancement decisions deserve persistent rationale beyond the `failed/` log line. Matt's `triage` skill maintains `.out-of-scope/` at the repo root — one markdown file per rejected *concept* (not per issue), so multiple future asks for "dark mode" route to the same file instead of being re-litigated. When `fail`ing a wontfix-enhancement, write or update `.out-of-scope/<concept-slug>.md` and reference it from the task's `out-of-scope:` frontmatter field.
+
+## Two axes, not one
+
+Position in the pipeline is the primary axis:
+
+- `inbox/` — incoming, untriaged or waiting on info
+- `todo/` — open and ready
 - `doing/` — claimed, in flight
 - `done/` — closed (the `cancelled` log line distinguishes cancellation from completion)
 - `failed/` — dead-letter (used for `wontfix` too)
 
-Within `todo/`, `priority:` (1 = highest, default 999) is the only ordering mechanism. `maintain` is the verb for triage work — walking the bucket, assigning priorities, surfacing items that need info, deciding what to `fail`.
+Within `inbox/` and `todo/`, the named frontmatter keys above carry Matt's sub-states. Within `todo/`, `priority:` (1 = highest, default 999) is the ordering mechanism for ready-for-agent items.
+
+## Disclaimer convention
+
+Matt's triage requires that AI-generated comments on tickets carry the line `> *This was generated by AI during triage.*`. In this repo, comments are progress lines in the below-divider event log. Prefix AI-generated progress lines with `[ai-triage]` to mirror the same intent:
+
+```
+- 2026-05-24T16:00:00Z progress | [ai-triage] needs-info: which iOS version?
+```
 
 ## Listing by triage state
 
 ```bash
-scripts/backlog.sh status                                  # counts per state + recent in-flight
-ls backlog/todo/                                            # everything open
-grep -l "^priority: [12]$" backlog/todo/*.md                # high-priority open items
-grep -L "^priority:" backlog/todo/*.md                      # items with no priority (needs-triage)
-grep -l "^arc: " backlog/todo/*.md                          # items linked to a ROADMAP arc
-ls backlog/failed/                                          # wontfix / dead-letter
+scripts/backlog.sh status                                # counts per state + recent in-flight
+ls backlog/inbox/                                         # untriaged + needs-info
+grep -l "^needs-info:" backlog/inbox/*.md                 # needs-info subset (with their questions)
+ls backlog/todo/                                          # ready-for-agent + ready-for-human
+grep -l "^ready-for-human:" backlog/todo/*.md             # ready-for-human subset (with the human work needed)
+grep -L "^ready-for-human:" backlog/todo/*.md             # ready-for-agent (no flag = default)
+grep -l "^kind: bug$" backlog/{inbox,todo}/*.md           # bugs anywhere upstream of doing/
+ls backlog/failed/                                         # wontfix + execution failures
+grep -l "^out-of-scope:" backlog/failed/*.md              # wontfix subset (out-of-scope-tagged)
 ```

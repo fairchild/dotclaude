@@ -45,6 +45,20 @@ backlog_next_dir() {
   ' backlog/AGENTS.md 2>/dev/null
 }
 
+# First dir in the pipeline declared in AGENTS.md. Default: todo.
+# Used by `add` to land new tasks in the pipeline's intake bucket — a project
+# that extends the pipeline (e.g. `inbox -> todo -> doing -> done`) wants new
+# tasks to land in `inbox/`, not `todo/`.
+backlog_first_dir() {
+  awk '
+    /^## Pipeline/ { flag=1; next }
+    flag && /[a-z]/ {
+      if (match($0, /[a-z][a-z0-9-]*/)) { print substr($0, RSTART, RLENGTH); exit }
+    }
+    END { if (!flag) print "todo" }
+  ' backlog/AGENTS.md 2>/dev/null
+}
+
 # In-flight dir names from pipeline (excluding todo/done). Default: doing.
 backlog_inflight_dirs() {
   awk '
