@@ -12,6 +12,20 @@ Verb recipes for working tasks in the maildir-style backlog. `../SKILL.md` cover
 - **Timeout is author-set, never claimer-extended.** Default `7d` if not declared. If the budget is wrong, `fail` with a reason — someone can `retry`.
 - **Dependencies are parallel.** Task is takeable when every dep slug resolves under `done/`.
 
+## Worker mode
+
+A well-formed backlog task has its planning baked in — problem, decisions, verification commands, deps — so workers should execute in agent (acceptEdits) mode straight through.
+
+If a worker is dispatched in plan mode, the pattern is:
+
+1. Draft a plan from the task.
+2. Exit plan mode with the plan (operator approves).
+3. Dispatch a subagent (via the Task tool) in agent mode with the approved plan as its prompt. The subagent executes; the parent reports back.
+
+Plan mode is for work the operator wants to review before execution. Backlog tasks already passed that review at authoring time — the task itself IS the approved plan. The subagent handoff keeps the planning checkpoint where it's load-bearing (the parent) without re-litigating execution.
+
+If you find the task underspecified during execution — filling gaps the author didn't fill — surface that as `fail | reason="needs replanning: ..."` rather than burning the claim. A sharper retry helps the next worker.
+
 ## Log line format
 
 ```
