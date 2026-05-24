@@ -11,13 +11,15 @@ mkdir -p backlog/{todo,doing,done}
 cat > backlog/AGENTS.md <<'EOF'
 # backlog/
 
+`CLAUDE.md` here is a symlink to this file — read one, not both.
+
 Deferred work, one markdown file per task. Location = status:
 
 - `todo/`  — available
 - `doing/` — claimed, in flight
 - `done/`  — completed (and cancelled — discriminated by the `cancelled` log line)
 
-Use the `backlog` skill (add / advance / progress / cancel / fail / rescue / retry / groom / status) to interact. There is no backward verb — work that can't proceed is `fail`ed and may be `retry`ed back to `todo/`. Schema and rules: `~/.claude/skills/backlog/references/agents-schema.md`.
+Use the `backlog` skill (add / advance / progress / cancel / fail / rescue / retry / groom / status) to interact. There is no backward verb — work that can't proceed is `fail`ed and may be `retry`ed back to `todo/`. Schema and rules: the `backlog` skill's `references/agents-schema.md`.
 
 ## Defaults
 
@@ -33,18 +35,15 @@ Override the project default by stating it here (e.g., "default timeout in this 
 
 `todo → doing → done`
 
-The default pipeline. To add intermediate states (e.g. `reviewing/`), create the directory and update this line — `advance` reads it. See `~/.claude/skills/backlog/references/pipeline.md`.
+The default pipeline. To add intermediate states (e.g. `reviewing/`), create the directory and update this line — `advance` reads it. See the `backlog` skill's `references/pipeline.md`.
 
 ## ROADMAP
 
-Strategic counterpart at `backlog/ROADMAP.md` — Intent, Principles, Current Focus, Priorities (named arcs), Non-goals. Tasks optionally link via `arc: <name>` frontmatter. See `~/.claude/skills/backlog/references/roadmap.md`.
+Strategic counterpart at `backlog/ROADMAP.md` — Intent, Principles, Current Focus, Priorities (named arcs), Non-goals. Tasks optionally link via `arc: <name>` frontmatter. See the `backlog` skill's `references/roadmap.md`.
 EOF
 ln -s AGENTS.md backlog/CLAUDE.md
 
-# Scaffold ROADMAP.md if missing — comment-skeleton so the file exists even if
-# the operator skips the guided interview. To populate via interview instead,
-# hand control to `references/reflect.md`'s initialization submode (project-wide
-# scan, then walk the six sections one question at a time).
+# Scaffold ROADMAP.md if missing. For a guided interview instead, load references/reflect.md.
 [[ -f backlog/ROADMAP.md ]] || cat > backlog/ROADMAP.md <<'EOF'
 # ROADMAP
 
@@ -70,9 +69,7 @@ ln -s AGENTS.md backlog/CLAUDE.md
 EOF
 ```
 
-The symlink lets Claude Code auto-load these conventions via its `CLAUDE.md` convention while keeping a single source of truth in `AGENTS.md` (the cross-tool default). Commit the new directories, `AGENTS.md`, the symlink, and `ROADMAP.md` so collaborators see them.
-
-To populate `ROADMAP.md` properly rather than leaving the skeleton, hand control to `references/reflect.md`'s initialization submode: it runs a project-wide scan first (README, docs/, CONTEXT.md, ADRs, root AGENTS.md), synthesizes candidate principles and goals, then walks the six sections as a guided interview. Initialization is the highest-leverage moment — getting principles and goals right here shapes everything that follows.
+`AGENTS.md` is the cross-tool source of truth; `CLAUDE.md` symlinks to it so Claude Code auto-loads the same conventions. Commit everything so collaborators see it.
 
 ## migrate
 
