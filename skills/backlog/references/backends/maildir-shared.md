@@ -2,7 +2,7 @@
 
 Storage mechanism for projects whose `backlog/AGENTS.md` declares `## Backend: maildir-shared`. Built for multi-worktree work — Conductor, parallel `git worktree`, anywhere two agents might claim the same task on different branches and not collide until merge.
 
-For verb semantics, rules, and the worker loop, see `../worker.md`. This file is the bash.
+For verb semantics, rules, and the worker loop, see `../worker.md`. The canonical implementation lives in `../../scripts/backlog-maildir-shared.sh` (invoke via `../../scripts/backlog.sh <verb>`). The recipes below document the mechanism — agents should prefer the script, which handles symlink self-healing, the O_EXCL atomic claim, and the per-shell noclobber differences in one tested place.
 
 ## When to pick this backend
 

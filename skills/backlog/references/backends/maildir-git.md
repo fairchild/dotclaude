@@ -2,7 +2,7 @@
 
 Storage mechanism for projects whose `backlog/AGENTS.md` declares `## Backend: maildir-git`. The default — current design, single-worktree-friendly. The committed git tree is the whole truth: every state lives under `backlog/{todo,doing,done,failed}/` and every transition is a `git mv` + log-line append + commit.
 
-For verb semantics, rules, and the worker loop, see `../worker.md`. This file is the bash.
+For verb semantics, rules, and the worker loop, see `../worker.md`. The canonical implementation lives in `../../scripts/backlog-maildir-git.sh` (invoke via `../../scripts/backlog.sh <verb>`). The recipes below document the mechanism — agents should prefer the script.
 
 ## When to pick this backend
 
