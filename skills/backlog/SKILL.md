@@ -17,6 +17,28 @@ The default pipeline is `todo → doing → done`. A project may add intermediat
 
 To claim is to advance from `todo/` to the first in-flight dir. The backend declared by `backlog/AGENTS.md` provides the lock mechanism — `maildir-git` lets racing `git mv`s collide at merge; `maildir-shared` uses an atomic create in a git-common-dir shared directory so the race is caught at claim time across worktrees.
 
+## Slash invocation
+
+Invokable as `/backlog <subcommand> [args]`. Each subcommand maps to a verb recipe or workflow:
+
+| Subcommand | Behavior | Recipe |
+|---|---|---|
+| `/backlog setup` | One-time scaffold: ask backend, create dirs, write AGENTS.md, scaffold ROADMAP | `references/workflows.md` `init` |
+| `/backlog add [slug] [category]` | Create new task in `todo/` | this file, "Add a task" |
+| `/backlog take [slug]` | Claim from `todo/` (auto-pick if no slug) | `references/worker.md` advance from todo/ |
+| `/backlog advance [slug]` | One forward step along the pipeline | `references/worker.md` advance |
+| `/backlog progress <note>` | Append a progress line to current claim | `references/worker.md` progress |
+| `/backlog cancel [slug] --reason "..."` | Abandon an in-flight task | `references/worker.md` cancel |
+| `/backlog fail [slug] --reason "..."` | Dead-letter an in-flight task | `references/worker.md` fail |
+| `/backlog rescue [slug]` | Take over a stale claim | `references/worker.md` rescue |
+| `/backlog retry [slug] --reason "..."` | Move from failed/ back to todo/ | `references/worker.md` retry |
+| `/backlog status` | Counts per state + recent in-flight | `references/worker.md` status |
+| `/backlog groom` | Advisory walk over buckets | `references/maintain.md` |
+| `/backlog worker` | Full worker loop: load + groom + claim + execute + wrap up | `references/worker-loop.md` |
+| `/backlog` (no args) | Loads the skill; agent infers intent from conversation context | passive load |
+
+For verb semantics see `references/worker.md`. For the bash, see whichever backend `backlog/AGENTS.md` declares (`references/backends/<name>.md`).
+
 ## File shape
 
 Above the divider: what the author meant. Below: what the workers did.
