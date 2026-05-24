@@ -127,10 +127,12 @@ cmd_advance() {
 cmd_take() {
   local slug="${1:-}"
   if [[ -z "$slug" ]]; then
-    # Auto-pick: oldest mtime first. Priority-aware ranking left to callers.
+    # Auto-pick: most-recent mtime first (recency lean — see worker-loop.md).
+    # `ls -t` is portable across BSD/macOS and GNU/Linux. Priority + arc-aware
+    # ranking is left to callers; the script defaults to "freshest context wins"
+    # so the script-only path doesn't quietly prefer stale tasks.
     local f
-    f=$(find backlog/todo -maxdepth 1 -name '*.md' -type f -printf '%T@ %p\n' 2>/dev/null \
-        | sort -n | head -1 | cut -d' ' -f2-)
+    f=$(ls -t backlog/todo/*.md 2>/dev/null | head -1 || true)
     [[ -z "$f" ]] && { echo "no available tasks" >&2; exit 0; }
     slug=$(basename "$f" .md)
   fi

@@ -45,10 +45,11 @@ Compute the takeable set:
 2. For `maildir-shared`, subtract any slug already in any shared in-flight dir.
 3. Filter: each candidate's `dependencies:` slugs must all resolve under `done/`.
 
-Rank the survivors. Two-tier:
+Rank the survivors. Three-tier:
 
 - **Primary: roadmap lens.** Tasks declaring `arc: <name>` matching the ROADMAP's Current Focus or top-priority arcs sort first. Tasks under arcs warned against (Non-goals, "ad-hoc cleanup" callouts) sort last.
-- **Secondary: frontmatter priority.** Lower `priority:` numbers first; default `999` sorts last. Tiebreak by oldest mtime.
+- **Secondary: frontmatter priority.** Lower `priority:` numbers first; default `999` sorts last.
+- **Tertiary: recency, leaning toward newer.** Among same-arc/same-priority candidates, prefer the more recently authored or updated task. Fresher tasks carry fresher context — the author's reasoning is more likely to still match the current state of the code, deps are less likely to have moved, and the spec is less likely to have drifted from the world it described. A meaningful recency gap (e.g. two months vs. yesterday) can also outweigh a one-point priority difference, since stale priority labels were assigned against a backlog that no longer looks the same.
 
 Take the top. Call the backend's `advance` recipe from `todo/`. The claim line stamps `claimer=` and `branch=`.
 

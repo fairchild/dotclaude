@@ -179,11 +179,13 @@ cmd_take() {
   ensure_symlinks
   local slug="${1:-}"
   if [[ -z "$slug" ]]; then
-    # Auto-pick: exclude any slug present in any shared in-flight dir
+    # Auto-pick: most-recent mtime first (recency lean — see worker-loop.md),
+    # excluding any slug already in flight in a sibling worktree. `ls -t` is
+    # portable across BSD/macOS and GNU/Linux.
     local in_flight
     in_flight=$(find "$shared_root" -mindepth 2 -maxdepth 2 -name '*.md' -type f -exec basename {} .md \; 2>/dev/null | sort -u)
     local f
-    for f in $(find backlog/todo -maxdepth 1 -name '*.md' -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | cut -d' ' -f2-); do
+    for f in $(ls -t backlog/todo/*.md 2>/dev/null || true); do
       local s; s=$(basename "$f" .md)
       if ! grep -qx "$s" <<<"$in_flight"; then
         slug="$s"; break

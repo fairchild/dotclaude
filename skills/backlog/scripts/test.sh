@@ -58,6 +58,13 @@ test_maildir_git() {
     # Status
     out=$("$BACKLOG" status)
     grep -q "^todo:" <<<"$out" && grep -q "^doing:" <<<"$out" && ok "status shows piles" || nok "status output malformed"
+
+    # Auto-pick recency lean: newer of two candidates wins
+    "$BACKLOG" add older plan >/dev/null
+    touch -t 202001010000 backlog/todo/older-plan.md
+    "$BACKLOG" add newer plan >/dev/null
+    "$BACKLOG" take >/dev/null
+    [[ -f backlog/doing/newer-plan.md ]] && ok "auto-pick favors newer mtime" || nok "auto-pick took older over newer"
   )
   rm -rf "$tmp"
 }
