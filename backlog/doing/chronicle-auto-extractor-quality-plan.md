@@ -154,3 +154,6 @@ This plan came out of a broader conversation about the "is chronicle too bloated
 - **Sketch C** — deprecation-only Phase 1 (prune retired commands from the Help table). Recommended as the next ergonomic tweak; separate backlog item if pursued.
 
 This plan is **Phase 2 of that conversation** — the concrete engineering change that compounds all three sketches because it improves the underlying data quality everything reads from.
+
+---
+- 2026-05-24T06:24:20Z advanced to=doing claimer=conductor:lagos-v2 branch=c-backlog-worker
