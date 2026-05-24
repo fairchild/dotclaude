@@ -39,6 +39,10 @@ fi
 
 backlog_require_git
 
+# Operate at the worktree root so `backlog/...` paths resolve correctly
+# regardless of which subdirectory the operator was in when invoking.
+cd "$(git rev-parse --show-toplevel)"
+
 # `setup` runs in the entrypoint — AGENTS.md doesn't exist yet.
 if [[ "$cmd" == "setup" ]]; then
   backend=""

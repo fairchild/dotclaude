@@ -106,6 +106,23 @@ EOF
   rm -rf "$tmp"
 }
 
+test_subdir_invocation() {
+  echo "=== subdir invocation ==="
+  local tmp; tmp=$(mktemp -d)
+  ( cd "$tmp"
+    git init -q -b main
+    git config user.email t@t && git config user.name t
+    git commit -qm "root" --allow-empty
+    "$BACKLOG" setup --backend=maildir-git >/dev/null
+    "$BACKLOG" add sample plan >/dev/null
+    # cd into a subdir and re-invoke — should still find backlog/
+    mkdir -p some/deep/subdir
+    out=$(cd some/deep/subdir && "$BACKLOG" status 2>&1)
+    grep -q "^todo: 1" <<<"$out" && ok "status works from subdir" || nok "status failed from subdir (got: $out)"
+  )
+  rm -rf "$tmp"
+}
+
 test_setup_guards() {
   echo "=== setup guards ==="
   local tmp out
@@ -224,6 +241,7 @@ test_cross_worktree_race() {
 test_maildir_git
 test_maildir_shared
 test_cross_worktree_race
+test_subdir_invocation
 test_setup_guards
 
 echo

@@ -90,33 +90,18 @@ Additional keys an author writes are preserved but not interpreted by any recipe
 Gather **slug** (kebab-case), **category** (`plan` / `followup` / `task-list` / `ideas`, filename suffix), and a description.
 
 ```bash
-slug=backlog-maildir
-category=plan
-filename="backlog/todo/${slug}-${category}.md"
-mkdir -p backlog/todo
-cat > "$filename" <<'EOF'
----
-priority: 2
-# timeout: 3d
-# dependencies:
-#   other-slug: "why it blocks this"
----
-
-# Backlog Maildir
-
-[problem statement, key decisions, phases, references, acceptance criteria]
-
----
-
-EOF
-git add "$filename" && git commit -m "add($slug)"
+scripts/backlog.sh add <slug> [category]
+# then edit backlog/todo/<slug>-<category>.md to fill in
+# frontmatter (priority/timeout/dependencies) and the body
 ```
+
+The script writes a skeleton file in `backlog/todo/` and commits with `add(<slug>-<category>)`. Edit the file in-place to fill in the spec (frontmatter + description); follow-up commits to the same file before claim are fine.
 
 Quality: write enough that a fresh session can execute without ever having met you — specific paths, verification commands, deps declared if any. Commit before anyone can claim.
 
 ## Working the backlog
 
-For advance, progress, cancel, fail, rescue, retry, status, and groom — the verb semantics plus the rules workers must follow — see `references/worker.md`. The bash for each verb lives in the backend file declared by `backlog/AGENTS.md` (default `references/backends/maildir-git.md`). For extending the pipeline with intermediate dirs (e.g. `reviewing/`) and how `advance` reads the ordering, see `references/pipeline.md`.
+For advance, progress, cancel, fail, rescue, retry, status, and groom — the verb semantics plus the rules workers must follow — see `references/worker.md`. The canonical implementation lives in `scripts/` (invoke `scripts/backlog.sh <verb>`); the backend declaration in `backlog/AGENTS.md` selects which implementation runs. Mechanism prose for each backend: `references/backends/<name>.md`. For extending the pipeline with intermediate dirs (e.g. `reviewing/`) and how `advance` reads the ordering, see `references/pipeline.md`.
 
 ## Roadmap and reflection
 

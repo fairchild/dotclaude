@@ -116,16 +116,16 @@ common_dir=$(git rev-parse --git-common-dir)
 shared="$common_dir/backlog"
 mkdir -p "$shared/doing"
 
-# Move any in-flight files (often empty)
-for d in $(find backlog -mindepth 1 -maxdepth 1 -type d \
-           ! -name todo ! -name done ! -name failed -printf '%f\n'); do
+# Move any in-flight files (often empty). Portable across BSD/GNU find.
+for path in backlog/*/; do
+  d=$(basename "${path%/}")
+  case "$d" in todo|done|failed) continue ;; esac
   mkdir -p "$shared/$d"
   for f in "backlog/$d"/*.md; do
     [[ -f "$f" ]] || continue
     git rm "$f" && mv "$f" "$shared/$d/$(basename "$f")"
   done
-  rmdir "backlog/$d" 2>/dev/null
-  rm -rf "backlog/$d" 2>/dev/null
+  rm -rf "backlog/$d"
   ln -s "$shared/$d" "backlog/$d"
   grep -qxF "backlog/$d" .gitignore || echo "backlog/$d" >> .gitignore
 done
