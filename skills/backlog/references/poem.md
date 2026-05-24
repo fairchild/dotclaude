@@ -1,6 +1,6 @@
 ---
-name: backlog
-description: Markdown task backlog and project roadmap (backlog/{todo,doing,done,failed}/, backlog/ROADMAP.md) for adding, taking, recovering, recording progress, completing, cancelling, reopening, releasing, failing, grooming, or reflecting on backlog priorities and roadmap direction.
+name: backlog-poem
+description: Markdown task backlog and project roadmap (backlog/{todo,doing,done,failed}/, backlog/ROADMAP.md) for adding, advancing, recording progress, rescuing, cancelling, retrying, failing, grooming, or reflecting on backlog priorities and roadmap direction.
 license: Apache-2.0
 ---
 
@@ -15,10 +15,14 @@ The folder it lives in *is* its state.
     done/    finished — or cancelled, the log line decides
     failed/  out of tries
 
-To claim is to move:
+Tasks move forward; there is no backward verb.
+A pipeline of dirs (default `todo → doing → done`)
+declared in `AGENTS.md` when it grows.
+
+To claim is to advance:
 `git mv todo/X.md doing/X.md`.
 Two agents reaching for the same file
-collide at the merge — loud, honest,
+collide at the merge — loudly,
 the right way to fail.
 
 ## The file, halved
@@ -39,13 +43,13 @@ problem, decisions, phases, acceptance.
 
 ---
 
-- 2026-05-16T14:22:00Z started   claimer=… branch=…
-- 2026-05-16T16:45:00Z progress  | prototype green
-- 2026-05-17T11:03:00Z completed PR=…
+- 2026-05-16T14:22:00Z advanced to=doing  claimer=… branch=…
+- 2026-05-16T16:45:00Z progress           | prototype green
+- 2026-05-17T11:03:00Z advanced to=done   | PR=…
 ```
 
 The top half freezes on first commit
-(only `reopen` may thaw it).
+(only `retry` may thaw it).
 The bottom half is append-only —
 each worker leaves a line and moves on.
 Verbs and recipes: `worker.md`.
@@ -74,9 +78,14 @@ Then commit, before anyone can claim.
 
 ## Working
 
-Take, recover, progress, complete,
-release, cancel, fail, reopen, status, groom —
+Advance, progress, cancel,
+fail, rescue, retry, status, groom —
 recipes and rules in `worker.md`.
+Pipeline shape and how `advance` walks it: `pipeline.md`.
+
+A task that can't proceed is `fail`ed honestly;
+an operator may `retry` it later, back to `todo/`.
+Done is done — revisits go in new tasks that name the old.
 
 ## Above the queue
 

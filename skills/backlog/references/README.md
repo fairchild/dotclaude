@@ -4,10 +4,11 @@ A maildir-style task tracker. Each task is a markdown file; its location (`todo/
 
 ## Philosophy
 
-- **Location is status.** No status field to keep in sync, no parser to write. `ls doing/` is in-flight work.
+- **Location is status.** No status field to keep in sync, no parser to write. The dir a task is in tells you where it is in the pipeline.
+- **No backward verb.** A task that can't proceed gets `fail`ed (with reason) and may be `retry`ed later. The log is honest about what happened — no "release" pretending the work wasn't tried.
 - **Comprehensive content.** Each task carries enough context for a fresh session to execute without the original conversation.
 - **Append-only log.** Frontmatter and description are author-set at creation; the bullet log below the `---` divider grows by `echo >> file && git commit`. The log *is* the state — no separate mutable claim fields to drift out of sync.
-- **Single writer.** Between take and complete, only the claiming agent appends. The maildir mv is the actual lock; the `started` block is documentation.
+- **Single writer.** Between the first `advance` and the final exit, only the claiming agent appends. The maildir mv is the actual lock; the `advanced to=doing` log line is documentation.
 - **Graph-native deps.** `dependencies:` is a map of slugs; each task declares its own preconditions. Parallel by default; ordering encoded in the chain itself, not in any single task.
 - **No scripts.** Every verb is a small bash recipe the agent runs inline (`git mv` + heredoc append). The skill *is* the spec; no codepath drift between docs and behaviour.
 
@@ -32,33 +33,42 @@ append-only bullet log of timestamped events.
 Log line format: `- {ISO UTC} {kind} key=value ... [| free prose]`.
 One line per event; long-form detail goes in the commit body.
 
+The default pipeline is `todo → doing → done`. Projects may add
+intermediate dirs (e.g. `reviewing/`) by declaring a `## Pipeline`
+section in `backlog/AGENTS.md`. There is no backward verb.
+
 Six verbs — each is an optional `git mv` + an `echo` append + a `git
 commit` (create any missing directory as needed):
 
-- **take**: `git mv backlog/todo/X.md backlog/doing/X.md`; append
-  `- $ts started claimer=YOU branch=BRANCH`. The mv is your lock.
+- **advance**: forward one step in the pipeline. `git mv` from the
+  current dir to the next; append `- $ts advanced to=NEXT` with
+  `claimer=YOU branch=BRANCH` only on entry from `todo/` (that's the
+  claim). Optional `| PR=URL` on advance to `done/`. The first
+  advance is your lock.
 - **progress**: append `- $ts progress | what just got done` to the
-  file in `doing/`. Write semantically so a future claimer can skip
-  already-done activities.
-- **complete**: `git mv` to `done/`; append
-  `- $ts completed PR=URL_IF_ANY`.
-- **recover**: pick up a `doing/` task whose claim has exceeded its
+  file in its in-flight dir. Write semantically so a future claimer
+  can skip already-done activities.
+- **rescue**: pick up an in-flight task whose claim has exceeded its
   timeout (declared `timeout:` in frontmatter or 7d default). In
-  place — no `git mv`. Append `- $ts recovered claimer=YOU
+  place — no `git mv`. Append `- $ts rescued claimer=YOU
   branch=BRANCH`. Verify staleness first; refuse if the existing
   claim is still active. Then read prior progress notes to skip
   already-done work.
-- **release**: give your claim back. `git mv` to `todo/`; append
-  `- $ts released | reason`.
-- **fail**: dead-letter after retries exhausted. `git mv` to
-  `backlog/failed/`; append `- $ts failed | reason`.
+- **fail**: dead-letter when work can't proceed. `git mv` to
+  `backlog/failed/`; append `- $ts failed | reason`. There is no
+  "release back to todo" — fail honestly, retry deliberately.
+- **cancel**: abandon as no-longer-worth-doing. `git mv` to `done/`;
+  append `- $ts cancelled | reason`.
+- **retry**: revive a failed task. `git mv` from `backlog/failed/`
+  back to `backlog/todo/`; append `- $ts retried | reason`. Does NOT
+  work on `done/` tasks — write a new task instead.
 
 Every verb commits after appending. `cat` and `git log --follow` both
 tell the file's story; they stay synchronized because every action is
 one bullet plus one commit.
 
-Now tell me what to do (e.g. "take the next task", "what's in
-doing/?", "complete the auth-migration task with PR https://...").
+Now tell me what to do (e.g. "advance the next task", "what's in
+doing/?", "advance the auth-migration task to done with PR https://...").
 ```
 
 ## Related Projects
