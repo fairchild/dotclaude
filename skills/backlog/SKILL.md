@@ -1,6 +1,6 @@
 ---
 name: backlog
-description: Markdown task backlog and project roadmap (backlog/{todo,doing,done,failed}/, backlog/ROADMAP.md) for adding, advancing, recording progress, rescuing, cancelling, retrying, failing, grooming, or reflecting on backlog priorities and roadmap direction.
+description: Markdown task backlog and project roadmap (backlog/{todo,doing,done,failed}/, backlog/ROADMAP.md) for adding, advancing, recording progress, rescuing, cancelling, retrying, failing, maintenance, or reflecting on backlog priorities and roadmap direction.
 license: Apache-2.0
 ---
 
@@ -15,7 +15,29 @@ A task tracker shaped like a maildir. Each task is one markdown file; its direct
 
 The default pipeline is `todo → doing → done`. A project may add intermediate in-flight directories (e.g. `reviewing/`) by declaring the pipeline in `backlog/AGENTS.md`. See `references/pipeline.md`.
 
-To claim is to advance: `git mv backlog/todo/X.md backlog/doing/X.md`. Two agents racing for the same file collide at merge — the right failure mode, not silent double-work.
+To claim is to advance from `todo/` to the first in-flight dir. The backend declared by `backlog/AGENTS.md` provides the lock mechanism — `maildir-git` lets racing `git mv`s collide at merge; `maildir-shared` uses an atomic create in a git-common-dir shared directory so the race is caught at claim time across worktrees.
+
+## Slash invocation
+
+Invokable as `/backlog <subcommand> [args]`. The canonical mechanism is `scripts/backlog.sh` — it reads `backlog/AGENTS.md`, detects the backend, and dispatches. Agents should prefer the script over re-implementing bash inline.
+
+| Subcommand | Script call | Semantics |
+|---|---|---|
+| `/backlog setup` | `scripts/backlog.sh setup --backend=<maildir-git\|maildir-shared>` | One-time scaffold: dirs, AGENTS.md, ROADMAP skeleton, symlinks + .gitignore for `maildir-shared`. Backend flag is **required** — the script refuses without it and prints a heuristic hint based on `git worktree list`. |
+| `/backlog add <slug> [category]` | `scripts/backlog.sh add <slug> [category]` | Create new task in `todo/` |
+| `/backlog take [slug]` | `scripts/backlog.sh take [slug]` | Claim from `todo/` (auto-pick if no slug) |
+| `/backlog advance <slug>` | `scripts/backlog.sh advance <slug>` | One forward step along the pipeline |
+| `/backlog progress <note>` | `scripts/backlog.sh progress "<note>"` | Append a progress line to the current claim |
+| `/backlog cancel <slug> <reason>` | `scripts/backlog.sh cancel <slug> "<reason>"` | Abandon an in-flight task |
+| `/backlog fail <slug> <reason>` | `scripts/backlog.sh fail <slug> "<reason>"` | Dead-letter an in-flight task |
+| `/backlog rescue <slug>` | `scripts/backlog.sh rescue <slug>` | Take over a stale claim |
+| `/backlog retry <slug> <reason>` | `scripts/backlog.sh retry <slug> "<reason>"` | Move from `failed/` back to `todo/` |
+| `/backlog status` | `scripts/backlog.sh status` | Counts per state + recent in-flight |
+| `/backlog maintain` | read `references/maintain.md` | Advisory walk over buckets (agent-judgment, no script) |
+| `/backlog worker` | follow `references/worker-loop.md` | Full loop: load + maintain + rank + claim + execute + close |
+| `/backlog` (no args) | — | Skill loads; agent infers intent from conversation context |
+
+The full script path from a deployed dotclaude is `~/.claude/skills/backlog/scripts/backlog.sh`. Semantics for each verb live in `references/worker.md`; mechanism details (what the script actually does) live in `references/backends/<name>.md`. The test harness `scripts/test.sh` exercises both backends end-to-end including a real `git worktree`-based race test.
 
 ## File shape
 
@@ -68,33 +90,18 @@ Additional keys an author writes are preserved but not interpreted by any recipe
 Gather **slug** (kebab-case), **category** (`plan` / `followup` / `task-list` / `ideas`, filename suffix), and a description.
 
 ```bash
-slug=backlog-maildir
-category=plan
-filename="backlog/todo/${slug}-${category}.md"
-mkdir -p backlog/todo
-cat > "$filename" <<'EOF'
----
-priority: 2
-# timeout: 3d
-# dependencies:
-#   other-slug: "why it blocks this"
----
-
-# Backlog Maildir
-
-[problem statement, key decisions, phases, references, acceptance criteria]
-
----
-
-EOF
-git add "$filename" && git commit -m "add($slug)"
+scripts/backlog.sh add <slug> [category]
+# then edit backlog/todo/<slug>-<category>.md to fill in
+# frontmatter (priority/timeout/dependencies) and the body
 ```
+
+The script writes a skeleton file in `backlog/todo/` and commits with `add(<slug>-<category>)`. Edit the file in-place to fill in the spec (frontmatter + description); follow-up commits to the same file before claim are fine.
 
 Quality: write enough that a fresh session can execute without ever having met you — specific paths, verification commands, deps declared if any. Commit before anyone can claim.
 
 ## Working the backlog
 
-For advance, progress, cancel, fail, rescue, retry, status, and groom — the verb recipes plus the rules workers must follow — see `references/worker.md`. For extending the pipeline with intermediate dirs (e.g. `reviewing/`) and how `advance` reads the ordering, see `references/pipeline.md`.
+For advance, progress, cancel, fail, rescue, retry, status, and maintain — the verb semantics plus the rules workers must follow — see `references/worker.md`. The canonical implementation lives in `scripts/` (invoke `scripts/backlog.sh <verb>`); the backend declaration in `backlog/AGENTS.md` selects which implementation runs. Mechanism prose for each backend: `references/backends/<name>.md`. For extending the pipeline with intermediate dirs (e.g. `reviewing/`) and how `advance` reads the ordering, see `references/pipeline.md`.
 
 ## Roadmap and reflection
 
@@ -102,7 +109,15 @@ For advance, progress, cancel, fail, rescue, retry, status, and groom — the ve
 
 ## References
 
-- `references/worker.md` — verb recipes for workers (advance, progress, cancel, fail, rescue, retry, status, groom)
+- `scripts/backlog.sh` — canonical dispatch entrypoint; reads `backlog/AGENTS.md` to detect backend
+- `scripts/lib.sh` — shared helpers (pipeline parser, timeout parser, claimer detection, divider resilience)
+- `scripts/backlog-maildir-git.sh` — maildir-git implementation
+- `scripts/backlog-maildir-shared.sh` — maildir-shared implementation
+- `scripts/test.sh` — full verb cycle + cross-worktree race harness on temp repos
+- `references/worker.md` — verb semantics for workers (advance, progress, cancel, fail, rescue, retry, status, maintain)
+- `references/worker-loop.md` — canonical `/backlog worker` recipe (load, maintain, rank, claim, execute, close, report)
+- `references/backends/maildir-git.md` — default backend; mechanism docs for git-tracked maildir
+- `references/backends/maildir-shared.md` — multi-worktree backend; mechanism docs for git-common-dir shared dir
 - `references/pipeline.md` — declaring the pipeline; how `advance` knows where to go; conventions for intermediate dirs
 - `references/agents-schema.md` — frontmatter schema, log line format, kinds table, reading-state queries
 - `references/parallel-agents.md` — distributed-systems patterns and design rationale
