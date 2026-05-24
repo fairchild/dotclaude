@@ -8,6 +8,8 @@ license: Apache-2.0
 
 Persistent memory and evolving personality for AI teammates.
 
+> **Related:** For session journaling see [chronicle](../chronicle/SKILL.md). For persona/profile mechanics see [persona-memory](../persona-memory/SKILL.md).
+
 ## Usage
 
 ```

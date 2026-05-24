@@ -5,8 +5,6 @@ description: Use when the user wants to list, search, install, remove, inspect, 
   "check my skills for issues", or "install a skill". Also use when checking skill health
   across agents (Claude Code, Codex, Agents CLI).
 license: Apache 2.0
-metadata:
-  status: experimental
 ---
 
 # Skills Manager

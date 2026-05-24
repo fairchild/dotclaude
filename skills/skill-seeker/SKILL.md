@@ -4,6 +4,7 @@ description: EXPERIMENTAL — only use when explicitly requested. Generate Claud
 license: Apache 2.0
 metadata:
   status: experimental
+  experimental_reason: "Generated skill quality varies by source corpus and still requires explicit human review before installation."
 ---
 
 # Skill Seeker

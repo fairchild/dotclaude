@@ -4,6 +4,7 @@ description: Set up Cloudflare Workers deployment for web applications with GitH
 license: Apache-2.0
 metadata:
   status: experimental
+  experimental_reason: "Deployment patterns are useful but not yet validated across enough project shapes and Cloudflare account setups."
 ---
 
 # Cloudflare Workers Deployment
