@@ -37,14 +37,33 @@ if [[ "$cmd" == "" || "$cmd" == "-h" || "$cmd" == "--help" ]]; then
   usage; exit 0
 fi
 
+backlog_require_git
+
 # `setup` runs in the entrypoint — AGENTS.md doesn't exist yet.
 if [[ "$cmd" == "setup" ]]; then
-  backend="maildir-git"
+  backend=""
   for arg in "$@"; do
     case "$arg" in
       --backend=*) backend="${arg#--backend=}" ;;
     esac
   done
+  if [[ -z "$backend" ]]; then
+    # Heuristic hint, but don't auto-pick — force the operator to choose so
+    # the decision is recorded.
+    wt_count=$(git worktree list 2>/dev/null | wc -l | tr -d ' ')
+    hint="maildir-git (single worktree)"
+    [[ "$wt_count" -gt 1 ]] && hint="maildir-shared (>1 worktree detected)"
+    cat >&2 <<EOF
+setup requires --backend=<maildir-git|maildir-shared>.
+
+  maildir-git    — everything committed; claim is \`git mv\`. Single-worktree friendly.
+  maildir-shared — todo/done committed; in-flight set lives in git-common-dir
+                   shared across worktrees. Atomic claim via O_EXCL.
+
+This clone has $wt_count worktree(s). Likely fit: $hint.
+EOF
+    exit 2
+  fi
   case "$backend" in
     maildir-git|maildir-shared) ;;
     *) echo "unknown backend: $backend (expected maildir-git or maildir-shared)" >&2; exit 1 ;;

@@ -149,7 +149,12 @@ cmd_advance() {
       echo "claim conflict: $slug already in flight (another worktree)" >&2
       exit 1
     fi
-    git rm "$src" >/dev/null
+    # If git rm fails, roll back the shared-file create so the slug stays takeable.
+    if ! git rm "$src" >/dev/null 2>&1; then
+      rm -f "$dst"
+      echo "claim rollback: git rm failed for $src" >&2
+      exit 1
+    fi
     backlog_ensure_divider "$dst"
     local claimer branch
     claimer=$(backlog_claimer); branch=$(backlog_branch)
@@ -179,19 +184,27 @@ cmd_take() {
   ensure_symlinks
   local slug="${1:-}"
   if [[ -z "$slug" ]]; then
-    # Auto-pick: most-recent mtime first (recency lean — see worker-loop.md),
-    # excluding any slug already in flight in a sibling worktree. `ls -t` is
-    # portable across BSD/macOS and GNU/Linux.
+    # Auto-pick: lower priority first, recency tiebreaker, skip unresolved deps,
+    # exclude slugs already in flight in any sibling worktree. Arc-aware
+    # ranking lives in the worker loop (which reads ROADMAP.md).
     local in_flight
     in_flight=$(find "$shared_root" -mindepth 2 -maxdepth 2 -name '*.md' -type f -exec basename {} .md \; 2>/dev/null | sort -u)
-    local f
+    local best="" best_prio="" best_mtime=""
+    local f s p mt
     for f in $(ls -t backlog/todo/*.md 2>/dev/null || true); do
-      local s; s=$(basename "$f" .md)
-      if ! grep -qx "$s" <<<"$in_flight"; then
-        slug="$s"; break
+      s=$(basename "$f" .md)
+      grep -qx "$s" <<<"$in_flight" && continue       # already claimed elsewhere
+      backlog_deps_resolved "$f" || continue
+      p=$(backlog_priority "$f")
+      mt=$(stat -f '%m' "$f" 2>/dev/null || stat -c '%Y' "$f" 2>/dev/null)
+      if [[ -z "$best" ]] \
+         || (( p < best_prio )) \
+         || ( (( p == best_prio )) && (( mt > best_mtime )) ); then
+        best="$f"; best_prio="$p"; best_mtime="$mt"
       fi
     done
-    [[ -z "$slug" ]] && { echo "no available tasks" >&2; exit 0; }
+    [[ -z "$best" ]] && { echo "no available tasks" >&2; exit 0; }
+    slug=$(basename "$best" .md)
   fi
   cmd_advance "$slug"
 }

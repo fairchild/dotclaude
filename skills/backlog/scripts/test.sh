@@ -65,6 +65,74 @@ test_maildir_git() {
     "$BACKLOG" add newer plan >/dev/null
     "$BACKLOG" take >/dev/null
     [[ -f backlog/doing/newer-plan.md ]] && ok "auto-pick favors newer mtime" || nok "auto-pick took older over newer"
+
+    # Priority beats recency
+    "$BACKLOG" add lowprio plan >/dev/null
+    cat > backlog/todo/highprio-plan.md <<'EOF'
+---
+priority: 1
+---
+
+# High priority
+
+---
+EOF
+    git add backlog/todo/highprio-plan.md && git commit -qm "add(highprio)"
+    touch -t 202001010000 backlog/todo/highprio-plan.md   # older mtime
+    "$BACKLOG" take >/dev/null
+    [[ -f backlog/doing/highprio-plan.md ]] \
+      && ok "auto-pick honors priority over recency" \
+      || nok "auto-pick ignored priority"
+
+    # Deps: skip task whose dep isn't in done/
+    cat > backlog/todo/blocked-by-dep-plan.md <<'EOF'
+---
+priority: 1
+dependencies:
+  nonexistent-dep: "must exist first"
+---
+
+# Blocked
+
+---
+EOF
+    git add backlog/todo/blocked-by-dep-plan.md && git commit -qm "add(blocked-by-dep)"
+    "$BACKLOG" add unblocked plan >/dev/null
+    "$BACKLOG" take >/dev/null
+    [[ -f backlog/doing/unblocked-plan.md ]] \
+      && ok "auto-pick skips tasks with unresolved deps" \
+      || nok "auto-pick claimed a task with unresolved deps"
+  )
+  rm -rf "$tmp"
+}
+
+test_setup_guards() {
+  echo "=== setup guards ==="
+  local tmp out
+  tmp=$(mktemp -d)
+  ( cd "$tmp"
+    # Not in a git repo
+    out=$("$BACKLOG" status 2>&1 || true)
+    if grep -q "not inside a git repository" <<<"$out"; then
+      ok "non-git-repo refused"
+    else
+      nok "non-git-repo not refused (got: $out)"
+    fi
+  )
+  rm -rf "$tmp"
+
+  tmp=$(mktemp -d)
+  ( cd "$tmp"
+    git init -q -b main
+    git config user.email t@t && git config user.name t
+    git commit -qm "root" --allow-empty
+    # setup with no --backend should refuse
+    out=$("$BACKLOG" setup 2>&1 || true)
+    if grep -q 'requires --backend' <<<"$out"; then
+      ok "setup without --backend refused"
+    else
+      nok "setup without --backend silently picked a default (got: $out)"
+    fi
   )
   rm -rf "$tmp"
 }
@@ -156,6 +224,7 @@ test_cross_worktree_race() {
 test_maildir_git
 test_maildir_shared
 test_cross_worktree_race
+test_setup_guards
 
 echo
 echo "=== summary ==="

@@ -127,14 +127,23 @@ cmd_advance() {
 cmd_take() {
   local slug="${1:-}"
   if [[ -z "$slug" ]]; then
-    # Auto-pick: most-recent mtime first (recency lean — see worker-loop.md).
-    # `ls -t` is portable across BSD/macOS and GNU/Linux. Priority + arc-aware
-    # ranking is left to callers; the script defaults to "freshest context wins"
-    # so the script-only path doesn't quietly prefer stale tasks.
-    local f
-    f=$(ls -t backlog/todo/*.md 2>/dev/null | head -1 || true)
-    [[ -z "$f" ]] && { echo "no available tasks" >&2; exit 0; }
-    slug=$(basename "$f" .md)
+    # Auto-pick: lower priority first, recency tiebreaker (newer wins),
+    # skipping tasks with unresolved deps. Arc-aware ranking is left to
+    # the worker loop (which reads ROADMAP.md).
+    local best="" best_prio="" best_mtime=""
+    local f p mt
+    for f in $(ls -t backlog/todo/*.md 2>/dev/null || true); do
+      backlog_deps_resolved "$f" || continue
+      p=$(backlog_priority "$f")
+      mt=$(stat -f '%m' "$f" 2>/dev/null || stat -c '%Y' "$f" 2>/dev/null)
+      if [[ -z "$best" ]] \
+         || (( p < best_prio )) \
+         || ( (( p == best_prio )) && (( mt > best_mtime )) ); then
+        best="$f"; best_prio="$p"; best_mtime="$mt"
+      fi
+    done
+    [[ -z "$best" ]] && { echo "no available tasks" >&2; exit 0; }
+    slug=$(basename "$best" .md)
   fi
   cmd_advance "$slug"
 }

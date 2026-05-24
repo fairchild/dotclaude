@@ -93,3 +93,51 @@ backlog_ensure_divider() {
     printf '\n---\n' >> "$file"
   fi
 }
+
+# Read priority from frontmatter. Defaults to 999.
+backlog_priority() {
+  local file="$1" p
+  p=$(awk '/^---$/{n++; if(n==2) exit} n==1 && /^priority:/ {sub(/^priority:[[:space:]]*/, ""); print; exit}' "$file" 2>/dev/null)
+  [[ -z "$p" ]] && p=999
+  echo "$p"
+}
+
+# Read dependency slugs from frontmatter. Supports block-form (map) and array-form.
+# Prints one slug per line; empty output = no deps.
+backlog_deps() {
+  local file="$1"
+  awk '
+    /^---$/ { n++; if (n==2) exit; next }
+    n == 1 && /^dependencies:[[:space:]]*$/ { block=1; next }
+    n == 1 && /^dependencies:[[:space:]]*\[/ {
+      # Inline array form: dependencies: [a, b]
+      s = $0
+      sub(/^dependencies:[[:space:]]*\[/, "", s); sub(/\].*/, "", s)
+      gsub(/[ \t]/, "", s); n_items = split(s, items, ",")
+      for (i = 1; i <= n_items; i++) if (items[i] != "") print items[i]
+      next
+    }
+    block && /^[[:space:]]+[A-Za-z0-9_-]+/ {
+      line = $0
+      sub(/^[[:space:]]+/, "", line); sub(/[:[:space:]].*/, "", line)
+      print line; next
+    }
+    block && /^[^[:space:]]/ { block=0 }
+  ' "$file" 2>/dev/null
+}
+
+# Returns 0 if every dep slug resolves to a file under done/; 1 otherwise.
+backlog_deps_resolved() {
+  local file="$1" dep
+  while IFS= read -r dep; do
+    [[ -z "$dep" ]] && continue
+    [[ -f "backlog/done/${dep}.md" ]] || return 1
+  done < <(backlog_deps "$file")
+  return 0
+}
+
+# Guard: bail if not in a git repo.
+backlog_require_git() {
+  git rev-parse --git-dir >/dev/null 2>&1 \
+    || { echo "not inside a git repository" >&2; exit 1; }
+}

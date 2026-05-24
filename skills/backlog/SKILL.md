@@ -23,7 +23,7 @@ Invokable as `/backlog <subcommand> [args]`. The canonical mechanism is `scripts
 
 | Subcommand | Script call | Semantics |
 |---|---|---|
-| `/backlog setup` | `scripts/backlog.sh setup --backend=<maildir-git\|maildir-shared>` | One-time scaffold: dirs, AGENTS.md, ROADMAP skeleton, symlinks + .gitignore for `maildir-shared` |
+| `/backlog setup` | `scripts/backlog.sh setup --backend=<maildir-git\|maildir-shared>` | One-time scaffold: dirs, AGENTS.md, ROADMAP skeleton, symlinks + .gitignore for `maildir-shared`. Backend flag is **required** — the script refuses without it and prints a heuristic hint based on `git worktree list`. |
 | `/backlog add <slug> [category]` | `scripts/backlog.sh add <slug> [category]` | Create new task in `todo/` |
 | `/backlog take [slug]` | `scripts/backlog.sh take [slug]` | Claim from `todo/` (auto-pick if no slug) |
 | `/backlog advance <slug>` | `scripts/backlog.sh advance <slug>` | One forward step along the pipeline |
