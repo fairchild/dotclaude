@@ -3,7 +3,7 @@
 Deferred work, one markdown file per task. Location = status:
 
 - `todo/`  — available
-- `doing/` — claimed, in flight
+- `doing/` — claimed, in flight (symlink into git-common-dir shared dir)
 - `done/`  — completed (and cancelled — discriminated by the `cancelled` log line)
 - `failed/` — dead-letter for tasks that couldn't proceed (created on demand)
 
@@ -11,7 +11,7 @@ Use the `backlog` skill (add / advance / progress / cancel / fail / rescue / ret
 
 ## Backend
 
-`maildir-git` — everything in this directory is committed to git; claim is `git mv`. See `~/.claude/skills/backlog/references/backends/maildir-git.md`. (Will migrate to `maildir-shared` once that backend lands; see the task `backlog-pluggable-backends-plan.md`.)
+`maildir-shared` — `todo/`, `done/`, `failed/` are committed to git; `doing/` is a gitignored symlink into `$(git rev-parse --git-common-dir)/backlog/doing`, shared across all worktrees of this clone. Claim is an atomic file create in the shared dir — exactly one worktree wins when two race. See `~/.claude/skills/backlog/references/backends/maildir-shared.md`.
 
 ## Defaults
 
