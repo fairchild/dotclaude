@@ -1,0 +1,17 @@
+{
+  "generatedAt": "2026-05-24T20:34:21.901Z",
+  "totalBlocks": 181,
+  "byClass": {
+    "fallback": 147,
+    "narrative": 0,
+    "curator": 34,
+    "thin-other": 0
+  },
+  "byClassPct": {
+    "fallback": 81.2,
+    "narrative": 0,
+    "curator": 18.8,
+    "thin-other": 0
+  },
+  "recentFallbackRatio30d": 0.615
+}

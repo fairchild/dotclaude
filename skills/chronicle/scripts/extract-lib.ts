@@ -255,7 +255,7 @@ function buildExtractionPrompt(ctx: SessionContext): string {
   return parts.join("\n");
 }
 
-interface ExtractionResult {
+export interface ExtractionResult {
   summary: string;
   goal?: string;
   accomplished: string[];
@@ -313,8 +313,11 @@ export function slugify(text: string, maxLen = 40): string {
 
 /**
  * Generate fallback chronicle entry without API.
+ *
+ * Exported so the extract-bench classifier can pin its FALLBACK_PATTERNS
+ * regexes against the actual summary templates this function produces.
  */
-function fallbackEntry(ctx: SessionContext): ExtractionResult {
+export function fallbackEntry(ctx: SessionContext): ExtractionResult {
   // Build a meaningful summary from context rather than echoing the prompt
   const fileList = ctx.filesModified.slice(0, 3).join(", ");
   const summary = ctx.filesModified.length > 0
