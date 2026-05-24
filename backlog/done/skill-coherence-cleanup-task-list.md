@@ -111,3 +111,4 @@ All changes are to tracked skill files — `git revert` the commit.
 
 - 2026-05-24T06:27:22Z advanced to=doing claimer=fairchild@blue branch=codex-skill-coherence-cleanup
 - 2026-05-24T06:31:32Z progress | renamed SwiftUI skill, slimmed Chronicle entrypoint, promoted mature skills, and added related/experimental metadata
+- 2026-05-24T06:31:49Z advanced to=done
