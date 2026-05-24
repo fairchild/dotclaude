@@ -13,13 +13,21 @@ set -euo pipefail
 
 RUNTIME="$HOME/.claude"
 DEV_REPO="$HOME/code/dotclaude"
+LOG="$RUNTIME/deploy.log"
+
+# --- Logging: tee all output to deploy.log with timestamps ---
+# Rotate if > 100 KB
+[ -f "$LOG" ] && [ "$(wc -c < "$LOG")" -gt 102400 ] && mv "$LOG" "$LOG.1"
+exec > >(while IFS= read -r line; do printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$line"; done | tee -a "$LOG") 2>&1
 
 # --- Preflight ---
 
 if [ ! -d "$RUNTIME/.git" ]; then
-  echo "error: $RUNTIME is not a git repo — cannot deploy"
+  echo "session start: $RUNTIME is not a git repo — cannot deploy"
   exit 1
 fi
+
+echo "session start: HEAD=$(git -C "$RUNTIME" rev-parse --short HEAD)"
 
 # --- Remove dev symlinks ---
 

@@ -142,3 +142,7 @@ skills/code-council
 
 # maildir-shared backend — in-flight dir lives in git-common-dir
 backlog/doing
+
+# Deploy hook log (runtime audit trail, not source)
+/deploy.log
+/deploy.log.1
