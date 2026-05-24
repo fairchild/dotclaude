@@ -110,11 +110,11 @@ Per-repo configuration for the engineering skills (`to-issues`, `triage`, `to-pr
 
 ### Issue tracker
 
-Work is captured as markdown files under `backlog/` following the `backlog` skill convention — not GitHub Issues. See `docs/agents/issue-tracker.md`.
+Work lives as markdown files under `backlog/{todo,doing,done,failed}/` via the `backlog` skill — not GitHub Issues. State is directory location; the strategic layer is `backlog/ROADMAP.md`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
-Triage state lives in a `status:` frontmatter field on each backlog file, mapped to the five canonical roles. See `docs/agents/triage-labels.md`.
+The five canonical triage roles map to position in the pipeline + `priority:` frontmatter, not a separate label axis. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
