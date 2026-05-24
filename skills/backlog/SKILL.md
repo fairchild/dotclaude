@@ -125,6 +125,7 @@ For advance, progress, cancel, fail, rescue, retry, status, and groom — the ve
 ## References
 
 - `references/worker.md` — verb semantics for workers (advance, progress, cancel, fail, rescue, retry, status, groom)
+- `references/worker-loop.md` — canonical `/backlog worker` recipe (load, groom, rank, claim, execute, close, report)
 - `references/backends/maildir-git.md` — default backend; bash recipes for git-tracked maildir
 - `references/backends/maildir-shared.md` — multi-worktree backend; in-flight set lives under git-common-dir
 - `references/pipeline.md` — declaring the pipeline; how `advance` knows where to go; conventions for intermediate dirs

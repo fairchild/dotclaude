@@ -141,9 +141,9 @@ Groom is advisory by default. The one exception: for TIMED-OUT entries (author-d
 
 ---
 
-## Worker process design (exploratory)
+## Worker process design (rationale)
 
-Beyond the primitives, here's a sketch of what a working worker process looks like. **Out of scope for the skill itself** — read this as orientation for the *projects* that use the skill, not a contract the skill enforces.
+Beyond the primitives, the canonical worker loop now lives at `worker-loop.md` — the recipe `/backlog worker` runs. What follows is the rationale and design notes behind that loop: why these phases, what scheduling shapes the primitives enable, what failures each component handles.
 
 ### Core loop
 
