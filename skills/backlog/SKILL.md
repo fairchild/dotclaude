@@ -15,7 +15,7 @@ A task tracker shaped like a maildir. Each task is one markdown file; its direct
 
 The default pipeline is `todo → doing → done`. A project may add intermediate in-flight directories (e.g. `reviewing/`) by declaring the pipeline in `backlog/AGENTS.md`. See `references/pipeline.md`.
 
-To claim is to advance: `git mv backlog/todo/X.md backlog/doing/X.md`. Two agents racing for the same file collide at merge — the right failure mode, not silent double-work.
+To claim is to advance from `todo/` to the first in-flight dir. The backend declared by `backlog/AGENTS.md` provides the lock mechanism — `maildir-git` lets racing `git mv`s collide at merge; `maildir-shared` uses an atomic create in a git-common-dir shared directory so the race is caught at claim time across worktrees.
 
 ## File shape
 
@@ -94,7 +94,7 @@ Quality: write enough that a fresh session can execute without ever having met y
 
 ## Working the backlog
 
-For advance, progress, cancel, fail, rescue, retry, status, and groom — the verb recipes plus the rules workers must follow — see `references/worker.md`. For extending the pipeline with intermediate dirs (e.g. `reviewing/`) and how `advance` reads the ordering, see `references/pipeline.md`.
+For advance, progress, cancel, fail, rescue, retry, status, and groom — the verb semantics plus the rules workers must follow — see `references/worker.md`. The bash for each verb lives in the backend file declared by `backlog/AGENTS.md` (default `references/backends/maildir-git.md`). For extending the pipeline with intermediate dirs (e.g. `reviewing/`) and how `advance` reads the ordering, see `references/pipeline.md`.
 
 ## Roadmap and reflection
 
@@ -102,7 +102,9 @@ For advance, progress, cancel, fail, rescue, retry, status, and groom — the ve
 
 ## References
 
-- `references/worker.md` — verb recipes for workers (advance, progress, cancel, fail, rescue, retry, status, groom)
+- `references/worker.md` — verb semantics for workers (advance, progress, cancel, fail, rescue, retry, status, groom)
+- `references/backends/maildir-git.md` — default backend; bash recipes for git-tracked maildir
+- `references/backends/maildir-shared.md` — multi-worktree backend; in-flight set lives under git-common-dir
 - `references/pipeline.md` — declaring the pipeline; how `advance` knows where to go; conventions for intermediate dirs
 - `references/agents-schema.md` — frontmatter schema, log line format, kinds table, reading-state queries
 - `references/parallel-agents.md` — distributed-systems patterns and design rationale

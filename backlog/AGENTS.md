@@ -9,6 +9,10 @@ Deferred work, one markdown file per task. Location = status:
 
 Use the `backlog` skill (add / advance / progress / cancel / fail / rescue / retry / groom / status) to interact. There is no backward verb — work that can't proceed is `fail`ed and may be `retry`ed back to `todo/`. Schema and rules: `~/.claude/skills/backlog/references/agents-schema.md`.
 
+## Backend
+
+`maildir-git` — everything in this directory is committed to git; claim is `git mv`. See `~/.claude/skills/backlog/references/backends/maildir-git.md`. (Will migrate to `maildir-shared` once that backend lands; see the task `backlog-pluggable-backends-plan.md`.)
+
 ## Defaults
 
 Frontmatter is optional; recipes apply these defaults when fields are omitted:
