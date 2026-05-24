@@ -106,3 +106,7 @@ All changes are to tracked skill files — `git revert` the commit.
 - Skills audit from session (28 skills analyzed)
 - `.claude/CLAUDE.md` — skill status convention table
 - `skills/dotclaude-config/SKILL.md` — configuration guidance
+
+---
+
+- 2026-05-24T06:27:22Z advanced to=doing claimer=fairchild@blue branch=codex-skill-coherence-cleanup
