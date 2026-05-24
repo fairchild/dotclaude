@@ -1,6 +1,6 @@
 ---
 name: backlog-poem
-description: Markdown task backlog and project roadmap (backlog/{todo,doing,done,failed}/, backlog/ROADMAP.md) for adding, advancing, recording progress, rescuing, cancelling, retrying, failing, grooming, or reflecting on backlog priorities and roadmap direction.
+description: Markdown task backlog and project roadmap (backlog/{todo,doing,done,failed}/, backlog/ROADMAP.md) for adding, advancing, recording progress, rescuing, cancelling, retrying, failing, maintenance, or reflecting on backlog priorities and roadmap direction.
 license: Apache-2.0
 ---
 
@@ -79,7 +79,7 @@ Then commit, before anyone can claim.
 ## Working
 
 Advance, progress, cancel,
-fail, rescue, retry, status, groom —
+fail, rescue, retry, status, maintain —
 recipes and rules in `worker.md`.
 Pipeline shape and how `advance` walks it: `pipeline.md`.
 

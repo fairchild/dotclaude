@@ -139,3 +139,6 @@ skills/web-design-guidelines
 
 # Other external symlinks
 skills/code-council
+
+# maildir-shared backend — in-flight dir lives in git-common-dir
+backlog/doing
