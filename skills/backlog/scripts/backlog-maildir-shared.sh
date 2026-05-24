@@ -102,9 +102,12 @@ EOF
 cmd_add() {
   local slug="${1:?slug required}"
   local category="${2:-plan}"
-  local file="backlog/todo/${slug}-${category}.md"
+  local first_dir
+  first_dir="$(backlog_first_dir)"
+  [[ -z "$first_dir" ]] && first_dir="todo"
+  local file="backlog/${first_dir}/${slug}-${category}.md"
   [[ -f "$file" ]] && { echo "$file exists" >&2; exit 1; }
-  mkdir -p backlog/todo
+  mkdir -p "backlog/${first_dir}"
   cat > "$file" <<EOF
 # ${slug}
 

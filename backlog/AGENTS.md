@@ -23,9 +23,20 @@ Frontmatter is optional; recipes apply these defaults when fields are omitted:
 
 ## Pipeline
 
-`todo → doing → done`
+`inbox → todo → doing → done`
 
-The default pipeline. To add intermediate states (e.g. `reviewing/`), create the directory and update this line — `advance` reads it. See `~/.claude/skills/backlog/references/pipeline.md`.
+`inbox/` is the triage queue — `add` lands new tasks there. `todo/` holds items that are `ready-for-agent` by default; `take`/`worker` claim from `todo/` only. See `~/.claude/skills/backlog/references/pipeline.md`.
+
+## Triage integration
+
+This repo cooperates with Matt Pocock's `triage`/`to-issues`/`to-prd` skills via two named frontmatter keys whose presence indicates Matt's state and whose value carries the actionable context. See `docs/agents/triage-labels.md` for the full mapping.
+
+- `needs-info: <what's missing — specific questions for the reporter>` — used only on items in `inbox/`. Absence in `inbox/` means `needs-triage` (the default).
+- `ready-for-human: <what kind of human work is needed>` — used only on items in `todo/`. Absence in `todo/` means `ready-for-agent` (the default).
+- `out-of-scope: <reason or .out-of-scope/<slug>.md link>` — set when a wontfix-enhancement is `fail`ed.
+- `kind: bug | enhancement` — Matt's category role; required at triage time.
+
+These are author-set additional fields preserved by every recipe but not interpreted by them. The skill code doesn't gate on them; they're an interoperability convention.
 
 ## ROADMAP
 
