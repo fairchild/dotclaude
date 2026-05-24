@@ -120,20 +120,17 @@ This flow is self-contained — it uses `git worktree` directly, no external scr
 From here, follow the standard Workshop convention (detect commands, build layout, set up sidebar). The only differences:
 
 - **Project root** is `$WORKTREE_PATH`, not `~/code/<project>`
-- **Coder inbox** goes inside the worktree (the agent reads from here):
+- **Coder and caller share one inbox tree.** The `agent-inbox` skill resolves `.agents/inbox/` via `git rev-parse --git-common-dir`, so worktrees of the same repo see the same inbox. Create the coder's mailbox at the shared root:
   ```bash
-  mkdir -p "$WORKTREE_PATH"/.agents/inbox/coder/{new,tmp,archive}
+  SHARED_INBOX="$(cd "$WORKTREE_PATH" && dirname "$(git rev-parse --git-common-dir)")/.agents/inbox"
+  mkdir -p "$SHARED_INBOX/coder"/{new,tmp,archive}
+  mkdir -p "$SHARED_INBOX/<caller-name>"/{new,tmp,archive}
   ```
-- **Reply inbox** lives in the caller's directory — not the worktree. The calling session reads from its own cwd, so replies must land there. Use the calling session's name (not hardcoded — the caller might be any named session):
-  ```bash
-  # In the caller's directory (where the orchestrating session runs)
-  mkdir -p .agents/inbox/<caller-name>/{new,tmp,archive}
-  ```
-  When writing the coder's task, set `reply_to` to a **relative path** from the coder's inbox back to the caller's:
+  `reply_to` in the coder's task message uses the standard sibling form:
   ```yaml
-  reply_to: ../../../.agents/inbox/<caller-name>/
+  reply_to: ../<caller-name>/tmp/
   ```
-  If the caller is in a different repo/worktree, the relative path won't work — use `--add-dir` on the agent launch to grant write access (see Dispatching below).
+  Cross-repo callers (different clone) still need explicit `--add-dir` — see Dispatching below.
 - **Sidebar status** includes the branch context:
   ```bash
   cmux set-status "worktree" "$WORKTREE_PATH" --icon "arrow.triangle.branch" --color "#888888" --workspace <ws>
@@ -179,18 +176,16 @@ If `wt` (git-worktree skill) is installed, these shortcuts work:
 
 ## Dispatching an agent into the workshop
 
-The coder agent runs in the worktree but needs write access to the caller's inbox (which is outside its cwd). Grant access with `--add-dir`:
+Same-repo callers share the inbox tree via git-common-dir, so a single `--add-dir` on the shared inbox is enough:
 
 ```bash
-# CALLER_INBOX is the absolute path to the caller's .agents/inbox directory
+SHARED_INBOX="$(cd "$WORKTREE_PATH" && dirname "$(git rev-parse --git-common-dir)")/.agents/inbox"
 claude --dangerously-skip-permissions -n coder \
-  --add-dir .agents/inbox --add-dir "$CALLER_INBOX" \
-  "Check your inbox at .agents/inbox/coder/new/ and execute the task. Reply to the reply_to path in the inbox message."
+  --add-dir "$SHARED_INBOX" \
+  "Check your inbox at $SHARED_INBOX/coder/new/ and execute the task. Reply to the reply_to path in the inbox message."
 ```
 
-The agent needs `--add-dir` for both:
-- `.agents/inbox` — its own inbox in the worktree (relative, in cwd)
-- `$CALLER_INBOX` — the calling session's inbox (absolute, outside the worktree)
+Cross-repo callers (orchestrator in a different clone) still need a second `--add-dir` to the caller's inbox — the git-common-dir resolution only spans one repo's worktrees.
 
 ### Gotchas discovered during live testing
 

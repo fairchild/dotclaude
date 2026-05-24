@@ -70,18 +70,24 @@ if $is_active; then
   echo "Active session on $surface — stop hook will surface inbox on next turn"
 
 elif $is_idle; then
-  inbox_hint=""
+  # Resolve inbox root via git-common-dir (shared across worktrees), fall back to cwd.
+  if common=$(git rev-parse --git-common-dir 2>/dev/null); then
+    inbox_root="$(cd "$(dirname "$common")" && pwd)/.agents/inbox"
+  else
+    inbox_root="$PWD/.agents/inbox"
+  fi
+
   if [[ -n "$inbox_path" ]]; then
     inbox_hint="Check your inbox at ${inbox_path} and process the messages."
   else
-    inbox_hint="Check your inbox at .agents/inbox/${agent}/new/ and process the messages."
+    inbox_hint="Check your inbox at ${inbox_root}/${agent}/new/ and process the messages."
   fi
 
   # NOTE: --dangerously-skip-permissions is used here because the spawned session is
   # headless (no human at the terminal to approve). This is the current pragmatic
   # approach for agent-to-agent wake. A future alternative could use a permissions
   # profile or allowlist flag if Claude Code adds one.
-  cmd="echo '${inbox_hint}' | claude -p -n ${agent} --add-dir .agents/inbox --dangerously-skip-permissions"
+  cmd="echo '${inbox_hint}' | claude -p -n ${agent} --add-dir ${inbox_root} --dangerously-skip-permissions"
   cmux send --surface "$surface" "$cmd"
   cmux send-key --surface "$surface" Enter
   echo "Spawned new session on idle $surface for agent '$agent'"

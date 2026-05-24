@@ -8,12 +8,26 @@ description: File-based messaging between agents across any harness. Invoke this
 
 File-based messaging for agents across harnesses (Claude Code, Codex, Cursor, Gemini CLI, Warp, etc.). Just filesystem operations — `mkdir`, `cat`, `mv`.
 
+## Location
+
+The inbox lives next to the repository's common git dir, so all worktrees of the same clone share one inbox tree:
+
+```bash
+inbox_root="$(dirname "$(git rev-parse --git-common-dir 2>/dev/null)")/.agents/inbox"
+# Outside a git repo, fall back to:
+inbox_root="$PWD/.agents/inbox"
+```
+
+For a normal clone this is `<repo>/.agents/inbox/`. For a worktree it still resolves to the main repo's `.agents/inbox/`, so peers in different worktrees can reach each other without knowing where the others live. Hook scripts in `scripts/` use this resolution.
+
+The relative `.agents/inbox/<slug>/...` paths used in the examples below are illustrative — when scripting, resolve against `$inbox_root` so the location is unambiguous.
+
 ## Setup
 
 Pick a goal-oriented slug for yourself (see **Self-naming**), then create your inbox:
 
 ```bash
-mkdir -p .agents/inbox/<your-slug>/{new,tmp,archive}
+mkdir -p "$inbox_root/<your-slug>"/{new,tmp,archive}
 ```
 
 ## Send a message
@@ -90,7 +104,7 @@ Markdown with YAML frontmatter. Filename: `<YYYYMMDDTHHMMSS>-<slug>.md`
 
 ### Stop hook — check for new mail
 
-`scripts/check-inbox-hook.sh` scans `.agents/inbox/*/new/` from the working directory. Silent when empty — no configuration needed.
+`scripts/check-inbox-hook.sh` resolves the shared inbox via git-common-dir and scans `*/new/` under it. Silent when empty — no configuration needed.
 
 ### SessionStart hook — inbox summary
 
@@ -127,3 +141,17 @@ Behavior based on surface state:
 > **Note:** The spawned headless session uses `--dangerously-skip-permissions` because there is no human at the terminal to approve tool calls. This is the pragmatic approach for now — a future permissions profile or allowlist flag would be preferable.
 
 Requires cmux. See `cmux-orchestrator` skill for the full Wake-on-Reply pattern.
+
+## Migrating per-worktree inboxes
+
+If you accumulated inboxes under individual worktree directories before this change, move them into the shared location once and delete the per-worktree copies:
+
+```bash
+shared="$(dirname "$(git rev-parse --git-common-dir)")/.agents/inbox"
+mkdir -p "$shared"
+for wt in /path/to/worktree-a /path/to/worktree-b; do
+  [ -d "$wt/.agents/inbox" ] && cp -an "$wt/.agents/inbox"/* "$shared/" && rm -rf "$wt/.agents"
+done
+```
+
+`cp -an` is no-clobber so duplicate slugs survive (review and merge manually). Messages keep their format — no rewrite needed.

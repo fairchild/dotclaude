@@ -543,7 +543,7 @@ fi
 ```
 
 - **session-titles** → `cmux rename-workspace` to sync sidebar title
-- **agent-inbox** → `.agents/inbox/` for structured cross-workspace messaging
+- **agent-inbox** → `.agents/inbox/` for structured cross-workspace messaging. The path resolves via `git rev-parse --git-common-dir`, so all worktrees of one repo share an inbox tree — agents in sibling workspaces find each other without knowing the path.
 - **Any multi-step task** → `cmux set-progress` + `cmux log` for sidebar trail
 
 ## Quick Reference

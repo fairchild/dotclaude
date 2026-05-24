@@ -5,9 +5,14 @@
 
 set -euo pipefail
 
-root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+# Resolve inbox via git-common-dir (shared across worktrees), fall back to cwd when not in a repo.
+if common=$(git rev-parse --git-common-dir 2>/dev/null); then
+  inbox_root="$(cd "$(dirname "$common")" && pwd)/.agents/inbox"
+else
+  inbox_root="$PWD/.agents/inbox"
+fi
 agent="${CLAUDE_SESSION_NAME:-orchestrator}"
-inbox="$root/.agents/inbox/$agent/new"
+inbox="$inbox_root/$agent/new"
 
 [[ -d "$inbox" ]] || exit 0
 
@@ -19,7 +24,7 @@ shopt -u nullglob
 count=${#files[@]}
 [[ $count -eq 0 ]] && exit 0
 
-echo "📬 ${count} unread in .agents/inbox/${agent}/new/"
+echo "📬 ${count} unread in ${inbox}/"
 echo ""
 
 for f in "${files[@]}"; do
@@ -32,4 +37,4 @@ for f in "${files[@]}"; do
 done
 
 echo ""
-echo "Read with: cat .agents/inbox/${agent}/new/<file>"
+echo "Read with: cat ${inbox}/<file>"
