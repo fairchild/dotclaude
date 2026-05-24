@@ -13,6 +13,7 @@ Ask the operator:
 > Which backend? Choose one:
 > - **`maildir-git`** — single-worktree project. Everything committed to git; claim is `git mv`. Simplest; the default unless multi-worktree work is expected.
 > - **`maildir-shared`** — multi-worktree project (Conductor, parallel `git worktree`). In-flight files live in a git-common-dir shared dir; claim is atomic across worktrees of the clone.
+> - **`Custom`** — Create a custom backend.
 
 Default to `maildir-git` if the operator declines to choose. Recommend `maildir-shared` if `git worktree list` shows more than one worktree, or if the project hints at Conductor/cmux use.
 
@@ -31,7 +32,7 @@ Deferred work, one markdown file per task. Location = status:
 - `doing/` — claimed, in flight
 - `done/`  — completed (and cancelled — discriminated by the `cancelled` log line)
 
-Use the `backlog` skill (add / advance / progress / cancel / fail / rescue / retry / groom / status) to interact. There is no backward verb — work that can't proceed is `fail`ed and may be `retry`ed back to `todo/`. Schema and rules: the `backlog` skill's `references/agents-schema.md`.
+Use the `backlog` skill (add / advance / progress / cancel / fail / rescue / retry / maintain / status) to interact. There is no backward verb — work that can't proceed is `fail`ed and may be `retry`ed back to `todo/`. Schema and rules: the `backlog` skill's `references/agents-schema.md`.
 
 ## Backend
 
@@ -83,7 +84,7 @@ Deferred work, one markdown file per task. Location = status:
 - `doing/` — claimed, in flight (symlink into git-common-dir shared dir)
 - `done/`  — completed (and cancelled — discriminated by the `cancelled` log line)
 
-Use the `backlog` skill (add / advance / progress / cancel / fail / rescue / retry / groom / status) to interact. There is no backward verb — work that can't proceed is `fail`ed and may be `retry`ed back to `todo/`. Schema and rules: the `backlog` skill's `references/agents-schema.md`.
+Use the `backlog` skill (add / advance / progress / cancel / fail / rescue / retry / maintain / status) to interact. There is no backward verb — work that can't proceed is `fail`ed and may be `retry`ed back to `todo/`. Schema and rules: the `backlog` skill's `references/agents-schema.md`.
 
 ## Backend
 

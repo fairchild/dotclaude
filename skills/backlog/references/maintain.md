@@ -1,8 +1,8 @@
-# Maintain — the `groom` verb's buckets
+# Maintain — buckets and prompts
 
-Mechanical maintenance for the backlog. The `groom` verb (defined in `worker.md`) walks the buckets below and surfaces work needing attention; nothing moves automatically — the operator decides what to act on. For thinking-shaped work like reflecting on priorities or editing the roadmap, see `reflect.md` instead.
+Mechanical maintenance for the backlog. The `maintain` verb (defined in `worker.md`) walks the buckets below and surfaces work needing attention; nothing moves automatically — the operator decides what to act on. For thinking-shaped work like reflecting on priorities or editing the roadmap, see `reflect.md` instead.
 
-## When to groom
+## When to maintain
 
 - After merging a PR that resolved a task
 - Start of a session, before claiming
@@ -11,7 +11,7 @@ Mechanical maintenance for the backlog. The `groom` verb (defined in `worker.md`
 
 ## The prompt
 
-When the user asks to groom the backlog, walk each bucket below and print what you find. End with a counts-only "OK" line for everything else. In-flight dirs are enumerated by exclusion (anything under `backlog/` that isn't `todo/`, `done/`, or `failed/`).
+When the user asks to maintain the backlog, walk each bucket below and print what you find. End with a counts-only "OK" line for everything else. In-flight dirs are enumerated by exclusion (anything under `backlog/` that isn't `todo/`, `done/`, or `failed/`).
 
 ### `ADVANCED BUT NOT MOVED` (safe to auto-fix)
 
@@ -51,7 +51,7 @@ for d in $(find backlog -mindepth 1 -maxdepth 1 -type d ! -name todo ! -name don
 done
 ```
 
-Groom may auto-fail entries in this bucket — the timeout was author-authorized (or the documented default), so enforcing it is contract-keeping.
+Maintain may auto-fail entries in this bucket — the timeout was author-authorized (or the documented default), so enforcing it is contract-keeping.
 
 Suggested action: `fail` with a `timeout: ...` reason. An operator can `retry` later if the task is still worth doing. See `parallel-agents.md` for the advance-prelude vs janitor patterns.
 
@@ -95,4 +95,4 @@ in_flight=$(find backlog -mindepth 2 -maxdepth 2 -name '*.md' -type f ! -path 'b
 echo "OK: $todo in todo/, $in_flight in-flight (after subtracting items surfaced above)"
 ```
 
-Groom itself never moves files (one exception: it may fail author-authorized TIMED OUT entries — see `parallel-agents.md`). Operator runs the walk, acts on each bucket via its suggested action.
+Maintain itself never moves files (one exception: it may fail author-authorized TIMED OUT entries — see `parallel-agents.md`). Operator runs the walk, acts on each bucket via its suggested action.

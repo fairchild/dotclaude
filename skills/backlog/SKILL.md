@@ -1,6 +1,6 @@
 ---
 name: backlog
-description: Markdown task backlog and project roadmap (backlog/{todo,doing,done,failed}/, backlog/ROADMAP.md) for adding, advancing, recording progress, rescuing, cancelling, retrying, failing, grooming, or reflecting on backlog priorities and roadmap direction.
+description: Markdown task backlog and project roadmap (backlog/{todo,doing,done,failed}/, backlog/ROADMAP.md) for adding, advancing, recording progress, rescuing, cancelling, retrying, failing, maintenance, or reflecting on backlog priorities and roadmap direction.
 license: Apache-2.0
 ---
 
@@ -33,8 +33,8 @@ Invokable as `/backlog <subcommand> [args]`. The canonical mechanism is `scripts
 | `/backlog rescue <slug>` | `scripts/backlog.sh rescue <slug>` | Take over a stale claim |
 | `/backlog retry <slug> <reason>` | `scripts/backlog.sh retry <slug> "<reason>"` | Move from `failed/` back to `todo/` |
 | `/backlog status` | `scripts/backlog.sh status` | Counts per state + recent in-flight |
-| `/backlog groom` | read `references/maintain.md` | Advisory walk over buckets (agent-judgment, no script) |
-| `/backlog worker` | follow `references/worker-loop.md` | Full loop: load + groom + rank + claim + execute + close |
+| `/backlog maintain` | read `references/maintain.md` | Advisory walk over buckets (agent-judgment, no script) |
+| `/backlog worker` | follow `references/worker-loop.md` | Full loop: load + maintain + rank + claim + execute + close |
 | `/backlog` (no args) | — | Skill loads; agent infers intent from conversation context |
 
 The full script path from a deployed dotclaude is `~/.claude/skills/backlog/scripts/backlog.sh`. Semantics for each verb live in `references/worker.md`; mechanism details (what the script actually does) live in `references/backends/<name>.md`. The test harness `scripts/test.sh` exercises both backends end-to-end including a real `git worktree`-based race test.
@@ -101,7 +101,7 @@ Quality: write enough that a fresh session can execute without ever having met y
 
 ## Working the backlog
 
-For advance, progress, cancel, fail, rescue, retry, status, and groom — the verb semantics plus the rules workers must follow — see `references/worker.md`. The canonical implementation lives in `scripts/` (invoke `scripts/backlog.sh <verb>`); the backend declaration in `backlog/AGENTS.md` selects which implementation runs. Mechanism prose for each backend: `references/backends/<name>.md`. For extending the pipeline with intermediate dirs (e.g. `reviewing/`) and how `advance` reads the ordering, see `references/pipeline.md`.
+For advance, progress, cancel, fail, rescue, retry, status, and maintain — the verb semantics plus the rules workers must follow — see `references/worker.md`. The canonical implementation lives in `scripts/` (invoke `scripts/backlog.sh <verb>`); the backend declaration in `backlog/AGENTS.md` selects which implementation runs. Mechanism prose for each backend: `references/backends/<name>.md`. For extending the pipeline with intermediate dirs (e.g. `reviewing/`) and how `advance` reads the ordering, see `references/pipeline.md`.
 
 ## Roadmap and reflection
 
@@ -114,8 +114,8 @@ For advance, progress, cancel, fail, rescue, retry, status, and groom — the ve
 - `scripts/backlog-maildir-git.sh` — maildir-git implementation
 - `scripts/backlog-maildir-shared.sh` — maildir-shared implementation
 - `scripts/test.sh` — full verb cycle + cross-worktree race harness on temp repos
-- `references/worker.md` — verb semantics for workers (advance, progress, cancel, fail, rescue, retry, status, groom)
-- `references/worker-loop.md` — canonical `/backlog worker` recipe (load, groom, rank, claim, execute, close, report)
+- `references/worker.md` — verb semantics for workers (advance, progress, cancel, fail, rescue, retry, status, maintain)
+- `references/worker-loop.md` — canonical `/backlog worker` recipe (load, maintain, rank, claim, execute, close, report)
 - `references/backends/maildir-git.md` — default backend; mechanism docs for git-tracked maildir
 - `references/backends/maildir-shared.md` — multi-worktree backend; mechanism docs for git-common-dir shared dir
 - `references/pipeline.md` — declaring the pipeline; how `advance` knows where to go; conventions for intermediate dirs

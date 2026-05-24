@@ -26,9 +26,9 @@ Before reading any task file, load the project's lens:
 
 Note which backend is declared. The verb recipes you'll run depend on it.
 
-### 2 — Groom prelude
+### 2 — Maintain prelude
 
-Run `groom` (see `maintain.md`) once before claiming. Two things this catches that would otherwise bite mid-cycle:
+Run `maintain` (see `maintain.md`) once before claiming. Two things this catches that would otherwise bite mid-cycle:
 
 - `ADVANCED BUT NOT MOVED` — safe auto-fix. A previous worker marked done in the log but didn't `git mv`; complete the move silently.
 - `TIMED OUT` — surface to operator. Author-authorized timeouts may be auto-failed (per `maintain.md`); otherwise wait for direction.
@@ -115,8 +115,8 @@ Stateless — the next loop reads everything from the filesystem. Restart equals
 
 | What can go wrong                              | Where it's caught                              |
 |------------------------------------------------|------------------------------------------------|
-| Worker crashes mid-execution                   | Timeout (default `7d`); next loop's groom rescues or fails |
-| Worker advances to `done` but `git mv` fails  | `ADVANCED BUT NOT MOVED` bucket; safe auto-fix in next groom |
+| Worker crashes mid-execution                   | Timeout (default `7d`); next loop's maintain rescues or fails |
+| Worker advances to `done` but `git mv` fails  | `ADVANCED BUT NOT MOVED` bucket; safe auto-fix in next maintain |
 | Two workers race the same task (`maildir-shared`) | O_EXCL claim conflict at step 3; loser tries the next candidate |
 | Two workers race the same task (`maildir-git`) | Merge conflict; resolution is `fail` one, keep the other |
 | Spec premise turns out wrong                   | Step 5c — `fail` with reason; retry edits spec |

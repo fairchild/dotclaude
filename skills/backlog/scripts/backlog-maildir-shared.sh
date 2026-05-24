@@ -56,7 +56,7 @@ Deferred work, one markdown file per task. Location = status:
 - `doing/` — claimed, in flight (symlink into git-common-dir shared dir)
 - `done/`  — completed (and cancelled — discriminated by the `cancelled` log line)
 
-Use the `backlog` skill (add / advance / progress / cancel / fail / rescue / retry / groom / status) to interact. Schema: the `backlog` skill's `references/agents-schema.md`.
+Use the `backlog` skill (add / advance / progress / cancel / fail / rescue / retry / maintain / status) to interact. Schema: the `backlog` skill's `references/agents-schema.md`.
 
 ## Backend
 
@@ -300,8 +300,8 @@ cmd_status() {
   done
 }
 
-cmd_groom() {
-  echo "groom: load ~/.claude/skills/backlog/references/maintain.md and walk the buckets" >&2
+cmd_maintain() {
+  echo "maintain: load ~/.claude/skills/backlog/references/maintain.md and walk the buckets" >&2
   echo "(this script doesn't enumerate them — they're advisory and benefit from agent judgment)"
 }
 
@@ -318,6 +318,6 @@ case "$cmd" in
   rescue)   cmd_rescue "$@" ;;
   retry)    cmd_retry "$@" ;;
   status)   cmd_status "$@" ;;
-  groom)    cmd_groom "$@" ;;
+  maintain)    cmd_maintain "$@" ;;
   *)        echo "unknown subcommand: $cmd" >&2; exit 1 ;;
 esac

@@ -89,6 +89,6 @@ A retried task whose dependencies have since moved (e.g., a dep is now in `faile
 
 Counts per state directory, plus the most-recent in-flight files. A glance at what's where.
 
-### groom
+### maintain
 
 Advisory walk over the buckets in `maintain.md`; never moves files (one exception: it may fail author-authorized TIMED OUT entries — see `parallel-agents.md`).

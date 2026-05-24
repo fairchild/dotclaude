@@ -22,12 +22,12 @@ The atomic primitives, and nothing else:
 
 - **No worker pool.** Agents discover and take tasks themselves; nothing dispatches.
 - **No leader election.** All agents are peers; collisions are git's problem.
-- **No heartbeat enforcement.** A claimer that goes silent isn't pinged; timeouts and grooming are the failure-detection mechanism.
+- **No heartbeat enforcement.** A claimer that goes silent isn't pinged; timeouts and maintenance are the failure-detection mechanism.
 - **No cron / scheduler.** Periodic cleanup is the operator's responsibility — see "Two cleanup patterns" below.
 
 ## Default timeout: 7 days
 
-Tasks may declare a `timeout:` in frontmatter. **If they don't, groom and advance-prelude treat the task as having `timeout: 7d`.** That way every task is rescuable from a dead claimer without forcing the author to think about budgets at add time. The clock anchors to the latest `advanced` or `rescued` log line — so each forward step gets its own stage budget under the same number.
+Tasks may declare a `timeout:` in frontmatter. **If they don't, maintain and advance-prelude treat the task as having `timeout: 7d`.** That way every task is rescuable from a dead claimer without forcing the author to think about budgets at add time. The clock anchors to the latest `advanced` or `rescued` log line — so each forward step gets its own stage budget under the same number.
 
 ```
 - 2026-05-17T00:00:00Z failed | timeout: budget=7d (default), claimed=2026-05-10T00:00:00Z, claimer=...
@@ -46,7 +46,7 @@ Projects with a fundamentally different rhythm can override the default by stati
 
 ## Failure detection
 
-Timeout is the primitive built in. The other detection patterns are useful supplements you can add as additional `groom` buckets without changing the file format:
+Timeout is the primitive built in. The other detection patterns are useful supplements you can add as additional `maintain` buckets without changing the file format:
 
 | Pattern              | What it catches                              | What it needs                     |
 |----------------------|----------------------------------------------|-----------------------------------|
@@ -55,7 +55,7 @@ Timeout is the primitive built in. The other detection patterns are useful suppl
 | Branch / PR liveness | Claim's branch is dead and never shipped     | Git / network state               |
 | Workspace presence   | Claim's workspace ID no longer exists        | Conductor (or equivalent) inspection |
 
-For v1, timeout alone is enough because it requires nothing external. Add the others as new groom buckets if you observe real cases they'd catch.
+For v1, timeout alone is enough because it requires nothing external. Add the others as new maintain buckets if you observe real cases they'd catch.
 
 ## Two cleanup patterns (both idempotent, both safe)
 
@@ -128,9 +128,9 @@ The failed line in the log looks like:
 
 A `fail` could append a `failed` log line in place and leave the file where it was — but that breaks location-is-status: `ls doing/` would no longer mean "in flight," every status check would have to read each file's log, and the `git mv` race that gives us the atomic lock would be decoupled from the state change. Keeping fail as one operation (move + append + commit) preserves both invariants.
 
-## The single permitted exception to "groom never moves files"
+## The single permitted exception to "maintain never moves files"
 
-Groom is advisory by default. The one exception: for TIMED-OUT entries (author-declared budget exceeded, or default-inherited), groom may `fail` them to `failed/`. The author authorized the timeout, so enforcing it is contract-keeping, not policy. An operator can `retry` anything in `failed/` that's still worth doing.
+Maintain is advisory by default. The one exception: for TIMED-OUT entries (author-declared budget exceeded, or default-inherited), maintain may `fail` them to `failed/`. The author authorized the timeout, so enforcing it is contract-keeping, not policy. An operator can `retry` anything in `failed/` that's still worth doing.
 
 ## Limits worth knowing about
 

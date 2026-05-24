@@ -88,7 +88,7 @@ done
 
 `backlog_inflight_dirs` is in `../../scripts/lib.sh` — reads the project's `## Pipeline` line, returns every dir name that isn't `todo` or `done` (defaulting to `doing` if no pipeline declared).
 
-## Groom additions
+## Maintain additions
 
 The buckets in `../maintain.md` apply unchanged for `maildir-shared` — `find backlog/{doing,reviewing,...}/` traverses through the symlinks. One backend-specific bucket worth surfacing:
 
@@ -96,7 +96,7 @@ The buckets in `../maintain.md` apply unchanged for `maildir-shared` — `find b
 
 A file in a shared in-flight dir whose claim branch no longer exists (locally or on a remote). Indicates a worktree was deleted mid-claim. Surface for operator decision: `fail` (most likely) or `rescue` if the work is still desired.
 
-The script doesn't enumerate this — groom is advisory and benefits from agent judgment. The check, if you wanted to script it:
+The script doesn't enumerate this — maintain is advisory and benefits from agent judgment. The check, if you wanted to script it:
 
 ```bash
 existing=$(git branch --list --all --format='%(refname:short)' | sort -u)

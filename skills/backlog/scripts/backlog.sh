@@ -23,7 +23,7 @@ Usage:
   backlog rescue <slug>
   backlog retry <slug> <reason>
   backlog status
-  backlog groom
+  backlog maintain
 
 Backend is read from backlog/AGENTS.md (## Backend section). Default: maildir-git.
 See ~/.claude/skills/backlog/SKILL.md for the full surface.

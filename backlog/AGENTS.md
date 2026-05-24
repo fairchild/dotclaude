@@ -7,7 +7,7 @@ Deferred work, one markdown file per task. Location = status:
 - `done/`  — completed (and cancelled — discriminated by the `cancelled` log line)
 - `failed/` — dead-letter for tasks that couldn't proceed (created on demand)
 
-Use the `backlog` skill (add / advance / progress / cancel / fail / rescue / retry / groom / status) to interact. There is no backward verb — work that can't proceed is `fail`ed and may be `retry`ed back to `todo/`. Schema and rules: `~/.claude/skills/backlog/references/agents-schema.md`.
+Use the `backlog` skill (add / advance / progress / cancel / fail / rescue / retry / maintain / status) to interact. There is no backward verb — work that can't proceed is `fail`ed and may be `retry`ed back to `todo/`. Schema and rules: `~/.claude/skills/backlog/references/agents-schema.md`.
 
 ## Backend
 

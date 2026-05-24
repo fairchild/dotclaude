@@ -43,6 +43,6 @@ Every verb is some combination of `git mv` + appended log line + `git commit`. T
 
 Two agents racing the same `git mv` on different branches both succeed locally and collide at merge. That's the documented failure mode — "the explicit failure mode, not silent double-work" — but in multi-worktree flows it can surface weeks after the wasted work happened. If that's a real cost, pick `maildir-shared`.
 
-## Groom
+## Maintain
 
 The buckets in `../maintain.md` apply. Backend-specific note: `ADVANCED BUT NOT MOVED` (a file in an in-flight dir whose log already shows `advanced to=done`) is safe to auto-fix here — the proof of completion is the log line, the `git mv` just needs to run.
