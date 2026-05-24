@@ -15,9 +15,11 @@ A task tracker shaped like a maildir. Each task is one markdown file; its direct
 
 The default pipeline is `todo → doing → done`. A project may add intermediate in-flight directories (e.g. `reviewing/`) by declaring the pipeline in `backlog/AGENTS.md`. See `references/pipeline.md`.
 
-Claiming is the first `advance`: `git mv backlog/todo/X.md backlog/doing/X.md`. Two agents racing the same task collide at merge — the right failure mode, not silent double-work.
+To claim is to advance: `git mv backlog/todo/X.md backlog/doing/X.md`. Two agents racing for the same file collide at merge — the right failure mode, not silent double-work.
 
 ## File shape
+
+Above the divider: what the author meant. Below: what the workers did.
 
 Two halves, divided by `---` with blank lines around it so markdown renders it as a horizontal rule.
 
@@ -88,7 +90,7 @@ EOF
 git add "$filename" && git commit -m "add($slug)"
 ```
 
-Quality: enough context that a fresh session can execute without the original conversation; specific file paths; verification commands; deps declared if any. Commit before anyone can claim.
+Quality: write enough that a fresh session can execute without ever having met you — specific paths, verification commands, deps declared if any. Commit before anyone can claim.
 
 ## Working the backlog
 
