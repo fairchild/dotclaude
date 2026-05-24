@@ -1,10 +1,22 @@
 # Workflows
 
-One-shot recipes that aren't part of the daily verb loop — first-time setup in a fresh project, and migration from the older flat layout.
+One-shot recipes that aren't part of the daily verb loop — first-time setup in a fresh project, and migration from earlier layouts.
 
-## init
+## init (the `/backlog setup` entry point)
 
-Set up `backlog/` in a fresh project.
+Set up `backlog/` in a fresh project. Interactive: ask the operator one question, then scaffold for the chosen backend.
+
+### Step 1 — pick the backend
+
+Ask the operator:
+
+> Which backend? Choose one:
+> - **`maildir-git`** — single-worktree project. Everything committed to git; claim is `git mv`. Simplest; the default unless multi-worktree work is expected.
+> - **`maildir-shared`** — multi-worktree project (Conductor, parallel `git worktree`). In-flight files live in a git-common-dir shared dir; claim is atomic across worktrees of the clone.
+
+Default to `maildir-git` if the operator declines to choose. Recommend `maildir-shared` if `git worktree list` shows more than one worktree, or if the project hints at Conductor/cmux use.
+
+### Step 2a — scaffold for `maildir-git`
 
 ```bash
 mkdir -p backlog/{todo,doing,done}
@@ -23,7 +35,7 @@ Use the `backlog` skill (add / advance / progress / cancel / fail / rescue / ret
 
 ## Backend
 
-`maildir-git` — the default. Everything in this directory is committed to git; claim is `git mv`. See the `backlog` skill's `references/backends/maildir-git.md`. Multi-worktree projects should consider `maildir-shared` instead — see `references/backends/maildir-shared.md`.
+`maildir-git` — everything in this directory is committed to git; claim is `git mv`. See the `backlog` skill's `references/backends/maildir-git.md`.
 
 ## Defaults
 
@@ -46,8 +58,63 @@ The default pipeline. To add intermediate states (e.g. `reviewing/`), create the
 Strategic counterpart at `backlog/ROADMAP.md` — Intent, Principles, Current Focus, Priorities (named arcs), Non-goals. Tasks optionally link via `arc: <name>` frontmatter. See the `backlog` skill's `references/roadmap.md`.
 EOF
 ln -s AGENTS.md backlog/CLAUDE.md
+```
 
-# Scaffold ROADMAP.md if missing. For a guided interview instead, load references/reflect.md.
+### Step 2b — scaffold for `maildir-shared`
+
+```bash
+mkdir -p backlog/{todo,done}
+shared_root="$(git rev-parse --git-common-dir)/backlog"
+mkdir -p "${shared_root}/doing"
+ln -s "${shared_root}/doing" backlog/doing
+
+# gitignore the symlink so the per-worktree target doesn't appear as untracked
+touch .gitignore
+grep -qxF "backlog/doing" .gitignore || echo "backlog/doing" >> .gitignore
+
+cat > backlog/AGENTS.md <<'EOF'
+# backlog/
+
+`CLAUDE.md` here is a symlink to this file — read one, not both.
+
+Deferred work, one markdown file per task. Location = status:
+
+- `todo/`  — available
+- `doing/` — claimed, in flight (symlink into git-common-dir shared dir)
+- `done/`  — completed (and cancelled — discriminated by the `cancelled` log line)
+
+Use the `backlog` skill (add / advance / progress / cancel / fail / rescue / retry / groom / status) to interact. There is no backward verb — work that can't proceed is `fail`ed and may be `retry`ed back to `todo/`. Schema and rules: the `backlog` skill's `references/agents-schema.md`.
+
+## Backend
+
+`maildir-shared` — `todo/`, `done/`, `failed/` are committed to git; in-flight dirs (`doing/`, etc.) live under `$(git rev-parse --git-common-dir)/backlog/`, shared across all worktrees of the clone via gitignored symlinks. Claim is atomic across worktrees. See the `backlog` skill's `references/backends/maildir-shared.md`.
+
+## Defaults
+
+Frontmatter is optional; recipes apply these defaults when fields are omitted:
+
+- `priority: 999` (low — declare to drive auto-pick ordering)
+- `timeout: 7d` (override per-task: shorter for fast agent work, longer for human-paced or human-blocked)
+- `dependencies: {}` (declare only hard preconditions)
+
+Override the project default by stating it here (e.g., "default timeout in this project: 24h") and declaring `timeout:` per-task accordingly.
+
+## Pipeline
+
+`todo → doing → done`
+
+The default pipeline. To add intermediate states (e.g. `reviewing/`), create the directory and update this line — `advance` reads it. Add the intermediate dir name to `.gitignore` too (mirrors `backlog/doing`). See the `backlog` skill's `references/pipeline.md`.
+
+## ROADMAP
+
+Strategic counterpart at `backlog/ROADMAP.md` — Intent, Principles, Current Focus, Priorities (named arcs), Non-goals. Tasks optionally link via `arc: <name>` frontmatter. See the `backlog` skill's `references/roadmap.md`.
+EOF
+ln -s AGENTS.md backlog/CLAUDE.md
+```
+
+### Step 3 — scaffold ROADMAP.md (both backends)
+
+```bash
 [[ -f backlog/ROADMAP.md ]] || cat > backlog/ROADMAP.md <<'EOF'
 # ROADMAP
 
@@ -73,7 +140,9 @@ ln -s AGENTS.md backlog/CLAUDE.md
 EOF
 ```
 
-`AGENTS.md` is the cross-tool source of truth; `CLAUDE.md` symlinks to it so Claude Code auto-loads the same conventions. Commit everything so collaborators see it.
+For a guided interview that fills the ROADMAP instead of the empty skeleton, load `references/reflect.md` and follow its initialization submode.
+
+`AGENTS.md` is the cross-tool source of truth; `CLAUDE.md` symlinks to it so Claude Code auto-loads the same conventions. Commit everything so collaborators see it. For `maildir-shared` the in-flight files themselves stay out of git (they're in the gitignored symlinked dir) — only the AGENTS.md backend declaration and the `.gitignore` entry land in commits.
 
 ## migrate
 
