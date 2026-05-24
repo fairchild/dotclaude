@@ -157,3 +157,4 @@ This plan is **Phase 2 of that conversation** — the concrete engineering chang
 
 ---
 - 2026-05-24T06:24:20Z advanced to=doing claimer=conductor:lagos-v2 branch=c-backlog-worker
+- 2026-05-24T06:27:50Z progress | phase 1 complete: extract-bench.ts + classifier tests + baseline.json. 80.8% of 177 blocks are fallback summaries; 0% narrative. Haiku in extract-lib appears not to run in SessionEnd — likely missing API key in hook env. Phase 2 should diagnose existing path before adding Sonnet tier.
