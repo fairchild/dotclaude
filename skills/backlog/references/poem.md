@@ -4,16 +4,16 @@ description: Markdown task backlog and project roadmap (backlog/{todo,doing,done
 license: Apache-2.0
 ---
 
-# Backlog, in verse
+# Backlog
 
 A tracker shaped like a maildir —
 one task, one file, one fate.
 The folder it lives in *is* its state.
 
-    todo/    waits to be claimed
+    todo/    waiting for a claim
     doing/   held in someone's hand
-    done/    finished (or cancelled — the log line tells which)
-    failed/  for the tasks that ran out of tries
+    done/    finished — or cancelled, the log line decides
+    failed/  out of tries
 
 To claim is to move:
 `git mv todo/X.md doing/X.md`.
@@ -56,7 +56,7 @@ Every field has a default,
 so the smallest task is just a title and a problem:
 
     priority      999    declare a number when order matters
-    timeout       7d     shorter for robots, longer for humans
+    timeout       7d     shorter when an agent owns it, longer when the world must answer
     dependencies  {}     only hard preconditions; deps resolve when done/
 
 Other keys you write are kept but not read.
@@ -76,9 +76,7 @@ Then commit, before anyone can claim.
 
 Take, recover, progress, complete,
 release, cancel, fail, reopen, status, groom —
-the rules workers must follow,
-and the recipes for each verb:
-`worker.md`.
+recipes and rules in `worker.md`.
 
 ## Above the queue
 
@@ -88,13 +86,6 @@ Tasks may name their arc in frontmatter.
 Shape: `roadmap.md`.
 To reflect, to add, to begin one: `reflect.md`.
 
-## References
+## Other kin
 
-- `worker.md` — verb recipes (take, recover, progress, complete, release, cancel, fail, reopen, status, groom)
-- `agents-schema.md` — frontmatter schema, log format, kinds, reading-state queries
-- `parallel-agents.md` — distributed-systems patterns and rationale
-- `workflows.md` — `init` and `migrate`
-- `maintain.md` — advisory walk buckets
-- `roadmap.md` — `ROADMAP.md` shape and the `arc:` linkage
-- `reflect.md` — posture for reflecting on the backlog or editing the roadmap
-- `README.md` — background, philosophy, kin
+`parallel-agents.md` carries the distributed-systems patterns; `workflows.md` the `init` and `migrate` recipes; `maintain.md` the advisory walks; `README.md` the background and philosophy.
