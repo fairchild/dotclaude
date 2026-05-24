@@ -1,130 +1,34 @@
-# Roadmap
+# ROADMAP
 
-## Direction
+## Intent
 
-**Current focus**: Agent orchestration patterns and developer workflow tooling
+A ~/.claude/ configuration that makes Claude Code both more capable and more personalized to me — compounding with use. The more I work through it, the better it gets at matching how I work and what I care about. Memory, skills, commands, hooks, and agents are mechanisms in a feedback loop from use back into preference and process.
 
-### Active
-- cmux-orchestrator conventions — worktree workshop shipped (#137), reference doc polish (#138)
-- prek pre-commit standardization (PR #130)
+## Principles
 
-### Planned
-- Chronicle Phase 4: Cross-project intelligence
-- Native sync popup (see backlog/native-sync-popup.md)
-- prek adoption across ~/code/ portfolio
-- Worktree workshop: exercise the flow on more repos to find remaining friction
+1. **Every session should sharpen the next one.** Use leaves traces (chronicle, memory, backlog); reflection turns traces into refinements; refinements show up as better skills, commands, hooks. If a workflow only produces output for me and nothing for the repo, the loop missed.
+2. **Adventure.** Try things, throw things away. New ideas get a skill, a command, a prototype. Iteration is how things get good; planning past first encounter is most accurate after first encounter. Half-finished is fine if the experiment taught you something.
+3. **Code can be poetry.** Dense token value.
+4. **Minimal, stdlib-preferred.** External packages must earn their place by complexity hidden.
+5. **Inspectable in place.** `ls`, `cat`, and `git log` should tell the story.
+6. **Single source of truth per concept.** Symlinks over duplication; one canonical file, derivative views.
+7. **Published as reference, not service.** Cherry-pick what you like; no drop-in clone expectations, no support contract.
 
-### Deferred
-- Hooks validation system
-- Video generation skill
-- Skill description optimization for cmux-orchestrator trigger accuracy
+## Current Focus
 
-## Learnings
+Populating ROADMAP.md is the *first encounter* with the new backlog+roadmap layer (#161, #166), and writing it is the trace half of the first loop iteration on the repo itself. The next turns happen as future sessions read this roadmap, reflect against it, and let it shape decisions about which skill plans to take, which to cancel, which to merge.
 
-### 2026-03-23 — Worktree Workshop convention (#137, #138)
-- Live-testing the convention on `workspaces` repo caught 5 issues the spec didn't: brace expansion in quotes, `--allowedTools` eating positional args, `-n` resuming stale sessions, inbox routing across directories, and `--add-dir` for cross-directory reply delivery
-- Brace expansion breaks when braces are inside quotes (`"$VAR/{a,b,c}"`), not in shells generally — fix is `"$VAR"/{a,b,c}` or spell out paths
-- Reply inbox must live in the caller's directory, not the worktree — the agent needs `--add-dir` for the caller's inbox since it's outside its cwd
-- Don't hardcode "orchestrator" as the caller name — any named session can dispatch a worktree workshop
-- Inlining `git worktree add` commands (vs depending on `wt.sh`) makes the skill self-contained and portable
-- Ship the convention first, test it, then fix forward — the live test produced more useful feedback than additional planning would have
+From bootstrap on, the work is exercising the system. Adding to the backlog as ideas surface; reflecting against the roadmap when items pile up; letting the lens groom the skill catalog (several overlapping cleanup plans are queued in `todo/`) instead of doing ad-hoc passes. The loop closes on the next commit to update the backlog skill itself based on friction surfaced through its use — that's when refinement reaches the mechanism, not just its outputs. Done with this arc: a month of real decisions has passed through, the verbs feel natural, the catalog has been reduced rather than grown, and the backlog skill has been updated at least once from lived friction.
 
-### 2026-03-22 — Chronicle extraction dedup & quality (#136)
-- Chronicle curator agent identified three systemic issues in auto-extraction — curation as a diagnostic tool, not just cleanup
-- cmux-orchestrator workshop pattern worked end-to-end: inbox prompt, agent workspace, sidebar status, inbox reply
-- `findExistingBlock` needed a fast-path (filename match) before content scan — midnight-spanning sessions change the date prefix but keep the shortId suffix
-- Deterministic filenames (`date-project-shortSessionId`) eliminate the slug-collision problem entirely
-- Fallback summaries should describe work done (files modified, actions taken), never echo the user's prompt text
+## Priorities
 
-### 2026-03-22 — Two-clone deploy workflow (#129, #131, #132, #133)
-- Worktree + cherry-pick model had compounding friction: divergent hashes broke ff-only, symlinks blocked rebase, hooks referenced files not yet synced
-- Two independent clones on `main` eliminates the entire category — runtime changes push directly, deploy is `git pull`
-- `scripts/deploy.sh` with SessionStart hook automates symlink cleanup + sync — silent on no-op, informative when it acts
-- Development workflow docs belong in project-level `.claude/CLAUDE.md`, not global — global CLAUDE.md loaded in every session
-- When brainstorming architecture changes, exploring 5+ options before committing avoids premature lock-in
+1. **backlog-roadmap-dogfood** — Exercise the new maildir backlog and ROADMAP through real decisions this month. Lets the lens surface what matters and what's noise; everything downstream depends on a working reflection loop.
+2. **skill-catalog-grooming** — Overlapping cleanup plans (skill-coherence, skill-context-optimization) are queued in `todo/`. They should merge or be sequenced under the lens of #1, not done ad-hoc. The runtime-rationalization piece this arc originally also covered shipped 2026-03-22 (#129–#133) and is now in `done/`.
+3. **memory-loop-quality** — Chronicle auto-extractor quality, ai-coding-usage memory imports, token-jsonl pressure. Strengthens Principle #1 from aspirational to load-bearing.
+4. **prototype-surface** — Vocal tuning console, image-gen protocol, video-gen skill, voxcode-swift, ship command. The adventure arc — keep the surface alive but don't let it crowd #1–#3.
 
-### 2026-03-22 — cmux-orchestrator skill (#127) + prek pre-commit (#130)
-- Named conventions (workshop, ops deck) are the skill's unique value — commands are discoverable from `--help`, but orchestration patterns aren't
-- Prompt-via-inbox pattern works end-to-end: agent read inbox, updated cmux sidebar, sent results back to orchestrator inbox
-- `cmux send` with complex shell quoting is fragile — launcher scripts with stdin pipe (`echo "prompt" | claude -p`) are reliable
-- `--add-dir .agents/inbox` is required for sandbox access; `--dangerously-skip-permissions` works for trusted agent panes
-- Eval viewer helped iterate but the real signal came from live testing — the evals couldn't catch quoting and sandbox issues
-- Committing to main instead of feature branch caused a messy reconciliation — prek's `no-commit-to-branch` hook prevents this mechanically
-- Skill-creator's workspace convention is `<name>-workspace/` as a sibling, not inside the skill directory
+## Non-goals
 
-### 2026-02-08 — Token Cache Enrichment (#88)
-- Detailed backlog plans with exact line numbers and code snippets make implementation trivial — this was a single-edit session
-- Atomic writes (mktemp + mv) should be default for any background job writing to shared files
-- /reflect caught a pre-existing concern (jq -s memory pressure) that wouldn't have been filed otherwise — validates doing reflection even on small changes
-- `${var:-0}` defaults for `--argjson` and `//= 0` in jq are complementary defenses — shell prevents jq parse errors, jq prevents null propagation
-
-### 2026-02-08 — Config Inventory Consolidation (#82)
-- Well-scoped backlog plans with verification commands make execution trivial
-- Skill overlap detection immediately surfaced a real shadow (bread-builder/release)
-- `git mv` preserves rename tracking — verify with `git grep` for stale refs after moves
-
-### 2026-02-07 — Playwright Skill Rationalization (#78)
-- Skill-backed subagent pattern (from PR #77) applies broadly: eliminated agent + merged two skills into one
-- `inspired-by` frontmatter field better than `origin` for heavily modified upstream skills
-- Over-specified agent personas (86 lines) add no value over concise subagent prompts — Claude already knows UI/UX analysis
-- Skills should cover ad-hoc use, not just structured workflows — "take a screenshot" is as valid as "write E2E tests"
-- Testability guidelines in the testing skill influence code authoring, not just test writing — dual-purpose content
-
-### 2026-02-07 — ai-coding-usage Incremental Loading (#76)
-- File mtime comparison via `stat` + DuckDB CSV join is a simple, effective change detection strategy
-- `source_file` column enables file-level delete/reinsert without touching unrelated data
-- JSONL record types have top-level fields (not nested in `message`) — must query raw data to verify structure
-- /reflect caught a real upgrade path bug (v1.1 DB missing v1.2 tables) and excessive backup creation
-- Backup on every incremental run is wrong — active session file always changes, creating unnecessary copies
-
-### 2026-01-31 — Chronicle Thread Identity
-- Simple slug-based threads (no separate threads.jsonl) proved sufficient
-- `pendingThreads` map is sparse and backward compatible with existing blocks
-- Haiku prompt extension for detecting task decomposition works well
-- Thread inheritance via lookup keeps logic simple (exact match first)
-- Sorting threaded items together in catchup output improves readability
-
-### 2026-01-24 — Chronicle Phase 3: Smart Suggestions (#63)
-- SessionStart hook is the right injection point—runs once per session, lightweight
-- Shared context.ts module eliminates duplication between catchup.ts and session-start.ts
-- Output format must be concise—context window is precious
-- Silent failure (output `{}`) is correct for non-Chronicle projects
-
-### 2026-01-24 — Release skill overhaul (analyze-release-skill)
-- Worktree-aware releases: ephemeral worktree strategy works cleanly from any branch
-- Shell escaping in scripts is treacherous - use temp files for multi-line content passed to CLI tools
-- Outcome tracking (JSONL) pattern from update-dependencies skill is worth replicating
-- /reflect caught a real shell injection bug before merge
-- Skill structure: scripts/ for automation, references/ for troubleshooting, data/ for learning
-
-### 2026-01-24 — Chronicle Sync UX Simplification (#59)
-- macOS osascript dialogs are plain text only—rich UI needs native app
-- Structured output (JSON) is UI-agnostic—design for any consumer
-- Terminal preview + dashboard covers 90% of use cases without native UI
-- Feedback loops require click tracking—defer until native UI exists
-
-### 2026-01-24 — Chronicle stale detection (#58)
-- Cross-project deduplication was a subtle bug - same text in different projects should be separate items
-- Archive script resilience: error suppression is pragmatic for cleanup workflows
-- STALE_THRESHOLD_DAYS should be a single exported constant, not duplicated
-- /reflect workflow continues to catch bugs before merge
-
-### 2026-01-24 — Chronicle catchup bugfix (#56)
-- Worktree filtering is essential for relevant context in multi-worktree workflows
-- Design tradeoff: worktree-specific last session, project-wide pending items
-- /reflect caught a real bug before merge - validates the workflow
-- Centralized storage + worktree metadata is the right architecture
-
-### 2026-01-24 — Chronicle resolution detection (#61)
-- Overlay file vs block mutation: blocks are session snapshots, resolutions are cross-session metadata
-- Brainstorming skill invaluable for design decisions (storage model, matching strategy)
-- Circular imports: extract shared types.ts to break the cycle cleanly
-- LLM always decides on match (with matchScore as context) - no magic thresholds
-- Lazy evaluation: run resolution check on /catchup, not at session end
-
-### 2026-01-22 — Chronicle catchup command (#56)
-- Brainstorm-to-brief workflow effective for going wide then narrowning
-- Conductor workspace sandbox requires using Bash for writes outside workspace
-- SKILL.md serves as both documentation AND command dispatcher
-- Worktree detection reuses patterns from extract-lib.ts
-- Pending deduplication by normalizing text (lowercase, trim)
+1. **Packaging dotclaude as a drop-in distribution.** Published as reference for cherry-picking — skills are written for inspection and pickup, not for installation with promised compatibility. No backwards-compat shims for forks that lag on schema changes; that's a merge, not a contract.
+2. **Real-time multi-user collaboration.** Personal config. Collaborators cherry-pick; they don't co-edit.
+3. **Polishing every experiment to production grade.** Experimental skills (`status: experimental`) are first-class — half-finished is allowed by Principle #2, and forcing polish would close down the adventure surface.

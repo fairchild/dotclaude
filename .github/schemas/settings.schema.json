@@ -61,6 +61,11 @@
         "command": {
           "type": "string",
           "description": "Command to execute for status line"
+        },
+        "refreshInterval": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Refresh interval in milliseconds"
         }
       },
       "required": ["type", "command"],
@@ -99,6 +104,10 @@
                 "command": {
                   "type": "string",
                   "description": "Command to execute"
+                },
+                "async": {
+                  "type": "boolean",
+                  "description": "Run the hook asynchronously"
                 }
               },
               "required": ["type", "command"],

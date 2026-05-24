@@ -1,13 +1,75 @@
-# Backlog Skill - Background & Inspiration
+# Backlog Skill — Background & Inspiration
 
-This skill captures **explored-but-deferred work** as comprehensive plan files. Unlike full project management tools, it solves one specific problem: preserving research and context so a future session can execute efficiently without re-discovering what we already learned.
+A maildir-style task tracker. Each task is a markdown file; its location (`todo/`, `doing/`, `done/`) is its state. Claiming is `git mv`, which doubles as the lock — two agents racing the same task collide at merge instead of silently double-working.
 
 ## Philosophy
 
-- **Single-purpose**: Capture deferred work, not manage all tasks
-- **Comprehensive output**: Each backlog item is a complete plan, not a stub
-- **Lifecycle tracking**: pending (`backlog/`) → done (`backlog/done/`) via file movement
-- **Categories**: plan, followup, task-list, ideas
+- **Location is status.** No status field to keep in sync, no parser to write. The dir a task is in tells you where it is in the pipeline.
+- **No backward verb.** A task that can't proceed gets `fail`ed (with reason) and may be `retry`ed later. The log is honest about what happened — no "release" pretending the work wasn't tried.
+- **Comprehensive content.** Each task carries enough context for a fresh session to execute without the original conversation.
+- **Append-only log.** Frontmatter and description are author-set at creation; the bullet log below the `---` divider grows by `echo >> file && git commit`. The log *is* the state — no separate mutable claim fields to drift out of sync.
+- **Single writer.** Between the first `advance` and the final exit, only the claiming agent appends. The maildir mv is the actual lock; the `advanced to=doing` log line is documentation.
+- **Graph-native deps.** `dependencies:` is a map of slugs; each task declares its own preconditions. Parallel by default; ordering encoded in the chain itself, not in any single task.
+- **No scripts.** Every verb is a small bash recipe the agent runs inline (`git mv` + heredoc append). The skill *is* the spec; no codepath drift between docs and behaviour.
+
+## Minimal snippets
+
+Two prompts designed to drop straight into a Claude Code session in any repo, with no prep. The agent figures out missing directories, exact bash, commit hygiene.
+
+### Add a task (paste, fill in, send)
+
+```
+Add tasks to our backlog by adding a markdown file describing the task in `backlog/todo/{slug}.md` ending with a trailing `---` with blank lines around it.
+```
+
+### Work the backlog (paste once, then drive)
+
+```
+You're a worker on a maildir-style backlog at
+`backlog/{todo,doing,done,failed}/`. Each task is a markdown file;
+its directory is its state. Below a `---` divider, the file holds an
+append-only bullet log of timestamped events.
+
+Log line format: `- {ISO UTC} {kind} key=value ... [| free prose]`.
+One line per event; long-form detail goes in the commit body.
+
+The default pipeline is `todo → doing → done`. Projects may add
+intermediate dirs (e.g. `reviewing/`) by declaring a `## Pipeline`
+section in `backlog/AGENTS.md`. There is no backward verb.
+
+Six verbs — each is an optional `git mv` + an `echo` append + a `git
+commit` (create any missing directory as needed):
+
+- **advance**: forward one step in the pipeline. `git mv` from the
+  current dir to the next; append `- $ts advanced to=NEXT` with
+  `claimer=YOU branch=BRANCH` only on entry from `todo/` (that's the
+  claim). Optional `| PR=URL` on advance to `done/`. The first
+  advance is your lock.
+- **progress**: append `- $ts progress | what just got done` to the
+  file in its in-flight dir. Write semantically so a future claimer
+  can skip already-done activities.
+- **rescue**: pick up an in-flight task whose claim has exceeded its
+  timeout (declared `timeout:` in frontmatter or 7d default). In
+  place — no `git mv`. Append `- $ts rescued claimer=YOU
+  branch=BRANCH`. Verify staleness first; refuse if the existing
+  claim is still active. Then read prior progress notes to skip
+  already-done work.
+- **fail**: dead-letter when work can't proceed. `git mv` to
+  `backlog/failed/`; append `- $ts failed | reason`. There is no
+  "release back to todo" — fail honestly, retry deliberately.
+- **cancel**: abandon as no-longer-worth-doing. `git mv` to `done/`;
+  append `- $ts cancelled | reason`.
+- **retry**: revive a failed task. `git mv` from `backlog/failed/`
+  back to `backlog/todo/`; append `- $ts retried | reason`. Does NOT
+  work on `done/` tasks — write a new task instead.
+
+Every verb commits after appending. `cat` and `git log --follow` both
+tell the file's story; they stay synchronized because every action is
+one bullet plus one commit.
+
+Now tell me what to do (e.g. "advance the next task", "what's in
+doing/?", "advance the auth-migration task to done with PR https://...").
+```
 
 ## Related Projects
 
@@ -24,7 +86,7 @@ Full-featured markdown-native task manager with Kanban visualization. Each task 
 
 Agent orchestration platform that manages AI coding agents as asynchronous workers. Creates isolated Git worktrees per task for parallel execution without conflicts.
 
-**Interesting pattern**: `/backlog start <item>` could create worktree + branch automatically
+**Interesting pattern**: a `take` recipe could create a worktree + branch automatically as part of the claim
 **What we skipped**: Full orchestration layer, Rust complexity
 
 ### [todo.ai](https://github.com/fxstein/todo.ai)

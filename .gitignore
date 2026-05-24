@@ -70,6 +70,10 @@ skills/*/node_modules/
 skills/*/bun.lock
 .last-run.json
 
+# Vocal skill local preferences
+skills/vocal/data/*
+!skills/vocal/data/README.md
+
 # Session titles data (real session data, not tracked)
 skills/session-titles/data/*
 !skills/session-titles/data/README.md
@@ -112,6 +116,12 @@ tasks/
 
 # Skill eval workspaces (skill-creator convention: <name>-workspace/ as sibling)
 skills/*-workspace/
+
+# Image generation comparison outputs
+skills/image-gen/outputs/*
+!skills/image-gen/outputs/README.md
+skills/image-gen/data/*
+!skills/image-gen/data/README.md
 
 # claude chrome plugin
 chrome/

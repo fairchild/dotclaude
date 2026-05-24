@@ -1,11 +1,250 @@
 {
-  "env": {
-    "NODE_ENV": "development",
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"
+  "alwaysThinkingEnabled" : true,
+  "effortLevel" : "xhigh",
+  "enableAllProjectMcpServers" : true,
+  "enabledPlugins" : {
+    "code-simplifier@claude-plugins-official" : true,
+    "frontend-design@claude-plugins-official" : true,
+    "superpowers@claude-plugins-official" : true,
+    "swift-lsp@claude-plugins-official" : true,
+    "vercel@claude-plugins-official" : true,
+    "warp@claude-code-warp" : true
   },
-  "permissions": {
-    "allow": [
+  "env" : {
+    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY" : "1",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" : "1",
+    "NODE_ENV" : "development"
+  },
+  "extraKnownMarketplaces" : {
+    "claude-code-warp" : {
+      "source" : {
+        "repo" : "warpdotdev\/claude-code-warp",
+        "source" : "github"
+      }
+    },
+    "claude-plugins-official" : {
+      "source" : {
+        "repo" : "anthropics\/claude-plugins-official",
+        "source" : "github"
+      }
+    }
+  },
+  "hooks" : {
+    "Notification" : [
+      {
+        "hooks" : [
+          {
+            "async" : true,
+            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest" : [
+      {
+        "hooks" : [
+          {
+            "async" : true,
+            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "PostToolBatch" : [
+      {
+        "hooks" : [
+          {
+            "async" : true,
+            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "PostToolUse" : [
+      {
+        "hooks" : [
+          {
+            "async" : true,
+            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure" : [
+      {
+        "hooks" : [
+          {
+            "async" : true,
+            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "PreToolUse" : [
+      {
+        "hooks" : [
+          {
+            "async" : true,
+            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "SessionEnd" : [
+      {
+        "hooks" : [
+          {
+            "command" : "~\/.claude\/hooks\/session-end.sh",
+            "type" : "command"
+          }
+        ]
+      },
+      {
+        "hooks" : [
+          {
+            "command" : "~\/.claude\/skills\/team-memory\/scripts\/session-end.sh",
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "SessionStart" : [
+      {
+        "hooks" : [
+          {
+            "command" : "~\/.claude\/hooks\/dotclaude-deploy.sh",
+            "type" : "command"
+          }
+        ]
+      },
+      {
+        "hooks" : [
+          {
+            "command" : "bun ~\/.claude\/skills\/chronicle\/scripts\/session-start.ts",
+            "type" : "command"
+          }
+        ]
+      },
+      {
+        "hooks" : [
+          {
+            "command" : "\/opt\/homebrew\/bin\/timeout 5 \"$HOME\/.claude\/skills\/signoz-log\/scripts\/signoz-log.sh\" INFO 'session started' 2>\/dev\/null || echo 'signoz-log: start hook timed out'",
+            "type" : "command"
+          }
+        ]
+      },
+      {
+        "hooks" : [
+          {
+            "async" : true,
+            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "Stop" : [
+      {
+        "hooks" : [
+          {
+            "command" : "~\/.claude\/hooks\/stop.sh",
+            "type" : "command"
+          }
+        ]
+      },
+      {
+        "hooks" : [
+          {
+            "command" : "\/opt\/homebrew\/bin\/timeout 5 \"$HOME\/.claude\/skills\/signoz-log\/scripts\/signoz-log.sh\" INFO 'session stopped' 2>\/dev\/null || echo 'signoz-log: stop hook timed out'",
+            "type" : "command"
+          }
+        ]
+      },
+      {
+        "hooks" : [
+          {
+            "async" : true,
+            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "StopFailure" : [
+      {
+        "hooks" : [
+          {
+            "async" : true,
+            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "TaskCompleted" : [
+      {
+        "hooks" : [
+          {
+            "async" : true,
+            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "TaskCreated" : [
+      {
+        "hooks" : [
+          {
+            "async" : true,
+            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit" : [
+      {
+        "hooks" : [
+          {
+            "async" : true,
+            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "WorktreeCreate" : [
+      {
+        "hooks" : [
+          {
+            "async" : true,
+            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove" : [
+      {
+        "hooks" : [
+          {
+            "async" : true,
+            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "type" : "command"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions" : {
+    "allow" : [
       "mcp__container-use__environment_checkpoint",
       "mcp__container-use__environment_create",
       "mcp__container-use__environment_add_service",
@@ -67,8 +306,8 @@
       "Bash(cp *)",
       "Bash(tsc *)",
       "Bash(bd *)",
-      "Bash(~/.claude/skills/gh-apps/scripts/gh-apps.py *)",
-      "Bash(uv run ~/.claude/skills/cmux-orchestrator/scripts/pr-fetch-context.py *)",
+      "Bash(~\/.claude\/skills\/gh-apps\/scripts\/gh-apps.py *)",
+      "Bash(uv run ~\/.claude\/skills\/cmux-orchestrator\/scripts\/pr-fetch-context.py *)",
       "Bash(gh run view *)",
       "Bash(gh run list *)",
       "Bash(gh pr checks *)",
@@ -77,131 +316,52 @@
       "Bash(gh release view *)",
       "Bash(wt *)",
       "Bash(cmux *)",
-      "Read(~/.ai-memory/**)",
-      "Write(~/.ai-memory/**)",
-      "Edit(~/.ai-memory/**)"
+      "Read(~\/.ai-memory\/**)",
+      "Write(~\/.ai-memory\/**)",
+      "Edit(~\/.ai-memory\/**)"
     ],
-    "deny": [
-      "Read(.env)",
-      "Read(.env.*)",
-      "Read(**/.env)",
-      "Read(**/.env.*)",
-      "Read(secrets/**)",
-      "Read(**/*secret*)",
-      "Read(**/*credential*)",
-      "Read(**/*.pem)",
-      "Read(**/*.key)",
-      "Read(~/.ssh/**)",
-      "Read(~/.aws/**)",
-      "Read(~/.config/**/credentials*)",
-      "Write(.env*)",
-      "Write(secrets/**)",
-      "Write(**/*.pem)",
-      "Write(**/*.key)",
-      "Write(~/.ssh/**)",
-      "Write(~/.aws/**)",
-      "Write(~/.config/**/credentials*)"
-    ],
-    "ask": [
+    "ask" : [
       "Bash(git push *)",
       "Bash(git reset *)",
       "Bash(git rebase *)",
       "Bash(git merge *)",
       "Bash(rm -rf *)"
     ],
-    "defaultMode": "default"
-  },
-  "enableAllProjectMcpServers": true,
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/dotclaude-deploy.sh"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bun ~/.claude/skills/chronicle/scripts/session-start.ts"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/opt/homebrew/bin/timeout 5 \"$HOME/.claude/skills/signoz-log/scripts/signoz-log.sh\" INFO 'session started' 2>/dev/null || echo 'signoz-log: start hook timed out'"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/stop.sh"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/opt/homebrew/bin/timeout 5 \"$HOME/.claude/skills/signoz-log/scripts/signoz-log.sh\" INFO 'session stopped' 2>/dev/null || echo 'signoz-log: stop hook timed out'"
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/session-end.sh"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/skills/team-memory/scripts/session-end.sh"
-          }
-        ]
-      }
+    "defaultMode" : "default",
+    "deny" : [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**\/.env)",
+      "Read(**\/.env.*)",
+      "Read(secrets\/**)",
+      "Read(**\/*secret*)",
+      "Read(**\/*credential*)",
+      "Read(**\/*.pem)",
+      "Read(**\/*.key)",
+      "Read(~\/.ssh\/**)",
+      "Read(~\/.aws\/**)",
+      "Read(~\/.config\/**\/credentials*)",
+      "Write(.env*)",
+      "Write(secrets\/**)",
+      "Write(**\/*.pem)",
+      "Write(**\/*.key)",
+      "Write(~\/.ssh\/**)",
+      "Write(~\/.aws\/**)",
+      "Write(~\/.config\/**\/credentials*)"
     ]
   },
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude/skills/status-line-live/scripts/statusline.sh"
+  "preferredNotifChannel" : "iterm2",
+  "skipDangerousModePermissionPrompt" : true,
+  "statusLine" : {
+    "command" : "\/Users\/fairchild\/.codex\/worktrees\/6954\/workspaces\/.build\/arm64-apple-macosx\/debug\/WorkspaceManager_WorkspaceManager.bundle\/HookForwarders\/statusline.sh",
+    "refreshInterval" : 5000,
+    "type" : "command"
   },
-  "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true,
-    "swift-lsp@claude-plugins-official": true,
-    "code-simplifier@claude-plugins-official": true,
-    "vercel@claude-plugins-official": true
+  "theme" : "light",
+  "verbose" : true,
+  "voice" : {
+    "enabled" : true,
+    "mode" : "hold"
   },
-  "extraKnownMarketplaces": {
-    "claude-plugins-official": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/claude-plugins-official"
-      }
-    }
-  },
-  "alwaysThinkingEnabled": true,
-  "effortLevel": "xhigh",
-  "voice": {
-    "enabled": true,
-    "mode": "hold"
-  },
-  "skipDangerousModePermissionPrompt": true,
-  "voiceEnabled": true,
-  "verbose": true
+  "voiceEnabled" : true
 }

@@ -3,44 +3,78 @@
 # requires-python = ">=3.11"
 # dependencies = ["google-genai"]
 # ///
-"""Generate images using Google's Gemini image models (Nano Banana Pro)."""
+"""Generate images using Google's Gemini image models (Nano Banana)."""
+
+from __future__ import annotations
 
 import argparse
-import os
-import sys
-from datetime import datetime
+import json
 from pathlib import Path
 
-from google import genai
-from google.genai import types
-from google.genai.errors import ClientError, ServerError
+from common import (
+    error_exit,
+    ext_for_mime,
+    get_env_var,
+    normalize_output_path,
+    record_generation,
+    write_output,
+)
 
 
-MIME_TO_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
-EXT_TO_MIME = {v: k for k, v in MIME_TO_EXT.items()}
+PROTOCOL = {
+    "protocol_version": "image-gen-provider/v1",
+    "provider": "gemini",
+    "default_model": "gemini-3.1-flash-image-preview",
+    "required_options": [
+        "--prompt",
+        "--output",
+        "--output-dir",
+        "--model",
+        "--check",
+        "--protocol",
+    ],
+    "final_stdout": "resolved_output_path",
+    "history": "generations.jsonl",
+    "local_helper_imports": ["common"],
+    "supports": {
+        "output_formats": ["provider-returned-mime"],
+        "aspect_ratios": [
+            "1:1",
+            "1:4",
+            "1:8",
+            "2:3",
+            "3:2",
+            "3:4",
+            "4:1",
+            "4:3",
+            "4:5",
+            "5:4",
+            "8:1",
+            "9:16",
+            "16:9",
+            "21:9",
+        ],
+        "image_sizes": ["512", "1K", "2K", "4K"],
+        "provider_options": ["--aspect-ratio", "--image-size"],
+    },
+}
 
 
-def error_exit(msg: str, hint: str | None = None) -> None:
-    print(f"Error: {msg}", file=sys.stderr)
-    if hint:
-        print(f"\n{hint}", file=sys.stderr)
-    sys.exit(1)
+def print_protocol() -> None:
+    print(json.dumps(PROTOCOL, indent=2, sort_keys=True))
 
 
 def get_api_key() -> str:
-    api_key = os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        error_exit(
-            "GOOGLE_API_KEY environment variable not set",
-            "To fix, either:\n"
-            "  1. Add to ~/.env:      GOOGLE_API_KEY=your-key-here\n"
-            "  2. Or export in shell: export GOOGLE_API_KEY=your-key-here\n\n"
-            "Get your API key at: https://aistudio.google.com/apikey"
-        )
-    return api_key
+    return get_env_var(
+        ("GOOGLE_API_KEY", "GEMINI_API_KEY"),
+        "https://aistudio.google.com/apikey",
+    )
 
 
 def check_config() -> None:
+    from google import genai
+    from google.genai.errors import ClientError
+
     api_key = get_api_key()
     client = genai.Client(api_key=api_key)
     try:
@@ -58,23 +92,28 @@ def check_config() -> None:
 def generate_image(
     prompt: str,
     output: Path | None,
-    model: str = "gemini-3-pro-image-preview",
+    output_dir: Path | None = None,
+    model: str = "gemini-3.1-flash-image-preview",
     aspect_ratio: str = "1:1",
     image_size: str | None = None,
 ) -> Path:
+    from google import genai
+    from google.genai import types
+    from google.genai.errors import ClientError, ServerError
+
     api_key = get_api_key()
     client = genai.Client(api_key=api_key)
 
     image_config_kwargs = {"aspect_ratio": aspect_ratio}
     if image_size:
-        image_config_kwargs["output_image_size"] = image_size
+        image_config_kwargs["image_size"] = image_size
 
     try:
         response = client.models.generate_content(
             model=model,
             contents=prompt,
             config=types.GenerateContentConfig(
-                response_modalities=["IMAGE"],
+                response_modalities=["Image"],
                 image_config=types.ImageConfig(**image_config_kwargs),
             ),
         )
@@ -107,58 +146,94 @@ def generate_image(
     for part in response.parts:
         if part.inline_data is not None:
             mime_type = part.inline_data.mime_type
-            actual_ext = MIME_TO_EXT.get(mime_type, ".jpg")
-
-            if output is None:
-                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-                output = Path(f"./generated-{timestamp}{actual_ext}")
-            else:
-                user_ext = output.suffix.lower()
-                if user_ext and user_ext != actual_ext:
-                    corrected = output.with_suffix(actual_ext)
-                    print(f"Note: API returned {mime_type}, saving as {corrected.name} instead of {output.name}", file=sys.stderr)
-                    output = corrected
-
-            output.write_bytes(part.inline_data.data)
-            return output
+            actual_ext = ext_for_mime(mime_type)
+            output_path = normalize_output_path(output, actual_ext, output_dir, "gemini")
+            output_path = write_output(output_path, part.inline_data.data)
+            record_generation(
+                provider="gemini",
+                model=model,
+                prompt=prompt,
+                output_path=output_path,
+                parameters={
+                    "aspect_ratio": aspect_ratio,
+                    "image_size": image_size,
+                    "mime_type": mime_type,
+                },
+            )
+            return output_path
 
     error_exit("No image in response", "The API returned empty results. Try a different prompt.")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate images with Google Gemini (Nano Banana Pro)")
+    parser = argparse.ArgumentParser(description="Generate images with Google Gemini (Nano Banana)")
     parser.add_argument("--prompt", "-p", help="Text description of the image")
     parser.add_argument(
         "--output",
         "-o",
         type=Path,
         default=None,
-        help="Output file path (default: ./generated-{timestamp}.{ext} based on response format)",
+        help="Output file path (default: <output-dir>/gemini-{timestamp}.{ext})",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Default output directory when --output is omitted",
     )
     parser.add_argument(
         "--model",
         "-m",
-        default="gemini-3-pro-image-preview",
-        help="Model to use (default: gemini-3-pro-image-preview aka Nano Banana Pro)",
+        default="gemini-3.1-flash-image-preview",
+        help=(
+            "Model to use (default: gemini-3.1-flash-image-preview aka "
+            "Nano Banana 2; use gemini-3-pro-image-preview for Pro)"
+        ),
     )
     parser.add_argument(
         "--aspect-ratio",
         "-a",
         default="1:1",
-        help="Aspect ratio (default: 1:1, options: 1:1, 16:9, 9:16, 21:9)",
+        choices=[
+            "1:1",
+            "1:4",
+            "1:8",
+            "2:3",
+            "3:2",
+            "3:4",
+            "4:1",
+            "4:3",
+            "4:5",
+            "5:4",
+            "8:1",
+            "9:16",
+            "16:9",
+            "21:9",
+        ],
+        help="Aspect ratio (default: 1:1)",
     )
     parser.add_argument(
         "--image-size",
         "-s",
         default=None,
-        help="Output size for Pro model (options: 1K, 2K, 4K)",
+        choices=["512", "1K", "2K", "4K"],
+        help="Output size for supported models (options: 512, 1K, 2K, 4K)",
     )
     parser.add_argument(
         "--check",
         action="store_true",
         help="Validate API key configuration without generating an image",
     )
+    parser.add_argument(
+        "--protocol",
+        action="store_true",
+        help="Print the provider adapter protocol JSON without requiring API keys",
+    )
     args = parser.parse_args()
+
+    if args.protocol:
+        print_protocol()
+        return
 
     if args.check:
         check_config()
@@ -170,6 +245,7 @@ def main() -> None:
     output_path = generate_image(
         prompt=args.prompt,
         output=args.output,
+        output_dir=args.output_dir,
         model=args.model,
         aspect_ratio=args.aspect_ratio,
         image_size=args.image_size,

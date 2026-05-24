@@ -154,3 +154,8 @@ This plan came out of a broader conversation about the "is chronicle too bloated
 - **Sketch C** — deprecation-only Phase 1 (prune retired commands from the Help table). Recommended as the next ergonomic tweak; separate backlog item if pursued.
 
 This plan is **Phase 2 of that conversation** — the concrete engineering change that compounds all three sketches because it improves the underlying data quality everything reads from.
+
+---
+- 2026-05-24T06:24:20Z advanced to=doing claimer=conductor:lagos-v2 branch=c-backlog-worker
+- 2026-05-24T06:27:50Z progress | phase 1 complete: extract-bench.ts + classifier tests + baseline.json. 80.8% of 177 blocks are fallback summaries; 0% narrative. Haiku in extract-lib appears not to run in SessionEnd — likely missing API key in hook env. Phase 2 should diagnose existing path before adding Sonnet tier.
+- 2026-05-24T20:35:29Z advanced to=done followup=chronicle-auto-extractor-haiku-diagnosis-plan | Phase 1 shipped; remaining phases superseded by Haiku diagnosis insight. PR=https://github.com/fairchild/dotclaude/pull/168
