@@ -102,3 +102,7 @@ done
 ```
 
 Review the result with the `status` recipe in `worker.md`, then commit as a single "chore(backlog): migrate to maildir layout" commit. Reversible via `git revert` if anything looks wrong.
+
+## migrate maildir-git → maildir-shared
+
+For projects switching from the default backend to the cross-worktree shared variant — see the full recipe in `backends/maildir-shared.md` under "Migration from maildir-git". Updates `.gitignore`, moves in-flight files into the git-common-dir shared root, creates worktree-local symlinks, updates `backlog/AGENTS.md` to declare `## Backend: maildir-shared`.
