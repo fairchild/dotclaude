@@ -694,7 +694,7 @@ bun ~/.claude/skills/chronicle/scripts/summarize.ts --weekly                 # W
 bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=name              # Single repo, structured JSON, daily window
 bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=name --days=14    # Custom window
 bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=name --days=14 --format=narrative --with-context --md
-                                                                              # Narrative recap (also exposed as /chronicle recap)
+# Narrative recap (also exposed as /chronicle recap)
 ```
 
 Structured (default) summaries stored in `~/.claude/chronicle/summaries/{global,repos}/` as JSON. Narrative summaries stored in `~/.claude/chronicle/recaps/` as markdown — see the Recap section above.
