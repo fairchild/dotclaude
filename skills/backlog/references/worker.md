@@ -40,33 +40,27 @@ Three phases of advance behave the same way mechanically — only the log line d
 slug=backlog-maildir-plan
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-# Find current dir and next dir from the declared pipeline
+# Find current dir
 src=$(find backlog -mindepth 2 -maxdepth 2 -name "${slug}.md" -type f | head -1)
 [[ -z "$src" ]] && { echo "no such task: $slug" >&2; exit 1; }
 curr=$(basename "$(dirname "$src")")
 
-dirs=()
-while IFS= read -r d; do
-  dirs+=("$d")
-done < <(awk '
+# Look up next dir from the declared pipeline (or default: todo → doing → done)
+next=$(awk -v curr="$curr" '
+  BEGIN { defaults["todo"]="doing"; defaults["doing"]="done" }
   /^## Pipeline/ { flag=1; next }
   flag && /[a-z]/ {
+    parsed = 1; n = 0
     while (match($0, /[a-z][a-z0-9-]*/)) {
-      print substr($0, RSTART, RLENGTH)
+      arr[n++] = substr($0, RSTART, RLENGTH)
       $0 = substr($0, RSTART + RLENGTH)
     }
+    for (i = 0; i < n; i++) if (arr[i] == curr && i+1 < n) { print arr[i+1]; exit }
     exit
   }
+  END { if (!parsed && curr in defaults) print defaults[curr] }
 ' backlog/AGENTS.md 2>/dev/null)
-[[ ${#dirs[@]} -eq 0 ]] && dirs=(todo doing done)
-
-next=""
-for i in "${!dirs[@]}"; do
-  if [[ "${dirs[$i]}" == "$curr" && $((i+1)) -lt ${#dirs[@]} ]]; then
-    next="${dirs[$((i+1))]}"; break
-  fi
-done
-[[ -z "$next" ]] && { echo "no next dir from $curr in pipeline: ${dirs[*]}" >&2; exit 1; }
+[[ -z "$next" ]] && { echo "no next dir from $curr in pipeline" >&2; exit 1; }
 
 dst="backlog/${next}/${slug}.md"
 mkdir -p "backlog/${next}"
