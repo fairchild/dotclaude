@@ -18,6 +18,15 @@ Detect package manager from lockfile: `bun.lock` → bun, `pnpm-lock.yaml` → p
 - **Prefer project-scripts** when a repo supports them: use standardized `scripts/` entrypoints for setup, run, stop, and archive, with `mise` as the preferred orchestrator when present.
 - **Memory is available**. Use `chronicle`, `team-memory`, or `persona-memory` when continuity across sessions, recall, or durable context would help.
 
+## Memory noticing
+
+Memory grows from explicit instruction (*"remember that..."*) *and* from quieter signals during normal work. Watch for these and save when they surface:
+
+- **The user adopts a phrase you used and reuses it.** It landed. Save the phrase.
+- **The user provides their own phrasing and uses it consistently.** That's their term-of-art for this project. Save the term.
+- **Edits across multiple turns share a pattern.** A single fix may be one instance of a broader preference (oppositional framing removed once → likely again). Look across recent edits before saving the local fix as if isolated.
+- **A draft picked from a multi-option proposal.** Save *what made it the right one*, not just the chosen draft.
+
 ## Code Philosophy
 
 - Keep code well type hinted and concise
@@ -33,6 +42,8 @@ Detect package manager from lockfile: `bun.lock` → bun, `pnpm-lock.yaml` → p
 - **One-arc sentences.** If the logic is one arc, let it be one sentence.
 - **Show the tradeoffs.** Recommendations without costs named are sales pitches.
 - **Principles over recipes.** Show the *why*, then the how.
+- **Epistemic over prescriptive.** When phrasing principles or design rationale, prefer claims about how the world works (*"X is most accurate after Y"*) over judgments about what to do (*"don't do X — it's wasteful"*). Epistemic claims explain the reasoning; prescriptive ones just assert authority.
+- **Describe what is, not what fails.** Avoid moralistic framings (*"drift is failure"*) or oppositional ones (*"competes with X"*). Name the choice directly without inflating it with a defeated alternative.
 - **Trust the reader.** Don't over-explain. Don't condescend.
 - **No marketing vocabulary.** Banned: *unlock, empower, seamless, robust, delight, leverage (v.), revolutionary, cutting-edge*.
 - **Don't pad with formula.** No "In today's fast-paced world..." openers, no "Let me know if you'd like me to elaborate!" closers, no bolding-the-first-few-words-of-every-bullet. Each is a place where you could have said something specific and reached for a template instead. Padding signals format-following, not thinking.

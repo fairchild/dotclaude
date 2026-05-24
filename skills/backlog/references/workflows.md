@@ -17,7 +17,7 @@ Deferred work, one markdown file per task. Location = status:
 - `doing/` — claimed, in flight
 - `done/`  — completed (and cancelled — discriminated by the `cancelled` log line)
 
-Use the `backlog` skill (add / take / recover / progress / complete / release / cancel / fail / reopen / groom / status) to interact. Schema and rules: `~/.claude/skills/backlog/references/agents-schema.md`.
+Use the `backlog` skill (add / advance / progress / cancel / fail / rescue / retry / groom / status) to interact. There is no backward verb — work that can't proceed is `fail`ed and may be `retry`ed back to `todo/`. Schema and rules: `~/.claude/skills/backlog/references/agents-schema.md`.
 
 ## Defaults
 
@@ -28,6 +28,12 @@ Frontmatter is optional; recipes apply these defaults when fields are omitted:
 - `dependencies: {}` (declare only hard preconditions)
 
 Override the project default by stating it here (e.g., "default timeout in this project: 24h") and declaring `timeout:` per-task accordingly.
+
+## Pipeline
+
+`todo → doing → done`
+
+The default pipeline. To add intermediate states (e.g. `reviewing/`), create the directory and update this line — `advance` reads it. See `~/.claude/skills/backlog/references/pipeline.md`.
 
 ## ROADMAP
 
