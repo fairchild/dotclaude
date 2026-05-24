@@ -5,6 +5,7 @@ Verb recipes for working tasks in the maildir-style backlog. `../SKILL.md` cover
 ## Rules
 
 - **No backward verb.** A task that can't proceed gets `fail`ed (with reason) and may later be `retry`ed back to `todo/`. There is no "release" — pretending the work wasn't tried muddies the log.
+- **Spec contradictions surface via `fail`, not silent edit.** If execution shows the task's premise is wrong and no coherent slice can ship under it, `fail` with reason `"premise needs revision: <what's wrong>"`. The `retry` recipe permits the spec edit that lands the corrected premise. (Orthogonal to the slice + follow-up pattern, which applies when a coherent slice shipped on a valid premise — see `worker-loop.md` once it exists.)
 - **Frontmatter and description above the divider are frozen after first commit** (one exception: `retry` may edit them, since retry IS a correction).
 - **Commit after each log line.** That's what keeps `cat` and `git log` synchronized.
 - **Single writer per claim.** The first `advance` (todo/ → doing/) is the lock; subsequent advances are by the same claimer.
