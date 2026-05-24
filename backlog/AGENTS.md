@@ -13,7 +13,7 @@ Use the `backlog` skill (add / advance / progress / cancel / fail / rescue / ret
 
 Frontmatter is optional; recipes apply these defaults when fields are omitted:
 
-- `priority: 999` (earlier value is higher priorirty — declare to drive auto-pick ordering)
+- `priority: 999` (earlier value is higher priority — declare to drive auto-pick ordering)
 - `timeout: 7d` (override per-task: shorter for fast agent work, longer for human-paced or human-blocked)
 - `dependencies: {}` (declare only hard preconditions)
 
