@@ -28,6 +28,40 @@ backlog_backend() {
   ' backlog/AGENTS.md 2>/dev/null | head -1
 }
 
+# Read a label name by role from backlog/AGENTS.md `## Labels` section. Returns
+# the configured name if found, otherwise the supplied default. Format:
+#
+#   ## Labels
+#
+#   claim: claimed
+#   failed: dead-letter
+#
+# Lines may be bare `role: name` or list items `- role: name`. Comments and
+# blanks are ignored. The section ends at the next `##` heading.
+backlog_label() {
+  local role="${1:?role required}"
+  local default="${2:?default required}"
+  local found
+  found=$(awk -v role="$role" '
+    /^## Labels/ { flag=1; next }
+    flag && /^## / { exit }
+    flag {
+      line = $0
+      sub(/^[[:space:]]*-?[[:space:]]*/, "", line)
+      if (match(line, /^[a-zA-Z][a-zA-Z0-9_-]*[[:space:]]*:[[:space:]]*/)) {
+        k = substr(line, 1, RLENGTH)
+        sub(/[[:space:]]*:[[:space:]]*$/, "", k)
+        if (k == role) {
+          v = substr(line, RLENGTH + 1)
+          sub(/[[:space:]]+$/, "", v); sub(/^[[:space:]]+/, "", v)
+          print v; exit
+        }
+      }
+    }
+  ' backlog/AGENTS.md 2>/dev/null)
+  printf '%s' "${found:-$default}"
+}
+
 # Next dir after $1 in the pipeline declared in AGENTS.md.
 # Default pipeline: todo -> doing -> done.
 backlog_next_dir() {

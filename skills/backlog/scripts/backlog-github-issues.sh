@@ -50,6 +50,12 @@ require_gh() {
     || { echo "gh not authenticated; run: gh auth login" >&2; exit 1; }
 }
 
+# Lazy label-name lookups. Read from backlog/AGENTS.md `## Labels` section
+# every call (the file is small and the parser is cheap). Defaults match the
+# bare names cmd_setup creates when no labels are configured.
+claim_label()  { backlog_label claim  doing;  }
+failed_label() { backlog_label failed failed; }
+
 # Validate an id arg and emit the bare issue number. Accepts `42` or `#42`.
 # Verifies the issue exists in the repo (one API call) so callers get a clear
 # "no such issue" message rather than a cascade of gh errors.
@@ -91,10 +97,21 @@ cmd_setup() {
   [[ -f backlog/AGENTS.md ]] && {
     echo "backlog/AGENTS.md exists — refusing to overwrite" >&2; exit 1
   }
+  # Flags: --claim-label and --failed-label let projects align with their
+  # existing label vocabulary at setup time (no need to fork the script).
+  local claim="doing" failed="failed"
+  for arg in "$@"; do
+    case "$arg" in
+      --claim-label=*)  claim="${arg#--claim-label=}" ;;
+      --failed-label=*) failed="${arg#--failed-label=}" ;;
+      *) echo "unknown setup flag: $arg" >&2; exit 1 ;;
+    esac
+  done
+
   local repo; repo=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 
-  ensure_label "doing"  "fbca04" "claimed and in progress"
-  ensure_label "failed" "d93f0b" "dead-lettered; needs retry"
+  ensure_label "$claim"  "fbca04" "backlog: claimed and in progress"
+  ensure_label "$failed" "d93f0b" "backlog: dead-lettered; needs retry"
 
   mkdir -p backlog
   cat > backlog/AGENTS.md <<EOF
@@ -102,36 +119,66 @@ cmd_setup() {
 
 \`CLAUDE.md\` here is a symlink to this file — read one, not both.
 
-Task state lives in GitHub Issues on **${repo}**. The repo's open issues
-*are* the backlog — there is no separation between "backlog tasks" and
-"other issues." Anything open is takeable.
+Task state lives in GitHub Issues on **${repo}**. The repo's open issues are
+the backlog — anything open is takeable. Non-conformant issues (random
+feature requests, dormant bug reports) get triaged when a worker encounters
+them; there's no marker label gating membership.
 
-Use the \`backlog\` skill (add / take / advance / progress / cancel / fail /
-rescue / retry / maintain / status) to interact. Tasks are referenced by
-issue number (\`take 42\` or \`take #42\`). Verbs dispatch to \`gh issue\`
-under the hood.
+## State mapping
+
+| State    | open/closed | labels                |
+|----------|-------------|-----------------------|
+| todo     | open        | no \`${claim}\` label |
+| doing    | open        | \`${claim}\` label    |
+| done     | closed      | no \`${failed}\` label |
+| failed   | closed      | \`${failed}\` label   |
+
+## Worklog
+
+Every state transition and progress note is one comment on the issue, in this shape:
+
+    - <ISO-8601 ts> <verb> [args] | <trail>
+
+| Verb                  | Args / trail                                                  |
+|-----------------------|---------------------------------------------------------------|
+| \`advanced to=doing\` | \`claimer=<who>\` \`branch=<git-branch>\`                     |
+| \`advanced to=done\`  | optional \`\| PR=<url>\`                                       |
+| \`progress\`          | trail = \`\| <note>\`                                          |
+| \`cancelled\`         | trail = \`\| <reason>\`                                        |
+| \`failed\`            | trail = \`\| <reason>\`                                        |
+| \`rescued\`           | \`claimer=<who>\` \`branch=<git-branch>\`                     |
+| \`retried\`           | trail = \`\| <reason>\`                                        |
+
+## Claim resolution
+
+The **branch** is the claim identity (agents often share a GitHub account, so assignee isn't reliable). Walking comments chronologically:
+
+- \`retried\` resets the contest (no current winner)
+- \`advanced to=doing\` sets the winner only if currently empty (first-wins, catches take-time races)
+- \`rescued\` overrides the current winner (deliberate takeover after timeout)
+
+The earliest \`advanced to=doing\` since the most recent \`retried\`, optionally overridden by a later \`rescued\`, is the canonical claimer.
+
+## Operating
+
+These conventions are operable directly via \`gh issue\` — open an issue, add the \`${claim}\` label, post the right comment. The \`backlog\` skill (\`add / take / advance / progress / cancel / fail / rescue / retry / maintain / status\`) is a convenience layer that automates the patterns (auto-pick by priority, race-resolution at claim time, status counts) but isn't required for any of them. Mix both: skill for batch operations, raw \`gh\` for one-offs.
+
+Tasks are referenced by issue number — \`take 42\` or \`take #42\`. Titles are free text.
 
 ## Backend
 
-\`github-issues\` — see the \`backlog\` skill's \`references/backends/github-issues.md\`.
+\`github-issues\` — see the \`backlog\` skill's \`references/backends/github-issues.md\` for the script's behavior.
 
-State mapping:
+## Labels
 
-| State    | open/closed | labels                  |
-|----------|-------------|-------------------------|
-| todo     | open        | no \`doing\`            |
-| doing    | open        | \`doing\`               |
-| done     | closed      | no \`failed\`           |
-| failed   | closed      | \`failed\`              |
+claim:  ${claim}
+failed: ${failed}
 
-\`cancel\` and ordinary \`done\` both close the issue — discriminated by the
-worklog comment and GitHub's close reason. Title is free text; the spec body
-carries \`priority\`/\`timeout\`/\`dependencies\` as YAML frontmatter, same shape
-as the maildir backends.
+(Defaults: \`doing\` / \`failed\`. Configurable at setup via \`--claim-label\` / \`--failed-label\`, or by editing this section — but renaming after \`setup\` requires \`gh label rename\` on the remote to keep the existing labels in sync.)
 
 ## Pipeline
 
-\`todo → doing → done\` (intermediate stages aren't supported in v1).
+\`todo → doing → done\` (intermediate stages aren't supported yet).
 
 ## ROADMAP
 
@@ -157,7 +204,7 @@ EOF
 <!-- What we are explicitly not doing right now. -->
 EOF
   git add backlog/AGENTS.md backlog/CLAUDE.md backlog/ROADMAP.md
-  git commit -m "setup backlog (github-issues)"
+  git commit -m "setup backlog (github-issues; claim=${claim} failed=${failed})"
 }
 
 cmd_add() {
@@ -172,13 +219,13 @@ cmd_add() {
 }
 
 # Best takeable issue: lowest declared priority, recency tiebreak. Empty stdout
-# if nothing's takeable. Takeable = open, no `doing` label. Every open issue
-# is in the running — non-conformant ones get handled when encountered.
+# if nothing's takeable. Takeable = open, no claim label. Every open issue is
+# in the running — non-conformant ones get handled when encountered.
 pick_takeable() {
   gh issue list --state open --limit 1000 \
     --json number,body,updatedAt,labels \
-    | jq -r '
-        [.[] | select(.labels | map(.name) | contains(["doing"]) | not)]
+    | jq -r --arg claim "$(claim_label)" '
+        [.[] | select(.labels | map(.name) | contains([$claim]) | not)]
         | map({
             n: .number,
             p: (try ((.body // "") | capture("(^|\\n)priority:[[:space:]]*(?<v>\\d+)").v | tonumber) catch 999),
@@ -228,7 +275,7 @@ cmd_take() {
   ts=$(backlog_now); claimer=$(backlog_claimer); branch=$(backlog_branch)
   # Post the claim comment first — comment timestamps are the discriminator.
   post_log "$n" "- ${ts} advanced to=doing claimer=${claimer} branch=${branch}"
-  gh issue edit "$n" --add-label "doing" >/dev/null
+  gh issue edit "$n" --add-label "$(claim_label)" >/dev/null
   # Re-read: did our comment win the race?
   local winner; winner=$(claim_winner_branch "$n")
   if [[ "$winner" != "$branch" ]]; then
@@ -243,9 +290,10 @@ cmd_advance() {
   local n; n=$(validate_id "$slug") || exit 1
   local view; view=$(gh issue view "$n" --json state,labels)
   local state; state=$(jq -r .state <<<"$view")
-  local has_doing; has_doing=$(jq -r '[.labels[].name] | index("doing") | tostring' <<<"$view")
+  local has_claim; has_claim=$(jq -r --arg claim "$(claim_label)" \
+    '[.labels[].name] | index($claim) | tostring' <<<"$view")
 
-  if [[ "$state" == "OPEN" && "$has_doing" == "null" ]]; then
+  if [[ "$state" == "OPEN" && "$has_claim" == "null" ]]; then
     # todo → doing — same path as take
     cmd_take "$slug"
     return
@@ -259,7 +307,7 @@ cmd_advance() {
     line="- ${ts} advanced to=done"
     [[ -n "$pr_url" ]] && line+=" | PR=${pr_url}"
     post_log "$n" "$line"
-    gh issue edit "$n" --remove-label "doing" >/dev/null
+    gh issue edit "$n" --remove-label "$(claim_label)" >/dev/null
     gh issue close "$n" --reason completed >/dev/null
     gh issue view "$n" --json url -q .url
     return
@@ -298,7 +346,7 @@ close_with_log() {
   local n="$1" verb="$2" reason="$3" close_reason="$4" extra_label="${5:-}"
   local ts; ts=$(backlog_now)
   post_log "$n" "- ${ts} ${verb} | ${reason}"
-  gh issue edit "$n" --remove-label "doing" >/dev/null 2>&1 || true
+  gh issue edit "$n" --remove-label "$(claim_label)" >/dev/null 2>&1 || true
   [[ -n "$extra_label" ]] && gh issue edit "$n" --add-label "$extra_label" >/dev/null
   gh issue close "$n" --reason "$close_reason" >/dev/null
 }
@@ -314,7 +362,7 @@ cmd_fail() {
   require_gh
   local slug="${1:?issue number required}" reason="${2:?reason required}"
   local n; n=$(validate_id "$slug") || exit 1
-  close_with_log "$n" failed "$reason" "not planned" "failed"
+  close_with_log "$n" failed "$reason" "not planned" "$(failed_label)"
 }
 
 cmd_rescue() {
@@ -336,7 +384,7 @@ cmd_rescue() {
   local ts claimer branch
   ts=$(backlog_now); claimer=$(backlog_claimer); branch=$(backlog_branch)
   post_log "$n" "- ${ts} rescued claimer=${claimer} branch=${branch}"
-  gh issue edit "$n" --add-label "doing" >/dev/null
+  gh issue edit "$n" --add-label "$(claim_label)" >/dev/null
   # Symmetry with cmd_take: re-read in case another agent also rescued.
   local winner; winner=$(claim_winner_branch "$n")
   if [[ "$winner" != "$branch" ]]; then
@@ -348,10 +396,12 @@ cmd_retry() {
   require_gh
   local slug="${1:?issue number required}" reason="${2:?reason required}"
   local n; n=$(validate_id "$slug") || exit 1
-  local labels; labels=$(gh issue view "$n" --json labels -q '[.labels[].name] | join(",")')
-  [[ ",${labels}," == *",failed,"* ]] \
+  local labels failed
+  labels=$(gh issue view "$n" --json labels -q '[.labels[].name] | join(",")')
+  failed=$(failed_label)
+  [[ ",${labels}," == *",${failed},"* ]] \
     || { echo "not in failed state: $slug" >&2; exit 1; }
-  gh issue edit "$n" --remove-label "failed" >/dev/null
+  gh issue edit "$n" --remove-label "$failed" >/dev/null
   gh issue reopen "$n" >/dev/null
   local ts; ts=$(backlog_now)
   post_log "$n" "- ${ts} retried | ${reason}"
@@ -359,15 +409,18 @@ cmd_retry() {
 
 cmd_status() {
   require_gh
-  # One fetch, bucket via jq. Every issue in the repo is counted.
+  # One fetch, bucket via jq. Every issue in the repo is counted. Bucket
+  # names in the output stay as the canonical state names (todo/doing/done/
+  # failed) regardless of how the project named the labels — operators
+  # compare across projects without translating the output.
   gh issue list --state all --limit 1000 --json number,state,labels \
-    | jq -r '
+    | jq -r --arg claim "$(claim_label)" --arg failed "$(failed_label)" '
         reduce .[] as $i (
           {"todo":0,"doing":0,"done":0,"failed":0};
           ($i.labels | map(.name)) as $L
-          | if   $i.state == "OPEN"   and ($L | contains(["doing"]))  then .doing  += 1
-            elif $i.state == "OPEN"                                    then .todo   += 1
-            elif $i.state == "CLOSED" and ($L | contains(["failed"])) then .failed += 1
+          | if   $i.state == "OPEN"   and ($L | contains([$claim]))  then .doing  += 1
+            elif $i.state == "OPEN"                                   then .todo   += 1
+            elif $i.state == "CLOSED" and ($L | contains([$failed])) then .failed += 1
             else .done += 1 end
         )
         | "todo: \(.todo)\ndoing: \(.doing)\ndone: \(.done)\nfailed: \(.failed)"
