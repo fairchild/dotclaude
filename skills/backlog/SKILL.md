@@ -99,6 +99,8 @@ The script writes a skeleton file in `backlog/todo/` and commits with `add(<slug
 
 Quality: write enough that a fresh session can execute without ever having met you — specific paths, verification commands, deps declared if any. Commit before anyone can claim.
 
+Outcome contract: by default, a claim ends with the worker opening a *merge-ready* PR — the user clicks, reviews, merges. The task is agent-done when its file lands in `done/` with an `advanced to=done | PR=<url>` log line; the human's merge closes the loop. Lead time from agent-done to merged is later trackable from that timestamp. If the task wants something else (draft PR for exploratory work, no PR for batched grooming, etc.), say so in the spec — the default is review-ready.
+
 ## Working the backlog
 
 For advance, progress, cancel, fail, rescue, retry, status, and maintain — the verb semantics plus the rules workers must follow — see `references/worker.md`. The canonical implementation lives in `scripts/` (invoke `scripts/backlog.sh <verb>`); the backend declaration in `backlog/AGENTS.md` selects which implementation runs. Mechanism prose for each backend: `references/backends/<name>.md`. For extending the pipeline with intermediate dirs (e.g. `reviewing/`) and how `advance` reads the ordering, see `references/pipeline.md`.
