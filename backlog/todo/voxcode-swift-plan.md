@@ -1,11 +1,5 @@
 ---
-status: pending
-category: plan
-pr: null
-branch: null
-score: null
-retro_summary: null
-completed: null
+arc: prototype-surface
 ---
 
 # Swift Voxcode — Native macOS Voice Interface for Claude Code
