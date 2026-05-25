@@ -28,6 +28,44 @@ backlog_backend() {
   ' backlog/AGENTS.md 2>/dev/null | head -1
 }
 
+# Read a label name by role from backlog/AGENTS.md `## Labels` section. Returns
+# the configured name if found, otherwise the supplied default. The role is
+# the pipeline state name (or `failed` for the dead-letter terminal). Format:
+#
+#   ## Labels
+#
+#   doing: claimed
+#   reviewing: under-review
+#   failed: dead-letter
+#
+# Lines may be bare `role: name` or list items `- role: name`. Comments and
+# blanks are ignored. The section ends at the next `##` heading. Backends
+# wrap this in their own helpers (e.g. github-issues uses `state_label` /
+# `failed_label` with defaults that match the bare names cmd_setup creates).
+backlog_label() {
+  local role="${1:?role required}"
+  local default="${2:?default required}"
+  local found
+  found=$(awk -v role="$role" '
+    /^## Labels/ { flag=1; next }
+    flag && /^## / { exit }
+    flag {
+      line = $0
+      sub(/^[[:space:]]*-?[[:space:]]*/, "", line)
+      if (match(line, /^[a-zA-Z][a-zA-Z0-9_-]*[[:space:]]*:[[:space:]]*/)) {
+        k = substr(line, 1, RLENGTH)
+        sub(/[[:space:]]*:[[:space:]]*$/, "", k)
+        if (k == role) {
+          v = substr(line, RLENGTH + 1)
+          sub(/[[:space:]]+$/, "", v); sub(/^[[:space:]]+/, "", v)
+          print v; exit
+        }
+      }
+    }
+  ' backlog/AGENTS.md 2>/dev/null)
+  printf '%s' "${found:-$default}"
+}
+
 # Next dir after $1 in the pipeline declared in AGENTS.md.
 # Default pipeline: todo -> doing -> done.
 backlog_next_dir() {
@@ -77,6 +115,12 @@ backlog_inflight_dirs() {
     }
     END { if (!parsed) print "doing" }
   ' backlog/AGENTS.md 2>/dev/null
+}
+
+# First in-flight pipeline state — the one a worker enters on claim.
+# (Convenience wrapper used by backends that need a single-state reference.)
+backlog_first_inflight_dir() {
+  backlog_inflight_dirs | head -1
 }
 
 # Parse timeout from frontmatter (e.g. "3d") to seconds. Defaults to 7d.
