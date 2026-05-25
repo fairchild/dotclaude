@@ -5,9 +5,13 @@
 
 set -euo pipefail
 
-root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./lib.sh
+. "$script_dir/lib.sh"
+
+inbox_root=$(agent_inbox_root)
 agent="${CLAUDE_SESSION_NAME:-orchestrator}"
-inbox="$root/.agents/inbox/$agent/new"
+inbox="$inbox_root/$agent/new"
 
 [[ -d "$inbox" ]] || exit 0
 
@@ -19,7 +23,7 @@ shopt -u nullglob
 count=${#files[@]}
 [[ $count -eq 0 ]] && exit 0
 
-echo "📬 ${count} unread in .agents/inbox/${agent}/new/"
+echo "📬 ${count} unread in ${inbox_root}/${agent}/new/"
 echo ""
 
 for f in "${files[@]}"; do
@@ -32,4 +36,4 @@ for f in "${files[@]}"; do
 done
 
 echo ""
-echo "Read with: cat .agents/inbox/${agent}/new/<file>"
+echo "Read with: cat \"${inbox_root}/${agent}/new/<file>\""
