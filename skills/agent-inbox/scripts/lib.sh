@@ -8,9 +8,9 @@ agent_inbox_root() {
     case "$common_dir" in
       /*) ;;
       *)
-        top=$(git rev-parse --show-toplevel 2>/dev/null) || top="$PWD"
-        common_dir="$top/$common_dir"
-        ;;
+    top=$(git rev-parse --show-toplevel 2>/dev/null) || top="$PWD"
+    common_dir="$top/$common_dir"
+    ;;
     esac
 
     printf '%s/.agents/inbox\n' "$(dirname "$common_dir")"
