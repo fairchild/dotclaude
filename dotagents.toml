@@ -42,7 +42,6 @@ zoom-out = "mattpocock/skills"
 [link-to-claude]
 apple-hig-designer = true
 apple-ui-designer = true
-caveman = true
 diagnose = true
 find-skills = true
 fun-brainstorming = true
@@ -60,7 +59,6 @@ to-prd = true
 triage = true
 vercel-react-best-practices = true
 web-design-guidelines = true
-write-a-skill = true
 zoom-out = true
 
 # Dotclaude-authored skills to share with ~/.agents/skills/
