@@ -13,7 +13,7 @@ usage() {
 backlog — task tracker shaped like a maildir
 
 Usage:
-  backlog setup [--backend=maildir-git|maildir-shared]
+  backlog setup [--backend=maildir-git|maildir-shared|github-issues]
   backlog add <slug> [category]
   backlog take [slug]
   backlog advance <slug>
@@ -58,19 +58,21 @@ if [[ "$cmd" == "setup" ]]; then
     hint="maildir-git (single worktree)"
     [[ "$wt_count" -gt 1 ]] && hint="maildir-shared (>1 worktree detected)"
     cat >&2 <<EOF
-setup requires --backend=<maildir-git|maildir-shared>.
+setup requires --backend=<maildir-git|maildir-shared|github-issues>.
 
   maildir-git    — everything committed; claim is \`git mv\`. Single-worktree friendly.
   maildir-shared — todo/done committed; in-flight set lives in git-common-dir
                    shared across worktrees. Atomic claim via O_EXCL.
+  github-issues  — tasks live as GitHub Issues on the current repo's remote;
+                   verbs dispatch to \`gh\`. Cross-machine. Requires gh auth.
 
 This clone has $wt_count worktree(s). Likely fit: $hint.
 EOF
     exit 2
   fi
   case "$backend" in
-    maildir-git|maildir-shared) ;;
-    *) echo "unknown backend: $backend (expected maildir-git or maildir-shared)" >&2; exit 1 ;;
+    maildir-git|maildir-shared|github-issues) ;;
+    *) echo "unknown backend: $backend (expected maildir-git, maildir-shared, or github-issues)" >&2; exit 1 ;;
   esac
   impl="$script_dir/backlog-${backend}.sh"
   [[ -x "$impl" ]] || { echo "missing impl: $impl" >&2; exit 1; }
