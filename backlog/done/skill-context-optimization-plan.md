@@ -161,3 +161,7 @@ ls ~/.claude/commands/ | wc -l  # should be fewer
 - [cchistory](https://mariozechner.at/posts/2025-08-03-cchistory/) — Tracking Claude Code system prompt changes over time
 - [Piebald-AI system prompts](https://github.com/Piebald-AI/claude-code-system-prompts) — Extracted system prompts showing ~40 system-reminder types
 - [Optimizing MCP Context Usage](https://scottspence.com/posts/optimising-mcp-server-context-usage-in-claude-code) — Practical MCP optimization guide
+
+---
+
+- 2026-05-25T21:05:18Z advanced to=done | superseded-by=skill-catalog-grooming-merged-plan — consolidated under ROADMAP #2 alongside skill-coherence-cleanup-task-list. Phase 1 (catalog reduction via plugin removal) was partially advanced by PR #182 (dotagents reconciliation, superpowers removal); remaining phases re-sequenced in the merged plan

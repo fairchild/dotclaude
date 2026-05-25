@@ -2,6 +2,7 @@
 name: skill-building
 description: Guide for creating, editing, and evaluating skills. Use when creating a new skill, updating an existing skill, or verifying skills work before deployment. Also use when reviewing a third-party skill from skills.sh or GitHub, when asking "should I install this skill", "is this skill safe", "review this skill", "evaluate skill quality", or when comparing competing skills.
 license: Apache-2.0
+disable-model-invocation: true
 metadata:
   author: Michael Fairchild
   version: "3.0"

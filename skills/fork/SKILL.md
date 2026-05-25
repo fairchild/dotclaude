@@ -2,6 +2,7 @@
 name: fork
 description: Fork the current session with context carried over. Use `/fork <branch>` for a new worktree or `/fork --local` for a new session in the current directory.
 license: Apache-2.0
+disable-model-invocation: true
 requires:
   - git-worktree  # wt.sh for worktree creation (when not --local)
 ---
