@@ -2,6 +2,7 @@
 name: skill-seeker
 description: EXPERIMENTAL — only use when explicitly requested. Generate Claude Code skills from docs sites, GitHub repos, or local codebases using Skill Seekers.
 license: Apache 2.0
+disable-model-invocation: true
 metadata:
   status: experimental
   experimental_reason: "Generated skill quality varies by source corpus and still requires explicit human review before installation."

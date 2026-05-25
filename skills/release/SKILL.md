@@ -2,6 +2,7 @@
 name: release
 description: Create semantic versioned releases with AI-generated changelogs. Worktree-aware - works from any branch. Use when the user wants to create a release, cut a release, bump version, or publish a new version. Supports dry-run preview, pre-releases (alpha/beta/rc), and CI status checks.
 license: Apache-2.0
+disable-model-invocation: true
 ---
 
 # Release
