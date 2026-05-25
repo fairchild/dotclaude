@@ -18,7 +18,7 @@ The layout mirrors [`cloudflare/claude-managed-agents`](https://github.com/cloud
 | `runtime/email-handler.ts` — per-agent inbound mail | ✅ wired + tested |
 | `agents/pr-review/` — agent definition, system prompt, trigger workflow | ✅ wired (will execute once `runner.ts` lands) |
 
-24 vitest tests pass against the deterministic surface (egress matching, secret resolution, tool schemas, address parsing).
+42 vitest tests pass — pure-function tests (egress matching, secret resolution, tool schemas, address parsing) plus Worker integration tests via `@cloudflare/vitest-pool-workers` (webhook signature verify against the real `/webhooks` route, `/healthz`, email handler with KV writes, egress fetch with header injection through mocked outbound, custom tool dispatch end-to-end including GitHub tools).
 
 ## Layout
 
