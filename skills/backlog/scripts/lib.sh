@@ -29,15 +29,19 @@ backlog_backend() {
 }
 
 # Read a label name by role from backlog/AGENTS.md `## Labels` section. Returns
-# the configured name if found, otherwise the supplied default. Format:
+# the configured name if found, otherwise the supplied default. The role is
+# the pipeline state name (or `failed` for the dead-letter terminal). Format:
 #
 #   ## Labels
 #
-#   claim: claimed
+#   doing: claimed
+#   reviewing: under-review
 #   failed: dead-letter
 #
 # Lines may be bare `role: name` or list items `- role: name`. Comments and
-# blanks are ignored. The section ends at the next `##` heading.
+# blanks are ignored. The section ends at the next `##` heading. Backends
+# wrap this in their own helpers (e.g. github-issues uses `state_label` /
+# `failed_label` with defaults that match the bare names cmd_setup creates).
 backlog_label() {
   local role="${1:?role required}"
   local default="${2:?default required}"
