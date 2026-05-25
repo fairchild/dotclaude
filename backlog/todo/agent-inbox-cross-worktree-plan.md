@@ -1,6 +1,7 @@
 ---
 priority: 2
 timeout: 2d
+arc: backlog-roadmap-dogfood
 ---
 
 # Agent Inbox: Shared Cross-Worktree Location

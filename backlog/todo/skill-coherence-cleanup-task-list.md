@@ -1,6 +1,6 @@
 ---
 priority: 2
-description: Trim and organize skills for coherence — naming, status labels, SKILL.md sizing
+arc: skill-catalog-grooming
 ---
 
 # Skill Coherence Cleanup

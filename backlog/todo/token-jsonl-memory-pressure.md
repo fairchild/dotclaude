@@ -1,12 +1,5 @@
 ---
-status: pending
-category: followup
-thread: null
-pr: null
-branch: null
-score: null
-retro_summary: null
-completed: null
+arc: memory-loop-quality
 ---
 
 # Token JSONL Parsing Memory Pressure for Long Sessions

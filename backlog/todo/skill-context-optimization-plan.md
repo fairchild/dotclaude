@@ -1,11 +1,5 @@
 ---
-status: pending
-category: plan
-pr: null
-branch: null
-score: null
-retro_summary: null
-completed: null
+arc: skill-catalog-grooming
 ---
 
 # Skill & Command Context Optimization

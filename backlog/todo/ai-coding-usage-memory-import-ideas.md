@@ -1,12 +1,5 @@
 ---
-status: pending
-category: ideas
-thread: ai-coding-usage
-pr: null
-branch: null
-score: null
-retro_summary: null
-completed: null
+arc: memory-loop-quality
 ---
 
 # ai-coding-usage: Import Auto Memory into DuckDB

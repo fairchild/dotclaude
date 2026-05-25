@@ -1,7 +1,6 @@
 ---
-topic: chronicle-quality
 priority: 2
-description: Diagnose why extract-lib.callHaiku produces zero narrative blocks in SessionEnd before adding any new LLM tier.
+arc: memory-loop-quality
 ---
 
 # Chronicle auto-extractor — Haiku diagnosis

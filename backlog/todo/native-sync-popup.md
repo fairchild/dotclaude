@@ -1,12 +1,5 @@
 ---
-status: pending
-category: plan
-thread: chronicle
-pr: null
-branch: null
-score: null
-retro_summary: null
-completed: null
+arc: prototype-surface
 ---
 
 # Native Sync Popup
