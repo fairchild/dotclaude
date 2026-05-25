@@ -67,11 +67,19 @@ zoom-out = true
 # Makes these available to Cursor, Codex, Gemini CLI, etc.
 [share-to-agents]
 agent-inbox = true
+analyze-usage = true
 backlog = true
+brainstorm-to-brief = true
+clone-explore = true
+code-review = true
+excalidraw-diagrams = true
+frontend-design = true
 gh-apps = true
 image-gen = true
 release = true
+skill-building = true
 swiftui-expert-skill = true
 tart-gui-automation = true
 update-dependencies = true
 vocal = true
+youtube-content = true
