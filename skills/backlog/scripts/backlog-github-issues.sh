@@ -99,9 +99,11 @@ cmd_setup() {
   }
   # Flags: --claim-label and --failed-label let projects align with their
   # existing label vocabulary at setup time (no need to fork the script).
+  # --backend=* is the dispatcher's flag — accepted and ignored here.
   local claim="doing" failed="failed"
   for arg in "$@"; do
     case "$arg" in
+      --backend=*)      ;;
       --claim-label=*)  claim="${arg#--claim-label=}" ;;
       --failed-label=*) failed="${arg#--failed-label=}" ;;
       *) echo "unknown setup flag: $arg" >&2; exit 1 ;;

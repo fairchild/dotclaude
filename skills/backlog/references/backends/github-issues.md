@@ -78,7 +78,7 @@ The earliest `advanced to=doing` since the most recent `retried`, optionally ove
 
 ## Operating directly via `gh`
 
-The protocol is sufficient to participate without the skill. Any of these is a legitimate operation:
+The protocol is sufficient to participate without the skill. Any of these is a legitimate operation. Recipes use the default label names (`doing` / `failed`) — substitute your project's configured names from `backlog/AGENTS.md` `## Labels` if different.
 
 **Add a task:**
 ```bash
@@ -91,7 +91,13 @@ TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 BR=$(git branch --show-current)
 gh issue comment 42 --body "- $TS advanced to=doing claimer=jane@laptop branch=$BR"
 gh issue edit 42 --add-label doing
-# Verify nobody beat you (see Claim resolution above)
+# Verify the claim. The skill (`backlog.sh take 42`) does this automatically.
+# By hand:
+gh issue view 42 --json comments -q '.comments[].body' \
+  | grep -E '^- [0-9TZ:-]+ (advanced to=doing|rescued|retried)'
+# Apply Claim resolution from above: earliest `advanced to=doing` since the
+# last `retried`, overridden by any later `rescued`. If that line's branch=
+# isn't yours, you lost — remove the label and let the winner have it.
 ```
 
 **Make progress:**
