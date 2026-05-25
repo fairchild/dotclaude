@@ -12,6 +12,11 @@ export type { ChronicleBlock };
 
 const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;
 
+const DEBUG = process.env.CHRONICLE_DEBUG === "1";
+function dbg(...args: unknown[]): void {
+  if (DEBUG) console.error("[chronicle:debug]", ...args);
+}
+
 /** Find an existing block file for a given sessionId. */
 function findExistingBlock(sessionId: string): string | null {
   if (!existsSync(CHRONICLE_DIR)) return null;
@@ -271,30 +276,46 @@ export interface ExtractionResult {
 /**
  * Call Haiku to analyze the session.
  */
+const HAIKU_MODEL = "claude-3-5-haiku-20241022";
+
 async function callHaiku(prompt: string): Promise<ExtractionResult | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) {
+    dbg("callHaiku: ANTHROPIC_API_KEY absent → returning null (fallback path)");
+    return null;
+  }
+  dbg("callHaiku: key present, model=", HAIKU_MODEL, "prompt-bytes=", prompt.length);
 
+  let res;
   try {
     const client = new Anthropic({ apiKey });
-    const res = await client.messages.create({
-      model: "claude-3-5-haiku-20241022",
+    res = await client.messages.create({
+      model: HAIKU_MODEL,
       max_tokens: 800,
       messages: [{ role: "user", content: prompt }],
     });
+  } catch (err) {
+    const e = err as { name?: string; message?: string; status?: number };
+    dbg("callHaiku: API error:", e.name, e.status, e.message);
+    return null;
+  }
+  dbg("callHaiku: response stop_reason=", res.stop_reason, "usage=", res.usage);
 
-    const text = res.content[0];
-    if (text.type !== "text") return null;
+  const text = res.content[0];
+  if (text?.type !== "text") {
+    dbg("callHaiku: first content block is not text:", text?.type);
+    return null;
+  }
 
-    // Parse JSON from response (handle potential markdown wrapping)
-    let jsonStr = text.text.trim();
-    if (jsonStr.startsWith("```")) {
-      jsonStr = jsonStr.replace(/^```json?\n?/, "").replace(/\n?```$/, "");
-    }
+  let jsonStr = text.text.trim();
+  if (jsonStr.startsWith("```")) {
+    jsonStr = jsonStr.replace(/^```json?\n?/, "").replace(/\n?```$/, "");
+  }
 
+  try {
     return JSON.parse(jsonStr);
-  } catch {
-    // API call failed - fallback will be used
+  } catch (err) {
+    dbg("callHaiku: JSON.parse failed:", (err as Error).message, "raw-prefix=", jsonStr.slice(0, 200));
     return null;
   }
 }
@@ -354,9 +375,19 @@ export async function extractChronicleBlock(
   transcriptPath: string
 ): Promise<ChronicleBlock | null> {
   const ctx = extractSessionContext(transcriptPath, cwd);
+  dbg("extractChronicleBlock: ctx", {
+    project: ctx.projectName,
+    branch: ctx.gitBranch,
+    messageCount: ctx.messageCount,
+    filesModified: ctx.filesModified.length,
+    actions: ctx.assistantActions.length,
+    transcriptPath,
+    transcriptExists: existsSync(transcriptPath),
+  });
 
   // Skip very short sessions (likely just startup/exit)
   if (ctx.messageCount < 2 && ctx.filesModified.length === 0) {
+    dbg("extractChronicleBlock: gated out (messageCount<2 && no files) → null");
     return null;
   }
 

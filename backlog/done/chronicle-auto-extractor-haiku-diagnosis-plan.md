@@ -74,3 +74,8 @@ Depends on which hypothesis wins:
 - `backlog/done/chronicle-auto-extractor-quality-plan.md` — closed slice that produced this
 
 ---
+- 2026-05-25T00:21:52Z advanced to=doing claimer=fairchild@blue branch=c-backlog-worker-v1
+- 2026-05-25T00:32:43Z progress | Phase 1 instrumentation shipped (commit b83fc3f); Phases 2 (fix) and 3 (confirm) need real SessionEnd output first — followed up by chronicle-auto-extractor-haiku-fix-followup in todo/
+
+---
+- 2026-05-25T00:34:15Z advanced to=done | PR=https://github.com/fairchild/dotclaude/pull/177
