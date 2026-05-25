@@ -189,19 +189,26 @@ pick_takeable() {
       '
 }
 
-# Returns the branch that won the most recent claim race on issue $1. The
-# winner is the earliest `advanced to=doing` line since the most recent
-# `retried` line (retry resets the contest). Empty stdout if no claim posted.
+# Returns the branch that currently owns the claim on issue $1. Rules:
+#   - `retried` resets the contest (back to no claimant)
+#   - `advanced to=doing` sets the winner only if there's no current claimant
+#     (earliest-wins for race detection)
+#   - `rescued` overrides the current winner (rescue is a deliberate takeover
+#     after timeout — the rescuer is the new claimant)
+# Empty stdout if no claim has been posted since the last retry.
 claim_winner_branch() {
   local n="$1"
   worklog_lines "$n" | awk '
-    /retried/ { delete claims; next }
+    function branch_of(line,    p, b) {
+      p = match(line, /branch=[^ ]+/)
+      return p ? substr(line, RSTART+7, RLENGTH-7) : ""
+    }
+    /retried/ { winner = ""; next }
     /advanced to=doing/ {
-      match($0, /branch=[^ ]+/)
-      if (RSTART > 0) {
-        b = substr($0, RSTART+7, RLENGTH-7)
-        if (winner == "") winner = b
-      }
+      if (winner == "") winner = branch_of($0)
+    }
+    /rescued/ {
+      b = branch_of($0); if (b != "") winner = b
     }
     END { if (winner != "") print winner }
   '
@@ -330,6 +337,11 @@ cmd_rescue() {
   ts=$(backlog_now); claimer=$(backlog_claimer); branch=$(backlog_branch)
   post_log "$n" "- ${ts} rescued claimer=${claimer} branch=${branch}"
   gh issue edit "$n" --add-label "doing" >/dev/null
+  # Symmetry with cmd_take: re-read in case another agent also rescued.
+  local winner; winner=$(claim_winner_branch "$n")
+  if [[ "$winner" != "$branch" ]]; then
+    echo "rescue conflict on #${n}: won by branch=${winner}" >&2; exit 1
+  fi
 }
 
 cmd_retry() {

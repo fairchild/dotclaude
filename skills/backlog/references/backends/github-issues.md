@@ -69,20 +69,29 @@ Two reasons assignee can't carry the claim signal:
 1. **Shared agent identity.** Many agents share a single GitHub PAT (one bot account, many workers). `--assignee @me` reduces to "this account is involved," not "this specific worker claimed it."
 2. **Non-atomic assignment.** GitHub's assignee API isn't compare-and-set, so even with unique identities two writers can briefly co-assign.
 
-Both problems go away if we use **branch as the claim identity**, with comment ordering as the timestamp. Each worker normally has its own branch (Conductor workspace, cmux workspace, or any feature branch); the claim comment records `branch=<X>`; comments on GitHub are timestamped and append-only; the earliest `advanced to=doing` comment since the most recent `retried` comment is the canonical winner.
+Both problems go away if we use **branch as the claim identity**, with comment ordering as the timestamp. Each worker normally has its own branch (Conductor workspace, cmux workspace, or any feature branch); the claim comment records `branch=<X>`; comments on GitHub are timestamped and append-only.
+
+The resolution rule, walking the worklog comments in chronological order:
+
+| Comment kind          | Effect on the current winner                                                      |
+|-----------------------|-----------------------------------------------------------------------------------|
+| `retried`             | reset — no current winner (contest restarts when an item comes back from `failed/`) |
+| `advanced to=doing`   | first-wins — sets the winner only if currently empty (catches `take`-time races)  |
+| `rescued`             | override — replaces the current winner (rescue is a deliberate takeover after timeout) |
+
+`take` posts an `advanced to=doing` comment, adds the `doing` label, then re-reads; if it isn't the earliest claim since the last `retried`, it lost and exits non-zero. `rescue` posts a `rescued` comment then re-reads with the same verify-or-exit dance — two simultaneous rescuers don't both think they won.
 
 ```bash
 take(id):
-  ts = now()
   post "- ts advanced to=doing claimer=ME branch=$(git branch --show-current)"
   gh issue edit --add-label doing
-  winner = (oldest `advanced to=doing` comment since last `retried`).branch
-  if winner != my branch: error "claim conflict on #N: won by branch=$winner"
+  if claim_winner_branch(id) != my branch:
+    error "claim conflict on #N: won by branch=$winner"
 ```
 
-Race window: two workers can both post claim comments before either re-reads. Both then re-read, both see two claim comments, both compare against their own branch; the loser exits non-zero. No livelock — one worker wins on the first attempt because the GitHub API orders the comments.
+Race window: two workers can both post claim comments before either re-reads. Both then re-read, see the same chronological comment trail, agree on the winner; the loser exits non-zero. No livelock — one worker wins on the first attempt because the GitHub API orders the comments.
 
-When the rare double-post happens, the losing comment stays in the issue's history. That's truthful (the attempt happened) and harmless (subsequent reads still pick the earliest as the winner).
+When the rare double-post happens, the losing comment stays in the issue's history. That's truthful (the attempt happened) and harmless (subsequent reads still resolve to the same winner).
 
 ## Worklog reconstruction
 
