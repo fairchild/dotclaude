@@ -82,10 +82,24 @@ cd agents/pr-review
 ```bash
 cp .dev.vars.example .dev.vars
 # fill in real values for ANTHROPIC_ENVIRONMENT_KEY etc.
-bun run dev                                       # wrangler dev
-bun run test                                      # vitest
+bun run dev                                       # wrangler dev (port 8787)
+bun run test                                      # vitest (42 tests)
 bun run typecheck                                 # tsc --noEmit
 ```
+
+### Local smoke test
+
+In one terminal:
+```bash
+bun run dev
+```
+
+In another:
+```bash
+bun run smoke
+```
+
+`scripts/smoke.ts` signs a payload against the `ANTHROPIC_WEBHOOK_SIGNING_KEY` in your `.dev.vars`, posts it to the dev server, and asserts the response shape. Confirms wrangler boots cleanly, KV bindings resolve under miniflare, `standardwebhooks` verifies in the real workerd runtime, and `ctx.waitUntil` invokes `runSession` (you'll see a `session.runtime_error` log when its outbound call to the fake Anthropic API fails — that's expected and proves the code path ran).
 
 ## Docs
 
