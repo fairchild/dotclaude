@@ -143,4 +143,4 @@ The O_EXCL create is the lock. Two agents simultaneously calling `take` for the 
 
 When the work completes (`done`, `cancel`, or `fail`), the file leaves the shared dir; the slug becomes claimable again only via `retry` from `failed/` (since `done/` is terminal).
 
-Cross-machine coordination is *not* handled — the shared dir lives in one clone's `.git/`. A different machine's clone has a different common-dir and won't see this clone's claims. For cross-machine, see the `github-issues` backend (planned).
+Cross-machine coordination is *not* handled — the shared dir lives in one clone's `.git/`. A different machine's clone has a different common-dir and won't see this clone's claims. For cross-machine, see `github-issues.md`.

@@ -16,12 +16,15 @@ backlog_claimer() {
 backlog_branch() { git rev-parse --abbrev-ref HEAD 2>/dev/null; }
 
 # Read backend declaration from backlog/AGENTS.md. Empty if unset.
+# Convention: the first backtick-quoted token after the `## Backend` heading
+# is the backend name (e.g. `maildir-shared`, `maildir-git`, `github-issues`).
 backlog_backend() {
   awk '
     /^## Backend/ { flag=1; next }
-    flag && /maildir-shared/ { print "maildir-shared"; exit }
-    flag && /maildir-git/ { print "maildir-git"; exit }
     flag && /^## / { exit }
+    flag && match($0, /`[a-z][a-z0-9-]*`/) {
+      print substr($0, RSTART+1, RLENGTH-2); exit
+    }
   ' backlog/AGENTS.md 2>/dev/null | head -1
 }
 

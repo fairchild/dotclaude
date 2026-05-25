@@ -55,3 +55,7 @@ A `## Backend: github-issues` declaration that maps every verb to `gh` CLI invoc
 - Linear/Jira backends (same shape, separate task).
 
 ---
+- 2026-05-25T00:49:28Z advanced to=doing claimer=fairchild@blue branch=c-austin-v11
+
+---
+- 2026-05-25T01:10:49Z advanced to=done | PR=https://github.com/fairchild/dotclaude/pull/178
