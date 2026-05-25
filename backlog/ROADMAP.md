@@ -25,7 +25,8 @@ From bootstrap on, the work is exercising the system. Adding to the backlog as i
 1. **backlog-roadmap-dogfood** — Exercise the new maildir backlog and ROADMAP through real decisions this month. Lets the lens surface what matters and what's noise; everything downstream depends on a working reflection loop.
 2. **skill-catalog-grooming** — Overlapping cleanup plans (skill-coherence, skill-context-optimization) are queued in `todo/`. They should merge or be sequenced under the lens of #1, not done ad-hoc. The runtime-rationalization piece this arc originally also covered shipped 2026-03-22 (#129–#133) and is now in `done/`.
 3. **memory-loop-quality** — Chronicle auto-extractor quality, ai-coding-usage memory imports, token-jsonl pressure. Strengthens Principle #1 from aspirational to load-bearing.
-4. **prototype-surface** — Vocal tuning console, image-gen protocol, video-gen skill, voxcode-swift, ship command. The adventure arc — keep the surface alive but don't let it crowd #1–#3.
+4. **backlog-pluggable-backends** — `github-issues` backend so the same verb surface targets a project living in GitHub Issues instead of a local maildir tree. Driven by an actual cross-project need; the verb semantics are backend-neutral so the work is mostly mapping verbs to `gh` CLI plus verifying claim atomicity. Dotclaude itself stays on `maildir-shared` (Principles #5, #6) — this arc adds optionality for *other* projects, not a migration here.
+5. **prototype-surface** — Vocal tuning console, image-gen protocol, video-gen skill, voxcode-swift, ship command. The adventure arc — keep the surface alive but don't let it crowd #1–#4.
 
 ## Non-goals
 

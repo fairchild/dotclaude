@@ -1,13 +1,3 @@
----
-status: pending
-category: followup
-pr: null
-branch: null
-score: null
-retro_summary: null
-completed: null
----
-
 # Fork Skill: `--base` Flag Support
 
 ## Problem Statement
