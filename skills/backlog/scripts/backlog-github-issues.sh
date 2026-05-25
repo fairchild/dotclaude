@@ -4,20 +4,29 @@
 # local files to `gh`. The slug is canonical via a `slug:<slug>` label; the
 # issue title is human-readable.
 #
-# Pipeline mapping:
-#   todo   = open, unassigned, has label `backlog`
-#   doing  = open, assigned,   has labels `backlog` + `backlog:in-flight`
-#   done   = closed
-#   failed = closed,           has label `backlog:failed`
+# State derives from GitHub-native signals where it can, falling back to
+# labels only where the platform can't encode the distinction:
 #
-# Claim is `gh issue edit --add-assignee @me` followed by a re-read. If the
-# re-read shows we aren't the sole assignee we back off — the assignment API
-# isn't compare-and-set, so two workers can briefly co-claim; the loser
-# detects via the re-read and unwinds.
+#   todo   = open,   label `backlog`,                       no   label `doing`
+#   doing  = open,   label `backlog`,                       has  label `doing`
+#   done   = closed, label `backlog`,                       no   label `failed`
+#   failed = closed, label `backlog`,                       has  label `failed`
+#
+# `cancel` and ordinary `done` both close the issue; they're discriminated by
+# the worklog comment (and by GitHub's own close reason — `completed` vs
+# `not planned`). Status lumps them, matching the maildir backends.
+#
+# Claim discriminator is the **branch**, not the assignee. Agents often share
+# a GitHub identity (one PAT, many workers), so assignee can't tell two
+# workers apart; branch usually can. `take` posts the claim comment first,
+# adds the `doing` label, then re-reads comments — the earliest
+# `advanced to=doing` line since the most recent `retried` comment wins. If
+# the winner's `branch=` matches ours, the claim is ours; otherwise we lost
+# the race and exit non-zero.
 #
 # Worklog format matches the maildir backends — each state transition or
 # progress note is one `- <ts> <verb> ...` line, posted as an issue comment.
-# `gh issue view --comments` reconstructs the same chronological log a
+# `gh issue view --json comments` reconstructs the same chronological log a
 # maildir worker would see by reading the file body below the divider.
 set -euo pipefail
 
@@ -33,8 +42,6 @@ require_gh() {
   gh auth status >/dev/null 2>&1 \
     || { echo "gh not authenticated; run: gh auth login" >&2; exit 1; }
 }
-
-me() { gh api user -q .login; }
 
 # Resolve a slug to an issue number. Empty stdout if no such slug.
 issue_for_slug() {
@@ -53,6 +60,20 @@ ensure_label() {
   gh label create "$name" --color "$color" --description "$desc" --force >/dev/null 2>&1
 }
 
+# Comments matching the worklog line shape, in chronological order.
+# Each line is the raw comment body. Skips bodies that aren't worklog lines.
+worklog_lines() {
+  local n="$1"
+  gh issue view "$n" --json comments \
+    -q '.comments | sort_by(.createdAt) | .[].body' \
+    | grep -E '^- [0-9TZ:-]+ '
+}
+
+# Extract `branch=<X>` from a worklog line. Empty if not present.
+branch_of() {
+  grep -oE 'branch=[^ ]+' <<<"$1" | tail -1 | cut -d= -f2
+}
+
 cmd_setup() {
   require_gh
   [[ -f backlog/AGENTS.md ]] && {
@@ -60,10 +81,9 @@ cmd_setup() {
   }
   local repo; repo=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 
-  ensure_label "backlog"            "0e8a16" "backlog task"
-  ensure_label "backlog:in-flight"  "fbca04" "claimed and in progress"
-  ensure_label "backlog:cancelled"  "cccccc" "abandoned by claimer"
-  ensure_label "backlog:failed"     "d93f0b" "dead-lettered; needs retry"
+  ensure_label "backlog" "0e8a16" "backlog task"
+  ensure_label "doing"   "fbca04" "claimed and in progress"
+  ensure_label "failed"  "d93f0b" "dead-lettered; needs retry"
 
   mkdir -p backlog
   cat > backlog/AGENTS.md <<EOF
@@ -72,7 +92,8 @@ cmd_setup() {
 \`CLAUDE.md\` here is a symlink to this file — read one, not both.
 
 Task state lives in GitHub Issues on **${repo}**. There is no local
-\`todo/\`/\`doing/\`/\`done/\` tree — issue state plus labels are the queue.
+\`todo/\`/\`doing/\`/\`done/\` tree — issue state plus a small label set are the
+queue.
 
 Use the \`backlog\` skill (add / take / advance / progress / cancel / fail /
 rescue / retry / maintain / status) to interact. Verbs dispatch to
@@ -84,12 +105,16 @@ rescue / retry / maintain / status) to interact. Verbs dispatch to
 
 State mapping:
 
-- todo:   open, unassigned, label \`backlog\`
-- doing:  open, assigned,   labels \`backlog\` + \`backlog:in-flight\`
-- done:   closed
-- failed: closed,           label \`backlog:failed\`
+| State    | open/closed | labels                            |
+|----------|-------------|-----------------------------------|
+| todo     | open        | \`backlog\`, no \`doing\`         |
+| doing    | open        | \`backlog\`, \`doing\`            |
+| done     | closed      | \`backlog\`, no \`failed\`        |
+| failed   | closed      | \`backlog\`, \`failed\`           |
 
-Slug → issue lookup via \`slug:<slug>\` label (canonical). Title is free text.
+\`cancel\` and ordinary \`done\` both close the issue — discriminated by the
+worklog comment and GitHub's close reason. Slug → issue lookup via
+\`slug:<slug>\` label (canonical). Title is free text.
 
 ## Defaults
 
@@ -135,7 +160,7 @@ cmd_add() {
   local category="${2:-plan}"
   local existing; existing=$(issue_for_slug "$slug")
   [[ -n "$existing" ]] && { echo "slug already taken: #${existing}" >&2; exit 1; }
-  ensure_label "slug:${slug}"        "ededed" "backlog slug"
+  ensure_label "slug:${slug}"         "ededed" "backlog slug"
   ensure_label "category:${category}" "ededed" "backlog category"
   gh issue create \
     --title "${slug}" \
@@ -144,10 +169,10 @@ cmd_add() {
 }
 
 # Best takeable issue: lowest declared priority, recency tiebreak. Empty stdout
-# if nothing's takeable.
+# if nothing's takeable. Takeable = open, label backlog, NOT label doing.
 pick_takeable() {
   gh issue list \
-    --state open --search "no:assignee" --label backlog --limit 200 \
+    --search "is:issue is:open label:backlog -label:doing" --limit 200 \
     --json number,body,updatedAt \
     | jq -r '
         map({
@@ -158,6 +183,24 @@ pick_takeable() {
         | sort_by([.p, (.u | fromdateiso8601 * -1)])
         | .[0].n // empty
       '
+}
+
+# Returns the branch that won the most recent claim race on issue $1. The
+# winner is the earliest `advanced to=doing` line since the most recent
+# `retried` line (retry resets the contest). Empty stdout if no claim posted.
+claim_winner_branch() {
+  local n="$1"
+  worklog_lines "$n" | awk '
+    /retried/ { delete claims; next }
+    /advanced to=doing/ {
+      match($0, /branch=[^ ]+/)
+      if (RSTART > 0) {
+        b = substr($0, RSTART+7, RLENGTH-7)
+        if (winner == "") winner = b
+      }
+    }
+    END { if (winner != "") print winner }
+  '
 }
 
 cmd_take() {
@@ -171,17 +214,16 @@ cmd_take() {
     n=$(pick_takeable)
     [[ -z "$n" ]] && { echo "no available tasks" >&2; exit 0; }
   fi
-  local mine; mine=$(me)
-  gh issue edit "$n" --add-assignee "@me" --add-label "backlog:in-flight" >/dev/null
-  # Re-read: if we aren't the sole assignee, we lost the race. Back off.
-  local assignees; assignees=$(gh issue view "$n" --json assignees -q '[.assignees[].login] | join(",")')
-  if [[ "$assignees" != "$mine" ]]; then
-    gh issue edit "$n" --remove-assignee "$mine" --remove-label "backlog:in-flight" >/dev/null 2>&1 || true
-    echo "claim conflict on #${n}: assignees=${assignees}" >&2; exit 1
-  fi
   local ts claimer branch
   ts=$(backlog_now); claimer=$(backlog_claimer); branch=$(backlog_branch)
+  # Post the claim comment first — comment timestamps are the discriminator.
   post_log "$n" "- ${ts} advanced to=doing claimer=${claimer} branch=${branch}"
+  gh issue edit "$n" --add-label "doing" >/dev/null
+  # Re-read: did our comment win the race?
+  local winner; winner=$(claim_winner_branch "$n")
+  if [[ "$winner" != "$branch" ]]; then
+    echo "claim conflict on #${n}: won by branch=${winner}" >&2; exit 1
+  fi
   gh issue view "$n" --json url -q .url
 }
 
@@ -190,11 +232,11 @@ cmd_advance() {
   local slug="${1:?slug required}"
   local n; n=$(issue_for_slug "$slug")
   [[ -z "$n" ]] && { echo "no such slug: $slug" >&2; exit 1; }
-  local view; view=$(gh issue view "$n" --json state,assignees)
+  local view; view=$(gh issue view "$n" --json state,labels)
   local state; state=$(jq -r .state <<<"$view")
-  local n_assignees; n_assignees=$(jq -r '.assignees | length' <<<"$view")
+  local has_doing; has_doing=$(jq -r '[.labels[].name] | index("doing") | tostring' <<<"$view")
 
-  if [[ "$state" == "OPEN" && "$n_assignees" == "0" ]]; then
+  if [[ "$state" == "OPEN" && "$has_doing" == "null" ]]; then
     # todo → doing — same path as take
     cmd_take "$slug"
     return
@@ -208,7 +250,7 @@ cmd_advance() {
     line="- ${ts} advanced to=done"
     [[ -n "$pr_url" ]] && line+=" | PR=${pr_url}"
     post_log "$n" "$line"
-    gh issue edit "$n" --remove-label "backlog:in-flight" >/dev/null
+    gh issue edit "$n" --remove-label "doing" >/dev/null
     gh issue close "$n" --reason completed >/dev/null
     gh issue view "$n" --json url -q .url
     return
@@ -217,17 +259,20 @@ cmd_advance() {
   echo "no forward step from closed: $slug" >&2; exit 1
 }
 
-# Find the in-flight issue claimed by the current user. Errors if 0 or >1.
+# Find the in-flight issue claimed by the current branch. Errors if 0 or >1.
 current_claim() {
-  local mine; mine=$(me)
-  local nlist; nlist=$(gh issue list \
-    --state open --assignee "$mine" --label "backlog:in-flight" \
-    --json number -q '.[].number')
-  local count; count=$(printf '%s\n' "$nlist" | grep -c . || true)
-  case "$count" in
-    1) printf '%s' "$nlist" ;;
-    0) echo "no in-flight claim for ${mine}" >&2; return 1 ;;
-    *) echo "ambiguous: ${count} in-flight claims for ${mine}" >&2; return 1 ;;
+  local branch; branch=$(backlog_branch)
+  local hits=()
+  local n
+  while IFS= read -r n; do
+    [[ -z "$n" ]] && continue
+    local winner; winner=$(claim_winner_branch "$n")
+    [[ "$winner" == "$branch" ]] && hits+=("$n")
+  done < <(gh issue list --state open --label doing --limit 200 --json number -q '.[].number')
+  case "${#hits[@]}" in
+    1) printf '%s' "${hits[0]}" ;;
+    0) echo "no in-flight claim for branch=${branch}" >&2; return 1 ;;
+    *) echo "ambiguous: ${#hits[@]} in-flight claims for branch=${branch}" >&2; return 1 ;;
   esac
 }
 
@@ -240,12 +285,13 @@ cmd_progress() {
   gh issue view "$n" --json url -q .url
 }
 
-close_with_label() {
-  local n="$1" verb="$2" reason="$3" label="$4"
+close_with_log() {
+  local n="$1" verb="$2" reason="$3" close_reason="$4" extra_label="${5:-}"
   local ts; ts=$(backlog_now)
   post_log "$n" "- ${ts} ${verb} | ${reason}"
-  gh issue edit "$n" --remove-label "backlog:in-flight" --add-label "$label" >/dev/null
-  gh issue close "$n" --reason "not planned" >/dev/null
+  gh issue edit "$n" --remove-label "doing" >/dev/null 2>&1 || true
+  [[ -n "$extra_label" ]] && gh issue edit "$n" --add-label "$extra_label" >/dev/null
+  gh issue close "$n" --reason "$close_reason" >/dev/null
 }
 
 cmd_cancel() {
@@ -253,7 +299,7 @@ cmd_cancel() {
   local slug="${1:?slug required}" reason="${2:?reason required}"
   local n; n=$(issue_for_slug "$slug")
   [[ -z "$n" ]] && { echo "no such slug: $slug" >&2; exit 1; }
-  close_with_label "$n" cancelled "$reason" "backlog:cancelled"
+  close_with_log "$n" cancelled "$reason" "not planned"
 }
 
 cmd_fail() {
@@ -261,7 +307,7 @@ cmd_fail() {
   local slug="${1:?slug required}" reason="${2:?reason required}"
   local n; n=$(issue_for_slug "$slug")
   [[ -z "$n" ]] && { echo "no such slug: $slug" >&2; exit 1; }
-  close_with_label "$n" failed "$reason" "backlog:failed"
+  close_with_log "$n" failed "$reason" "not planned" "failed"
 }
 
 cmd_rescue() {
@@ -269,9 +315,7 @@ cmd_rescue() {
   local slug="${1:?slug required}"
   local n; n=$(issue_for_slug "$slug")
   [[ -z "$n" ]] && { echo "no such slug: $slug" >&2; exit 1; }
-  local last_line; last_line=$(gh issue view "$n" --json comments \
-      -q '.comments[].body' \
-    | grep -E '^- [0-9TZ:-]+ (advanced|rescued) ' | tail -1)
+  local last_line; last_line=$(worklog_lines "$n" | grep -E '(advanced to=doing|rescued)' | tail -1)
   [[ -z "$last_line" ]] && { echo "no prior claim line on #${n}" >&2; exit 1; }
   local last_ts; last_ts=$(awk '{print $2}' <<<"$last_line")
   local ep; ep=$(backlog_epoch "$last_ts")
@@ -283,17 +327,10 @@ cmd_rescue() {
   local secs; secs=$(backlog_timeout_seconds "$tmp"); rm -f "$tmp"
   (( $(date -u +%s) - ep > secs )) \
     || { echo "claim still active; refusing rescue" >&2; exit 1; }
-  local mine; mine=$(me)
-  local current; current=$(gh issue view "$n" --json assignees -q '[.assignees[].login] | join(",")')
-  local a
-  for a in ${current//,/ }; do
-    [[ "$a" == "$mine" ]] && continue
-    gh issue edit "$n" --remove-assignee "$a" >/dev/null
-  done
-  gh issue edit "$n" --add-assignee "$mine" --add-label "backlog:in-flight" >/dev/null
   local ts claimer branch
   ts=$(backlog_now); claimer=$(backlog_claimer); branch=$(backlog_branch)
   post_log "$n" "- ${ts} rescued claimer=${claimer} branch=${branch}"
+  gh issue edit "$n" --add-label "doing" >/dev/null
 }
 
 cmd_retry() {
@@ -302,31 +339,22 @@ cmd_retry() {
   local n; n=$(issue_for_slug "$slug")
   [[ -z "$n" ]] && { echo "no such slug: $slug" >&2; exit 1; }
   local labels; labels=$(gh issue view "$n" --json labels -q '[.labels[].name] | join(",")')
-  [[ ",${labels}," == *",backlog:failed,"* ]] \
+  [[ ",${labels}," == *",failed,"* ]] \
     || { echo "not in failed state: $slug" >&2; exit 1; }
-  gh issue edit "$n" --remove-label "backlog:failed" >/dev/null
+  gh issue edit "$n" --remove-label "failed" >/dev/null
   gh issue reopen "$n" >/dev/null
   local ts; ts=$(backlog_now)
   post_log "$n" "- ${ts} retried | ${reason}"
 }
 
-count_state() {
-  # $1: extra args; returns count of matching issues.
-  # shellcheck disable=SC2086
-  gh issue list $1 --limit 1000 --json number -q 'length'
-}
-
 cmd_status() {
   require_gh
-  printf "todo: %s\n"   "$(count_state '--state open --search no:assignee --label backlog')"
-  printf "doing: %s\n"  "$(count_state '--state open --label backlog:in-flight')"
-  # done = closed + backlog, minus failed/cancelled
-  local done_count
-  done_count=$(gh issue list --state closed --label backlog --limit 1000 \
-    --json number,labels \
-    -q '[.[] | select(.labels | map(.name) | (contains(["backlog:failed"]) | not) and (contains(["backlog:cancelled"]) | not))] | length')
-  printf "done: %s\n"   "$done_count"
-  printf "failed: %s\n" "$(count_state '--state closed --label backlog:failed')"
+  # todo = open, backlog, not doing
+  printf "todo: %s\n"   "$(gh issue list --search 'is:issue is:open label:backlog -label:doing' --limit 1000 --json number -q 'length')"
+  printf "doing: %s\n"  "$(gh issue list --search 'is:issue is:open label:doing'                 --limit 1000 --json number -q 'length')"
+  # done = closed, backlog, not failed (lumps cancelled with done — matches maildir status)
+  printf "done: %s\n"   "$(gh issue list --search 'is:issue is:closed label:backlog -label:failed' --limit 1000 --json number -q 'length')"
+  printf "failed: %s\n" "$(gh issue list --search 'is:issue is:closed label:failed'                --limit 1000 --json number -q 'length')"
 }
 
 cmd_maintain() {
