@@ -103,7 +103,12 @@ backlog_epoch() {
 # Ensure body divider exists before appending log lines.
 backlog_ensure_divider() {
   local file="$1"
-  if [[ "$(grep -v '^[[:space:]]*$' "$file" | tail -1)" != "---" ]]; then
+  local required=1 count
+  if [[ "$(head -n 1 "$file")" == "---" ]]; then
+    required=3
+  fi
+  count=$(grep -cx -- "---" "$file" 2>/dev/null || true)
+  if (( count < required )); then
     printf '\n---\n' >> "$file"
   fi
 }
