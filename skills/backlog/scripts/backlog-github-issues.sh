@@ -6,9 +6,10 @@
 # takeable. Non-conformant issues (random feature requests, dormant bug
 # reports) get handled as they're encountered, not gated by a marker label.
 #
-# Tasks reference each other by issue number (always works) or by an optional
-# `slug:<slug>` label (memorable, created by `add` for human ergonomics).
-# Titles are free text.
+# Tasks are referenced by GitHub issue number — the platform's native
+# identifier. `take 42` and `take #42` both work; titles are free text and
+# the operator/agent reads them out of `gh issue list` to know which number
+# to grab. No slug labels, no parallel identifier scheme.
 #
 # State derives from GitHub-native signals where it can, falling back to
 # labels only where the platform can't encode the distinction:
@@ -49,23 +50,16 @@ require_gh() {
     || { echo "gh not authenticated; run: gh auth login" >&2; exit 1; }
 }
 
-# Resolve a slug to an issue number. Empty stdout if no such slug.
-issue_for_slug() {
-  local slug="$1"
-  gh issue list --state all --label "slug:${slug}" --limit 1 \
-    --json number -q '.[0].number // empty' 2>/dev/null
-}
-
-# Resolve either an issue number (`42`, `#42`) or a slug to an issue number.
-# Empty stdout if not found.
-resolve_id() {
+# Validate an id arg and emit the bare issue number. Accepts `42` or `#42`.
+# Verifies the issue exists in the repo (one API call) so callers get a clear
+# "no such issue" message rather than a cascade of gh errors.
+validate_id() {
   local id="$1"
-  if [[ "$id" =~ ^#?[0-9]+$ ]]; then
-    id="${id#\#}"
-    gh issue view "$id" --json number -q .number 2>/dev/null
-  else
-    issue_for_slug "$id"
-  fi
+  [[ "$id" =~ ^#?[0-9]+$ ]] \
+    || { echo "expected issue number (got: ${id})" >&2; return 1; }
+  id="${id#\#}"
+  gh issue view "$id" --json number -q .number 2>/dev/null \
+    || { echo "no such issue: #${id}" >&2; return 1; }
 }
 
 post_log() {
@@ -108,20 +102,20 @@ cmd_setup() {
 
 \`CLAUDE.md\` here is a symlink to this file — read one, not both.
 
-Task state lives in GitHub Issues on **${repo}**. There is no local
-\`todo/\`/\`doing/\`/\`done/\` tree — issue state plus a small label set are the
-queue.
+Task state lives in GitHub Issues on **${repo}**. The repo's open issues
+*are* the backlog — there is no separation between "backlog tasks" and
+"other issues." Anything open is takeable.
 
 Use the \`backlog\` skill (add / take / advance / progress / cancel / fail /
-rescue / retry / maintain / status) to interact. Verbs dispatch to
-\`gh issue\` under the hood.
+rescue / retry / maintain / status) to interact. Tasks are referenced by
+issue number (\`take 42\` or \`take #42\`). Verbs dispatch to \`gh issue\`
+under the hood.
 
 ## Backend
 
 \`github-issues\` — see the \`backlog\` skill's \`references/backends/github-issues.md\`.
 
-The repo's open issues *are* the backlog — there is no separation between
-"backlog tasks" and "other issues." State mapping:
+State mapping:
 
 | State    | open/closed | labels                  |
 |----------|-------------|-------------------------|
@@ -131,11 +125,9 @@ The repo's open issues *are* the backlog — there is no separation between
 | failed   | closed      | \`failed\`              |
 
 \`cancel\` and ordinary \`done\` both close the issue — discriminated by the
-worklog comment and GitHub's close reason. Tasks are referenced by issue
-number (always works) or by an optional \`slug:<slug>\` label that \`add\`
-creates for memorability. Title is free text; the spec body carries
-\`priority\`/\`timeout\`/\`dependencies\` as YAML frontmatter, same shape as the
-maildir backends.
+worklog comment and GitHub's close reason. Title is free text; the spec body
+carries \`priority\`/\`timeout\`/\`dependencies\` as YAML frontmatter, same shape
+as the maildir backends.
 
 ## Pipeline
 
@@ -170,16 +162,12 @@ EOF
 
 cmd_add() {
   require_gh
-  # Second positional arg used to carry a `category`; the skill no longer
-  # tracks it as a label. If the spec author wants to record one, it goes in
-  # the body. Silently accept and ignore for backwards-compat.
-  local slug="${1:?slug required}"
-  local existing; existing=$(issue_for_slug "$slug")
-  [[ -n "$existing" ]] && { echo "slug already taken: #${existing}" >&2; exit 1; }
-  ensure_label "slug:${slug}" "ededed" "backlog slug"
+  # Single arg is the issue title (can have spaces if quoted). Any extra
+  # positional args are silently ignored for backwards-compat with operators
+  # who scripted the old `add SLUG CAT` shape.
+  local title="${1:?title required}"
   gh issue create \
-    --title "${slug}" \
-    --label "slug:${slug}" \
+    --title "${title}" \
     --body $'[problem, decisions, phases, acceptance]\n\n---'
 }
 
@@ -224,8 +212,7 @@ cmd_take() {
   local slug="${1:-}"
   local n
   if [[ -n "$slug" ]]; then
-    n=$(resolve_id "$slug")
-    [[ -z "$n" ]] && { echo "no such task: $slug" >&2; exit 1; }
+    n=$(validate_id "$slug") || exit 1
   else
     n=$(pick_takeable)
     [[ -z "$n" ]] && { echo "no available tasks" >&2; exit 0; }
@@ -245,9 +232,8 @@ cmd_take() {
 
 cmd_advance() {
   require_gh
-  local slug="${1:?slug required}"
-  local n; n=$(resolve_id "$slug")
-  [[ -z "$n" ]] && { echo "no such task: $slug" >&2; exit 1; }
+  local slug="${1:?issue number required}"
+  local n; n=$(validate_id "$slug") || exit 1
   local view; view=$(gh issue view "$n" --json state,labels)
   local state; state=$(jq -r .state <<<"$view")
   local has_doing; has_doing=$(jq -r '[.labels[].name] | index("doing") | tostring' <<<"$view")
@@ -312,25 +298,22 @@ close_with_log() {
 
 cmd_cancel() {
   require_gh
-  local slug="${1:?slug required}" reason="${2:?reason required}"
-  local n; n=$(resolve_id "$slug")
-  [[ -z "$n" ]] && { echo "no such task: $slug" >&2; exit 1; }
+  local slug="${1:?issue number required}" reason="${2:?reason required}"
+  local n; n=$(validate_id "$slug") || exit 1
   close_with_log "$n" cancelled "$reason" "not planned"
 }
 
 cmd_fail() {
   require_gh
-  local slug="${1:?slug required}" reason="${2:?reason required}"
-  local n; n=$(resolve_id "$slug")
-  [[ -z "$n" ]] && { echo "no such task: $slug" >&2; exit 1; }
+  local slug="${1:?issue number required}" reason="${2:?reason required}"
+  local n; n=$(validate_id "$slug") || exit 1
   close_with_log "$n" failed "$reason" "not planned" "failed"
 }
 
 cmd_rescue() {
   require_gh
-  local slug="${1:?slug required}"
-  local n; n=$(resolve_id "$slug")
-  [[ -z "$n" ]] && { echo "no such task: $slug" >&2; exit 1; }
+  local slug="${1:?issue number required}"
+  local n; n=$(validate_id "$slug") || exit 1
   local last_line; last_line=$(worklog_lines "$n" | grep -E '(advanced to=doing|rescued)' | tail -1)
   [[ -z "$last_line" ]] && { echo "no prior claim line on #${n}" >&2; exit 1; }
   local last_ts; last_ts=$(awk '{print $2}' <<<"$last_line")
@@ -351,9 +334,8 @@ cmd_rescue() {
 
 cmd_retry() {
   require_gh
-  local slug="${1:?slug required}" reason="${2:?reason required}"
-  local n; n=$(resolve_id "$slug")
-  [[ -z "$n" ]] && { echo "no such task: $slug" >&2; exit 1; }
+  local slug="${1:?issue number required}" reason="${2:?reason required}"
+  local n; n=$(validate_id "$slug") || exit 1
   local labels; labels=$(gh issue view "$n" --json labels -q '[.labels[].name] | join(",")')
   [[ ",${labels}," == *",failed,"* ]] \
     || { echo "not in failed state: $slug" >&2; exit 1; }

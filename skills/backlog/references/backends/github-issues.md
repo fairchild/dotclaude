@@ -29,21 +29,21 @@ State derives from GitHub-native signals where it can, and falls back to labels 
 
 `cancel` and ordinary `done` both close the issue — discriminated by the worklog comment and by GitHub's close reason (`completed` vs `not planned`). The `status` verb lumps them under `done`, matching the maildir backends.
 
-Tasks are referenced by **issue number** (always works) or by an optional **`slug:<slug>` label** that `add` creates for memorability. Either `bash backlog.sh take 42` or `bash backlog.sh take github-issues-backend-plan` resolves to the same issue when the slug label is present. Titles stay free text; humans can rename them in the GitHub UI without breaking script lookups. The worklog (lines below the divider in a maildir file) becomes a chronological sequence of issue comments in the same `- <ts> <verb> ...` format, so `gh issue view --json comments` reconstructs what `tail backlog/done/<slug>.md` would show.
+Tasks are referenced by **issue number** — `bash backlog.sh take 42` or `bash backlog.sh take #42` (both work). Titles are free text; the operator/agent reads them out of `gh issue list` to know which number to grab. There are no slug labels and no parallel identifier scheme — GitHub's native identifier does the whole job. The worklog (lines below the divider in a maildir file) becomes a chronological sequence of issue comments in the same `- <ts> <verb> ...` format, so `gh issue view --json comments` reconstructs what `tail backlog/done/<slug>.md` would show in a maildir backend.
 
 ## Labels the verbs depend on
 
-| Label           | Created when     | Role                                            |
-|-----------------|------------------|-------------------------------------------------|
-| `doing`         | `setup`          | claimed and in flight                           |
-| `failed`        | `setup`          | dead-lettered; cleared on `retry`               |
-| `slug:<slug>`   | `add` (optional) | memorable identifier for slug-based references  |
+| Label    | Created when | Role                                |
+|----------|--------------|-------------------------------------|
+| `doing`  | `setup`      | claimed and in flight               |
+| `failed` | `setup`      | dead-lettered; cleared on `retry`   |
 
-Two static labels plus an optional per-task slug. The `slug:` prefix carries data; `doing` and `failed` are bare names. Collisions with existing project labels are possible but rare; if your project already uses one of those names, rename the existing label before `setup` or fork the script with different names.
+Two labels — both bare, both static. Collisions with existing project labels are possible but rare; if your project already uses one of those names, rename the existing label before `setup` or fork the script with different names.
 
 What's deliberately not a label:
 
 - **`backlog` marker.** Not needed — every open issue is a backlog candidate. Adding a marker would just gate which issues are "ours," which is the structure this design rejects.
+- **`slug:<slug>`.** Issue numbers are GitHub's native identifier; a parallel slug scheme adds a label per task and a lookup layer without solving a problem GitHub doesn't already solve.
 - **`category`.** Optional spec metadata; if you want to record it, write it in the issue body's frontmatter alongside `priority`/`timeout`. The skill doesn't read it.
 - **`priority`, `roadmap`/`arc`.** Read from body frontmatter (same shape as the maildir backends). Operators are free to mirror them as `priority:<n>` / `roadmap:<arc>` labels for GitHub-side filtering, but the script doesn't query labels for them.
 
@@ -52,8 +52,8 @@ What's deliberately not a label:
 | Verb | gh calls |
 |---|---|
 | `setup` | `gh repo view`, `gh label create --force` ×2 (`doing`, `failed`), then writes AGENTS.md + ROADMAP skeleton + commits |
-| `add` | `gh label create slug:<slug>` + `gh issue create` (stub body with divider) |
-| `take` | `gh issue list` (jq-filter open issues with no `doing` label, rank by body priority + recency) or issue-number/slug lookup → post claim comment → `gh issue edit --add-label doing` → re-read comments; if earliest `advanced to=doing` since last `retried` has a different `branch=`, exit with `claim conflict on #N: won by branch=X` |
+| `add` | `gh issue create --title "<title>"` (stub body with divider) — returns the new issue URL |
+| `take` | `gh issue list` (jq-filter open issues with no `doing` label, rank by body priority + recency) or `validate_id` on the explicit number → post claim comment → `gh issue edit --add-label doing` → re-read comments; if earliest `advanced to=doing` since last `retried` has a different `branch=`, exit with `claim conflict on #N: won by branch=X` |
 | `advance` | reads state + labels; for todo→doing, calls `take`; for doing→done, post comment + `gh issue edit --remove-label doing` + `gh issue close --reason completed` |
 | `progress` | finds claim via `gh issue list --label doing` then comment-scan for matching `branch=$(git branch --show-current)`; `gh issue comment` |
 | `cancel` | post comment + `gh issue edit --remove-label doing` + `gh issue close --reason "not planned"` |
@@ -72,7 +72,7 @@ Two reasons assignee can't carry the claim signal:
 Both problems go away if we use **branch as the claim identity**, with comment ordering as the timestamp. Each worker normally has its own branch (Conductor workspace, cmux workspace, or any feature branch); the claim comment records `branch=<X>`; comments on GitHub are timestamped and append-only; the earliest `advanced to=doing` comment since the most recent `retried` comment is the canonical winner.
 
 ```bash
-take(slug):
+take(id):
   ts = now()
   post "- ts advanced to=doing claimer=ME branch=$(git branch --show-current)"
   gh issue edit --add-label doing
@@ -121,7 +121,7 @@ The script's `maintain` verb prints the advisory message — these queries are a
 
 From maildir-* to github-issues:
 
-1. For each file in `backlog/todo/`, `gh issue create` with title=slug, body=spec, label=`slug:<slug>`.
+1. For each file in `backlog/todo/`, `gh issue create` with title=slug-as-title, body=spec. Capture the new issue number; old maildir slug → new issue number is the migration map for any cross-references.
 2. For each file in `backlog/doing/`, do (1) then `cmd_take <slug>`.
 3. For each file in `backlog/done/`, do (1) then advance to closed; replay the worklog lines as comments.
 4. Replace `backlog/AGENTS.md`'s backend declaration; delete local task tree.
