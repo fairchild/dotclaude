@@ -2,6 +2,7 @@
 name: vocal
 description: Speak text aloud (TTS) and transcribe speech (STT). Supports local (macOS say, mlx-whisper) and cloud (ElevenLabs) providers. Use when user asks to speak, read aloud, listen, transcribe, or use vocal.
 license: Apache-2.0
+disable-model-invocation: true
 metadata:
   status: experimental
   experimental_reason: "Voice workflows depend on local audio devices and optional ElevenLabs credentials, so reliability is environment-sensitive."
@@ -9,11 +10,14 @@ metadata:
 
 # Vocal
 
-Speak text aloud and transcribe speech with local and cloud providers.
+Speak text aloud and transcribe speech with local and cloud providers. User-invocable only (`/vocal`) — audio is a side-effect surface, not something to auto-trigger on.
 
 ## Usage
 
-### `/vocal` command loop
+### `/vocal` — turn-based vocal loop
+
+Runs an ask-aloud / listen / respond / keep-listening cycle using the `vocal-listener` background agent.
+
 ```bash
 /vocal What should we work on next?
 ```
@@ -21,6 +25,44 @@ Speak text aloud and transcribe speech with local and cloud providers.
 Optional inline config:
 - `/vocal stt=local tts=local duration=8 What should we work on next?`
 - `/vocal stt=elevenlabs tts=elevenlabs duration=10 Ready when you are.`
+
+#### Loop behavior
+
+1. **Parse inline config** from the command text:
+   - `stt=local|elevenlabs` (default: `local`)
+   - `tts=local|elevenlabs` (default: match `stt`)
+   - `duration=<seconds>` (default: `8`)
+   - Remaining text becomes the first spoken prompt.
+
+2. **Validate selected providers** before starting (run only the checks needed):
+   ```bash
+   uv run ~/.claude/skills/vocal/scripts/stt_local.py --check
+   uv run ~/.claude/skills/vocal/scripts/stt_elevenlabs.py --check
+   uv run ~/.claude/skills/vocal/scripts/tts_local.py --check
+   uv run ~/.claude/skills/vocal/scripts/tts_elevenlabs.py --check
+   ```
+
+3. **Launch the listener.** Create or reuse a team named `vocal` and launch `vocal-listener` as a background task with config:
+   ```text
+   stt_provider=<local|elevenlabs>
+   duration_seconds=<duration>
+   continue_token=keep-listening
+   stop_token=stop-listening
+   ```
+
+4. **Speak the first prompt** aloud (if provided). If none is provided, speak: `Vocal mode active. I'm listening.`
+
+5. **For every listener message starting with `[voice-input]`:**
+   - Treat the transcript as the user turn.
+   - Produce a concise assistant response.
+   - Speak the response with the selected TTS provider.
+   - Send `keep-listening` to the listener agent.
+
+6. **Stop conditions:**
+   - Transcript asks to stop (e.g. "stop vocal mode", "goodbye", "exit vocal") — speak confirmation and send `stop-listening`.
+   - Listener reports `[voice-error]` — surface the error and pause vocal mode.
+
+Turn-based, not full-duplex realtime. Each listen cycle is a separate background agent turn. Keep spoken responses short unless the user asks for detail.
 
 ### Web tuning console
 ```bash
