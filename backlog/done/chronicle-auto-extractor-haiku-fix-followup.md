@@ -73,3 +73,6 @@ bun ~/.claude/skills/chronicle/scripts/extract-bench.ts
 - `skills/chronicle/scripts/extract-bench.ts` — measurement instrument
 
 ---
+- 2026-05-25T16:45:11Z advanced to=doing claimer=fairchild@blue branch=c-c-backlog-worker-v2
+- 2026-05-25T16:48:46Z progress | Diagnosis surfaced H2 not H1: model claude-3-5-haiku-20241022 hit EOL 2026-02-19 → 404. Bumped to claude-haiku-4-5-20251001 (commit b5dc864), verified end-to-end produces non-fallback narrative summary. Phase 3 bench confirmation deferred to chronicle-extract-bench-narrative-confirm-followup (needs ≥5 organic SessionEnd runs).
+- 2026-05-25T16:49:13Z advanced to=done | PR=https://github.com/fairchild/dotclaude/pull/180
