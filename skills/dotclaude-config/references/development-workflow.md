@@ -219,6 +219,7 @@ This repo uses [prek](https://prek.j178.dev) (a Rust-based pre-commit framework)
 
 - **`no-commit-to-branch`** — blocks direct commits to `main` (use feature branches)
 - **`check-json`** / **`check-yaml`** / **`check-toml`** — validates config file syntax
+- **`backlog-dep-validation`** — rejects touched backlog tasks whose `dependencies:` slugs do not resolve
 
 Install prek and set up hooks after cloning:
 
