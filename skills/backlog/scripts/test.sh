@@ -5,6 +5,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKLOG="$script_dir/backlog.sh"
+VALIDATE_DEPS="$script_dir/../hooks/validate-deps.sh"
 
 # Counters live in tmpfiles so subshells can update them.
 PASS_FILE=$(mktemp); FAIL_FILE=$(mktemp)
@@ -154,6 +155,96 @@ test_setup_guards() {
   rm -rf "$tmp"
 }
 
+test_dep_validator_hook() {
+  echo "=== backlog dep validator hook ==="
+  local tmp out
+  tmp=$(mktemp -d)
+  ( cd "$tmp"
+    git init -q -b main
+    git config user.email t@t && git config user.name t
+    git commit -qm "root" --allow-empty
+    mkdir -p backlog/todo backlog/done
+
+    cat > backlog/done/real-dep.md <<'EOF'
+# Real dependency
+
+---
+EOF
+    cat > backlog/todo/uses-real.md <<'EOF'
+---
+dependencies:
+  real-dep: "available"
+---
+
+# Uses Real
+
+---
+EOF
+    if out=$(bash "$VALIDATE_DEPS" backlog/todo/uses-real.md 2>&1); then
+      ok "validator accepts resolved dependency"
+    else
+      nok "validator rejected resolved dependency (got: $out)"
+    fi
+
+    cat > backlog/todo/missing.md <<'EOF'
+---
+dependencies:
+  ghost-slug: "missing"
+---
+
+# Missing
+
+---
+EOF
+    if out=$(bash "$VALIDATE_DEPS" backlog/todo/missing.md 2>&1); then
+      nok "validator accepted missing dependency"
+    elif grep -q 'backlog: unresolved dep in backlog/todo/missing.md: ghost-slug' <<<"$out" \
+      && grep -q 'backlog.sh add ghost-slug' <<<"$out"; then
+      ok "validator reports missing dependency with authoring hint"
+    else
+      nok "validator missing-dependency output malformed (got: $out)"
+    fi
+
+    cat > backlog/todo/index-only-dep.md <<'EOF'
+# Index-only dependency
+
+---
+EOF
+    cat > backlog/todo/uses-index-only.md <<'EOF'
+---
+dependencies:
+  index-only-dep: "staged in this commit"
+---
+
+# Uses Index Only
+
+---
+EOF
+    git add backlog/todo/index-only-dep.md backlog/todo/uses-index-only.md
+    rm backlog/todo/index-only-dep.md
+    if out=$(bash "$VALIDATE_DEPS" backlog/todo/uses-index-only.md 2>&1); then
+      ok "validator accepts dependency staged in same commit"
+    else
+      nok "validator rejected index-staged dependency (got: $out)"
+    fi
+
+    cat > notes.md <<'EOF'
+---
+dependencies:
+  ignored-dep: "not a backlog file"
+---
+
+# Notes
+EOF
+    if out=$(bash "$VALIDATE_DEPS" notes.md 2>&1); then
+      ok "validator ignores non-backlog files"
+    else
+      nok "validator rejected non-backlog file (got: $out)"
+    fi
+  )
+  rm -rf "$tmp"
+}
+
 # ---------- maildir-shared (in-repo) ----------
 test_maildir_shared() {
   echo "=== maildir-shared (single worktree) ==="
@@ -243,6 +334,7 @@ test_maildir_shared
 test_cross_worktree_race
 test_subdir_invocation
 test_setup_guards
+test_dep_validator_hook
 
 echo
 echo "=== summary ==="

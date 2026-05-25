@@ -107,3 +107,5 @@ bash ~/.claude/skills/backlog/hooks/validate-deps.sh /tmp/test-task.md
 - Original ask: PR #177 review comment on `chronicle-auto-extractor-haiku-fix-followup.md` line 6
 
 ---
+- 2026-05-25T22:41:13Z advanced to=doing claimer=fairchild@blue branch=codex-backlog-dep-validation
+- 2026-05-25T22:46:24Z advanced to=done | PR=https://github.com/fairchild/dotclaude/pull/185

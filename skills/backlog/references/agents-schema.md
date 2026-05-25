@@ -69,6 +69,10 @@ This gets `priority=999`, `timeout=7d`, `dependencies={}`. Recipes treat it like
 - **`timeout` defaults to `7d`** — long enough for most knowledge work, short enough that a dead claim doesn't linger. Use shorter (`4h`, `1d`) for automated agent tasks; longer (`2w`, `1m`) for tasks needing synchronous human input or external dependencies. Projects with a fundamentally different rhythm can state their convention in `backlog/AGENTS.md`; the recipes still use `7d` as the hardcoded fallback but humans and agents adjust per-task accordingly.
 - **`dependencies` defaults to empty** — declare only hard preconditions (the task literally cannot start without X done). Soft "would be nice if X were done first" preferences belong in priority ordering, not deps.
 
+### Dependency validation
+
+Projects may opt into pre-commit dependency validation with the local `backlog-dep-validation` hook. When enabled in the repo's hook config, commits touching `backlog/**/*.md` are rejected if any declared `dependencies:` slug does not resolve to a file under `backlog/`, including dependency files staged in the same commit. The hook validates slug existence only; it does not validate reason text or detect dependency cycles. If it fails, author the missing dependency task with `bash ~/.claude/skills/backlog/scripts/backlog.sh add <slug> [followup|plan|task-list|ideas]`, then recommit.
+
 ### Other fields
 
 Additional keys an author writes are preserved in the file but not interpreted by any recipe. Useful for ad-hoc project metadata (`assignee:`, `epic:`, etc.) your project's own workflows might read.
