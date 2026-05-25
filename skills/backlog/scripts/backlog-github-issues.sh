@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # github-issues backend — backlog tasks live as GitHub Issues on the current
 # repo's remote. Verb semantics are unchanged from maildir; storage moves from
-# local files to `gh`. The slug is canonical via a `slug:<slug>` label; the
-# issue title is human-readable.
+# local files to `gh`. Slugs are canonical via a `slug:<slug>` label, which
+# also serves as the "this is a backlog task" marker (presence-test). Titles
+# are free text.
 #
 # State derives from GitHub-native signals where it can, falling back to
 # labels only where the platform can't encode the distinction:
 #
-#   todo   = open,   label `backlog`,                       no   label `doing`
-#   doing  = open,   label `backlog`,                       has  label `doing`
-#   done   = closed, label `backlog`,                       no   label `failed`
-#   failed = closed, label `backlog`,                       has  label `failed`
+#   todo   = open,   has `slug:*` label, no  `doing` label
+#   doing  = open,   has `slug:*` label, has `doing` label
+#   done   = closed, has `slug:*` label, no  `failed` label
+#   failed = closed, has `slug:*` label, has `failed` label
 #
 # `cancel` and ordinary `done` both close the issue; they're discriminated by
 # the worklog comment (and by GitHub's own close reason — `completed` vs
@@ -81,9 +82,8 @@ cmd_setup() {
   }
   local repo; repo=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 
-  ensure_label "backlog" "0e8a16" "backlog task"
-  ensure_label "doing"   "fbca04" "claimed and in progress"
-  ensure_label "failed"  "d93f0b" "dead-lettered; needs retry"
+  ensure_label "doing"  "fbca04" "claimed and in progress"
+  ensure_label "failed" "d93f0b" "dead-lettered; needs retry"
 
   mkdir -p backlog
   cat > backlog/AGENTS.md <<EOF
@@ -105,23 +105,18 @@ rescue / retry / maintain / status) to interact. Verbs dispatch to
 
 State mapping:
 
-| State    | open/closed | labels                            |
-|----------|-------------|-----------------------------------|
-| todo     | open        | \`backlog\`, no \`doing\`         |
-| doing    | open        | \`backlog\`, \`doing\`            |
-| done     | closed      | \`backlog\`, no \`failed\`        |
-| failed   | closed      | \`backlog\`, \`failed\`           |
+| State    | open/closed | labels                                |
+|----------|-------------|---------------------------------------|
+| todo     | open        | has \`slug:*\`, no \`doing\`          |
+| doing    | open        | has \`slug:*\`, \`doing\`             |
+| done     | closed      | has \`slug:*\`, no \`failed\`         |
+| failed   | closed      | has \`slug:*\`, \`failed\`            |
 
 \`cancel\` and ordinary \`done\` both close the issue — discriminated by the
-worklog comment and GitHub's close reason. Slug → issue lookup via
-\`slug:<slug>\` label (canonical). Title is free text.
-
-## Defaults
-
-- \`priority\`, \`timeout\`, \`dependencies\` are read from frontmatter in the
-  issue body (same shape as the maildir backends — the body is markdown with
-  YAML frontmatter, then the divider, then the spec).
-- Arc linkage via \`roadmap:<arc>\` label.
+worklog comment and GitHub's close reason. The \`slug:<slug>\` label is
+canonical (lookup + "this is a backlog task" marker via presence). Title is
+free text; the spec body carries \`priority\`/\`timeout\`/\`dependencies\` as
+YAML frontmatter, same shape as the maildir backends.
 
 ## Pipeline
 
@@ -156,30 +151,32 @@ EOF
 
 cmd_add() {
   require_gh
+  # Second positional arg used to carry a `category`; the skill no longer
+  # tracks it as a label. If the spec author wants to record one, it goes in
+  # the body. Silently accept and ignore for backwards-compat.
   local slug="${1:?slug required}"
-  local category="${2:-plan}"
   local existing; existing=$(issue_for_slug "$slug")
   [[ -n "$existing" ]] && { echo "slug already taken: #${existing}" >&2; exit 1; }
-  ensure_label "slug:${slug}"         "ededed" "backlog slug"
-  ensure_label "category:${category}" "ededed" "backlog category"
+  ensure_label "slug:${slug}" "ededed" "backlog slug"
   gh issue create \
     --title "${slug}" \
-    --label backlog --label "slug:${slug}" --label "category:${category}" \
+    --label "slug:${slug}" \
     --body $'[problem, decisions, phases, acceptance]\n\n---'
 }
 
 # Best takeable issue: lowest declared priority, recency tiebreak. Empty stdout
-# if nothing's takeable. Takeable = open, label backlog, NOT label doing.
+# if nothing's takeable. Takeable = open, has a `slug:*` label, no `doing`.
 pick_takeable() {
-  gh issue list \
-    --search "is:issue is:open label:backlog -label:doing" --limit 200 \
-    --json number,body,updatedAt \
+  gh issue list --state open --limit 1000 \
+    --json number,body,updatedAt,labels \
     | jq -r '
-        map({
-          n: .number,
-          p: (try ((.body // "") | capture("(^|\\n)priority:[[:space:]]*(?<v>\\d+)").v | tonumber) catch 999),
-          u: .updatedAt
-        })
+        [.[]
+          | select(.labels | map(.name) | any(startswith("slug:")) and (contains(["doing"]) | not))]
+        | map({
+            n: .number,
+            p: (try ((.body // "") | capture("(^|\\n)priority:[[:space:]]*(?<v>\\d+)").v | tonumber) catch 999),
+            u: .updatedAt
+          })
         | sort_by([.p, (.u | fromdateiso8601 * -1)])
         | .[0].n // empty
       '
@@ -349,12 +346,20 @@ cmd_retry() {
 
 cmd_status() {
   require_gh
-  # todo = open, backlog, not doing
-  printf "todo: %s\n"   "$(gh issue list --search 'is:issue is:open label:backlog -label:doing' --limit 1000 --json number -q 'length')"
-  printf "doing: %s\n"  "$(gh issue list --search 'is:issue is:open label:doing'                 --limit 1000 --json number -q 'length')"
-  # done = closed, backlog, not failed (lumps cancelled with done — matches maildir status)
-  printf "done: %s\n"   "$(gh issue list --search 'is:issue is:closed label:backlog -label:failed' --limit 1000 --json number -q 'length')"
-  printf "failed: %s\n" "$(gh issue list --search 'is:issue is:closed label:failed'                --limit 1000 --json number -q 'length')"
+  # One fetch, bucket via jq. Only counts issues carrying a `slug:*` label.
+  gh issue list --state all --limit 1000 --json number,state,labels \
+    | jq -r '
+        [.[] | select(.labels | map(.name) | any(startswith("slug:")))]
+        | reduce .[] as $i (
+            {"todo":0,"doing":0,"done":0,"failed":0};
+            ($i.labels | map(.name)) as $L
+            | if   $i.state == "OPEN"   and ($L | contains(["doing"]))  then .doing  += 1
+              elif $i.state == "OPEN"                                    then .todo   += 1
+              elif $i.state == "CLOSED" and ($L | contains(["failed"])) then .failed += 1
+              else .done += 1 end
+          )
+        | "todo: \(.todo)\ndoing: \(.doing)\ndone: \(.done)\nfailed: \(.failed)"
+      '
 }
 
 cmd_maintain() {

@@ -18,57 +18,47 @@ GitHub Issues *is* the queue. There is no local `todo/`/`doing/`/`done/` tree �
 
 State derives from GitHub-native signals where it can, and falls back to labels only where the platform can't encode the distinction:
 
-| State    | open/closed | labels                          |
-|----------|-------------|---------------------------------|
-| todo     | open        | `backlog`, no `doing`           |
-| doing    | open        | `backlog`, `doing`              |
-| done     | closed      | `backlog`, no `failed`          |
-| failed   | closed      | `backlog`, `failed`             |
+| State    | open/closed | labels                                |
+|----------|-------------|---------------------------------------|
+| todo     | open        | has `slug:*`, no `doing`              |
+| doing    | open        | has `slug:*`, `doing`                 |
+| done     | closed      | has `slug:*`, no `failed`             |
+| failed   | closed      | has `slug:*`, `failed`                |
 
 `cancel` and ordinary `done` both close the issue — discriminated by the worklog comment and by GitHub's close reason (`completed` vs `not planned`). The `status` verb lumps them under `done`, matching the maildir backends.
 
-Slug → issue lookup is via a `slug:<slug>` label, so titles stay free text and humans can rename them in the GitHub UI without breaking script lookups. The worklog (lines below the divider in a maildir file) becomes a chronological sequence of issue comments in the same `- <ts> <verb> ...` format, so `gh issue view --json comments` reconstructs what `tail backlog/done/<slug>.md` would show.
+The `slug:<slug>` label does double duty: canonical id and "this is a backlog task" marker (presence-test). Titles stay free text and humans can rename them in the GitHub UI without breaking script lookups. The worklog (lines below the divider in a maildir file) becomes a chronological sequence of issue comments in the same `- <ts> <verb> ...` format, so `gh issue view --json comments` reconstructs what `tail backlog/done/<slug>.md` would show.
 
 ## Labels the verbs depend on
 
-Static (created at `setup` time):
+| Label           | Created when     | Role                                            |
+|-----------------|------------------|-------------------------------------------------|
+| `slug:<slug>`   | `add`            | canonical id + backlog-task marker (presence-test) |
+| `doing`         | `setup`          | claimed and in flight                           |
+| `failed`        | `setup`          | dead-lettered; cleared on `retry`               |
 
-| Label     | Role                                           |
-|-----------|------------------------------------------------|
-| `backlog` | marks an issue as part of the backlog          |
-| `doing`   | claimed and in flight                          |
-| `failed`  | dead-lettered; cleared on `retry`              |
+Three labels total — that's the entire scheme the script touches. The `slug:` prefix carries data (the slug itself); `doing` and `failed` are bare names. Collisions with existing project labels are possible but rare; if your project already uses one of those names, rename the existing label before `setup` or fork the script with different names.
 
-Per-task (created at `add` time):
+What's deliberately not a label:
 
-| Label                | Role                                            |
-|----------------------|-------------------------------------------------|
-| `slug:<slug>`        | canonical slug → issue lookup                   |
-| `category:<cat>`     | author-set kind (plan / followup / etc)         |
-
-Optional, author-set:
-
-| Label             | Role                                            |
-|-------------------|-------------------------------------------------|
-| `roadmap:<arc>`   | arc linkage to `backlog/ROADMAP.md`             |
-| `priority:<n>`    | priority hint (also readable from body frontmatter) |
-
-The `key:value` patterns (`slug:`, `category:`, `roadmap:`, `priority:`) carry data — the prefix is semantically load-bearing. The static labels (`backlog`, `doing`, `failed`) are bare; collisions with existing project labels are possible but rare. If your project already uses one of those names, rename the existing label before `setup` or fork the script with different names.
+- **`backlog` marker.** Redundant — every backlog issue carries `slug:<slug>`, so presence of any `slug:*` label is the marker. The script's filters use `jq` to check for `startswith("slug:")` rather than push an extra label into the namespace.
+- **`category`.** Optional spec metadata; if you want to record it, write it in the issue body's frontmatter alongside `priority`/`timeout`. The skill doesn't read it.
+- **`priority`, `roadmap`/`arc`.** Read from body frontmatter (same shape as the maildir backends). Operators are free to mirror them as `priority:<n>` / `roadmap:<arc>` labels for GitHub-side filtering, but the script doesn't query labels for them.
 
 ## How each verb interacts with `gh`
 
 | Verb | gh calls |
 |---|---|
-| `setup` | `gh repo view`, `gh label create --force` ×3 (static labels), then writes AGENTS.md + ROADMAP skeleton + commits |
-| `add` | `gh label create slug:<slug>` + `gh label create category:<cat>` + `gh issue create` (stub body with divider) |
-| `take` | `gh issue list` (rank or lookup) → post claim comment → `gh issue edit --add-label doing` → re-read comments; if earliest `advanced to=doing` since last `retried` has a different `branch=`, exit with `claim conflict on #N: won by branch=X` |
+| `setup` | `gh repo view`, `gh label create --force` ×2 (`doing`, `failed`), then writes AGENTS.md + ROADMAP skeleton + commits |
+| `add` | `gh label create slug:<slug>` + `gh issue create` (stub body with divider) |
+| `take` | `gh issue list` (jq-filter open issues with `slug:*` and no `doing`, rank by body priority + recency) or `slug` lookup → post claim comment → `gh issue edit --add-label doing` → re-read comments; if earliest `advanced to=doing` since last `retried` has a different `branch=`, exit with `claim conflict on #N: won by branch=X` |
 | `advance` | reads state + labels; for todo→doing, calls `take`; for doing→done, post comment + `gh issue edit --remove-label doing` + `gh issue close --reason completed` |
 | `progress` | finds claim via `gh issue list --label doing` then comment-scan for matching `branch=$(git branch --show-current)`; `gh issue comment` |
 | `cancel` | post comment + `gh issue edit --remove-label doing` + `gh issue close --reason "not planned"` |
 | `fail` | post comment + `gh issue edit --remove-label doing --add-label failed` + `gh issue close --reason "not planned"` |
 | `rescue` | reads comments for last claim line, checks timeout, posts `rescued` comment, ensures `doing` label |
 | `retry` | refuses unless `failed` is present, then `gh issue edit --remove-label failed` + `gh issue reopen` + comment |
-| `status` | counts via `gh issue list --search` per state |
+| `status` | one `gh issue list --state all`; jq buckets issues with a `slug:*` label by state + `doing`/`failed` labels |
 
 ## The load-bearing bit: branch-based claim discrimination
 
@@ -112,7 +102,7 @@ The buckets in `../maintain.md` translate as:
 |------------------------------|---------------------|
 | `ADVANCED BUT NOT MOVED`     | n/a — there is no separate "move" step; close happens atomically with the log comment |
 | `TIMED OUT`                  | `gh issue list --label doing` then check the most recent claim comment's timestamp against the body's `timeout:` |
-| `STALE TODO`                 | `gh issue list --search "is:open label:backlog -label:doing updated:<<date>"` |
+| `STALE TODO`                 | `gh issue list --state open` jq-filtered for `slug:*` label, no `doing`, and `updatedAt` older than threshold |
 | `ORPHANED CLAIM`             | a `doing`-labeled issue whose `branch=` from the last claim comment no longer exists on any remote — claimer abandoned the worktree |
 
 The script's `maintain` verb prints the advisory message — these queries are agent-judgment territory, not a fixed script.
@@ -129,7 +119,7 @@ The script's `maintain` verb prints the advisory message — these queries are a
 
 From maildir-* to github-issues:
 
-1. For each file in `backlog/todo/`, `gh issue create` with title=slug, body=spec, labels=`backlog` + `slug:<slug>` + `category:<cat>`.
+1. For each file in `backlog/todo/`, `gh issue create` with title=slug, body=spec, label=`slug:<slug>`.
 2. For each file in `backlog/doing/`, do (1) then `cmd_take <slug>`.
 3. For each file in `backlog/done/`, do (1) then advance to closed; replay the worklog lines as comments.
 4. Replace `backlog/AGENTS.md`'s backend declaration; delete local task tree.
