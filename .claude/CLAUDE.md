@@ -26,12 +26,12 @@ All skills are Apache 2.0 — consistent with Anthropic skills. Attribution is h
 
 ## Skill Status Convention
 
-Skills use a top-level `status` key in SKILL.md frontmatter.
+Skills use `metadata.status` in SKILL.md frontmatter.
 
 | Frontmatter | Meaning |
 |-------------|---------|
 | (none) | Production-ready, auto-invoked |
-| `status: experimental` | Usable but incomplete |
+| `metadata.status: experimental` | Usable but incomplete; include `metadata.experimental_reason` |
 
 ## Conventions
 

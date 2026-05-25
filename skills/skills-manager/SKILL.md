@@ -5,8 +5,6 @@ description: Use when the user wants to list, search, install, remove, inspect, 
   "check my skills for issues", or "install a skill". Also use when checking skill health
   across agents (Claude Code, Codex, Agents CLI).
 license: Apache 2.0
-metadata:
-  status: experimental
 ---
 
 # Skills Manager
@@ -207,4 +205,4 @@ All agents share the same lock file. The `npx skills` CLI auto-detects which age
 - **Structure**: SKILL.md + optional scripts/, references/, assets/
 - **Forbidden**: README.md, CHANGELOG.md, INSTALLATION.md, QUICK_REFERENCE.md
 - **Non-spec keys**: origin, inspired-by, status, hooks — should migrate to metadata:
-- **Experimental skills**: `status: experimental` in frontmatter (no directory prefix)
+- **Experimental skills**: `metadata.status: experimental` in frontmatter (no directory prefix)

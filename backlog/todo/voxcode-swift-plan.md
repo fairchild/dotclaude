@@ -718,7 +718,7 @@ The two coexist:
 
 ### Swift / macOS
 - KeyboardShortcuts: https://github.com/sindresorhus/KeyboardShortcuts
-- SwiftUI skill: `~/.claude/skills/swiftui-expert-skill/`
+- SwiftUI skill: `~/.claude/skills/swiftui-expert/`
 - Zed CLI: `zed path/to/file:line:column` — opens at specific line
 
 ### Related

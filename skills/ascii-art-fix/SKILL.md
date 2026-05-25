@@ -4,6 +4,7 @@ description: Fix misaligned right borders in ASCII art diagrams
 license: Apache-2.0
 metadata:
   status: experimental
+  experimental_reason: "Prompt-only repair is useful but still has edge cases around nested diagrams, tables, and mixed markdown content."
 ---
 
 # ASCII Art Fix
