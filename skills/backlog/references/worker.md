@@ -25,6 +25,8 @@ If a worker is dispatched in plan mode, the pattern is:
 2. Exit plan mode with the plan (operator approves).
 3. Dispatch a subagent (via the Task tool) in agent mode with the approved plan as its prompt. The subagent executes; the parent reports back.
 
+In the dispatch prompt, the parent adds operational context — cwd, branch, where the in-flight file lives, how to advance after — around the spec, and forwards the spec itself unchanged. Re-summarizing or editorializing the spec creates a second source of truth that drifts from the author's intent; the subagent's job is to execute the spec, not the parent's reading of it.
+
 Plan mode is for work the operator wants to review before execution. Backlog tasks already passed that review at authoring time — the task itself IS the approved plan. The subagent handoff keeps the planning checkpoint where it's load-bearing (the parent) without re-litigating execution.
 
 If you find the task underspecified during execution — filling gaps the author didn't fill — surface that as `fail | reason="needs replanning: ..."` rather than burning the claim. A sharper retry helps the next worker.
@@ -62,6 +64,8 @@ Three phases behave the same way semantically — only the log line differs:
 Append a semantic, idempotent note to the claim's worklog. Does NOT reset the timeout clock — only `advanced` and `rescued` do. Progress notes are for incremental detail; phase markers go in `advanced`.
 
 Write progress notes so the next claimer can skip work already done. "auth migration prototype passing locally" tells the next claimer what's safe to skip; "still working" tells them nothing.
+
+Notes earn their keep when the claim is rescuable or crosses meaningful phase boundaries. Absence of a note on a short single-phase claim isn't a smell — there's nothing for the next claimer to skip.
 
 ### cancel
 

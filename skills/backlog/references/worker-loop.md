@@ -45,11 +45,13 @@ Compute the takeable set:
 2. For `maildir-shared`, subtract any slug already in any shared in-flight dir.
 3. Filter: each candidate's `dependencies:` slugs must all resolve under `done/`.
 
+Workers only claim from `todo/`. If the project declares upstream stages (e.g. `inbox/` for triage), those are deliberately out of the worker's scope — `todo/` is the contract that an item is ready for an agent. Grooming earlier stages is reflection work, not worker work.
+
 Rank the survivors. Three-tier:
 
 - **Primary: roadmap lens.** Tasks declaring `arc: <name>` matching the ROADMAP's Current Focus or top-priority arcs sort first. Tasks under arcs warned against (Non-goals, "ad-hoc cleanup" callouts) sort last.
 - **Secondary: frontmatter priority.** Lower `priority:` numbers first; default `999` sorts last.
-- **Tertiary: recency, leaning toward newer.** Among same-arc/same-priority candidates, prefer the more recently authored or updated task. Fresher tasks carry fresher context — the author's reasoning is more likely to still match the current state of the code, deps are less likely to have moved, and the spec is less likely to have drifted from the world it described. A meaningful recency gap (e.g. two months vs. yesterday) can also outweigh a one-point priority difference, since stale priority labels were assigned against a backlog that no longer looks the same.
+- **Tertiary: fresh-context signals.** Among same-arc/same-priority candidates, prefer the more recently authored or updated task, and prefer tasks whose author-set `timeout:` is shorter than the project default. Both are proxies for fresh authorial context: recency is fresh by construction, and a short timeout was chosen against a budget the author thought achievable *now*. Fresher tasks carry fresher context — the author's reasoning is more likely to still match the current state of the code, deps are less likely to have moved, and the spec is less likely to have drifted from the world it described. A meaningful recency gap (e.g. two months vs. yesterday), or an unusually tight timeout against the default, can also outweigh a one-point priority difference — stale priority labels were assigned against a backlog that no longer looks the same.
 
 Take the top. Call the backend's `advance` recipe from `todo/`. The claim line stamps `claimer=` and `branch=`.
 
@@ -63,7 +65,7 @@ If you find the task *underspecified* — gaps the author didn't fill — `fail`
 
 Execute the spec in agent (acceptEdits) mode. If you were dispatched in plan mode, follow the Worker mode pattern in `worker.md`: draft a plan from the task → exit plan mode → dispatch a subagent with the plan as its prompt.
 
-While executing, `progress` notes at meaningful checkpoints. Write them semantically — *"phase-1 baseline shows 0% narrative blocks; phase-2 premise needs revision"* tells the next claimer what's safe to skip. *"still working"* tells them nothing.
+While executing, `progress` notes at meaningful checkpoints. Write them semantically — *"phase-1 baseline shows 0% narrative blocks; phase-2 premise needs revision"* tells the next claimer what's safe to skip. *"still working"* tells them nothing. Optional on short single-phase claims where no checkpoint earns its keep.
 
 ### 5 — Closure (three branches)
 
