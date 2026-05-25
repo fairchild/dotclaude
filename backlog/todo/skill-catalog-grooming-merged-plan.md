@@ -14,26 +14,29 @@ Consolidates `skill-coherence-cleanup-task-list` and `skill-context-optimization
 
 - **PR #182** (merged 2026-05-25) made `dotagents.toml` the single source of truth, wired a SessionStart drift hook, and removed the superpowers plugin. Dropped ~14 entries from the catalog — partial advance of what skill-context-optimization called "Phase 1: catalog reduction."
 - **PR #179** (merged 2026-05-25) executed the full skill-coherence cleanup: renamed `swiftui-expert-skill` → `swiftui-expert`, slimmed `chronicle` (745 → ~100 lines via `references/command-reference.md` extraction), promoted `skill-building` from experimental, added `experimental_reason` to skills kept experimental (ascii-art-fix, cloudflare-workers-deploy, ios-simulator, skill-seeker, vocal), and added cross-references between memory-adjacent skills. The coherence half of this arc is essentially complete — Phase 2 below collapses to leftovers.
+- **PR #183** (merged 2026-05-25) shipped Phase 1: added `disable-model-invocation: true` to the explicit-only dotclaude-authored skills and removed `commands/update-dependencies.md`.
+- **PR #186** (merged 2026-05-25) trimmed more catalog surface by keeping `caveman` and `write-a-skill` installed in the ecosystem manifest while no longer linking them into the Claude catalog.
+- **PR #188** (merged 2026-05-25) folded the `/vocal` command loop into `skills/vocal/SKILL.md`, removed `commands/vocal.md`, and made `vocal` user-invocable only with `disable-model-invocation: true`.
 
 ## Sequencing rationale
 
-PR #179 shipped the coherence pass in parallel with this merge work; it landed during rebase. That collapses the merged plan to mostly Phase 1, plus a couple of leftover coherence decisions and the conditional follow-on phases.
+PR #179 shipped the coherence pass in parallel with this merge work; it landed during rebase. PRs #183, #186, and #188 then completed the concrete catalog-reduction pieces. The remaining work is now a small closeout pass, not the original broad grooming plan.
 
-1. **Phase 1: disable-model-invocation** — biggest per-skill token reduction (entire entry leaves the catalog), reversible by deleting one line, forces an honest audit of which skills actually benefit from proactive triggering.
-2. **Phase 2: coherence leftovers** — `persona-memory` and `skills-manager` decisions PR #179 didn't reach.
-3. **Phase 3: slim oversized SKILL.md** — only if `/context` after Phase 1 still shows skills as dominant. With chronicle already slimmed (PR #179), only `cmux-orchestrator` remains as a candidate.
-4. **Phase 4: plugin conversion** — likely unnecessary now that chronicle is small; only revisit if bug #16616 materially bites.
+1. **Phase 1: disable-model-invocation** — shipped in PR #183, with `vocal` added in PR #188.
+2. **Phase 2: coherence leftovers** — narrowed to the `persona-memory` decision. `skills-manager` is already promoted in current main; no action remains there unless a future review finds a concrete reason to mark it experimental.
+3. **Phase 3: slim oversized SKILL.md** — only if a fresh `/context` measurement still shows skills as the dominant token bucket. With `chronicle` already slimmed and several skills removed from proactive catalog surfacing, measure before touching `cmux-orchestrator`.
+4. **Phase 4: plugin conversion** — likely unnecessary now that chronicle is small and Phase 1 shipped; only revisit if bug #16616 materially bites current context measurements.
 
 ## Scope notes
 
 - **Ecosystem skills are out of scope for edits.** ~/.agents/skills/* are symlinked in and managed by the skills CLI; editing their frontmatter here would be clobbered on next sync. If we want to suppress an ecosystem skill from the catalog, the right move is `[link-to-claude] foo = false` in `dotagents.toml`, not a frontmatter edit. This plan only touches dotclaude-authored skills under `skills/`.
-- **Plan text references stale state.** Verify against the live tree before editing — e.g., the original plans named `code-council`, `skill-evaluator`, `better-auth-best-practices`, none of which are dotclaude-authored skills today.
+- **Plan text references historical state.** Verify against the live tree before editing — e.g., the original plans named `code-council`, `skill-evaluator`, `better-auth-best-practices`, none of which are dotclaude-authored skills today. This file was refreshed after PR #188; newer catalog PRs should be checked before claim.
 
 ---
 
-## Phase 1 — disable-model-invocation pass
+## Phase 1 — disable-model-invocation pass (shipped)
 
-Skills that are always user-initiated never need to occupy proactive catalog space. Adding `disable-model-invocation: true` to frontmatter keeps the skill invocable via `/name` but removes its entry from the system-reminder.
+Skills that are always user-initiated never need to occupy proactive catalog space. Adding `disable-model-invocation: true` to frontmatter keeps the skill invocable via `/name` but removes its entry from the system-reminder. This phase shipped in PR #183; `vocal` was converted to explicit-only in PR #188 after its command loop moved into the skill.
 
 ### Skills to flag (dotclaude-authored only)
 
@@ -55,8 +58,9 @@ The first eight match the original context-optimization plan's explicit-only lis
 
 - `ios-simulator` — model-triggering plausibly useful when working on SwiftUI ("show me this screen"); revisit if it proves noisier than useful
 - `tart-gui-automation` — borderline; niche enough to flag, but not in original plans
-- `persona-memory` — flag depends on the 2b decision (promote vs. cancel)
+- `persona-memory` — flag depends on the remaining Phase 2 decision (promote, keep experimental, or cancel)
 - `slidev`, `web-design-guidelines`, `better-auth-best-practices` — ecosystem-installed (under `~/.agents/skills/`); suppress via `dotagents.toml` `[link-to-claude] = false` if wanted, not via frontmatter
+- `caveman`, `write-a-skill` — kept installed but no longer linked into the Claude catalog as of PR #186
 
 ### Skills evaluated and kept invokable
 
@@ -64,51 +68,54 @@ The first eight match the original context-optimization plan's explicit-only lis
 - `backlog`, `team-memory`, `persona-memory` — model-invoked when memory/work-tracking patterns surface
 - `dotclaude-config` — model-invoked on settings.json / permission patterns
 - `webapp-testing` — model-invoked on Playwright / web testing patterns
-- `frontend-design`, `image-gen`, `gh-apps`, `cmux-orchestrator`, `agent-inbox`, `signoz-log`, `vocal`, `git-worktree`, `analyze-usage`, `update-dependencies`, `session-titles`, `status-line-live`, `codespaces`, `project-scripts`, `swiftui-expert(-skill)`, `ascii-art-fix`, `skills-manager` — each has a real trigger surface where catching it proactively earns the catalog cost
+- `frontend-design`, `image-gen`, `gh-apps`, `cmux-orchestrator`, `agent-inbox`, `signoz-log`, `git-worktree`, `analyze-usage`, `update-dependencies`, `session-titles`, `status-line-live`, `codespaces`, `project-scripts`, `swiftui-expert`, `ascii-art-fix`, `skills-manager` — each has a real trigger surface where catching it proactively earns the catalog cost
+- `vocal` — moved out of proactive triggering in PR #188 because audio is a side-effect surface; it remains available via `/vocal`
 
 ### Remove duplicate commands
 
 `commands/` entries that duplicate a skill add catalog weight without adding capability:
 
-- `commands/update-dependencies.md` — pure wrapper; the skill has the full workflow
+- `commands/update-dependencies.md` — removed in PR #183; the skill has the full workflow.
+- `commands/vocal.md` — removed in PR #188 after the turn-based loop was folded into `skills/vocal/SKILL.md`.
 
-`commands/vocal.md` was evaluated and kept — it contains the turn-based loop orchestration (vocal-listener background agent, listen/respond cycle) that the vocal skill itself doesn't carry. Folding the loop logic into the skill is a separate followup; until then, the command earns its catalog slot.
+No duplicate command wrappers remain for these two workflows on current main.
 
 ### Acceptance
 
-- [ ] Flagged skills no longer appear in the system-reminder catalog
-- [ ] All flagged skills still load when invoked via `/name`
-- [ ] `/update-dependencies` still works via the skill after command removal
-- [ ] `/context` in a fresh session shows reduced Skills token count vs. pre-change baseline
+- [x] Explicit-only dotclaude-authored skills have `disable-model-invocation: true` after PR #183 and PR #188
+- [x] Duplicate command wrappers removed: `commands/update-dependencies.md` in PR #183 and `commands/vocal.md` in PR #188
+- [ ] Fresh `/context` measurement records the current post-PR #188 Skills token count
+- [ ] Spot-check explicit invocation for any workflow a future claim changes further
 
 ---
 
 ## Phase 2 — coherence leftovers
 
-PR #179 shipped the bulk of this phase. Remaining decisions:
+PR #179 shipped the bulk of this phase. Current main has `skills-manager` promoted, so only `persona-memory` remains.
 
 ### 2a. `persona-memory` — promote or cancel?
 
-Still experimental after PR #179. The original context-optimization plan claimed it's "superseded by team-memory." Either:
+Still experimental after PR #188. The original context-optimization plan claimed it's "superseded by team-memory," but current `persona-memory` still describes a broader framework/profile layer around `~/.ai-memory`, while `team-memory` is the teammate-level memory surface. Either:
 - Promote (remove `status: experimental`) if it's a kept-distinct framework worth recommending
-- `cancel` (mark as superseded, leave file in place but stop recommending) if team-memory fully covers its surface
+- Keep experimental with a current `experimental_reason` if the framework is intentionally retained but still not ready for broad recommendation
+- Cancel or unlink if team-memory fully covers the real surface and persona-memory no longer earns catalog space
 
 Make this call before flagging it in any context-optimization pass.
 
-### 2b. `skills-manager` — promote?
+### 2b. `skills-manager` — already promoted
 
-PR #179 didn't touch it. Still `status: experimental`. Description and tooling look mature; if there's no concrete reason for the label, promote it.
+Current main has no `metadata.status: experimental` on `skills/skills-manager/SKILL.md`. No action remains unless a future audit finds a concrete reason to re-mark it experimental with an `experimental_reason`.
 
 ### Acceptance
 
-- [ ] `persona-memory` either promoted with reason or marked cancelled with reason
-- [ ] `skills-manager` either promoted or has `experimental_reason` added
+- [ ] `persona-memory` promoted, kept experimental with current rationale, or cancelled/unlinked with reason
+- [x] `skills-manager` promoted
 
 ---
 
 ## Phase 3 — slim oversized SKILL.md (conditional)
 
-Run only if `/context` after Phase 1 still flags skills as the top token bucket.
+Run only if a fresh `/context` after PRs #183, #186, and #188 still flags skills as the top token bucket.
 
 PR #179 already slimmed `chronicle` (745 → ~100 lines). The remaining oversized dotclaude-authored SKILL.md is:
 
@@ -154,6 +161,9 @@ All edits land via single PR. `git revert` the merge commit if Phase 1 over-supp
 ## References
 
 - Original plans (now in `done/`): `skill-coherence-cleanup-task-list`, `skill-context-optimization-plan`
-- PR #182 — `chore(dotagents): reconcile manifest, prune drift, remove superpowers plugin`
+- PR #182 — `chore(dotagents): reconcile manifest, gitignore, and SessionStart hook`
+- PR #183 — `chore(backlog): merge skill-catalog-grooming plans + ship Phase 1 disable-model-invocation`
+- PR #186 — `chore(dotagents): unlink caveman and write-a-skill from claude catalog`
+- PR #188 — `chore(vocal): fold /vocal loop into skill, make user-invocable only`
 - ROADMAP priority #2 — skill-catalog-grooming
 - Open Claude Code issues (catalog mechanics): #16616, #14882, #13919, #4464, #17601, #18840, #24243
