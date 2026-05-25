@@ -1,0 +1,14 @@
+{
+  "name": "dotclaude-pr-review",
+  "description": "Reviews pull requests in the dotclaude repository against the project's writing, code, and skill conventions.",
+  "model": "claude-sonnet-4-6",
+  "system_prompt_file": "system-prompt.md",
+  "tools": [
+    "bash",
+    "read",
+    "glob",
+    "grep",
+    "http_get"
+  ],
+  "max_turns": 30
+}

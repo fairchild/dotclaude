@@ -1,0 +1,40 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "managed-agents-cloudflare",
+  "main": "runtime/index.ts",
+  "compatibility_date": "2026-05-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // KV namespaces back the egress layer:
+  //   SECRETS: { reference_name -> secret_value }
+  //   EGRESS_POLICIES: { policy_id -> rule_json }
+  // Run `bun run scripts/ensure-kv.mjs` to create these and patch ids in below.
+  "kv_namespaces": [
+    { "binding": "SECRETS", "id": "REPLACE_ME_SECRETS_ID" },
+    { "binding": "EGRESS_POLICIES", "id": "REPLACE_ME_EGRESS_POLICIES_ID" },
+    { "binding": "AGENT_INBOX", "id": "REPLACE_ME_AGENT_INBOX_ID" }
+  ],
+
+  // Per-session isolate sandbox. Worker Loader is the runtime primitive that
+  // lets the parent worker instantiate a child JS isolate per claimed session.
+  // See docs/isolate-vs-vm-sandboxes.md.
+  "unsafe": {
+    "bindings": [
+      { "name": "ISOLATE_LOADER", "type": "worker_loader" }
+    ]
+  },
+
+  // Secrets (set with `wrangler secret put <NAME>`):
+  //   ANTHROPIC_ENVIRONMENT_ID         scoping for the work queue
+  //   ANTHROPIC_ENVIRONMENT_KEY        Bearer auth for /work endpoints
+  //   ANTHROPIC_WEBHOOK_SIGNING_KEY    verifies inbound webhook signatures
+  "vars": {
+    "ANTHROPIC_API_BASE": "https://api.anthropic.com",
+    "ANTHROPIC_BETA_HEADER": "managed-agents-2026-04-01",
+    "EMAIL_DOMAIN": "example.com"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}

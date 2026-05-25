@@ -1,0 +1,4 @@
+# Copy to .dev.vars for local `wrangler dev`. .dev.vars is gitignored.
+ANTHROPIC_ENVIRONMENT_ID="env_REPLACE_ME"
+ANTHROPIC_ENVIRONMENT_KEY="sk-ant-oat01-REPLACE_ME"
+ANTHROPIC_WEBHOOK_SIGNING_KEY="whsec_REPLACE_ME"
