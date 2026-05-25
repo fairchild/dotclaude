@@ -55,7 +55,7 @@ Three phases behave the same way semantically — only the log line differs:
 
 - **Entry** (todo/ → doing/) — the claim. Stamp `claimer=` and `branch=`.
 - **Intermediate hop** (e.g. doing/ → reviewing/) — same claimer continues; no re-stamp.
-- **Completion** (last in-flight → done/) — the work shipped; PR URL goes in the optional `| PR=...` prose.
+- **Completion** (last in-flight → done/) — the work shipped; PR URL goes in `| PR=<url>` prose. That URL paired with the `advanced to=done` timestamp is the agent-done record later lead-time tracking pairs against the eventual merge. Default-case completions should always carry it; absent only when the spec explicitly said no PR.
 
 **No-slug advance from todo/** ("take the next thing"): glob `todo/`, filter to tasks whose every dep is in `done/`, sort by `priority` (default 999) ascending then oldest mtime, advance the first.
 

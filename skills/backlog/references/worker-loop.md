@@ -69,11 +69,13 @@ While executing, `progress` notes at meaningful checkpoints. Write them semantic
 
 ### 5 — Closure (three branches)
 
+**Default outcome: a merge-ready PR link as the headline of the final report.** The user clicks, reviews, merges. Agent-done means the file is in `done/` with an `advanced to=done | PR=<url>` log line; the human's merge closes the loop, and lead time from agent-done to merged is later trackable from that pairing. The three branches below cover the default (5a), a partial-scope slice that still ships review-ready (5b), and the spec-was-wrong / blocked / out-of-scope cases that don't ship at all (5c). Anything other than a review-ready PR for 5a — draft, no PR, batched with siblings — needs the spec to say so explicitly.
+
 Choose one branch based on outcome:
 
 #### 5a — Shipped: full scope completed
 
-Open the PR (or update an existing one), capture the URL, then advance to `done`:
+Open the PR as review-ready (not draft, unless the spec said draft), capture the URL, then advance to `done`:
 
 ```bash
 gh pr create --title "..." --body "..."
@@ -104,10 +106,10 @@ Don't silently edit the spec from a worker — the rule is in `worker.md`: spec 
 
 ### 6 — Report and exit
 
-Print a short summary for the operator:
+Print a short summary for the operator with the PR URL as the headline when one was opened — the click-to-merge handoff is the load-bearing thing:
 
+- **PR URL** (when one was opened) — surface first; this is what the user acts on.
 - What got claimed and where it ended up (done/failed/sliced).
-- PR URL if one was opened.
 - Any roadmap edits or follow-up tasks authored.
 - Next-loop hint: re-invoke `/backlog worker` to drain more, or stop here.
 
