@@ -63,6 +63,7 @@ Test behavior over implementation details
 ## Git
 
 - Conventional commits (`feat:`, `fix:`, `chore:`, etc.)
+- **Prefer a worktree for non-trivial changes in a new session** — recovery stays cheap when something goes sideways. Soft default: match isolation to scale of change rather than apply always or never. Suggest creating one before mutating the live tree; the `superpowers:using-git-worktrees` / `git-worktree` skills handle the mechanics.
 
 ## Safety
 

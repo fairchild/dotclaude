@@ -124,11 +124,27 @@ class Manifest:
             share_to_agents={k: v for k, v in raw.get("share-to-agents", {}).items() if isinstance(v, bool)},
         )
 
-        # A skill name in both directions would create a cycle of
-        # symlinks pointing at each other. Refuse to load.
+        # Two structural invariants. Violations are operator errors
+        # (typos, copy-paste mistakes) we want to surface loudly at
+        # load time rather than have produce silent "missing symlink"
+        # reports during sync.
+
+        # ecosystem ∩ share-to-agents would mean symlinks pointing in
+        # opposite directions for the same name — a cycle. (This also
+        # catches the link-to-claude ∩ share-to-agents case, since
+        # link-to-claude entries must be in ecosystem per the next
+        # check.)
         overlap = set(manifest.ecosystem) & set(manifest.share_to_agents)
         if overlap:
             die(f"Skills in both [ecosystem] and [share-to-agents]: {', '.join(sorted(overlap))}")
+
+        # link-to-claude ⊆ ecosystem — a link-to-claude entry needs an
+        # ecosystem install to point at. Without this check, a typo
+        # would manifest as a quiet "target not found" during sync
+        # with no signal that the manifest itself is inconsistent.
+        unknown = set(manifest.link_to_claude) - set(manifest.ecosystem)
+        if unknown:
+            die(f"Skills in [link-to-claude] but not [ecosystem]: {', '.join(sorted(unknown))}")
 
         return manifest
 
