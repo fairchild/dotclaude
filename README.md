@@ -90,7 +90,6 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 | webapp-testing | Playwright testing (Python and TypeScript) |
 | skill-creator | Building new skills |
 | release | Semantic versioned releases from any branch (worktree-aware) |
-| cloudflare-workers-deploy | Workers deployment setup |
 | git-worktree | Parallel branch development |
 | web-artifacts-builder | Complex claude.ai artifacts |
 | verify | Deployment verification and health checks |
@@ -103,12 +102,16 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 
 ### Skills (Experimental)
 
-Experimental skills have `status: experimental` in frontmatter. Usable but incomplete.
+Experimental skills have `metadata.status: experimental` in frontmatter, plus `metadata.experimental_reason` explaining why. Usable but incomplete.
 
 | Skill | Purpose |
 |-------|---------|
-| rate-title | AI-assisted session title rating with human calibration |
-| session-title-eval | Batch evaluation of session title generation quality |
+| ascii-art-fix | Repair misaligned ASCII box diagrams |
+| cloudflare-workers-deploy | Set up Cloudflare Workers deployments |
+| ios-simulator | Automate iOS Simulator screenshots and flows |
+| persona-memory | Persistent persona and memory framework |
+| skill-seeker | Generate skills from docs, repos, or local codebases |
+| vocal | Text-to-speech and speech-to-text workflows |
 
 ### Agents (background tasks)
 

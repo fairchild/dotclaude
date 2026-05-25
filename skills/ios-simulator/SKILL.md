@@ -4,6 +4,7 @@ description: Automate iOS Simulator tasks — capture screenshots, interact with
 license: Apache-2.0
 metadata:
   status: experimental
+  experimental_reason: "Simulator automation remains sensitive to local device state, timing, window focus, and Xcode version differences."
 ---
 
 # iOS Simulator

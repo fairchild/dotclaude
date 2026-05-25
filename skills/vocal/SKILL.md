@@ -4,6 +4,7 @@ description: Speak text aloud (TTS) and transcribe speech (STT). Supports local 
 license: Apache-2.0
 metadata:
   status: experimental
+  experimental_reason: "Voice workflows depend on local audio devices and optional ElevenLabs credentials, so reliability is environment-sensitive."
 ---
 
 # Vocal
