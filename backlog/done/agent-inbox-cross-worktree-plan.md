@@ -81,3 +81,6 @@ rm "$inbox/test-recipient/new/test.md"
 
 ---
 
+- 2026-05-25T00:10:41Z advanced to=doing claimer=fairchild@blue branch=codex-agent-inbox-shared-root
+- 2026-05-25T00:16:14Z progress | implemented repo-shared inbox root resolver, wired hooks, updated docs, and verified linked-worktree + fallback behavior in temp repos
+- 2026-05-25T00:21:26Z advanced to=done

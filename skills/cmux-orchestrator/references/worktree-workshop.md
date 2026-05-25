@@ -120,20 +120,21 @@ This flow is self-contained — it uses `git worktree` directly, no external scr
 From here, follow the standard Workshop convention (detect commands, build layout, set up sidebar). The only differences:
 
 - **Project root** is `$WORKTREE_PATH`, not `~/code/<project>`
-- **Coder inbox** goes inside the worktree (the agent reads from here):
+- **Coder inbox** uses the repo-shared inbox root (all worktrees in the clone see it):
   ```bash
-  mkdir -p "$WORKTREE_PATH"/.agents/inbox/coder/{new,tmp,archive}
+  . ~/.claude/skills/agent-inbox/scripts/lib.sh
+  inbox_root="$(cd "$WORKTREE_PATH" && agent_inbox_root)"
+  mkdir -p "$inbox_root/coder"/{new,tmp,archive}
   ```
-- **Reply inbox** lives in the caller's directory — not the worktree. The calling session reads from its own cwd, so replies must land there. Use the calling session's name (not hardcoded — the caller might be any named session):
+- **Reply inbox** uses the same shared root when caller and child are worktrees of the same clone. Use the calling session's name (not hardcoded — the caller might be any named session):
   ```bash
-  # In the caller's directory (where the orchestrating session runs)
-  mkdir -p .agents/inbox/<caller-name>/{new,tmp,archive}
+  mkdir -p "$inbox_root/<caller-name>"/{new,tmp,archive}
   ```
   When writing the coder's task, set `reply_to` to a **relative path** from the coder's inbox back to the caller's:
   ```yaml
-  reply_to: ../../../.agents/inbox/<caller-name>/
+  reply_to: ../<caller-name>/tmp/
   ```
-  If the caller is in a different repo/worktree, the relative path won't work — use `--add-dir` on the agent launch to grant write access (see Dispatching below).
+  If the caller is in a different repo, compute both inbox roots explicitly and use `--add-dir` on the agent launch to grant write access (see Dispatching below).
 - **Sidebar status** includes the branch context:
   ```bash
   cmux set-status "worktree" "$WORKTREE_PATH" --icon "arrow.triangle.branch" --color "#888888" --workspace <ws>
@@ -179,18 +180,18 @@ If `wt` (git-worktree skill) is installed, these shortcuts work:
 
 ## Dispatching an agent into the workshop
 
-The coder agent runs in the worktree but needs write access to the caller's inbox (which is outside its cwd). Grant access with `--add-dir`:
+The coder agent runs in the worktree and needs access to the repo-shared inbox root. Grant access with `--add-dir`:
 
 ```bash
-# CALLER_INBOX is the absolute path to the caller's .agents/inbox directory
+. ~/.claude/skills/agent-inbox/scripts/lib.sh
+inbox_root="$(cd "$WORKTREE_PATH" && agent_inbox_root)"
+
 claude --dangerously-skip-permissions -n coder \
-  --add-dir .agents/inbox --add-dir "$CALLER_INBOX" \
-  "Check your inbox at .agents/inbox/coder/new/ and execute the task. Reply to the reply_to path in the inbox message."
+  --add-dir "$inbox_root" \
+  "Check your inbox at $inbox_root/coder/new/ and execute the task. Reply to the reply_to path in the inbox message."
 ```
 
-The agent needs `--add-dir` for both:
-- `.agents/inbox` — its own inbox in the worktree (relative, in cwd)
-- `$CALLER_INBOX` — the calling session's inbox (absolute, outside the worktree)
+If the caller is in a different repository, also pass that repository's inbox root with a second `--add-dir`.
 
 ### Gotchas discovered during live testing
 

@@ -72,7 +72,7 @@ Before an `advance` out of `todo/`, scan all in-flight dirs for stale claims. Fo
 now=$(date -u +%s); ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 target_slug="${1:-}"        # set if the agent has a specific slug in mind; empty for scan-only
 
-# Enumerate in-flight dirs by exclusion (anything that isn't todo/done/failed)
+# Enumerate in-flight dirs by exclusion (anything that isn't inbox/todo/done/failed)
 in_flight=$(find backlog -mindepth 1 -maxdepth 1 -type d ! -name todo ! -name done ! -name failed)
 
 for d in $in_flight; do

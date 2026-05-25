@@ -59,7 +59,7 @@ backlog_first_dir() {
   ' backlog/AGENTS.md 2>/dev/null
 }
 
-# In-flight dir names from pipeline (excluding todo/done). Default: doing.
+# In-flight dir names from pipeline (excluding intake/terminal dirs). Default: doing.
 backlog_inflight_dirs() {
   awk '
     /^## Pipeline/ { flag=1; next }
@@ -67,7 +67,7 @@ backlog_inflight_dirs() {
       parsed=1
       while (match($0, /[a-z][a-z0-9-]*/)) {
         d=substr($0, RSTART, RLENGTH)
-        if (d != "todo" && d != "done") print d
+    if (d != "inbox" && d != "todo" && d != "done" && d != "failed") print d
         $0=substr($0, RSTART + RLENGTH)
       }
       exit
@@ -103,7 +103,12 @@ backlog_epoch() {
 # Ensure body divider exists before appending log lines.
 backlog_ensure_divider() {
   local file="$1"
-  if [[ "$(grep -v '^[[:space:]]*$' "$file" | tail -1)" != "---" ]]; then
+  local required=1 count
+  if [[ "$(head -n 1 "$file")" == "---" ]]; then
+    required=3
+  fi
+  count=$(grep -cx -- "---" "$file" 2>/dev/null || true)
+  if (( count < required )); then
     printf '\n---\n' >> "$file"
   fi
 }

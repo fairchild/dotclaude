@@ -11,14 +11,14 @@ Mechanical maintenance for the backlog. The `maintain` verb (defined in `worker.
 
 ## The prompt
 
-When the user asks to maintain the backlog, walk each bucket below and print what you find. End with a counts-only "OK" line for everything else. In-flight dirs are enumerated by exclusion (anything under `backlog/` that isn't `todo/`, `done/`, or `failed/`). Use `find -L` so symlinked in-flight dirs (e.g. `maildir-shared`'s `doing → git-common-dir`) are included. Recipes assume bash — under zsh, prepend `setopt nullglob` so empty in-flight dirs don't error on glob expansion.
+When the user asks to maintain the backlog, walk each bucket below and print what you find. End with a counts-only "OK" line for everything else. In-flight dirs are enumerated by exclusion (anything under `backlog/` that isn't `inbox/`, `todo/`, `done/`, or `failed/`). Use `find -L` so symlinked in-flight dirs (e.g. `maildir-shared`'s `doing → git-common-dir`) are included. Recipes assume bash — under zsh, prepend `setopt nullglob` so empty in-flight dirs don't error on glob expansion.
 
 ### `ADVANCED BUT NOT MOVED` (safe to auto-fix)
 
 A file in an in-flight dir whose log has an `advanced to=done` line. The work was marked as completing the pipeline but the `git mv` to `done/` never ran — strict invariant violation, unambiguous.
 
 ```bash
-for d in $(find -L backlog -mindepth 1 -maxdepth 1 -type d ! -name todo ! -name done ! -name failed); do
+for d in $(find -L backlog -mindepth 1 -maxdepth 1 -type d ! -name inbox ! -name todo ! -name done ! -name failed); do
   for f in "$d"/*.md; do
     [[ -f "$f" ]] || continue
     grep -q '^- .*advanced to=done' "$f" && echo "ADVANCED BUT NOT MOVED: $f"
@@ -34,7 +34,7 @@ A file in any in-flight dir where `now - latest_claim_line > timeout`. The task 
 
 ```bash
 now=$(date -u +%s)
-for d in $(find -L backlog -mindepth 1 -maxdepth 1 -type d ! -name todo ! -name done ! -name failed); do
+for d in $(find -L backlog -mindepth 1 -maxdepth 1 -type d ! -name inbox ! -name todo ! -name done ! -name failed); do
   for f in "$d"/*.md; do
     [[ -f "$f" ]] || continue
     timeout=$(awk '/^---$/{n++; if(n==2) exit} n==1 && /^timeout:/ {sub(/^timeout:[[:space:]]*/, ""); print; exit}' "$f")
@@ -60,7 +60,7 @@ Suggested action: `fail` with a `timeout: ...` reason. An operator can `retry` l
 A file in `todo/` or any in-flight dir referencing a `dependencies:` slug that doesn't exist anywhere in the tree. Usually a typo or rename.
 
 ```bash
-in_flight=$(find -L backlog -mindepth 1 -maxdepth 1 -type d ! -name todo ! -name done ! -name failed)
+in_flight=$(find -L backlog -mindepth 1 -maxdepth 1 -type d ! -name inbox ! -name todo ! -name done ! -name failed)
 for d in backlog/todo $in_flight; do
   for f in "$d"/*.md; do
     [[ -f "$f" ]] || continue

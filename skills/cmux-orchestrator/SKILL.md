@@ -131,12 +131,16 @@ When launching an agent into a pane, **write the prompt to the agent's inbox fir
 - Consistent with inbox-first communication across all conventions
 
 ```bash
+# 0. Resolve the repo-shared inbox root
+. ~/.claude/skills/agent-inbox/scripts/lib.sh
+inbox_root="$(agent_inbox_root)"
+
 # 1. Create the inbox
-mkdir -p .agents/inbox/coder/{new,tmp,archive}
+mkdir -p "$inbox_root/coder"/{new,tmp,archive}
 
 # 2. Write the prompt as an inbox message
 TIMESTAMP=$(date -u +%Y%m%dT%H%M%S)
-cat > .agents/inbox/coder/tmp/${TIMESTAMP}-task.md << 'EOF'
+cat > "$inbox_root/coder/tmp/${TIMESTAMP}-task.md" << 'EOF'
 ---
 from: orchestrator
 to: coder
@@ -149,10 +153,10 @@ Fix the failing auth tests. The JWT validation is rejecting valid tokens.
 Check the test output in the "tests" pane via `cmux read-screen`.
 Report back when done.
 EOF
-mv .agents/inbox/coder/tmp/${TIMESTAMP}-task.md .agents/inbox/coder/new/
+mv "$inbox_root/coder/tmp/${TIMESTAMP}-task.md" "$inbox_root/coder/new/"
 
 # 3. Launch the agent — the inbox message has all the detail
-cmux send --surface <agent-surface> "claude --dangerously-skip-permissions -n coder --add-dir .agents/inbox 'Check your inbox at .agents/inbox/coder/new/ and execute the task. Reply to .agents/inbox/orchestrator/ when done.'"
+cmux send --surface <agent-surface> "claude --dangerously-skip-permissions -n coder --add-dir '$inbox_root' 'Check your inbox at $inbox_root/coder/new/ and execute the task. Reply to $inbox_root/orchestrator/ when done.'"
 cmux send-key --surface <agent-surface> Enter
 ```
 
@@ -179,7 +183,7 @@ Sidebar:
   Status: agent: ready, dev-server: running, tests: watching
   Progress: (cleared — used during setup only)
 
-Inbox: .agents/inbox/coder/ (always created)
+Inbox: repo-shared `.agents/inbox/coder/` (always created)
 ```
 
 The top-left pane is the agent's workspace — typically launched from the orchestrator via prompt-via-inbox, but the human can switch to it and take over at any time. The agent can use `cmux browser` to validate its work in the browser pane, `cmux read-screen` to check test output, and agent-inbox to report back to the orchestrator.
@@ -241,8 +245,10 @@ The top-left pane is the agent's workspace — typically launched from the orche
 10. **Verify tests started**: `cmux read-screen --workspace <ws> --surface <bottom> --lines 15`
 11. **Set up the agent inbox** — always, even if no agent is launched yet:
     ```bash
-    mkdir -p ~/code/<project>/.agents/inbox/coder/{new,tmp,archive}
-    mkdir -p ~/code/<project>/.agents/inbox/orchestrator/{new,tmp,archive}
+    . ~/.claude/skills/agent-inbox/scripts/lib.sh
+    inbox_root="$(agent_inbox_root)"
+    mkdir -p "$inbox_root/coder"/{new,tmp,archive}
+    mkdir -p "$inbox_root/orchestrator"/{new,tmp,archive}
     ```
 12. Name everything:
     ```bash
@@ -256,7 +262,7 @@ The top-left pane is the agent's workspace — typically launched from the orche
     cmux set-status "agent" "ready" --icon "person.fill" --color "#888888" --workspace <ws>
     cmux set-status "dev-server" "<discovered-url>" --icon "bolt.fill" --color "#00FF00" --workspace <ws>
     cmux set-status "tests" "watching" --icon "magnifyingglass" --color "#FFB800" --workspace <ws>
-    cmux log --workspace <ws> "Workshop ready — agent pane idle, inbox at .agents/inbox/coder/"
+    cmux log --workspace <ws> "Workshop ready — agent pane idle, inbox at $inbox_root/coder/"
     ```
 
 ### Launching an agent into the workshop
@@ -266,7 +272,7 @@ Use the prompt-via-inbox pattern to dispatch work to the agent pane:
 1. Write the task to the coder's inbox (see "Prompt via Inbox" above)
 2. Launch the agent — the inbox message has all the detail:
    ```bash
-   cmux send --workspace <ws> --surface <top> "claude --dangerously-skip-permissions -n coder --add-dir .agents/inbox 'Check your inbox at .agents/inbox/coder/new/ and execute the task. Reply to .agents/inbox/orchestrator/ when done.'"
+   cmux send --workspace <ws> --surface <top> "claude --dangerously-skip-permissions -n coder --add-dir '$inbox_root' 'Check your inbox at $inbox_root/coder/new/ and execute the task. Reply to $inbox_root/orchestrator/ when done.'"
    cmux send-key --workspace <ws> --surface <top> Enter
    ```
 3. Update sidebar:
@@ -277,7 +283,7 @@ Use the prompt-via-inbox pattern to dispatch work to the agent pane:
 The agent has full access to the workshop — it can read the test watcher output via `cmux read-screen`, interact with the browser via `cmux browser snapshot/click/fill`, and report back via agent-inbox. The human can switch to the agent pane at any time to observe or take over.
 
 - `--dangerously-skip-permissions` grants all tool permissions without prompting — use for autonomous agents
-- `--add-dir .agents/inbox` grants filesystem visibility to the inbox directory
+- `--add-dir "$inbox_root"` grants filesystem visibility to the repo-shared inbox directory
 - `-n <name>` sets the session name for identification
 - Pass the initial message as a positional argument — the agent starts with full tool access and works autonomously
 
@@ -298,7 +304,7 @@ A Workshop that starts from a branch name instead of an existing directory. Crea
 ~/.worktrees/<repo>/<branch>/
   ├── Full Workshop layout (agent, dev server, tests, browser)
   ├── Sidebar: "<repo>: <branch>"
-  └── .agents/inbox/ (ready for dispatch)
+  └── repo-shared .agents/inbox/ (ready for dispatch)
 ```
 
 The flow: create worktree via `git worktree add` → `cmux new-workspace --cwd <worktree>` → standard Workshop layout. Supports both in-repo (default) and cross-repo (`--repo`) entry points. Self-contained — uses `git worktree` directly, no external scripts required.
@@ -339,11 +345,11 @@ Orchestrator workspace (you are here):
 
 Agent workspace 1 ("tests"):
   Sidebar: status, progress, logs
-  Inbox: .agents/inbox/test-runner/
+  Inbox: repo-shared .agents/inbox/test-runner/
 
 Agent workspace 2 ("lint"):
   Sidebar: status, progress, logs
-  Inbox: .agents/inbox/linter/
+  Inbox: repo-shared .agents/inbox/linter/
 
 All connected via agent-inbox protocol.
 ```
@@ -351,11 +357,13 @@ All connected via agent-inbox protocol.
 ### How to build it
 
 1. Orient: `cmux tree --all`, `cmux identify`
-2. Set up agent-inbox directories in the project root:
+2. Set up agent-inbox directories in the repo-shared inbox root:
    ```bash
-   mkdir -p .agents/inbox/orchestrator/{new,tmp,archive}
-   mkdir -p .agents/inbox/test-runner/{new,tmp,archive}
-   mkdir -p .agents/inbox/linter/{new,tmp,archive}
+   . ~/.claude/skills/agent-inbox/scripts/lib.sh
+   inbox_root="$(agent_inbox_root)"
+   mkdir -p "$inbox_root/orchestrator"/{new,tmp,archive}
+   mkdir -p "$inbox_root/test-runner"/{new,tmp,archive}
+   mkdir -p "$inbox_root/linter"/{new,tmp,archive}
    ```
 3. Set initial sidebar state:
    ```bash
@@ -368,7 +376,7 @@ All connected via agent-inbox protocol.
    ```bash
    TIMESTAMP=$(date -u +%Y%m%dT%H%M%S)
 
-   cat > .agents/inbox/test-runner/tmp/${TIMESTAMP}-task.md << 'EOF'
+   cat > "$inbox_root/test-runner/tmp/${TIMESTAMP}-task.md" << 'EOF'
    ---
    from: orchestrator
    to: test-runner
@@ -378,9 +386,9 @@ All connected via agent-inbox protocol.
    ---
    Run the test suite. Include pass/fail counts and any failure details in your reply.
    EOF
-   mv .agents/inbox/test-runner/tmp/${TIMESTAMP}-task.md .agents/inbox/test-runner/new/
+   mv "$inbox_root/test-runner/tmp/${TIMESTAMP}-task.md" "$inbox_root/test-runner/new/"
 
-   cat > .agents/inbox/linter/tmp/${TIMESTAMP}-task.md << 'EOF'
+   cat > "$inbox_root/linter/tmp/${TIMESTAMP}-task.md" << 'EOF'
    ---
    from: orchestrator
    to: linter
@@ -390,15 +398,15 @@ All connected via agent-inbox protocol.
    ---
    Run the linter. Report any warnings or errors in your reply.
    EOF
-   mv .agents/inbox/linter/tmp/${TIMESTAMP}-task.md .agents/inbox/linter/new/
+   mv "$inbox_root/linter/tmp/${TIMESTAMP}-task.md" "$inbox_root/linter/new/"
    ```
 5. **Spawn agent workspaces** — each checks its inbox on start:
    ```bash
    cmux new-workspace --cwd ~/code/myproject \
-     --command "claude --dangerously-skip-permissions -n test-runner --add-dir .agents/inbox 'Check your inbox at .agents/inbox/test-runner/new/ and execute the task. Reply to .agents/inbox/orchestrator/ when done.'"
+     --command "claude --dangerously-skip-permissions -n test-runner --add-dir '$inbox_root' 'Check your inbox at $inbox_root/test-runner/new/ and execute the task. Reply to $inbox_root/orchestrator/ when done.'"
 
    cmux new-workspace --cwd ~/code/myproject \
-     --command "claude --dangerously-skip-permissions -n linter --add-dir .agents/inbox 'Check your inbox at .agents/inbox/linter/new/ and execute the task. Reply to .agents/inbox/orchestrator/ when done.'"
+     --command "claude --dangerously-skip-permissions -n linter --add-dir '$inbox_root' 'Check your inbox at $inbox_root/linter/new/ and execute the task. Reply to $inbox_root/orchestrator/ when done.'"
    ```
 6. Name everything so the user can identify each workspace and tab at a glance:
    ```bash
@@ -416,11 +424,11 @@ All connected via agent-inbox protocol.
    ```
 9. Monitor with dual channels:
    - **Quick check**: `cmux read-screen --surface <agent-surface> --lines 20`
-   - **Structured results**: `ls .agents/inbox/orchestrator/new/`
+   - **Structured results**: `ls "$inbox_root/orchestrator/new/"`
 10. When inbox messages arrive, read and archive:
    ```bash
-   cat .agents/inbox/orchestrator/new/<message>.md
-   mv .agents/inbox/orchestrator/new/<message>.md .agents/inbox/orchestrator/archive/
+   cat "$inbox_root/orchestrator/new/<message>.md"
+   mv "$inbox_root/orchestrator/new/<message>.md" "$inbox_root/orchestrator/archive/"
    ```
 11. Update sidebar with final results:
    ```bash
@@ -478,8 +486,10 @@ After a child finishes work and writes its reply to the parent's inbox:
 
 ```bash
 # 1. Write reply (standard inbox protocol)
+. ~/.claude/skills/agent-inbox/scripts/lib.sh
+inbox_root="$(agent_inbox_root)"
 TIMESTAMP=$(date -u +%Y%m%dT%H%M%S)
-cat > .agents/inbox/orchestrator/tmp/${TIMESTAMP}-done.md << 'EOF'
+cat > "$inbox_root/orchestrator/tmp/${TIMESTAMP}-done.md" << 'EOF'
 ---
 from: coder
 to: orchestrator
@@ -490,7 +500,7 @@ thread: my-task
 
 Task complete. PR at #42.
 EOF
-mv .agents/inbox/orchestrator/tmp/${TIMESTAMP}-done.md .agents/inbox/orchestrator/new/
+mv "$inbox_root/orchestrator/tmp/${TIMESTAMP}-done.md" "$inbox_root/orchestrator/new/"
 
 # 2. Wake the parent
 bash ~/.claude/skills/agent-inbox/scripts/wake-parent.sh \
@@ -508,11 +518,14 @@ bash ~/.claude/skills/agent-inbox/scripts/wake-parent.sh \
 ### Full example: orchestrator dispatches, child wakes parent
 
 ```bash
+. ~/.claude/skills/agent-inbox/scripts/lib.sh
+inbox_root="$(agent_inbox_root)"
+
 # Orchestrator writes task to child inbox (prompt-via-inbox)
 # ... standard inbox write ...
 
 # Launch child with wake instructions baked in
-cmux send --surface <child> "echo 'Check your inbox. When done, reply to orchestrator inbox and run: bash ~/.claude/skills/agent-inbox/scripts/wake-parent.sh --surface <parent> --agent orchestrator' | claude -p -n coder --add-dir .agents/inbox --dangerously-skip-permissions"
+cmux send --surface <child> "echo 'Check your inbox. When done, reply to orchestrator inbox and run: bash ~/.claude/skills/agent-inbox/scripts/wake-parent.sh --surface <parent> --agent orchestrator' | claude -p -n coder --add-dir '$inbox_root' --dangerously-skip-permissions"
 cmux send-key --surface <child> Enter
 ```
 
@@ -543,7 +556,7 @@ fi
 ```
 
 - **session-titles** → `cmux rename-workspace` to sync sidebar title
-- **agent-inbox** → `.agents/inbox/` for structured cross-workspace messaging
+- **agent-inbox** → repo-shared `.agents/inbox/` for structured cross-workspace messaging
 - **Any multi-step task** → `cmux set-progress` + `cmux log` for sidebar trail
 
 ## Quick Reference
