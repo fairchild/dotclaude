@@ -7,6 +7,7 @@ Canonical spec for backlog file structure, frontmatter, and body format. The rec
 ```
 backlog/
   AGENTS.md     # convention pointer + optional Pipeline declaration
+  inbox/        # optional triage queue, not claimable until advanced to todo
   todo/         # available
   doing/        # claimed, in flight (the default in-flight dir)
   reviewing/    # (optional) intermediate in-flight; created if the project's pipeline includes it
@@ -14,13 +15,13 @@ backlog/
   failed/       # dead-letter for tasks that couldn't proceed (created on demand)
 ```
 
-The pipeline (which dirs are in-flight and in what order) defaults to `todo → doing → done`. A project may declare a longer pipeline (e.g. `todo → doing → reviewing → done`) in `backlog/AGENTS.md`. See `pipeline.md`.
+The pipeline defaults to `todo → doing → done`. A project may declare a longer pipeline (e.g. `todo → doing → reviewing → done`) or an intake stage before `todo` (e.g. `inbox → todo → doing → done`) in `backlog/AGENTS.md`. See `pipeline.md`.
 
 Flat `done/` — no time partitioning. If it grows large enough to be annoying (years from now), operators can shard by hand; nothing migrates automatically and no recipe relies on the directory shape.
 
 `failed/` is created on demand by the `fail` recipe; it doesn't exist until the first failure. Operators review it manually and either `retry` (back to todo/) or leave it as terminal history.
 
-**In-flight dirs**, by convention, are anything under `backlog/` that isn't `todo/`, `done/`, or `failed/`. Recipes that need "all currently-claimed work" enumerate via this exclusion. `failed/` is out-of-pipeline and never visited by `advance`.
+**In-flight dirs**, by convention, are pipeline stages after `todo/` and before `done/`. `inbox/`, `todo/`, `done/`, and `failed/` are not in-flight. Recipes that need "all currently-claimed work" enumerate via this exclusion. `failed/` is out-of-pipeline and never visited by `advance`.
 
 ## Filename
 
@@ -147,4 +148,3 @@ Cat shows the story in place; `git log` shows the same events with author and an
 ### Single-writer rule
 
 Between the first `advance` (out of `todo/`) and the final exit (advance to `done/`, or `cancel`, or `fail`), only the claiming agent appends. Enforcement is social — the maildir `git mv` is the actual lock. Two agents writing in parallel branches collide at merge, which is the correct failure.
-

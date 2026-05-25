@@ -1,6 +1,6 @@
 # Pipeline
 
-How `advance` knows where to go, and how to extend the default `todo → doing → done` with intermediate in-flight states.
+How `advance` knows where to go, and how to extend the default `todo → doing → done` with intake and intermediate in-flight states.
 
 ## Default
 
@@ -32,6 +32,18 @@ This means:
 - `advance` from `reviewing/` → `done/` (PR merged)
 
 Create the intermediate directory (`mkdir -p backlog/reviewing`) and commit a placeholder if you want it visible before any task arrives. The `advance` recipe will `mkdir -p` on demand if it's missing.
+
+## Optional intake stage
+
+A project can add a triage queue before `todo/`:
+
+```markdown
+## Pipeline
+
+`inbox → todo → doing → done`
+```
+
+`inbox/` is not in-flight. It is an intake bucket for untriaged work; workers claim from `todo/`, and triage advances ready items from `inbox/` to `todo/`.
 
 ## Naming convention
 
