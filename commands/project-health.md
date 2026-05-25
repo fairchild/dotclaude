@@ -104,7 +104,7 @@ Report results:
 ```
 Pulled 2 repos:
   - beads (12 commits)
-  - superpowers (3 commits)
+  - chronicle (3 commits)
 
 Skipped (dirty): jrnlfish-v4
 ```

@@ -149,6 +149,8 @@ npx skills check && npx skills update
 
 `~/.claude` is an independent git clone on `main`. A `SessionStart` hook runs `scripts/deploy.sh` to sync from `origin/main` on every session start, so merged PRs are live immediately. Development happens in `~/code/dotclaude` on feature branches. See [skills/dotclaude-config/references/development-workflow.md](skills/dotclaude-config/references/development-workflow.md) for the full architecture, sync workflow, and skill development process.
 
+Skill installation and symlinking is driven by [`dotagents.toml`](dotagents.toml) — a manifest declaring which ecosystem skills live in `~/.agents/skills/` and how they're symlinked into `~/.claude/skills/` (and the reverse direction, for dotclaude-authored skills shared with other agent harnesses). [`scripts/sync-dotagents.py`](scripts/sync-dotagents.py) is the reconciler: `audit` reports drift, `sync` reconciles, `status` is a one-liner for hooks. A SessionStart hook runs `status` each session so drift surfaces without blocking.
+
 ## Permissions Model
 
 Defined in `settings.json`:

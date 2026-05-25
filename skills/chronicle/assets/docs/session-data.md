@@ -97,7 +97,7 @@ Downloaded plugin cache from the Claude Code marketplace.
 plugins/
 ├── cache/              # Downloaded skill packages
 ├── temp_git_*/         # Transient clones during install
-└── superpowers/        # Superpowers marketplace cache
+└── data/               # Per-plugin runtime data
 ```
 
 **Why gitignored**: Generated cache, ~50MB+. Each machine regenerates as needed.

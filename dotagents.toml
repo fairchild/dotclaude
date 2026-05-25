@@ -5,6 +5,9 @@
 # This file declares the intended state of ~/.agents and the symlink
 # relationships between ~/.claude/skills/ and ~/.agents/skills/.
 # Single source of truth — no separate dotagents repo needed.
+#
+# The sync script also writes the relevant block of ~/.claude/.gitignore
+# from [link-to-claude] so the gitignore can't drift from the manifest.
 
 # Ecosystem skills — installed by `skills` CLI into ~/.agents/skills/
 # Format: skill-name = "github-org/repo"
@@ -12,35 +15,71 @@
 apple-hig-designer = "jamesrochabrun/skills"
 apple-ui-designer = "heyman333/atelier-ui"
 better-auth-best-practices = "better-auth/skills"
+caveman = "mattpocock/skills"
+diagnose = "mattpocock/skills"
 find-skills = "roin-orca/skills"
 fun-brainstorming = "roin-orca/skills"
+grill-me = "mattpocock/skills"
+grill-with-docs = "mattpocock/skills"
+handoff = "mattpocock/skills"
+improve-codebase-architecture = "mattpocock/skills"
 macos-development = "rshankras/claude-code-apple-skills"
+prototype = "mattpocock/skills"
+setup-matt-pocock-skills = "mattpocock/skills"
 simple-brainstorm = "roin-orca/skills"
 slidev = "antfu/skills"
+tdd = "mattpocock/skills"
+to-issues = "mattpocock/skills"
+to-prd = "mattpocock/skills"
+triage = "mattpocock/skills"
 vercel-react-best-practices = "vercel-labs/agent-skills"
 web-design-guidelines = "vercel-labs/agent-skills"
+write-a-skill = "mattpocock/skills"
+zoom-out = "mattpocock/skills"
 
 # Ecosystem skills to also symlink into ~/.claude/skills/
 # (skills CLI may already create these — sync verifies and repairs)
 [link-to-claude]
 apple-hig-designer = true
 apple-ui-designer = true
+caveman = true
+diagnose = true
 find-skills = true
 fun-brainstorming = true
+grill-me = true
+grill-with-docs = true
+handoff = true
+improve-codebase-architecture = true
 macos-development = true
+prototype = true
+setup-matt-pocock-skills = true
 slidev = true
+tdd = true
+to-issues = true
+to-prd = true
+triage = true
 vercel-react-best-practices = true
 web-design-guidelines = true
+write-a-skill = true
+zoom-out = true
 
 # Dotclaude-authored skills to share with ~/.agents/skills/
 # Makes these available to Cursor, Codex, Gemini CLI, etc.
 [share-to-agents]
 agent-inbox = true
+analyze-usage = true
 backlog = true
+brainstorm-to-brief = true
+clone-explore = true
+code-review = true
+excalidraw-diagrams = true
+frontend-design = true
 gh-apps = true
 image-gen = true
 release = true
+skill-building = true
 swiftui-expert-skill = true
 tart-gui-automation = true
 update-dependencies = true
 vocal = true
+youtube-content = true

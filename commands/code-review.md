@@ -64,10 +64,10 @@ Construct the context for the reviewer:
 
 ### Phase 3: Dispatch Reviewer
 
-Launch the code-reviewer subagent:
+Launch a code-reviewer subagent:
 
 ```
-Task(superpowers:code-reviewer):
+Task(general-purpose):
 
 Review the following changes:
 

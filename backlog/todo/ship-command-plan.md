@@ -179,17 +179,6 @@ Consider /release? This completes Chronicle Phase 3.
 \`\`\`
 ```
 
-### Phase 2: Add to Superpowers (Optional)
-
-If we want Claude to auto-suggest `/ship`:
-
-**Files to modify:**
-- `skills/superpowers/SKILL.md` - Add ship trigger
-
-```markdown
-- superpowers:ship: Use when PR is created and work is complete, before ending session
-```
-
 **Acceptance criteria:**
 - [ ] `/ship` command exists and is executable
 - [ ] Chains reflect → wrapup → PR finalization

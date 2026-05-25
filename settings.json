@@ -5,7 +5,6 @@
   "enabledPlugins" : {
     "code-simplifier@claude-plugins-official" : true,
     "frontend-design@claude-plugins-official" : true,
-    "superpowers@claude-plugins-official" : true,
     "swift-lsp@claude-plugins-official" : true,
     "vercel@claude-plugins-official" : true,
     "warp@claude-code-warp" : true
@@ -135,6 +134,14 @@
         "hooks" : [
           {
             "command" : "\/opt\/homebrew\/bin\/timeout 5 \"$HOME\/.claude\/skills\/signoz-log\/scripts\/signoz-log.sh\" INFO 'session started' 2>\/dev\/null || echo 'signoz-log: start hook timed out'",
+            "type" : "command"
+          }
+        ]
+      },
+      {
+        "hooks" : [
+          {
+            "command" : "\/opt\/homebrew\/bin\/timeout 5 ~\/.claude\/scripts\/sync-dotagents.py status 2>\/dev\/null || echo 'dotagents: status check skipped'",
             "type" : "command"
           }
         ]

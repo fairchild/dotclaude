@@ -6,8 +6,8 @@ arc: skill-catalog-grooming
 
 ## Problem Statement
 
-With 63 catalog entries (31 skills + 15 commands + 16 superpowers + 1 duplicate),
-~3k tokens are injected per system-reminder throughout each session. Commands that
+With ~60 catalog entries (skills + commands + plugin-provided skills), ~3k
+tokens are injected per system-reminder throughout each session. Commands that
 duplicate skill functionality add unnecessary weight. Several skills are only invoked
 explicitly but still occupy proactive catalog space. Known Claude Code bugs mean user
 skills may load full SKILL.md content (~41k tokens) instead of frontmatter-only.
@@ -46,8 +46,6 @@ Commands in `~/.claude/commands/` that are already covered by skills:
 
 - `vocal.md` — covered by `skills/vocal/`
 - `update-dependencies.md` — covered by `skills/update-dependencies/`
-- `code-review.md` — covered by superpowers:requesting-code-review
-- `bootstrap.md` — covered by superpowers:brainstorming
 
 Audit each command to confirm the skill fully covers it before removing.
 
@@ -74,7 +72,7 @@ Skills that are always user-initiated and never need proactive triggering:
 | excalidraw-diagrams | Always explicit |
 | web-artifacts-builder | Always explicit |
 | cloudflare-workers-deploy | Always explicit |
-| brainstorm-to-brief | Superseded by superpowers:brainstorming |
+| brainstorm-to-brief | Always explicit |
 | persona-memory | Superseded by team-memory |
 | skill-seekers | Rarely used |
 | web-design-guidelines | Rarely used |
@@ -162,5 +160,4 @@ ls ~/.claude/commands/ | wc -l  # should be fewer
 - [MCP Context Bloat 46.9% Reduction](https://medium.com/@joe.njenga/claude-code-just-cut-mcp-context-bloat-by-46-9-51k-tokens-down-to-8-5k-with-new-tool-search-ddf9e905f734) — Tool Search feature analysis
 - [cchistory](https://mariozechner.at/posts/2025-08-03-cchistory/) — Tracking Claude Code system prompt changes over time
 - [Piebald-AI system prompts](https://github.com/Piebald-AI/claude-code-system-prompts) — Extracted system prompts showing ~40 system-reminder types
-- [Superpowers Plugin](https://github.com/obra/superpowers) — Plugin-format skills with progressive disclosure
 - [Optimizing MCP Context Usage](https://scottspence.com/posts/optimising-mcp-server-context-usage-in-claude-code) — Practical MCP optimization guide
