@@ -3,8 +3,12 @@
  * payloads, signed with ANTHROPIC_WEBHOOK_SIGNING_KEY. We verify, then
  * dispatch `session.status_run_started` into the work-claim loop.
  *
- * Responses are always 200 once signature verifies, even if downstream work
- * fails - failed work items get reclaimed by the next poll.
+ * Response semantics (Standard Webhooks: 2xx prevents retry, non-2xx retries):
+ *   - 401 if signature verification fails (don't retry - the secret is wrong)
+ *   - 200 if signature verifies and the work is accepted; downstream errors
+ *     in the ctx.waitUntil chain log but don't cause a retry, since the
+ *     work item itself has independent reclaim semantics in Anthropic's queue
+ *   - 200 for ignored event types
  */
 import { Webhook } from "standardwebhooks";
 import type { Env } from "./env.d.ts";

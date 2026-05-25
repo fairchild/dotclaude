@@ -2,14 +2,18 @@
 
 ## The protocol
 
-Anthropic's self-hosted environment is a work queue. Agent loops run on Anthropic's infrastructure; tool execution runs on yours. The two halves connect through four endpoints:
+Anthropic's self-hosted environment is a work queue. Agent loops run on Anthropic's infrastructure; tool execution runs on yours. The two halves connect through HTTP endpoints under `/v1/environments/{id}/work/`:
 
-| Endpoint | Direction | Purpose |
+| Endpoint | Direction | Status |
 |---|---|---|
-| `POST /v1/environments/{id}/work/poll` | worker → Anthropic | claim the next work item (a session) |
-| `POST /v1/environments/{id}/work/{id}/keepalive` | worker → Anthropic | extend the lease |
-| `POST /v1/environments/{id}/work/{id}/stop` | worker → Anthropic | release on completion |
-| `POST /v1/environments/{id}/work/{id}/tool_result` | worker → Anthropic | post a tool call result |
+| `POST /v1/environments/{id}/work/{id}/stop` | worker → Anthropic | documented |
+| `POST /v1/environments/{id}/work/stats` | worker → Anthropic | documented |
+| `POST /v1/environments/{id}/work/poll` | worker → Anthropic | inferred from SDK behavior |
+| `POST /v1/environments/{id}/work/{id}/keepalive` | worker → Anthropic | inferred |
+| `POST /v1/environments/{id}/work/{id}/tool_result` | worker → Anthropic | inferred |
+| Per-tool-call delivery (long-poll? SSE?) | Anthropic → worker | not yet pinned down |
+
+The SDK's `EnvironmentWorker.handleItem()` wraps the per-session exchange end-to-end and the public docs don't fully expose its wire shape. V1 of this implementation ships only the verified pieces in working form; the inferred endpoints are sketched out in `runtime/anthropic.ts` as the design intent and will be pinned to the real surface in V1.1.
 
 Inside the worker's hold on a session, Anthropic delivers tool calls one at a time. The worker executes each one and posts the result. When the agent reaches `end_turn` or the work item's lease expires, the session releases.
 
@@ -67,6 +71,15 @@ All `/work/*` endpoints authenticate with the **environment key** (Bearer auth),
 | [`runtime/tools/tool-registry.ts`](../runtime/tools/tool-registry.ts) | Tool definition shape |
 | [`runtime/tools/custom-tools.ts`](../runtime/tools/custom-tools.ts) | Example tools (echo, http_get) |
 | [`runtime/email-handler.ts`](../runtime/email-handler.ts) | Per-agent inbound mail routing |
+
+## V1 vs V1.1
+
+V1 ships the wiring around the loop: webhook receive, signature verify, work-item lifecycle hooks, egress, tool registry (with GitHub tools for the pr-review agent), and email routing. The runner that executes tool calls inside an isolate is a scaffold — it logs and returns. The actual loop body lands in V1.1 once two things are verified against the live API:
+
+1. The HTTP shape for tool-call delivery and result posting (the inferred endpoints above)
+2. The Cloudflare Worker Loader binding for per-session isolates
+
+Until then, deploying V1 lets you exercise the surrounding integration (webhook delivery, KV layout, Email Routing wiring, agent registration) without burning real session work — claimed work items get released immediately.
 
 ## Tradeoffs in this implementation
 

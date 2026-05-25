@@ -15,14 +15,13 @@
     { "binding": "AGENT_INBOX", "id": "REPLACE_ME_AGENT_INBOX_ID" }
   ],
 
-  // Per-session isolate sandbox. Worker Loader is the runtime primitive that
-  // lets the parent worker instantiate a child JS isolate per claimed session.
-  // See docs/isolate-vs-vm-sandboxes.md.
-  "unsafe": {
-    "bindings": [
-      { "name": "ISOLATE_LOADER", "type": "worker_loader" }
-    ]
-  },
+  // Worker Loader binding for per-session isolates lands in V1.1 - the runner
+  // is a scaffold in V1 (see runtime/isolate/runner.ts). Uncomment once the
+  // exact binding shape is verified against current wrangler:
+  //
+  //   "unsafe": {
+  //     "bindings": [{ "name": "ISOLATE_LOADER", "type": "worker_loader" }]
+  //   },
 
   // Secrets (set with `wrangler secret put <NAME>`):
   //   ANTHROPIC_ENVIRONMENT_ID         scoping for the work queue

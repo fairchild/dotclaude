@@ -1,15 +1,23 @@
 /**
- * Thin fetch wrapper over Anthropic's Environments Work API. We hit this
- * directly rather than going through the SDK helpers because the SDK requires
- * /bin/bash, Node 22+, unzip, tar - none of which exist in a Worker. The
- * protocol itself is small enough to call directly.
- *
- * Reference:
- *   https://platform.claude.com/docs/en/api/beta/environments/work
+ * Thin fetch wrapper over Anthropic's Environments Work API. We call this
+ * directly rather than going through the SDK helpers because the SDK
+ * requires /bin/bash, Node 22+, unzip, and tar - none of which exist in a
+ * Worker.
  *
  * Auth: the /work endpoints use the environment key as Bearer auth, NOT the
  * org API key. Setting the API key on the worker host would expose an
  * org-scoped credential to agent tool calls.
+ *
+ * V1 STATUS: only `stop` is verified against the public docs (the page links
+ * `/v1/environments/{id}/work/{id}/stop` and `/v1/environments/{id}/work/stats`
+ * explicitly). The other methods below are inferred from how the SDK
+ * helpers behave and from the protocol's logical shape; field names and
+ * paths need verification against the live beta API before this is anything
+ * more than a sketch.
+ *
+ * Reference:
+ *   https://platform.claude.com/docs/en/managed-agents/self-hosted-sandboxes
+ *   https://platform.claude.com/docs/en/api/beta/environments/work
  */
 import type { Env } from "./env.d.ts";
 
@@ -17,12 +25,9 @@ export interface WorkItem {
   id: string;
   environment_id: string;
   data: {
-    /** Session id this work item belongs to. */
     id: string;
-    /** Free-form metadata the session was created with. */
     metadata?: Record<string, unknown>;
   };
-  /** Server-side lease expiration. We extend with keepalive. */
   expires_at?: string;
 }
 
@@ -54,10 +59,7 @@ export class AnthropicClient {
     return `${this.env.ANTHROPIC_API_BASE}${path}`;
   }
 
-  /**
-   * Claim the next work item from the queue. Returns null if the queue is
-   * empty within the block window.
-   */
+  /** [INFERRED] Claim the next work item from the queue. */
   async pollWork(opts: { blockMs?: number } = {}): Promise<WorkItem | null> {
     const body = {
       environment_id: this.env.ANTHROPIC_ENVIRONMENT_ID,
@@ -73,10 +75,7 @@ export class AnthropicClient {
     return (await res.json()) as WorkItem;
   }
 
-  /**
-   * Extend the lease on a claimed work item. Call on a timer until the work
-   * completes or you release it.
-   */
+  /** [INFERRED] Extend the lease on a claimed work item. */
   async keepalive(workId: string): Promise<void> {
     const res = await fetch(
       this.url(`/v1/environments/${this.env.ANTHROPIC_ENVIRONMENT_ID}/work/${workId}/keepalive`),
@@ -85,10 +84,7 @@ export class AnthropicClient {
     if (!res.ok) throw new ApiError("keepalive", res);
   }
 
-  /**
-   * Release a work item. Pass `force: true` to interrupt in-flight tool calls
-   * instead of waiting.
-   */
+  /** [DOCUMENTED] Release a work item. */
   async stop(workId: string, opts: { force?: boolean } = {}): Promise<void> {
     const res = await fetch(
       this.url(`/v1/environments/${this.env.ANTHROPIC_ENVIRONMENT_ID}/work/${workId}/stop`),
@@ -101,9 +97,7 @@ export class AnthropicClient {
     if (!res.ok) throw new ApiError("stop", res);
   }
 
-  /**
-   * Post a tool call result back to Anthropic so the agent loop can continue.
-   */
+  /** [INFERRED] Post a tool call result back to Anthropic. */
   async postToolResult(workId: string, result: ToolResult): Promise<void> {
     const res = await fetch(
       this.url(`/v1/environments/${this.env.ANTHROPIC_ENVIRONMENT_ID}/work/${workId}/tool_result`),

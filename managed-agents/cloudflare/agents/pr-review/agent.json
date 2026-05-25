@@ -4,10 +4,9 @@
   "model": "claude-sonnet-4-6",
   "system_prompt_file": "system-prompt.md",
   "tools": [
-    "bash",
-    "read",
-    "glob",
-    "grep",
+    "pr_diff",
+    "pr_files",
+    "pr_post_review",
     "http_get"
   ],
   "max_turns": 30

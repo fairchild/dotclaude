@@ -10,7 +10,7 @@ The same shape exists for other platforms (Daytona, Modal, Vercel sandboxes; Ope
 
 | Path | Status | Notes |
 |---|---|---|
-| [`cloudflare/`](./cloudflare) | V1 | Cloudflare Workers + Worker Loader isolate + per-agent email routing. The first deployed agent does PR review on this repo. |
+| [`cloudflare/`](./cloudflare) | V1 scaffold | Cloudflare Workers + per-agent email routing. Webhook surface, egress layer, tool registry, and email handler are wired and tested. The per-session agent loop body (Worker Loader isolate, tool-call delivery) lands in V1.1 once the protocol's HTTP surface is verified. First deployed agent target: PR review on this repo. |
 
 ## Why a self-hosted environment
 

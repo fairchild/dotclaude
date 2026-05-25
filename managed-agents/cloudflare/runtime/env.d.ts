@@ -20,22 +20,5 @@ export interface Env {
   EGRESS_POLICIES: KVNamespace;
   AGENT_INBOX: KVNamespace;
 
-  // Worker Loader for per-session isolates. The exact type ships with newer
-  // workers-types; cast to `unknown` callers as needed if the type is missing.
-  ISOLATE_LOADER: WorkerLoader;
-}
-
-/**
- * Minimal Worker Loader shape we depend on. The real binding exposes more,
- * but typing only what we use keeps this file readable.
- */
-export interface WorkerLoader {
-  get(id: string, options: WorkerLoaderGetOptions): Fetcher;
-}
-
-export interface WorkerLoaderGetOptions {
-  /** Source modules for the loaded worker. */
-  modules: Record<string, string>;
-  /** Optional bindings to pass to the loaded worker. */
-  env?: Record<string, unknown>;
+  // ISOLATE_LOADER: WorkerLoader — added in V1.1 alongside the runner body.
 }

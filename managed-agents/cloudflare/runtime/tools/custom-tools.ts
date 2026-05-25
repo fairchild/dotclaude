@@ -1,14 +1,17 @@
 /**
- * Generic, protocol-illustrative custom tools. These exist to demonstrate
- * the registration pattern - real deployments swap them for domain-specific
- * tools. The pr-review agent (agents/pr-review/) is a separate layer that
- * consumes this infrastructure rather than baking GitHub specifics here.
+ * Tool surface registered with the runtime. Two kinds of entries:
+ *   - Generic, protocol-illustrative tools (echo, http_get) - useful templates
+ *     for new tools and exercise the egress fetch on arbitrary hosts.
+ *   - GitHub tools (pr_diff, pr_files, pr_post_review) - purpose-built for
+ *     the pr-review agent, kept here so the registry stays a single import
+ *     for the runtime. See runtime/tools/github.ts.
  *
- * See docs/adding-custom-tools.md.
+ * See docs/adding-custom-tools.md for the {schema, handler} pattern.
  */
 import { z } from "zod";
 import { defineTool, type ToolDefinition } from "./tool-registry.ts";
 import { urlSchema } from "./schemas.ts";
+import { githubTools } from "./github.ts";
 
 const echo = defineTool({
   name: "echo",
@@ -38,4 +41,4 @@ const httpGet = defineTool({
   },
 });
 
-export const customTools: ToolDefinition[] = [echo, httpGet];
+export const customTools: ToolDefinition[] = [echo, httpGet, ...githubTools];

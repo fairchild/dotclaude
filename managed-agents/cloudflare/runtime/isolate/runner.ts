@@ -1,30 +1,41 @@
 /**
  * Per-session isolate runner.
  *
- * V1 STATUS: shape complete, Worker Loader integration stubbed.
+ * V1 STATUS: scaffold only. This function is invoked once per claimed work
+ * item; in V1 it returns without executing tool calls. The surrounding flow
+ * (webhook → claim → keepalive → stop) exercises end-to-end, but the agent
+ * loop body is not implemented.
  *
- * The production target is Cloudflare Worker Loader: spawn a child JS isolate
- * per session, hand it the agent's tool surface, run the per-session agent
- * loop in there. The Loader API (ISOLATE_LOADER binding) is the right
- * primitive, but its exact shape for delivering modules + a stable
- * request/response channel back to the parent is still settling.
+ * Two things need to settle before the loop can land:
  *
- * Until that lands, V1 provides a "no-isolate" path: tool calls fed to this
- * runner are dispatched directly via runtime/isolate/adapter.ts. The
- * end-to-end protocol (webhooks → claim → dispatch → tool_result → stop)
- * exercises in full; only the per-tool sandbox boundary is missing.
+ *   1. The HTTP shape for receiving tool calls from Anthropic and posting
+ *      results back. The documented endpoints expose `/work/poll`,
+ *      `/work/{id}/keepalive`, `/work/{id}/stop`, and `/work/stats`, but the
+ *      per-tool-call exchange happens inside the SDK's EnvironmentWorker and
+ *      isn't directly described in the public docs. Reading the SDK source
+ *      or running the SDK against the beta API will reveal it.
  *
- * To complete:
- *   1. Decide on Worker Loader module-injection shape
- *   2. Inject our agent-loop module + tool surface into the loaded isolate
- *   3. Pipe isolate fetches back to dispatchToolCall via service binding
+ *   2. The Cloudflare Worker Loader API for spawning a child JS isolate per
+ *      session, including how to inject a fetch override that routes the
+ *      isolate's outbound HTTP back through this parent worker's egress
+ *      layer. The unsafe binding type "worker_loader" is in wrangler.jsonc
+ *      but commented out until the shape is verified.
  *
- * See docs/isolate-vs-vm-sandboxes.md and docs/architecture.md for the model.
+ * When both land, the loop body looks like:
+ *
+ *   while (sessionActive) {
+ *     const call = await client.nextToolCall(work.id);   // long-poll
+ *     if (!call) break;
+ *     const result = await dispatchToolCall(env, call);  // adapter.ts
+ *     await client.postToolResult(work.id, result);
+ *   }
+ *
+ * See docs/architecture.md for the model and docs/isolate-vs-vm-sandboxes.md
+ * for the sandbox choice.
  */
-import { AnthropicClient, type WorkItem } from "../anthropic.ts";
+import type { AnthropicClient, WorkItem } from "../anthropic.ts";
 import type { Env } from "../env.d.ts";
 import { log } from "../helpers.ts";
-import { dispatchToolCall } from "./adapter.ts";
 
 export interface RunIsolateArgs {
   env: Env;
@@ -32,36 +43,7 @@ export interface RunIsolateArgs {
   client: AnthropicClient;
 }
 
-/**
- * Drive a single session to completion.
- *
- * V1: this function is the seam. The actual loop body (long-poll tool calls
- * from Anthropic, run them via dispatchToolCall, post results back) lands
- * with the Anthropic SDK shape - we need to confirm whether the protocol
- * exposes a tool-call stream endpoint or whether the SDK helpers wrap that
- * via successive POSTs.
- */
-export async function runIsolate({ env, work, client }: RunIsolateArgs): Promise<void> {
-  log("info", "isolate.start", { workId: work.id, sessionId: work.data.id });
-
-  // TODO(v1.1): implement the per-session tool-call loop. The shape will be:
-  //
-  //   while (sessionActive) {
-  //     const call = await client.nextToolCall(work.id);   // long-poll
-  //     if (!call) break;
-  //     const result = await dispatchToolCall(env, call);
-  //     await client.postToolResult(work.id, result);
-  //   }
-  //
-  // The "nextToolCall" endpoint shape (or its successor) needs confirming
-  // against the API beta. Until then this runner is a no-op that lets the
-  // surrounding integration (claim → keepalive → stop) exercise cleanly.
-
-  // Reference the symbols so the V1.1 implementation stays honest about its
-  // dependencies. Removing these is fine once the loop body lands.
-  void dispatchToolCall;
-  void env;
-  void client;
-
-  log("info", "isolate.stub_complete", { workId: work.id });
+export async function runIsolate({ work }: RunIsolateArgs): Promise<void> {
+  log("info", "isolate.scaffold_invoked", { workId: work.id, sessionId: work.data.id });
+  // The agent loop body lands in V1.1. Until then this is a structural no-op.
 }

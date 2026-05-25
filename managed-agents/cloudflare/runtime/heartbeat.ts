@@ -2,14 +2,24 @@
  * Per-session work claim loop.
  *
  * On `session.status_run_started`, the webhook handler kicks this off. We
- * poll the queue (briefly) to find OUR session's work item, then drive the
- * isolate to completion, sending tool results back via the Anthropic client.
+ * try to find our session's work item, hand it to the isolate runner, and
+ * release on completion.
  *
- * Keepalives run on a 15s timer; the actual session can run much longer.
- * When the isolate signals completion we stop the work item.
+ * V1 STATUS: the runner is a scaffold (see isolate/runner.ts), so this
+ * effectively claims and immediately stops. The keepalive timer is wired
+ * but doesn't have meaningful work to keep alive yet.
  *
- * If we lose the work item (eviction, network error), we leave it for another
- * worker to reclaim - the queue has reclaim semantics built in.
+ * Two structural issues to resolve when wiring the real loop:
+ *
+ *   1. A poll-after-webhook design can return work for a different session
+ *      than the one whose webhook just fired. We have no way to release a
+ *      mis-claimed item back to the queue without holding it. The fix is
+ *      likely a session-targeted claim endpoint exposed by the SDK; until
+ *      that lands the workaround drops mis-claims and retries.
+ *
+ *   2. setInterval inside a Worker invocation only runs while the request
+ *      context is alive. Long sessions need either Durable Objects or a
+ *      different keepalive trigger (e.g. cron + KV).
  */
 import { AnthropicClient, type WorkItem } from "./anthropic.ts";
 import type { Env } from "./env.d.ts";
@@ -47,16 +57,10 @@ export async function runSession(env: Env, sessionId: string): Promise<void> {
 }
 
 async function claimWorkForSession(client: AnthropicClient, sessionId: string): Promise<WorkItem | null> {
-  // The webhook fires when a session starts; a work item is enqueued at the
-  // same moment. Poll briefly - if it's not there yet (queue races), back off
-  // and retry a couple of times.
   for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
     const work = await client.pollWork({ blockMs: POLL_BLOCK_MS });
     if (work?.data.id === sessionId) return work;
     if (work) {
-      // Claimed work for a different session - leave it for another worker.
-      // We don't have an explicit "release" call; the lease will expire and
-      // get reclaimed. In a high-volume deployment this approach needs work.
       log("info", "session.skip_other", { wantSession: sessionId, gotSession: work.data.id });
     }
     await sleep(200 * (attempt + 1));
