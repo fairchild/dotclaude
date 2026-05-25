@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 # github-issues backend — backlog tasks live as GitHub Issues on the current
 # repo's remote. Verb semantics are unchanged from maildir; storage moves from
-# local files to `gh`. Slugs are canonical via a `slug:<slug>` label, which
-# also serves as the "this is a backlog task" marker (presence-test). Titles
-# are free text.
+# local files to `gh`. The repo's open issues *are* the backlog — there is no
+# separation between "backlog tasks" and "other issues." Anything open is
+# takeable. Non-conformant issues (random feature requests, dormant bug
+# reports) get handled as they're encountered, not gated by a marker label.
+#
+# Tasks reference each other by issue number (always works) or by an optional
+# `slug:<slug>` label (memorable, created by `add` for human ergonomics).
+# Titles are free text.
 #
 # State derives from GitHub-native signals where it can, falling back to
 # labels only where the platform can't encode the distinction:
 #
-#   todo   = open,   has `slug:*` label, no  `doing` label
-#   doing  = open,   has `slug:*` label, has `doing` label
-#   done   = closed, has `slug:*` label, no  `failed` label
-#   failed = closed, has `slug:*` label, has `failed` label
+#   todo   = open,   no  `doing` label
+#   doing  = open,   has `doing` label
+#   done   = closed, no  `failed` label
+#   failed = closed, has `failed` label
 #
 # `cancel` and ordinary `done` both close the issue; they're discriminated by
 # the worklog comment (and by GitHub's own close reason — `completed` vs
@@ -49,6 +54,18 @@ issue_for_slug() {
   local slug="$1"
   gh issue list --state all --label "slug:${slug}" --limit 1 \
     --json number -q '.[0].number // empty' 2>/dev/null
+}
+
+# Resolve either an issue number (`42`, `#42`) or a slug to an issue number.
+# Empty stdout if not found.
+resolve_id() {
+  local id="$1"
+  if [[ "$id" =~ ^#?[0-9]+$ ]]; then
+    id="${id#\#}"
+    gh issue view "$id" --json number -q .number 2>/dev/null
+  else
+    issue_for_slug "$id"
+  fi
 }
 
 post_log() {
@@ -103,20 +120,22 @@ rescue / retry / maintain / status) to interact. Verbs dispatch to
 
 \`github-issues\` — see the \`backlog\` skill's \`references/backends/github-issues.md\`.
 
-State mapping:
+The repo's open issues *are* the backlog — there is no separation between
+"backlog tasks" and "other issues." State mapping:
 
-| State    | open/closed | labels                                |
-|----------|-------------|---------------------------------------|
-| todo     | open        | has \`slug:*\`, no \`doing\`          |
-| doing    | open        | has \`slug:*\`, \`doing\`             |
-| done     | closed      | has \`slug:*\`, no \`failed\`         |
-| failed   | closed      | has \`slug:*\`, \`failed\`            |
+| State    | open/closed | labels                  |
+|----------|-------------|-------------------------|
+| todo     | open        | no \`doing\`            |
+| doing    | open        | \`doing\`               |
+| done     | closed      | no \`failed\`           |
+| failed   | closed      | \`failed\`              |
 
 \`cancel\` and ordinary \`done\` both close the issue — discriminated by the
-worklog comment and GitHub's close reason. The \`slug:<slug>\` label is
-canonical (lookup + "this is a backlog task" marker via presence). Title is
-free text; the spec body carries \`priority\`/\`timeout\`/\`dependencies\` as
-YAML frontmatter, same shape as the maildir backends.
+worklog comment and GitHub's close reason. Tasks are referenced by issue
+number (always works) or by an optional \`slug:<slug>\` label that \`add\`
+creates for memorability. Title is free text; the spec body carries
+\`priority\`/\`timeout\`/\`dependencies\` as YAML frontmatter, same shape as the
+maildir backends.
 
 ## Pipeline
 
@@ -165,13 +184,13 @@ cmd_add() {
 }
 
 # Best takeable issue: lowest declared priority, recency tiebreak. Empty stdout
-# if nothing's takeable. Takeable = open, has a `slug:*` label, no `doing`.
+# if nothing's takeable. Takeable = open, no `doing` label. Every open issue
+# is in the running — non-conformant ones get handled when encountered.
 pick_takeable() {
   gh issue list --state open --limit 1000 \
     --json number,body,updatedAt,labels \
     | jq -r '
-        [.[]
-          | select(.labels | map(.name) | any(startswith("slug:")) and (contains(["doing"]) | not))]
+        [.[] | select(.labels | map(.name) | contains(["doing"]) | not)]
         | map({
             n: .number,
             p: (try ((.body // "") | capture("(^|\\n)priority:[[:space:]]*(?<v>\\d+)").v | tonumber) catch 999),
@@ -205,8 +224,8 @@ cmd_take() {
   local slug="${1:-}"
   local n
   if [[ -n "$slug" ]]; then
-    n=$(issue_for_slug "$slug")
-    [[ -z "$n" ]] && { echo "no such slug: $slug" >&2; exit 1; }
+    n=$(resolve_id "$slug")
+    [[ -z "$n" ]] && { echo "no such task: $slug" >&2; exit 1; }
   else
     n=$(pick_takeable)
     [[ -z "$n" ]] && { echo "no available tasks" >&2; exit 0; }
@@ -227,8 +246,8 @@ cmd_take() {
 cmd_advance() {
   require_gh
   local slug="${1:?slug required}"
-  local n; n=$(issue_for_slug "$slug")
-  [[ -z "$n" ]] && { echo "no such slug: $slug" >&2; exit 1; }
+  local n; n=$(resolve_id "$slug")
+  [[ -z "$n" ]] && { echo "no such task: $slug" >&2; exit 1; }
   local view; view=$(gh issue view "$n" --json state,labels)
   local state; state=$(jq -r .state <<<"$view")
   local has_doing; has_doing=$(jq -r '[.labels[].name] | index("doing") | tostring' <<<"$view")
@@ -294,24 +313,24 @@ close_with_log() {
 cmd_cancel() {
   require_gh
   local slug="${1:?slug required}" reason="${2:?reason required}"
-  local n; n=$(issue_for_slug "$slug")
-  [[ -z "$n" ]] && { echo "no such slug: $slug" >&2; exit 1; }
+  local n; n=$(resolve_id "$slug")
+  [[ -z "$n" ]] && { echo "no such task: $slug" >&2; exit 1; }
   close_with_log "$n" cancelled "$reason" "not planned"
 }
 
 cmd_fail() {
   require_gh
   local slug="${1:?slug required}" reason="${2:?reason required}"
-  local n; n=$(issue_for_slug "$slug")
-  [[ -z "$n" ]] && { echo "no such slug: $slug" >&2; exit 1; }
+  local n; n=$(resolve_id "$slug")
+  [[ -z "$n" ]] && { echo "no such task: $slug" >&2; exit 1; }
   close_with_log "$n" failed "$reason" "not planned" "failed"
 }
 
 cmd_rescue() {
   require_gh
   local slug="${1:?slug required}"
-  local n; n=$(issue_for_slug "$slug")
-  [[ -z "$n" ]] && { echo "no such slug: $slug" >&2; exit 1; }
+  local n; n=$(resolve_id "$slug")
+  [[ -z "$n" ]] && { echo "no such task: $slug" >&2; exit 1; }
   local last_line; last_line=$(worklog_lines "$n" | grep -E '(advanced to=doing|rescued)' | tail -1)
   [[ -z "$last_line" ]] && { echo "no prior claim line on #${n}" >&2; exit 1; }
   local last_ts; last_ts=$(awk '{print $2}' <<<"$last_line")
@@ -333,8 +352,8 @@ cmd_rescue() {
 cmd_retry() {
   require_gh
   local slug="${1:?slug required}" reason="${2:?reason required}"
-  local n; n=$(issue_for_slug "$slug")
-  [[ -z "$n" ]] && { echo "no such slug: $slug" >&2; exit 1; }
+  local n; n=$(resolve_id "$slug")
+  [[ -z "$n" ]] && { echo "no such task: $slug" >&2; exit 1; }
   local labels; labels=$(gh issue view "$n" --json labels -q '[.labels[].name] | join(",")')
   [[ ",${labels}," == *",failed,"* ]] \
     || { echo "not in failed state: $slug" >&2; exit 1; }
@@ -346,18 +365,17 @@ cmd_retry() {
 
 cmd_status() {
   require_gh
-  # One fetch, bucket via jq. Only counts issues carrying a `slug:*` label.
+  # One fetch, bucket via jq. Every issue in the repo is counted.
   gh issue list --state all --limit 1000 --json number,state,labels \
     | jq -r '
-        [.[] | select(.labels | map(.name) | any(startswith("slug:")))]
-        | reduce .[] as $i (
-            {"todo":0,"doing":0,"done":0,"failed":0};
-            ($i.labels | map(.name)) as $L
-            | if   $i.state == "OPEN"   and ($L | contains(["doing"]))  then .doing  += 1
-              elif $i.state == "OPEN"                                    then .todo   += 1
-              elif $i.state == "CLOSED" and ($L | contains(["failed"])) then .failed += 1
-              else .done += 1 end
-          )
+        reduce .[] as $i (
+          {"todo":0,"doing":0,"done":0,"failed":0};
+          ($i.labels | map(.name)) as $L
+          | if   $i.state == "OPEN"   and ($L | contains(["doing"]))  then .doing  += 1
+            elif $i.state == "OPEN"                                    then .todo   += 1
+            elif $i.state == "CLOSED" and ($L | contains(["failed"])) then .failed += 1
+            else .done += 1 end
+        )
         | "todo: \(.todo)\ndoing: \(.doing)\ndone: \(.done)\nfailed: \(.failed)"
       '
 }
