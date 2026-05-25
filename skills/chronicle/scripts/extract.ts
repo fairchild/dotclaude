@@ -6,6 +6,11 @@
 import { existsSync, readFileSync } from "fs";
 import { extractChronicleBlock } from "./extract-lib.ts";
 
+const DEBUG = process.env.CHRONICLE_DEBUG === "1";
+function dbg(...args: unknown[]): void {
+  if (DEBUG) console.error("[chronicle:debug]", ...args);
+}
+
 // Load ~/.claude/.env if present
 const envPath = `${process.env.HOME}/.claude/.env`;
 if (existsSync(envPath)) {
@@ -16,15 +21,31 @@ if (existsSync(envPath)) {
     }
   }
 }
+dbg("extract.ts: env loaded, ANTHROPIC_API_KEY=", process.env.ANTHROPIC_API_KEY ? "present" : "absent");
 
 async function main() {
   const input = await Bun.stdin.text();
-  if (!input.trim()) process.exit(0);
+  if (!input.trim()) {
+    dbg("extract.ts: empty stdin → exit 0");
+    process.exit(0);
+  }
 
   const { session_id, cwd, transcript_path } = JSON.parse(input);
-  if (!session_id || !cwd || !transcript_path) process.exit(0);
+  dbg("extract.ts: input", {
+    session_id: !!session_id,
+    cwd,
+    transcript_path,
+    transcript_exists: transcript_path ? existsSync(transcript_path) : false,
+  });
+  if (!session_id || !cwd || !transcript_path) {
+    dbg("extract.ts: missing required field → exit 0");
+    process.exit(0);
+  }
 
   await extractChronicleBlock(session_id, cwd, transcript_path);
 }
 
-main().catch(() => process.exit(1));
+main().catch((err) => {
+  dbg("extract.ts: top-level error:", (err as Error).name, (err as Error).message);
+  process.exit(1);
+});
