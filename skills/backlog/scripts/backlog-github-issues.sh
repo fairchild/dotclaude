@@ -157,13 +157,16 @@ cmd_setup() {
     esac
   done
 
-  # Parse pipeline into in-flight states (drop intrinsic todo/done; failed is
-  # the dead-letter terminal, also intrinsic).
+  # Parse pipeline into in-flight states (drop intrinsic todo/done/failed/
+  # inbox). Token extraction matches lib.sh's regex so this parser and the
+  # runtime pipeline parser stay consistent: `[a-z][a-z0-9-]*` greedily
+  # pulls state-shaped tokens out of the string regardless of separator
+  # (`→`, `->`, `>`, `,`, spaces all work).
   local -a inflight_list=()
   local tok
-  for tok in $(echo "$pipeline" | tr -s '→,>' ' '); do
-    case "$tok" in todo|done|failed|inbox) ;; *) inflight_list+=("$tok") ;; esac
-  done
+  while IFS= read -r tok; do
+    case "$tok" in todo|done|failed|inbox|'') ;; *) inflight_list+=("$tok") ;; esac
+  done < <(echo "$pipeline" | grep -oE '[a-z][a-z0-9-]*')
   [[ ${#inflight_list[@]} -eq 0 ]] && {
     echo "pipeline must declare at least one in-flight stage (got: $pipeline)" >&2
     exit 1
