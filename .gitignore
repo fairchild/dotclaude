@@ -126,19 +126,9 @@ skills/image-gen/data/*
 # claude chrome plugin
 chrome/
 
-# Ecosystem skills symlinked into claude (managed by dotagents.toml [link-to-claude])
-# These are created by `skills add` or `./scripts/sync-dotagents.py sync`
-skills/apple-hig-designer
-skills/apple-ui-designer
-skills/find-skills
-skills/fun-brainstorming
-skills/macos-development
-skills/slidev
-skills/vercel-react-best-practices
-skills/web-design-guidelines
-
-# Other external symlinks
+# Other external symlinks (not in dotagents.toml)
 skills/code-council
+# Ecosystem skills are managed in the sync-dotagents block at the bottom of this file.
 
 # maildir-shared backend — in-flight dir lives in git-common-dir
 backlog/doing
@@ -146,3 +136,28 @@ backlog/doing
 # Deploy hook log (runtime audit trail, not source)
 /deploy.log
 /deploy.log.1
+
+# BEGIN sync-dotagents (generated from dotagents.toml — do not edit)
+skills/apple-hig-designer
+skills/apple-ui-designer
+skills/caveman
+skills/diagnose
+skills/find-skills
+skills/fun-brainstorming
+skills/grill-me
+skills/grill-with-docs
+skills/handoff
+skills/improve-codebase-architecture
+skills/macos-development
+skills/prototype
+skills/setup-matt-pocock-skills
+skills/slidev
+skills/tdd
+skills/to-issues
+skills/to-prd
+skills/triage
+skills/vercel-react-best-practices
+skills/web-design-guidelines
+skills/write-a-skill
+skills/zoom-out
+# END sync-dotagents

@@ -27,6 +27,9 @@ HOME = Path.home()
 CLAUDE_SKILLS = HOME / ".claude" / "skills"
 AGENTS_SKILLS = HOME / ".agents" / "skills"
 MANIFEST = Path(__file__).resolve().parent.parent / "dotagents.toml"
+GITIGNORE = MANIFEST.parent / ".gitignore"
+GITIGNORE_BEGIN = "# BEGIN sync-dotagents (generated from dotagents.toml — do not edit)"
+GITIGNORE_END = "# END sync-dotagents"
 
 
 def tilde(path: Path) -> str:
@@ -121,7 +124,8 @@ def check_link(name: str, link_dir: Path, target_dir: Path) -> LinkCheck:
 
 # ── Commands ──
 
-def audit(manifest: Manifest) -> None:
+def audit(manifest: Manifest) -> int:
+    """Print drift report and return the number of issues found."""
     ok = issues = 0
     print("# Dotagents Audit\n")
 
@@ -165,6 +169,7 @@ def audit(manifest: Manifest) -> None:
         print("~/.agents/skills/ not found")
 
     print(f"\n## Summary\n\n- OK: {ok}\n- Issues: {issues}")
+    return issues
 
 
 def sync(manifest: Manifest) -> None:
@@ -218,6 +223,39 @@ def sync(manifest: Manifest) -> None:
             created += 1
 
     print(f"\nDone: {installed} installed, {created} linked, {skipped} skipped")
+    gitignore(manifest)
+
+
+def gitignore(manifest: Manifest) -> None:
+    """Write a marked block into .gitignore listing every link-to-claude entry.
+
+    The block is bounded by GITIGNORE_BEGIN/GITIGNORE_END markers. Anything
+    outside the block is preserved verbatim. If the block doesn't exist yet,
+    it's appended.
+    """
+    entries = sorted(manifest.link_to_claude)
+    block_lines = [GITIGNORE_BEGIN, *(f"skills/{name}" for name in entries), GITIGNORE_END]
+    block = "\n".join(block_lines)
+
+    text = GITIGNORE.read_text() if GITIGNORE.exists() else ""
+    lines = text.splitlines()
+
+    try:
+        start = lines.index(GITIGNORE_BEGIN)
+        end = lines.index(GITIGNORE_END, start)
+        new_lines = lines[:start] + block_lines + lines[end + 1:]
+        new_text = "\n".join(new_lines) + ("\n" if text.endswith("\n") else "")
+        action = "Updated"
+    except ValueError:
+        sep = "" if text.endswith("\n\n") or not text else ("\n" if text.endswith("\n") else "\n\n")
+        new_text = text + sep + block + "\n"
+        action = "Appended"
+
+    if new_text == text:
+        print(f"gitignore: no change ({len(entries)} entries)")
+        return
+    GITIGNORE.write_text(new_text)
+    print(f"gitignore: {action} block in {tilde(GITIGNORE)} ({len(entries)} entries)")
 
 
 def status(manifest: Manifest) -> None:
@@ -238,16 +276,25 @@ def status(manifest: Manifest) -> None:
 # ── Main ──
 
 if __name__ == "__main__":
-    command = sys.argv[1] if len(sys.argv) > 1 else "audit"
+    args = sys.argv[1:]
+    strict = "--strict" in args
+    args = [a for a in args if a != "--strict"]
+    command = args[0] if args else "audit"
     manifest = Manifest.load()
 
     match command:
-        case "audit":  audit(manifest)
-        case "sync":   sync(manifest)
-        case "status": status(manifest)
+        case "audit":
+            issues = audit(manifest)
+            if strict and issues:
+                sys.exit(1)
+        case "sync":     sync(manifest)
+        case "gitignore": gitignore(manifest)
+        case "status":   status(manifest)
         case _:
-            print("Usage: ./scripts/sync-dotagents.py [audit|sync|status]\n")
-            print("  audit   Show current state, conflicts, and drift (default)")
-            print("  sync    Install missing ecosystem skills + create symlinks")
-            print("  status  One-line summary")
+            print("Usage: ./scripts/sync-dotagents.py [audit|sync|gitignore|status] [--strict]\n")
+            print("  audit       Show current state, conflicts, and drift (default)")
+            print("  sync        Install missing ecosystem skills + create symlinks + refresh gitignore")
+            print("  gitignore   Write the auto-managed block into .gitignore from manifest")
+            print("  status      One-line summary")
+            print("  --strict    With audit, exit non-zero when issues > 0 (for hooks)")
             sys.exit(1)
