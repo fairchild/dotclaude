@@ -113,6 +113,12 @@ backlog_inflight_dirs() {
   ' backlog/AGENTS.md 2>/dev/null
 }
 
+# First in-flight pipeline state — the one a worker enters on claim.
+# (Convenience wrapper used by backends that need a single-state reference.)
+backlog_first_inflight_dir() {
+  backlog_inflight_dirs | head -1
+}
+
 # Parse timeout from frontmatter (e.g. "3d") to seconds. Defaults to 7d.
 backlog_timeout_seconds() {
   local file="$1"

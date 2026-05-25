@@ -25,16 +25,28 @@ There is no local `todo/`/`doing/`/`done/` tree; the local repo holds only the c
 
 ## State mapping
 
-State derives from GitHub-native signals where it can, falling back to labels only where the platform can't encode the distinction:
+The state machine is the **pipeline** declared in `backlog/AGENTS.md` (default: `todo → doing → done`). Each in-flight pipeline stage maps to a label, and `advance` walks the issue from one stage to the next, closing it when the next stage is `done`.
+
+For the default pipeline:
 
 | State    | open/closed | labels                  |
 |----------|-------------|-------------------------|
-| todo     | open        | no `<claim>` label      |
-| doing    | open        | `<claim>` label         |
-| done     | closed      | no `<failed>` label     |
-| failed   | closed      | `<failed>` label        |
+| todo     | open        | no `doing` label        |
+| doing    | open        | `doing` label           |
+| done     | closed      | no `failed` label       |
+| failed   | closed      | `failed` label          |
 
-`<claim>` and `<failed>` are configurable per project — defaults are `doing` and `failed`. Operators set them via `setup --claim-label=<name> --failed-label=<name>` or by editing `## Labels` in `backlog/AGENTS.md`. The names land in three places that must stay consistent: the actual GitHub labels (`gh label create`), the `## Labels` declaration, and the label references in all worklog operations.
+A project that declares `todo → doing → reviewing → done` gets an extra in-flight stage:
+
+| State     | open/closed | labels                       |
+|-----------|-------------|------------------------------|
+| todo      | open        | no in-flight labels          |
+| doing     | open        | `doing` label                |
+| reviewing | open        | `reviewing` label            |
+| done      | closed      | no `failed` label            |
+| failed    | closed      | `failed` label               |
+
+Each in-flight label name and the `failed` label are configurable per project — defaults are the state names themselves. Operators set them via `setup --pipeline="..." --label-<state>=<name> --label-failed=<name>` or by editing `## Pipeline` and `## Labels` in `backlog/AGENTS.md` after setup. The names land in three places that must stay consistent: the actual GitHub labels (`gh label create`), the `## Labels` declaration, and the label references in all worklog operations.
 
 `cancel` and ordinary `done` both close the issue — discriminated by the worklog comment and by GitHub's close reason (`completed` vs `not planned`). The `status` verb lumps cancelled with done, matching the maildir backends.
 
@@ -50,15 +62,18 @@ Every state transition and progress note is one comment on the issue, formatted 
 - <ISO-8601 ts> <verb> [args] | <trail>
 ```
 
-| Verb                | Args / trail                                            |
-|---------------------|---------------------------------------------------------|
-| `advanced to=doing` | `claimer=<who>` `branch=<git-branch>`                   |
-| `advanced to=done`  | optional `\| PR=<url>`                                   |
-| `progress`          | trail = `\| <note>`                                      |
-| `cancelled`         | trail = `\| <reason>`                                    |
-| `failed`            | trail = `\| <reason>`                                    |
-| `rescued`           | `claimer=<who>` `branch=<git-branch>`                   |
-| `retried`           | trail = `\| <reason>`                                    |
+| Verb                          | Args / trail                                          |
+|-------------------------------|-------------------------------------------------------|
+| `advanced to=<first-stage>`   | `claimer=<who>` `branch=<git-branch>` — the claim event |
+| `advanced to=<intermediate>`  | no extra args — stage→stage transition by the claimant |
+| `advanced to=done`            | optional `\| PR=<url>` — closes the issue              |
+| `progress`                    | trail = `\| <note>`                                    |
+| `cancelled`                   | trail = `\| <reason>`                                  |
+| `failed`                      | trail = `\| <reason>`                                  |
+| `rescued`                     | `claimer=<who>` `branch=<git-branch>` — takeover       |
+| `retried`                     | trail = `\| <reason>`                                  |
+
+For the default pipeline `todo → doing → done`, the only `advanced to=...` lines you'll see are `to=doing` (claim) and `to=done` (close). For `todo → doing → reviewing → done`, the claimant also posts `advanced to=reviewing` as a stage→stage transition.
 
 Comments are append-only and chronological. `gh issue view --json comments` reconstructs the full history in the same shape a `tail backlog/done/<slug>.md` would show in a maildir backend.
 
@@ -68,13 +83,14 @@ The **branch** is the claim identity. Agents often share a GitHub PAT (one bot a
 
 Walking the worklog comments in chronological order:
 
-| Comment kind        | Effect on the current winner                                                     |
-|---------------------|----------------------------------------------------------------------------------|
-| `retried`           | reset — no current winner (contest restarts when an item bounces back from failed) |
-| `advanced to=doing` | first-wins — sets the winner only if currently empty (catches take-time races)   |
-| `rescued`           | override — replaces the current winner (deliberate takeover after timeout)       |
+| Comment kind                  | Effect on the current winner                                                       |
+|-------------------------------|------------------------------------------------------------------------------------|
+| `retried`                     | reset — no current winner (contest restarts when an item bounces back from failed) |
+| `advanced to=<first-stage>`   | first-wins — sets the winner only if currently empty (catches take-time races)     |
+| `advanced to=<intermediate>`  | *no effect* on ownership — just the claimant moving stage→stage                    |
+| `rescued`                     | override — replaces the current winner (deliberate takeover after timeout)         |
 
-The earliest `advanced to=doing` since the most recent `retried`, optionally overridden by a later `rescued`, is the canonical claimer.
+The earliest `advanced to=<first-stage>` since the most recent `retried`, optionally overridden by a later `rescued`, is the canonical claimer. (For the default pipeline `todo → doing → done`, that's `advanced to=doing`.)
 
 ## Operating directly via `gh`
 
@@ -141,27 +157,29 @@ The bundled `backlog-github-issues.sh` automates the patterns above. It's a conv
 
 ## Labels the script reads
 
-| Role     | Default  | Source                                           |
-|----------|----------|--------------------------------------------------|
-| claim    | `doing`  | `backlog/AGENTS.md` `## Labels` `claim: <name>`  |
-| failed   | `failed` | `backlog/AGENTS.md` `## Labels` `failed: <name>` |
+The script reads the **pipeline** from `## Pipeline` in `backlog/AGENTS.md` (default `todo → doing → done`) and looks up each in-flight stage's label in `## Labels`. Defaults to the state name itself; overrides honored if present.
 
-`lib.sh::backlog_label <role> <default>` is the reader. Defaults match the bare names the script creates if no `## Labels` section is present. Projects with existing in-house label vocabularies (e.g., a `claimed` label already in production from a managed-reviewer pipeline) declare `claim: claimed` in their `## Labels` and the script speaks their language end-to-end — no fork required.
+| Role               | Default        | Source                                              |
+|--------------------|----------------|-----------------------------------------------------|
+| `<state-name>`     | `<state-name>` | `backlog/AGENTS.md` `## Labels` `<state>: <name>`   |
+| `failed`           | `failed`       | `backlog/AGENTS.md` `## Labels` `failed: <name>`    |
+
+`lib.sh::backlog_label <role> <default>` is the reader. The script wraps it as `state_label <state>` (for in-flight stages) and `failed_label` (for the dead-letter terminal). Projects with existing in-house label vocabularies (e.g., a `claimed` label already in production from a managed-reviewer pipeline) declare `doing: claimed` in their `## Labels` and the script speaks their language end-to-end — no fork required. Projects with extra pipeline stages declare them in `## Pipeline` and add a `## Labels` line per stage (or accept the default of state-name-as-label).
 
 ## How each verb interacts with `gh`
 
 | Verb | gh calls |
 |---|---|
-| `setup` | `gh repo view`, `gh label create --force` ×2 (claim + failed labels with configured names), writes AGENTS.md (including `## Labels` declaration) + ROADMAP skeleton + commits. Flags: `--claim-label=<name>`, `--failed-label=<name>` |
+| `setup` | `gh repo view`, `gh label create --force` (one per in-flight stage + failed), writes AGENTS.md (including `## Pipeline` + `## Labels` declarations) + ROADMAP skeleton + commits. Flags: `--pipeline="<states>"`, `--label-<state>=<name>`, `--label-failed=<name>`. Aliases: `--claim-label=<name>` (first stage), `--failed-label=<name>` |
 | `add` | `gh issue create --title "<title>"` (stub body with divider) — returns the new issue URL |
-| `take` | `gh issue list` (jq-filter open issues without the claim label, rank by body priority + recency) or `validate_id` on the explicit number → post claim comment → `gh issue edit --add-label <claim>` → re-read comments; if earliest `advanced to=doing` since last `retried` has a different `branch=`, exit with `claim conflict on #N: won by branch=X` |
-| `advance` | reads state + labels; for todo→doing, calls `take`; for doing→done, post comment + `gh issue edit --remove-label <claim>` + `gh issue close --reason completed` |
-| `progress` | finds claim via `gh issue list --label <claim>` then comment-scan for matching `branch=$(git branch --show-current)`; `gh issue comment` |
-| `cancel` | post comment + `gh issue edit --remove-label <claim>` + `gh issue close --reason "not planned"` |
-| `fail` | post comment + `gh issue edit --remove-label <claim> --add-label <failed>` + `gh issue close --reason "not planned"` |
-| `rescue` | reads comments for last claim line, checks timeout, posts `rescued` comment, ensures `<claim>` label, verifies post-rescue (symmetric with `take`) |
+| `take` | `gh issue list` (jq-filter open issues with no in-flight label, rank by body priority + recency) or `validate_id` on the explicit number → post `advanced to=<first-stage>` comment → `gh issue edit --add-label <first-stage>` → re-read comments; if earliest first-stage claim since last `retried` has a different `branch=`, exit with `claim conflict on #N: won by branch=X` |
+| `advance` | reads state + labels via `issue_state`; for todo, calls `take`; for an intermediate stage, posts `advanced to=<next>` and swaps labels (remove current, add next); when next is `done`, posts `advanced to=done [\| PR=<url>]`, removes the current label, and closes with `--reason completed` |
+| `progress` | finds claim by scanning all open issues with any in-flight label, matches by `branch=$(git branch --show-current)`; `gh issue comment` |
+| `cancel` | post comment + `gh issue edit --remove-label <current-stage>` + `gh issue close --reason "not planned"` |
+| `fail` | post comment + `gh issue edit --remove-label <current-stage> --add-label <failed>` + `gh issue close --reason "not planned"` |
+| `rescue` | reads comments for last first-stage claim or rescued line, checks timeout, posts `rescued` comment, preserves whichever in-flight label is set (fallback: first-stage), verifies post-rescue (symmetric with `take`) |
 | `retry` | refuses unless `<failed>` is present, then `gh issue edit --remove-label <failed>` + `gh issue reopen` + comment |
-| `status` | one `gh issue list --state all`; jq buckets every issue by state + claim/failed labels |
+| `status` | one `gh issue list --state all`; jq buckets every issue by pipeline state + failed label; output keys are canonical state names (todo, each in-flight stage, done, failed) regardless of label config |
 
 ## Worklog reconstruction
 
@@ -174,9 +192,9 @@ The buckets in `../maintain.md` translate as:
 | Bucket                       | github-issues check                                                                              |
 |------------------------------|--------------------------------------------------------------------------------------------------|
 | `ADVANCED BUT NOT MOVED`     | n/a — there is no separate "move" step; close happens atomically with the log comment            |
-| `TIMED OUT`                  | `gh issue list --label <claim>` then check the most recent claim comment's timestamp against the body's `timeout:` |
-| `STALE TODO`                 | `gh issue list --state open` jq-filtered for no `<claim>` label and `updatedAt` older than threshold |
-| `ORPHANED CLAIM`             | a `<claim>`-labeled issue whose `branch=` from the last claim comment no longer exists on any remote — claimer abandoned the worktree |
+| `TIMED OUT`                  | `gh issue list --state open` jq-filtered for any in-flight label, then check the most recent claim comment's timestamp against the body's `timeout:` |
+| `STALE TODO`                 | `gh issue list --state open` jq-filtered for no in-flight label and `updatedAt` older than threshold |
+| `ORPHANED CLAIM`             | an issue with any in-flight label whose `branch=` from the last claim comment no longer exists on any remote — claimer abandoned the worktree |
 
 The script's `maintain` verb prints the advisory message — these queries are agent-judgment territory, not a fixed script.
 
@@ -191,7 +209,6 @@ For projects with the `agent` + `task` Matt Pocock-style pipeline (`ready → cl
 
 ## What this backend deliberately doesn't do
 
-- **Custom pipelines.** `todo → doing → done` is hardcoded in the script. Intermediate stages (`reviewing`, etc.) would each need a label and a script branch; punted until a project actually wants the skill to drive them. External automation managing intermediate labels is fine — see participant mode above.
 - **Cross-tracker federation.** A task exists in exactly one tracker. Mixing maildir-* and github-issues for the same project is out of scope.
 - **Custom title formats.** `add` sets title to the bare slug/title; the human re-titles via `gh issue edit` or the web UI. Title format isn't load-bearing.
 - **Assignee as claim signal.** Assignment is supplementary at most (the script doesn't set it); branch-via-comments is the source of truth. Operators are free to assign issues manually for UX without affecting backlog state.
