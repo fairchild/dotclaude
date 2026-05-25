@@ -5,559 +5,153 @@ description: "Orchestrate the cmux terminal — named layouts (workshop, ops-dec
 
 # cmux Orchestrator
 
-cmux is a terminal multiplexer built for coding agents. This skill teaches you how to *think* about cmux — the patterns, conventions, and workflows that make it powerful. For command syntax, run `cmux --help` and `cmux browser --help`.
+cmux is a terminal multiplexer built for coding agents. This skill keeps the live rules in first-load context; longer layout recipes live in `references/`.
 
-## Before You Act: Orient
+## Orient First
 
-Always start by understanding where you are. This prevents creating duplicate panes or targeting the wrong surface.
-
-```bash
-cmux tree --all    # full hierarchy — shows what exists
-cmux identify      # your current workspace/pane/surface
-```
-
-Read the tree output carefully. It marks `[selected]`, `[focused]`, and `◀ here` for your position. Know the landscape before changing it.
-
-## Core Mental Model
-
-```
-Window → Workspace → Pane → Surface
-```
-
-- **Workspace** = a sidebar tab. Has its own cwd, status, progress, and logs. This is what the user sees at a glance.
-- **Pane** = a split region within a workspace. Split further with `new-split <direction>`.
-- **Surface** = the content: terminal or browser. Panes can hold multiple surfaces as tabs.
-
-**Addressing**: Use short refs (`workspace:3`, `surface:5`) or environment defaults (`$CMUX_WORKSPACE_ID`, `$CMUX_SURFACE_ID`).
-
-**Split order matters**: To get a full-width bottom row, split down *first*, then split the top pane right. Reversing this puts the bottom pane under only one side.
-
-**Name everything**: Every workspace and tab you create should get a short, semantic name via `cmux rename-workspace` and `cmux rename-tab`. The user scans these labels to orient — `"tests"`, `"dev server"`, `"API docs"` are useful; `"surface:14"` is not.
-
-## The Sidebar is Your Dashboard
-
-The sidebar is the most important cmux feature for agents. It's visible without switching workspaces — the user can glance at it to know what every agent is doing. Use it proactively.
-
-### Status — what's happening
+Always inspect the current cmux state before creating panes, browser surfaces, or agent workspaces:
 
 ```bash
-cmux set-status "phase" "running tests" --icon "checkmark.circle" --color "#00FF00"
+cmux tree --all
+cmux identify
+```
+
+Read the tree output carefully. It marks `[selected]`, `[focused]`, and the current position. Avoid duplicate panes and wrong-workspace actions by knowing the current landscape first.
+
+## Core Model
+
+```
+Window -> Workspace -> Pane -> Surface
+```
+
+- **Workspace**: sidebar tab with cwd, status, progress, and logs.
+- **Pane**: split region inside a workspace.
+- **Surface**: terminal or browser tab inside a pane.
+- **Addressing**: use refs like `workspace:3` / `surface:5`, or `$CMUX_WORKSPACE_ID` / `$CMUX_SURFACE_ID`.
+- **Split order**: split down first for full-width bottom rows, then split the top pane right for a browser.
+- **Naming**: rename every workspace and tab with semantic labels such as `tests`, `dev server`, or `API docs`.
+
+## Sidebar Dashboard
+
+Use the sidebar proactively. It is the user's at-a-glance status surface.
+
+```bash
+cmux set-status "phase" "running tests" --icon "bolt.fill" --color "#00BFFF"
 cmux clear-status "phase"
-```
 
-Icons are SF Symbols: `bolt.fill` (active), `checkmark.circle` (done), `xmark.circle` (error), `hourglass` (waiting), `hammer.fill` (building), `cloud.fill` (deploy).
-
-### Progress — how far along
-
-```bash
 cmux set-progress 0.5 --label "Running tests (3/6)"
 cmux clear-progress
-```
 
-Use at every phase transition so the user never wonders "did it start?"
-
-### Logs — what happened
-
-```bash
 cmux log "Deployment started"
 cmux log --level error --source "test-runner" "3 tests failed"
-```
 
-Logs create a timeline in the sidebar. Use `--source` to identify which process logged.
-
-### Workspace title — what this is
-
-```bash
 cmux rename-workspace "bread-builder tests"
-```
-
-Keep it descriptive and current. Other skills (session-titles) can update this too.
-
-### Notifications — cross-workspace alerts
-
-```bash
 cmux notify --title "Tests Complete" --body "All 42 tests passed"
 ```
 
-Use sparingly — only for events that need attention from another workspace.
+Use notifications sparingly. Use status/progress/logs at every meaningful phase transition.
 
 ## Verify After Acting
 
-After sending commands to other surfaces, **always read the screen to confirm they worked**. Commands can fail silently — wrong directory, missing dependency, typo in the command. Don't assume success.
+After sending commands to another surface, read the screen to confirm the command actually ran:
 
 ```bash
-# Send a command
 cmux send --surface surface:5 "npm test -- --watch"
 cmux send-key --surface surface:5 Enter
-
-# Wait a moment for output, then verify
 cmux read-screen --surface surface:5 --lines 15
-
-# If it failed (e.g., "command not found", "ENOENT", error output):
-#   1. Read the error to understand what went wrong
-#   2. Send a corrective command (cd to right dir, install deps, fix the command)
-#   3. Read the screen again to confirm the fix worked
 ```
 
-This applies to every `cmux send` — whether setting up a workshop, spawning agents, or running any command in another surface. The sidebar should reflect reality: if a command failed, update the status to show it.
+If the command failed, read the error, correct the command or cwd, and verify again. The sidebar should reflect reality, not intent.
 
-## Browser: Discover, Don't Guess
+## Browser Pattern
 
-cmux embeds a Playwright-powered browser. The key pattern: **use snapshots to discover elements before interacting**.
+cmux embeds a Playwright-powered browser. Discover elements before interacting:
 
 ```bash
-# Open a browser
 cmux browser open-split https://hono.dev
-
-# DON'T guess selectors. DO discover them:
+cmux browser --surface surface:5 wait --load-state complete
 cmux browser --surface surface:5 snapshot --interactive --compact
-
-# Now click what you found:
 cmux browser --surface surface:5 click "a:has-text('Middleware')"
-
-# Read the result, scoped to avoid nav chrome:
 cmux browser --surface surface:5 snapshot --selector "main" --compact
 ```
 
-Always `wait --load-state complete` before snapshotting. For full browser command reference: `cmux browser --help`.
+For full syntax, run `cmux browser --help`.
 
-## Pattern: Prompt via Inbox
+## Prompt Via Inbox
 
-When launching an agent into a pane, **write the prompt to the agent's inbox first**, then start the agent with a simple command to check its inbox. This gives you:
-
-- A persisted, readable record of what was asked
-- The agent can re-read its instructions at any time
-- The orchestrator has a log of what it dispatched
-- Consistent with inbox-first communication across all conventions
+When launching an agent into a pane, write the detailed prompt to the repo-shared agent inbox first, then start the agent with a short instruction to check its inbox.
 
 ```bash
-# 0. Resolve the repo-shared inbox root
 . ~/.claude/skills/agent-inbox/scripts/lib.sh
 inbox_root="$(agent_inbox_root)"
-
-# 1. Create the inbox
 mkdir -p "$inbox_root/coder"/{new,tmp,archive}
-
-# 2. Write the prompt as an inbox message
-TIMESTAMP=$(date -u +%Y%m%dT%H%M%S)
-cat > "$inbox_root/coder/tmp/${TIMESTAMP}-task.md" << 'EOF'
----
-from: orchestrator
-to: coder
-reply_to: ../orchestrator/tmp/
-timestamp: 2026-03-21T18:00:00Z
-thread: workshop
----
-
-Fix the failing auth tests. The JWT validation is rejecting valid tokens.
-Check the test output in the "tests" pane via `cmux read-screen`.
-Report back when done.
-EOF
-mv "$inbox_root/coder/tmp/${TIMESTAMP}-task.md" "$inbox_root/coder/new/"
-
-# 3. Launch the agent — the inbox message has all the detail
-cmux send --surface <agent-surface> "claude --dangerously-skip-permissions -n coder --add-dir '$inbox_root' 'Check your inbox at $inbox_root/coder/new/ and execute the task. Reply to $inbox_root/orchestrator/ when done.'"
-cmux send-key --surface <agent-surface> Enter
+mkdir -p "$inbox_root/orchestrator"/{new,tmp,archive}
 ```
 
-This pattern applies everywhere — workshop agents, ops deck agents, any spawned agent.
+This creates a durable dispatch record, lets the child re-read instructions, and keeps cross-workspace communication consistent. See `references/workshop.md` and `references/ops-deck.md` for full examples.
 
-## Convention: "Workshop"
+## Conventions
 
-A focused development layout for a single project. Say **"set up a workshop for [project]"** and get:
+### Workshop
 
-```
-+---------------------+---------------------+
-|                     |                      |
-|  Agent / Coding     |  Browser (preview)   |
-|  (top-left, tall)   |  (top-right, tall)   |
-|                     |                      |
-+---------------------+---------------------+
-|  Dev Server (compact, full width)          |
-+--------------------------------------------+
-|  Test Watcher (compact, full width)        |
-+--------------------------------------------+
+A focused layout for one project: agent pane, browser preview, dev server row, test watcher row, and a repo-shared inbox. Use when the user says "set up a workshop for X".
 
-Sidebar:
-  Title: "[project] workshop"
-  Status: agent: ready, dev-server: running, tests: watching
-  Progress: (cleared — used during setup only)
+Detailed flow: `references/workshop.md`.
 
-Inbox: repo-shared `.agents/inbox/coder/` (always created)
-```
+### Worktree Workshop
 
-The top-left pane is the agent's workspace — typically launched from the orchestrator via prompt-via-inbox, but the human can switch to it and take over at any time. The agent can use `cmux browser` to validate its work in the browser pane, `cmux read-screen` to check test output, and agent-inbox to report back to the orchestrator.
+Creates an isolated worktree from a branch name, then sets up the standard Workshop layout inside it.
 
-### How to build it
+Detailed flow: `references/worktree-workshop.md`.
 
-1. Orient: `cmux tree --all`, `cmux identify`
-2. Create a workspace for the project:
-   ```bash
-   cmux new-workspace --cwd ~/code/<project>
-   ```
-   Note the returned ref (e.g., `workspace:9`). **Pass `--workspace <ref>` to all subsequent commands** — your `$CMUX_WORKSPACE_ID` still points to the calling workspace.
-3. **Detect the project's commands** using this priority:
+### Respond to PR Review Workshop
 
-   | Check | Setup command | Dev server command | Test watch command |
-   |-------|--------------|-------------------|-------------------|
-   | `scripts/setup` + `scripts/run` exist | `scripts/setup && scripts/run` | (combined above) | `scripts/test` or fall back below |
-   | `bun.lock` exists | `bun install && bun run dev` | (combined above) | `bun run test -- --watch` or `bunx vitest --watch` |
-   | `pnpm-lock.yaml` exists | `pnpm install && pnpm dev` | (combined above) | `pnpm test -- --watch` |
-   | `package-lock.json` exists | `npm install && npm run dev` | (combined above) | `npm test -- --watch` |
-   | `uv.lock` exists | `uv sync && uv run dev` | (combined above) | `uv run pytest --watch` |
-   | `Cargo.lock` exists | `cargo build && cargo run` | (combined above) | `cargo watch -x test` |
+Fetches unresolved PR review context, creates or reuses the PR worktree, opens a workshop around the PR, and launches an agent with review response context.
 
-   Also read `package.json` scripts (or equivalent) to confirm — the table above is a starting point, not gospel. Some projects use `wrangler dev`, `vite dev`, etc.
+Detailed flow: `references/pr-review-workshop.md`.
 
-4. **Build the layout** — split down twice first for the two compact rows, then split the top pane right for the browser:
-   ```bash
-   # First split: creates dev-server row (bottom)
-   cmux new-split down --workspace <ws>
-   # Second split: creates test-watcher row (bottom-bottom)
-   cmux new-split down --workspace <ws>
-   cmux list-panes --workspace <ws>
-   # Note: top pane (agent), middle pane (dev-server), bottom pane (tests)
-   ```
-5. Resize the bottom rows compact — they're output-only, don't need much height:
-   ```bash
-   cmux resize-pane --pane <middle> --workspace <ws> -U --amount 15
-   cmux resize-pane --pane <bottom> --workspace <ws> -U --amount 10
-   ```
-6. Run dev server in the middle pane:
-   ```bash
-   cmux send --workspace <ws> --surface <middle> "<setup-and-run-cmd>"
-   cmux send-key --workspace <ws> --surface <middle> Enter
-   ```
-7. **Verify and discover the URL**: Wait a few seconds, then read the screen:
-   ```bash
-   cmux read-screen --workspace <ws> --surface <middle> --lines 15
-   ```
-   Look for output like `Ready on http://localhost:8787`, `listening on port 3000`, etc.
-8. Open browser at the discovered URL — split right from the top (agent) pane:
-   ```bash
-   cmux new-pane --type browser --direction right --workspace <ws> --url <discovered-url>
-   ```
-9. Start test watcher in the bottom pane:
-   ```bash
-   cmux send --workspace <ws> --surface <bottom> "<test-watch-cmd>"
-   cmux send-key --workspace <ws> --surface <bottom> Enter
-   ```
-10. **Verify tests started**: `cmux read-screen --workspace <ws> --surface <bottom> --lines 15`
-11. **Set up the agent inbox** — always, even if no agent is launched yet:
-    ```bash
-    . ~/.claude/skills/agent-inbox/scripts/lib.sh
-    inbox_root="$(agent_inbox_root)"
-    mkdir -p "$inbox_root/coder"/{new,tmp,archive}
-    mkdir -p "$inbox_root/orchestrator"/{new,tmp,archive}
-    ```
-12. Name everything:
-    ```bash
-    cmux rename-workspace --workspace <ws> "[project] workshop"
-    cmux rename-tab --workspace <ws> --surface <top> "agent"
-    cmux rename-tab --workspace <ws> --surface <middle> "dev server"
-    cmux rename-tab --workspace <ws> --surface <bottom> "tests"
-    ```
-13. Set up the sidebar dashboard — only mark things as "running" if you verified they actually started:
-    ```bash
-    cmux set-status "agent" "ready" --icon "person.fill" --color "#888888" --workspace <ws>
-    cmux set-status "dev-server" "<discovered-url>" --icon "bolt.fill" --color "#00FF00" --workspace <ws>
-    cmux set-status "tests" "watching" --icon "magnifyingglass" --color "#FFB800" --workspace <ws>
-    cmux log --workspace <ws> "Workshop ready — agent pane idle, inbox at $inbox_root/coder/"
-    ```
+### Ops Deck
 
-### Launching an agent into the workshop
+A multi-agent monitoring layout for parallel work. The orchestrator writes inbox tasks, spawns agent workspaces, watches screen output, and collects structured replies.
 
-Use the prompt-via-inbox pattern to dispatch work to the agent pane:
+Detailed flow: `references/ops-deck.md`.
 
-1. Write the task to the coder's inbox (see "Prompt via Inbox" above)
-2. Launch the agent — the inbox message has all the detail:
-   ```bash
-   cmux send --workspace <ws> --surface <top> "claude --dangerously-skip-permissions -n coder --add-dir '$inbox_root' 'Check your inbox at $inbox_root/coder/new/ and execute the task. Reply to $inbox_root/orchestrator/ when done.'"
-   cmux send-key --workspace <ws> --surface <top> Enter
-   ```
-3. Update sidebar:
-   ```bash
-   cmux set-status "agent" "working" --icon "hammer.fill" --color "#FFB800" --workspace <ws>
-   ```
+### Status Sweep
 
-The agent has full access to the workshop — it can read the test watcher output via `cmux read-screen`, interact with the browser via `cmux browser snapshot/click/fill`, and report back via agent-inbox. The human can switch to the agent pane at any time to observe or take over.
+Quick reconnaissance across workspaces using `cmux tree --all` and `cmux read-screen`.
 
-- `--dangerously-skip-permissions` grants all tool permissions without prompting — use for autonomous agents
-- `--add-dir "$inbox_root"` grants filesystem visibility to the repo-shared inbox directory
-- `-n <name>` sets the session name for identification
-- Pass the initial message as a positional argument — the agent starts with full tool access and works autonomously
+Detailed flow: `references/status-sweep.md`.
 
-**After the agent finishes**: The Claude session exits when done. Check the orchestrator inbox for results, then update sidebar status.
+### Wake-on-Reply
 
-### Adapting the workshop
+When a child writes a reply to the parent inbox, it can wake the parent session if needed.
 
-- **No browser preview?** Skip the right split, give the agent the full top row
-- **Multiple browsers?** Add tabs to the browser pane: `cmux new-surface --type browser --pane <right> --url <url>`
-- **Docs instead of preview?** Point the browser URL at docs instead of localhost
-- **Human-only mode?** Use the agent pane as a regular terminal — the inbox is still there if you want to dispatch later
+Detailed flow: `references/wake-on-reply.md`.
 
-## Convention: "Worktree Workshop"
-
-A Workshop that starts from a branch name instead of an existing directory. Creates an isolated worktree, then sets up the full Workshop layout inside it. Say **"set up a worktree workshop for `<branch>` on `<project>`"** and get:
-
-```
-~/.worktrees/<repo>/<branch>/
-  ├── Full Workshop layout (agent, dev server, tests, browser)
-  ├── Sidebar: "<repo>: <branch>"
-  └── repo-shared .agents/inbox/ (ready for dispatch)
-```
-
-The flow: create worktree via `git worktree add` → `cmux new-workspace --cwd <worktree>` → standard Workshop layout. Supports both in-repo (default) and cross-repo (`--repo`) entry points. Self-contained — uses `git worktree` directly, no external scripts required.
-
-**Detailed flow:** See [`references/worktree-workshop.md`](references/worktree-workshop.md) for the full phased build instructions, edge case handling, and cleanup.
-
-## Convention: "Respond to PR Review Workshop"
-
-A Worktree Workshop variant for responding to code review comments on our PR. Say **"set up a respond-to-pr-review workshop for PR #\<number\>"** and get:
-
-```
-~/.worktrees/<repo>/<branch>/
-  ├── Workshop layout (agent + browser on PR Files Changed + verification pane)
-  ├── Sidebar: "PR #<number>: <title>" with comment progress tracking
-  ├── Review comments pre-loaded as agent context
-  ├── Permissions pre-configured for autonomous verification
-  └── Re-review flow: commit → push → comment → request re-review
-```
-
-The flow: fetch PR context (`gh pr view` + `gh api`) → read all unresolved comments → reflect on them in code and project context → decide **do / defer / decline** → create/reuse worktree (idempotent) → Workshop layout with browser on PR → launch agent with review context → agent executes the response plan → agent requests re-review.
-
-**Key differences from Worktree Workshop:**
-- **Idempotent worktree**: reuses existing worktree on same branch instead of erroring
-- **Permission profile**: pre-approved tools for verification scripts (`swift test`, `uv run`, `python`)
-- **Decision-first response**: agent summarizes do / defer / decline decisions before executing
-- **Re-review closing**: agent posts summary comment and requests re-review via helper script
-- **Context helper**: `uv run ~/.claude/skills/cmux-orchestrator/scripts/pr-fetch-context.py <number>` generates agent prompt
-
-**Detailed flow:** See [`references/pr-review-workshop.md`](references/pr-review-workshop.md) for the full phased build instructions, permission profile, and re-review protocol.
-
-## Convention: "Ops Deck"
-
-A multi-agent monitoring layout for parallel work. Say **"set up an ops deck for [task] on [project]"** and get:
-
-```
-Orchestrator workspace (you are here):
-  Sidebar: title, progress bar, agent status per spawned workspace
-
-Agent workspace 1 ("tests"):
-  Sidebar: status, progress, logs
-  Inbox: repo-shared .agents/inbox/test-runner/
-
-Agent workspace 2 ("lint"):
-  Sidebar: status, progress, logs
-  Inbox: repo-shared .agents/inbox/linter/
-
-All connected via agent-inbox protocol.
-```
-
-### How to build it
-
-1. Orient: `cmux tree --all`, `cmux identify`
-2. Set up agent-inbox directories in the repo-shared inbox root:
-   ```bash
-   . ~/.claude/skills/agent-inbox/scripts/lib.sh
-   inbox_root="$(agent_inbox_root)"
-   mkdir -p "$inbox_root/orchestrator"/{new,tmp,archive}
-   mkdir -p "$inbox_root/test-runner"/{new,tmp,archive}
-   mkdir -p "$inbox_root/linter"/{new,tmp,archive}
-   ```
-3. Set initial sidebar state:
-   ```bash
-   cmux rename-workspace "[project] ops deck"
-   cmux set-progress 0.0 --label "Spawning agents..."
-   cmux set-status "test-runner" "spawning" --icon "hourglass" --color "#FFB800"
-   cmux set-status "linter" "spawning" --icon "hourglass" --color "#FFB800"
-   ```
-4. **Write task prompts to each agent's inbox** (prompt-via-inbox pattern):
-   ```bash
-   TIMESTAMP=$(date -u +%Y%m%dT%H%M%S)
-
-   cat > "$inbox_root/test-runner/tmp/${TIMESTAMP}-task.md" << 'EOF'
-   ---
-   from: orchestrator
-   to: test-runner
-   reply_to: ../orchestrator/tmp/
-   timestamp: 2026-03-21T18:00:00Z
-   thread: ops-deck
-   ---
-   Run the test suite. Include pass/fail counts and any failure details in your reply.
-   EOF
-   mv "$inbox_root/test-runner/tmp/${TIMESTAMP}-task.md" "$inbox_root/test-runner/new/"
-
-   cat > "$inbox_root/linter/tmp/${TIMESTAMP}-task.md" << 'EOF'
-   ---
-   from: orchestrator
-   to: linter
-   reply_to: ../orchestrator/tmp/
-   timestamp: 2026-03-21T18:00:00Z
-   thread: ops-deck
-   ---
-   Run the linter. Report any warnings or errors in your reply.
-   EOF
-   mv "$inbox_root/linter/tmp/${TIMESTAMP}-task.md" "$inbox_root/linter/new/"
-   ```
-5. **Spawn agent workspaces** — each checks its inbox on start:
-   ```bash
-   cmux new-workspace --cwd ~/code/myproject \
-     --command "claude --dangerously-skip-permissions -n test-runner --add-dir '$inbox_root' 'Check your inbox at $inbox_root/test-runner/new/ and execute the task. Reply to $inbox_root/orchestrator/ when done.'"
-
-   cmux new-workspace --cwd ~/code/myproject \
-     --command "claude --dangerously-skip-permissions -n linter --add-dir '$inbox_root' 'Check your inbox at $inbox_root/linter/new/ and execute the task. Reply to $inbox_root/orchestrator/ when done.'"
-   ```
-6. Name everything so the user can identify each workspace and tab at a glance:
-   ```bash
-   cmux rename-workspace --workspace <ref1> "tests"
-   cmux rename-workspace --workspace <ref2> "lint"
-   cmux rename-tab --surface <surface1> "test-runner"
-   cmux rename-tab --surface <surface2> "linter"
-   ```
-7. **Verify each workspace started correctly**: `cmux read-screen --surface <agent-surface> --lines 15` — confirm the agent is running, not stuck on an error. If a workspace failed to start (wrong cwd, missing deps, command error), fix it before proceeding.
-8. Update progress as agents come online:
-   ```bash
-   cmux set-progress 0.33 --label "Agents running..."
-   cmux set-status "test-runner" "running" --icon "bolt.fill" --color "#00BFFF"
-   cmux set-status "linter" "running" --icon "bolt.fill" --color "#00BFFF"
-   ```
-9. Monitor with dual channels:
-   - **Quick check**: `cmux read-screen --surface <agent-surface> --lines 20`
-   - **Structured results**: `ls "$inbox_root/orchestrator/new/"`
-10. When inbox messages arrive, read and archive:
-   ```bash
-   cat "$inbox_root/orchestrator/new/<message>.md"
-   mv "$inbox_root/orchestrator/new/<message>.md" "$inbox_root/orchestrator/archive/"
-   ```
-11. Update sidebar with final results:
-   ```bash
-   cmux set-progress 1.0 --label "All agents complete"
-   cmux set-status "test-runner" "42 passed" --icon "checkmark.circle" --color "#00FF00"
-   cmux set-status "linter" "clean" --icon "checkmark.circle" --color "#00FF00"
-   cmux notify --title "Ops Deck Complete" --body "Tests: 42 passed, Lint: clean"
-   ```
-
-### Dual-channel monitoring
-
-The ops deck uses two communication channels:
-
-- **`cmux read-screen`** — real-time "what's on screen right now." Fast, ephemeral, good for progress updates.
-- **agent-inbox** — structured "here's what I finished." Durable, parseable, good for results and handoffs.
-
-Use screen reading for quick checks while agents run. Use inbox messages for final results and coordination.
-
-### Scaling the ops deck
-
-- **More agents?** Add more inbox directories and workspace spawns. The sidebar tracks them all.
-- **Bidirectional?** Each inbox message has `reply_to` — agents can talk back and forth.
-- **Auto-notification?** Configure the agent-inbox stop hook so agents see `"📬 N unread"` automatically.
-
-## Convention: "Status Sweep"
-
-A quick reconnaissance pass across all workspaces to summarize what's in flight. Say **"what do I have in flight"** or **"status sweep"**. Uses `cmux tree --all` + `cmux read-screen` per workspace to build a scannable briefing.
-
-**Detailed flow:** See [`references/status-sweep.md`](references/status-sweep.md) for the steps and reporting format.
-
-## Pattern: Wake-on-Reply
-
-When a child agent finishes and writes a reply to the parent's inbox, the parent may be idle or closed. Wake-on-Reply bridges async inbox messages to session lifecycle.
-
-### Setup
-
-Add the inbox-startup hook to `settings.json` so every session checks for mail on start:
-
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      {
-        "type": "command",
-        "command": "bash ~/.claude/skills/agent-inbox/scripts/inbox-startup.sh"
-      }
-    ]
-  }
-}
-```
-
-### Child agent: write reply + wake parent
-
-After a child finishes work and writes its reply to the parent's inbox:
+## Themes
 
 ```bash
-# 1. Write reply (standard inbox protocol)
-. ~/.claude/skills/agent-inbox/scripts/lib.sh
-inbox_root="$(agent_inbox_root)"
-TIMESTAMP=$(date -u +%Y%m%dT%H%M%S)
-cat > "$inbox_root/orchestrator/tmp/${TIMESTAMP}-done.md" << 'EOF'
----
-from: coder
-to: orchestrator
-reply_to: ../coder/tmp/
-timestamp: 2026-04-03T05:30:00Z
-thread: my-task
----
-
-Task complete. PR at #42.
-EOF
-mv "$inbox_root/orchestrator/tmp/${TIMESTAMP}-done.md" "$inbox_root/orchestrator/new/"
-
-# 2. Wake the parent
-bash ~/.claude/skills/agent-inbox/scripts/wake-parent.sh \
-  --surface <parent-surface> --agent orchestrator
-```
-
-### What happens
-
-| Parent state | Action |
-|-------------|--------|
-| Active claude session | No-op — mail is in the inbox, stop hook surfaces it on next turn |
-| Idle shell prompt | Spawns headless `claude -p -n <agent>` that reads the inbox |
-| Surface closed | Logs warning, exits cleanly |
-
-### Full example: orchestrator dispatches, child wakes parent
-
-```bash
-. ~/.claude/skills/agent-inbox/scripts/lib.sh
-inbox_root="$(agent_inbox_root)"
-
-# Orchestrator writes task to child inbox (prompt-via-inbox)
-# ... standard inbox write ...
-
-# Launch child with wake instructions baked in
-cmux send --surface <child> "echo 'Check your inbox. When done, reply to orchestrator inbox and run: bash ~/.claude/skills/agent-inbox/scripts/wake-parent.sh --surface <parent> --agent orchestrator' | claude -p -n coder --add-dir '$inbox_root' --dangerously-skip-permissions"
-cmux send-key --surface <child> Enter
-```
-
-The child reads its task, does the work, writes its reply, wakes the parent, and the parent picks up seamlessly.
-
-> **On `--dangerously-skip-permissions`:** Headless agent sessions use this flag because no human is present to approve tool calls. This is the current pragmatic approach — if Claude Code adds a permissions profile or allowlist mechanism, prefer that instead.
-
-## Themes & Appearance
-
-```bash
-cmux themes list          # hundreds of themes (Ghostty-based)
+cmux themes list
 cmux themes set "Tokyo Night"
-cmux themes clear         # reset to default
+cmux themes clear
 ```
 
 Config: `~/Library/Application Support/com.cmuxterm.app/config.ghostty`
 
-## Integration with Other Skills
+## Integration With Other Skills
 
-When inside cmux (`$CMUX_WORKSPACE_ID` is set), other skills should use the sidebar:
+When inside cmux, other skills should update the sidebar:
 
 ```bash
-# Conditional cmux usage pattern
 if [ -n "$CMUX_WORKSPACE_ID" ]; then
   cmux set-status "phase" "running" --icon "bolt.fill"
   cmux rename-workspace "descriptive title"
 fi
 ```
 
-- **session-titles** → `cmux rename-workspace` to sync sidebar title
-- **agent-inbox** → repo-shared `.agents/inbox/` for structured cross-workspace messaging
-- **Any multi-step task** → `cmux set-progress` + `cmux log` for sidebar trail
+- `session-titles`: use `cmux rename-workspace`.
+- `agent-inbox`: use repo-shared `.agents/inbox/`.
+- Multi-step tasks: use `cmux set-progress` and `cmux log`.
 
 ## Quick Reference
 

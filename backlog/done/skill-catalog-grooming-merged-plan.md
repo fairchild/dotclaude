@@ -8,24 +8,25 @@ supersedes:
 
 # Skill Catalog Grooming — Merged Plan
 
-Consolidates `skill-coherence-cleanup-task-list` and `skill-context-optimization-plan` under ROADMAP priority #2. The two plans overlap on catalog hygiene but pull in different directions — one is taste-driven (coherence), the other is token-driven (context). Sequencing them under one arc avoids two passes through the same SKILL.md files.
+Consolidates `skill-coherence-cleanup-task-list` and `skill-context-optimization-plan` under the `skill-catalog-grooming` ROADMAP arc. The two plans overlap on catalog hygiene but pull in different directions — one is taste-driven (coherence), the other is token-driven (context). Sequencing them under one arc avoids two passes through the same SKILL.md files.
 
 ## What already shipped
 
 - **PR #182** (merged 2026-05-25) made `dotagents.toml` the single source of truth, wired a SessionStart drift hook, and removed the superpowers plugin. Dropped ~14 entries from the catalog — partial advance of what skill-context-optimization called "Phase 1: catalog reduction."
-- **PR #179** (merged 2026-05-25) executed the full skill-coherence cleanup: renamed `swiftui-expert-skill` → `swiftui-expert`, slimmed `chronicle` (745 → ~100 lines via `references/command-reference.md` extraction), promoted `skill-building` from experimental, added `experimental_reason` to skills kept experimental (ascii-art-fix, cloudflare-workers-deploy, ios-simulator, skill-seeker, vocal), and added cross-references between memory-adjacent skills. The coherence half of this arc is essentially complete — Phase 2 below collapses to leftovers.
+- **PR #179** (merged 2026-05-25) executed the full skill-coherence cleanup: renamed `swiftui-expert-skill` → `swiftui-expert`, slimmed `chronicle` (745 → ~100 lines via `references/command-reference.md` extraction), promoted `skill-building` from experimental, added `experimental_reason` to skills kept experimental (ascii-art-fix, cloudflare-workers-deploy, ios-simulator, skill-seeker, vocal), and added cross-references between memory-adjacent skills.
 - **PR #183** (merged 2026-05-25) shipped Phase 1: added `disable-model-invocation: true` to the explicit-only dotclaude-authored skills and removed `commands/update-dependencies.md`.
 - **PR #186** (merged 2026-05-25) trimmed more catalog surface by keeping `caveman` and `write-a-skill` installed in the ecosystem manifest while no longer linking them into the Claude catalog.
 - **PR #188** (merged 2026-05-25) folded the `/vocal` command loop into `skills/vocal/SKILL.md`, removed `commands/vocal.md`, and made `vocal` user-invocable only with `disable-model-invocation: true`.
+- **This closeout** resolves the remaining status decisions and slims `cmux-orchestrator` into references, leaving only optional future measurement work outside the health bar.
 
 ## Sequencing rationale
 
-PR #179 shipped the coherence pass in parallel with this merge work; it landed during rebase. PRs #183, #186, and #188 then completed the concrete catalog-reduction pieces. The remaining work is now a small closeout pass, not the original broad grooming plan.
+PR #179 shipped the coherence pass in parallel with this merge work. PRs #183, #186, and #188 then completed the concrete catalog-reduction pieces. This closeout resolves the remaining health decisions instead of reopening the original broad grooming plan.
 
 1. **Phase 1: disable-model-invocation** — shipped in PR #183, with `vocal` added in PR #188.
-2. **Phase 2: coherence leftovers** — narrowed to the `persona-memory` decision. `skills-manager` is already promoted in current main; no action remains there unless a future review finds a concrete reason to mark it experimental.
-3. **Phase 3: slim oversized SKILL.md** — only if a fresh `/context` measurement still shows skills as the dominant token bucket. With `chronicle` already slimmed and several skills removed from proactive catalog surfacing, measure before touching `cmux-orchestrator`.
-4. **Phase 4: plugin conversion** — likely unnecessary now that chronicle is small and Phase 1 shipped; only revisit if bug #16616 materially bites current context measurements.
+2. **Phase 2: coherence leftovers** — resolved: `persona-memory` stays healthy experimental and `skills-manager` is already promoted.
+3. **Phase 3: slim oversized SKILL.md** — completed for `cmux-orchestrator` as preventive health work.
+4. **Phase 4: plugin conversion** — closed as not currently justified.
 
 ## Scope notes
 
@@ -84,8 +85,8 @@ No duplicate command wrappers remain for these two workflows on current main.
 
 - [x] Explicit-only dotclaude-authored skills have `disable-model-invocation: true` after PR #183 and PR #188
 - [x] Duplicate command wrappers removed: `commands/update-dependencies.md` in PR #183 and `commands/vocal.md` in PR #188
-- [ ] Fresh `/context` measurement records the current post-PR #188 Skills token count
-- [ ] Spot-check explicit invocation for any workflow a future claim changes further
+
+Residual measurement: a fresh `/context` count can still be recorded later, but it is not part of this health closeout.
 
 ---
 
@@ -93,14 +94,9 @@ No duplicate command wrappers remain for these two workflows on current main.
 
 PR #179 shipped the bulk of this phase. Current main has `skills-manager` promoted, so only `persona-memory` remains.
 
-### 2a. `persona-memory` — promote or cancel?
+### 2a. `persona-memory` — keep experimental, explicitly healthy
 
-Still experimental after PR #188. The original context-optimization plan claimed it's "superseded by team-memory," but current `persona-memory` still describes a broader framework/profile layer around `~/.ai-memory`, while `team-memory` is the teammate-level memory surface. Either:
-- Promote (remove `status: experimental`) if it's a kept-distinct framework worth recommending
-- Keep experimental with a current `experimental_reason` if the framework is intentionally retained but still not ready for broad recommendation
-- Cancel or unlink if team-memory fully covers the real surface and persona-memory no longer earns catalog space
-
-Make this call before flagging it in any context-optimization pass.
+Decision: keep it distinct from `team-memory` and keep `metadata.status: experimental`. `persona-memory` is a reusable framework for profile/personality memory, while `team-memory` is teammate-level behavior memory. The skill is healthy enough to keep, but the experimental label remains honest because background memory agents and full interactive-session CI coverage are still missing.
 
 ### 2b. `skills-manager` — already promoted
 
@@ -108,14 +104,14 @@ Current main has no `metadata.status: experimental` on `skills/skills-manager/SK
 
 ### Acceptance
 
-- [ ] `persona-memory` promoted, kept experimental with current rationale, or cancelled/unlinked with reason
+- [x] `persona-memory` kept as a healthy experimental skill with explicit reason
 - [x] `skills-manager` promoted
 
 ---
 
 ## Phase 3 — slim oversized SKILL.md (conditional)
 
-Run only if a fresh `/context` after PRs #183, #186, and #188 still flags skills as the top token bucket.
+Completed as preventive health work because `cmux-orchestrator` was the lone first-load outlier.
 
 PR #179 already slimmed `chronicle` (745 → ~100 lines). The remaining oversized dotclaude-authored SKILL.md is:
 
@@ -127,21 +123,21 @@ Keep in SKILL.md: frontmatter, description, command summary table, key workflows
 
 ### Acceptance
 
-- [ ] `cmux-orchestrator` SKILL.md under 300 lines
-- [ ] No functionality lost — content moved to `references/`, not deleted
-- [ ] Skill still triggers correctly
+- [x] `cmux-orchestrator` SKILL.md under 300 lines
+- [x] No functionality lost — content moved to `references/`, not deleted
+- [x] Skill still triggers correctly
 
 ---
 
 ## Phase 4 — plugin conversion (likely unnecessary)
 
-Open this phase only if bug [#16616](https://github.com/anthropics/claude-code/issues/16616) (user skills loading full SKILL.md instead of frontmatter-only) is still active and showing up in `/context` measurements after Phases 1–3. With chronicle slimmed to ~100 lines (PR #179) and Phase 1's catalog reductions, the remaining surface area is small enough that plugin conversion's added complexity likely isn't justified. Don't pre-empt.
+Closed as not currently justified. With chronicle and cmux slimmed and explicit-only skills suppressed, plugin conversion adds complexity before evidence says it earns its place.
 
 ---
 
 ## Phase 5 — measure `SLASH_COMMAND_TOOL_CHAR_BUDGET` (parallelizable)
 
-Independent of the other phases. Test a lower budget cap (e.g., 8000) in a session, record what gets excluded, document the optimal value in `~/.ai-memory/shared/platform.md` if it earns its place.
+Optional future measurement, not part of catalog health. Test a lower budget cap (e.g., 8000) in a session, record what gets excluded, document the optimal value in `~/.ai-memory/shared/platform.md` if it earns its place.
 
 ---
 
@@ -165,5 +161,9 @@ All edits land via single PR. `git revert` the merge commit if Phase 1 over-supp
 - PR #183 — `chore(backlog): merge skill-catalog-grooming plans + ship Phase 1 disable-model-invocation`
 - PR #186 — `chore(dotagents): unlink caveman and write-a-skill from claude catalog`
 - PR #188 — `chore(vocal): fold /vocal loop into skill, make user-invocable only`
-- ROADMAP priority #2 — skill-catalog-grooming
+- ROADMAP arc — skill-catalog-grooming
 - Open Claude Code issues (catalog mechanics): #16616, #14882, #13919, #4464, #17601, #18840, #24243
+
+---
+
+- 2026-05-25T23:27:44Z advanced to=done | skill catalog health pass complete: stale fork followup removed, persona-memory kept as healthy experimental, skills-manager confirmed promoted, cmux-orchestrator slimmed into references, and ROADMAP updated from first dogfood to stabilization
