@@ -27,12 +27,12 @@ No shell, no `gh` CLI. Tools hit `api.github.com` directly; the egress layer inj
 
 ## Setup
 
-Prerequisites: the runtime is deployed (see [`../../README.md`](../../README.md)), an Anthropic API key is available locally.
+Prerequisites: the runtime is deployed (see [`../../README.md`](../../README.md)), and `ANTHROPIC_API_KEY` lives in `~/.env` (or wherever `OPS_ENV_FILE` points). The key never crosses into the worker — it stays developer-side, read at script invocation.
 
 ```bash
 cd managed-agents/cloudflare/agents/pr-review
-export ANTHROPIC_API_KEY=sk-ant-...
 ./register.sh                                      # prints agent_id on success
+# equivalent to: bun ../../scripts/ops.ts agent register --dir agents/pr-review
 ```
 
 Then edit `.github/workflows/dotclaude-pr-review.yml` and paste the printed `agent_id` and the environment id from your deployed runtime. Add these as repo secrets/vars:

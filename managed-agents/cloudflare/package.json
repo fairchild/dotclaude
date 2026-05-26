@@ -11,6 +11,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "smoke": "bun scripts/smoke.ts",
+    "ops": "bun scripts/ops.ts",
+    "bootstrap": "./scripts/bootstrap-dev-vars.sh",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {

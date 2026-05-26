@@ -44,44 +44,34 @@ cloudflare/
 ├── agents/
 │   └── pr-review/            the first deployed agent
 ├── tests/                    vitest covering the deterministic surface
-├── scripts/                  setup helpers
+├── scripts/                  bootstrap, ops, smoke
 └── docs/                     architecture + how-tos
 ```
 
-## Quick deploy (scaffold only)
+## Two trust zones
 
-You can deploy V1 today; the worker accepts webhooks and routes email, but sessions will be claimed-then-stopped until the runner body lands. Useful for confirming the deploy path, secrets, KV bindings, and Email Routing setup.
+Two kinds of credential, two homes:
 
-```bash
-cd managed-agents/cloudflare
-bun install
-wrangler login                                    # if not already
-./scripts/setup.sh                                # creates KV namespaces, prints binding ids
-```
+| Key | Scope | Lives in | Used by |
+|---|---|---|---|
+| `ANTHROPIC_API_KEY` | Organization-wide | `~/.env` (or wherever `OPS_ENV_FILE` points) | Developer-side ops scripts only (`scripts/ops.ts`, `register.sh`, GH Action). **Never** the worker. |
+| `ANTHROPIC_ENVIRONMENT_KEY` | One environment | `.dev.vars` (dev) / `wrangler secret` (prod) | The worker — authorizes `/work/*` endpoints |
+| `ANTHROPIC_WEBHOOK_SIGNING_KEY` | One webhook subscription | `.dev.vars` (dev) / `wrangler secret` (prod) | The worker — verifies inbound webhook HMAC |
+| `ANTHROPIC_ENVIRONMENT_ID` | Identifier | `.dev.vars` / wrangler vars | The worker |
 
-Then, manually:
-1. In the Anthropic console: create a self-hosted environment, generate the environment key
-2. `wrangler secret put ANTHROPIC_ENVIRONMENT_ID`
-3. `wrangler secret put ANTHROPIC_ENVIRONMENT_KEY`
-4. `wrangler secret put ANTHROPIC_WEBHOOK_SIGNING_KEY`
-5. `wrangler deploy`
-6. In the Anthropic console: add `https://<your-worker>.workers.dev/webhooks` as a webhook subscription for session events
-7. In the Cloudflare dashboard: enable Email Routing on a domain, point a catch-all (e.g. `agent-*@yourdomain`) at the worker's email handler
-
-To deploy the PR review agent on top (see [`agents/pr-review/README.md`](./agents/pr-review/README.md) for full instructions):
-
-```bash
-cd agents/pr-review
-./register.sh                                     # POST agent.json, prints agent_id
-# paste agent_id and env_id into .github/workflows/dotclaude-pr-review.yml
-# add the GitHub egress policy + token (see the pr-review README)
-```
+The split matters: anything readable by the worker is readable by the agent's tool calls, which is exactly what the egress layer exists to police. Keeping the org key off the worker host is the same principle applied at the credential boundary.
 
 ## Local development
 
+First-time setup writes the three env-scoped values into `.dev.vars` interactively:
+
 ```bash
-cp .dev.vars.example .dev.vars
-# fill in real values for ANTHROPIC_ENVIRONMENT_KEY etc.
+bun run bootstrap                                 # walks you through env id + console-only keys
+```
+
+Then iterate:
+
+```bash
 bun run dev                                       # wrangler dev (port 8787)
 bun run test                                      # vitest (42 tests)
 bun run typecheck                                 # tsc --noEmit
@@ -100,6 +90,48 @@ bun run smoke
 ```
 
 `scripts/smoke.ts` signs a payload against the `ANTHROPIC_WEBHOOK_SIGNING_KEY` in your `.dev.vars`, posts it to the dev server, and asserts the response shape. Confirms wrangler boots cleanly, KV bindings resolve under miniflare, `standardwebhooks` verifies in the real workerd runtime, and `ctx.waitUntil` invokes `runSession` (you'll see a `session.runtime_error` log when its outbound call to the fake Anthropic API fails — that's expected and proves the code path ran).
+
+## Platform operations
+
+```bash
+bun run ops env list                              # GET /v1/environments
+bun run ops env create [name]                     # POST /v1/environments
+bun run ops env show <id>                         # GET /v1/environments/<id>
+bun run ops agent register [--dir agents/pr-review]
+bun run ops session create --agent <id> --env-id <id> [--metadata @file.json]
+bun run ops work stats --env-id <id>
+```
+
+Reads `ANTHROPIC_API_KEY` from `~/code/dotclaude/.env` → `~/.env` (or `$OPS_ENV_FILE`) at invocation. Never writes to `.dev.vars`.
+
+## Quick deploy (scaffold only)
+
+You can deploy V1 today; the worker accepts webhooks and routes email, but sessions will be claimed-then-stopped until the runner body lands. Useful for confirming the deploy path, secrets, KV bindings, and Email Routing setup.
+
+```bash
+cd managed-agents/cloudflare
+bun install
+wrangler login                                    # if not already
+./scripts/setup.sh                                # creates KV namespaces, prints binding ids
+```
+
+Then, manually:
+1. `bun run ops env create dotclaude` — creates a self-hosted environment, prints the env_id
+2. In the Anthropic console: open the environment → **Generate environment key**
+3. In the Anthropic console under Webhooks: subscribe `https://<your-worker>.workers.dev/webhooks` to session events; copy the signing key
+4. `wrangler secret put ANTHROPIC_ENVIRONMENT_ID` (from step 1)
+5. `wrangler secret put ANTHROPIC_ENVIRONMENT_KEY` (from step 2)
+6. `wrangler secret put ANTHROPIC_WEBHOOK_SIGNING_KEY` (from step 3)
+7. `wrangler deploy`
+8. In the Cloudflare dashboard: enable Email Routing on a domain, point a catch-all (e.g. `agent-*@yourdomain`) at the worker's email handler
+
+To deploy the PR review agent on top (see [`agents/pr-review/README.md`](./agents/pr-review/README.md) for full instructions):
+
+```bash
+bun run ops agent register                        # equivalent to ./agents/pr-review/register.sh
+# paste agent_id and env_id into .github/workflows/dotclaude-pr-review.yml
+# add the GitHub egress policy + token (see the pr-review README)
+```
 
 ## Docs
 
