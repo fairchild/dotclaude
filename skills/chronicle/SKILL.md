@@ -36,7 +36,7 @@ Use them like this:
 | Curated memory | `/chronicle curate` | Invoke the curator agent for a richer block instead of doing a thin capture. |
 | Session closeout | `/chronicle wrapup` | Run deliberate closeout: curate, inspect unresolved work, and update backlog only when warranted. |
 | Narrative recap | `/chronicle recap` | Generate a multi-session narrative, cross-checking git and blocks. |
-| Search/read | `/chronicle search`, `blocks`, `stale`, `resolve` | Use the matching script and report exact matches or resolution state. |
+| Search/read | `/chronicle search`, `/chronicle blocks`, `/chronicle stale`, `/chronicle resolve` | Use the matching script and report exact matches or resolution state. |
 | Publish/UI | `/chronicle publish`, `ui`, `dev` | Use the docs/scripts only when the user asks for exported or browser views. |
 | Summaries | `/chronicle summarize` | Generate time-bucketed AI summaries for human consumption. |
 
