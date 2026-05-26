@@ -276,21 +276,22 @@ export interface ExtractionResult {
 /**
  * Call Haiku to analyze the session.
  */
-const HAIKU_MODEL = "claude-haiku-4-5-20251001";
+const DEFAULT_HAIKU_MODEL = "claude-haiku-4-5-20251001";
 
 async function callHaiku(prompt: string): Promise<ExtractionResult | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
+  const model = process.env.CHRONICLE_EXTRACT_MODEL || DEFAULT_HAIKU_MODEL;
   if (!apiKey) {
     dbg("callHaiku: ANTHROPIC_API_KEY absent → returning null (fallback path)");
     return null;
   }
-  dbg("callHaiku: key present, model=", HAIKU_MODEL, "prompt-bytes=", prompt.length);
+  dbg("callHaiku: key present, model=", model, "prompt-bytes=", prompt.length);
 
   let res;
   try {
     const client = new Anthropic({ apiKey });
     res = await client.messages.create({
-      model: HAIKU_MODEL,
+      model,
       max_tokens: 800,
       messages: [{ role: "user", content: prompt }],
     });
@@ -307,16 +308,28 @@ async function callHaiku(prompt: string): Promise<ExtractionResult | null> {
     return null;
   }
 
-  let jsonStr = text.text.trim();
-  if (jsonStr.startsWith("```")) {
-    jsonStr = jsonStr.replace(/^```json?\n?/, "").replace(/\n?```$/, "");
+  try {
+    return parseExtractionJson(text.text);
+  } catch (err) {
+    dbg("callHaiku: JSON.parse failed:", (err as Error).message, "raw-prefix=", text.text.slice(0, 200));
+    return null;
   }
+}
+
+export function parseExtractionJson(response: string): ExtractionResult {
+  const trimmed = response.trim();
+  const fenced = trimmed.match(/^```(?:json|JSON)?\s*([\s\S]*?)\s*```$/);
+  const jsonStr = fenced ? fenced[1].trim() : trimmed;
 
   try {
     return JSON.parse(jsonStr);
-  } catch (err) {
-    dbg("callHaiku: JSON.parse failed:", (err as Error).message, "raw-prefix=", jsonStr.slice(0, 200));
-    return null;
+  } catch (firstError) {
+    const objectStart = jsonStr.indexOf("{");
+    const objectEnd = jsonStr.lastIndexOf("}");
+    if (objectStart !== -1 && objectEnd > objectStart) {
+      return JSON.parse(jsonStr.slice(objectStart, objectEnd + 1));
+    }
+    throw firstError;
   }
 }
 
@@ -377,10 +390,13 @@ export async function extractChronicleBlock(
   const ctx = extractSessionContext(transcriptPath, cwd);
   dbg("extractChronicleBlock: ctx", {
     project: ctx.projectName,
+    worktree: ctx.worktreeName,
     branch: ctx.gitBranch,
     messageCount: ctx.messageCount,
+    userMessages: ctx.userMessages.length,
     filesModified: ctx.filesModified.length,
     actions: ctx.assistantActions.length,
+    tools: Array.from(ctx.toolsUsed).sort(),
     transcriptPath,
     transcriptExists: existsSync(transcriptPath),
   });
@@ -393,7 +409,9 @@ export async function extractChronicleBlock(
 
   // Extract via Haiku or use fallback
   const prompt = buildExtractionPrompt(ctx);
-  const extracted = await callHaiku(prompt) || fallbackEntry(ctx);
+  const haikuResult = await callHaiku(prompt);
+  dbg("extractChronicleBlock: source=", haikuResult ? "haiku" : "fallback");
+  const extracted = haikuResult || fallbackEntry(ctx);
 
   // Build pendingThreads map from threadGroup if present
   let pendingThreads: Record<string, string> | undefined;
