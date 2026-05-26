@@ -35,12 +35,23 @@ export async function handleWebhook(req: Request, env: Env, ctx: ExecutionContex
     return text("signature verification failed", { status: 401 });
   }
 
-  if (event.type !== "session.status_run_started") {
-    log("info", "webhook.ignored", { type: event.type });
-    return json({ status: "ignored", type: event.type });
+  // Anthropic delivers webhooks in a Standard Webhooks envelope:
+  //   { type: "event", id, created_at, data: { type, id, organization_id, workspace_id } }
+  // The session-specific event type lives at event.data.type, and the
+  // session id is event.data.id (not data.session_id).
+  const ev = event as { type: string; data: { type: string; id: string } };
+  const sessionType = ev.data?.type;
+  const sessionId = ev.data?.id;
+
+  if (sessionType !== "session.status_run_started") {
+    log("info", "webhook.ignored", { type: sessionType });
+    return json({ status: "ignored", type: sessionType });
   }
 
-  const sessionId = (event as SessionStartedEvent).data.session_id;
+  if (!sessionId) {
+    log("warn", "webhook.no_session_id");
+    return json({ status: "missing_session_id" });
+  }
   ctx.waitUntil(runSession(env, sessionId).catch((err) => {
     log("error", "session.runtime_error", { sessionId, error: String(err) });
   }));
