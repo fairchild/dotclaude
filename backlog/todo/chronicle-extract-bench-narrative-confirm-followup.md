@@ -11,52 +11,66 @@ dependencies:
 
 ## Problem Statement
 
-The HAIKU_MODEL bump (`claude-3-5-haiku-20241022` → `claude-haiku-4-5-20251001`) shipped in the Haiku-fix followup. End-to-end smoke test on a single real transcript produced a non-fallback block — but `extract-bench.ts` still reports `narrative: 0` because:
+The HAIKU_MODEL bump (`claude-3-5-haiku-20241022` → `claude-haiku-4-5-20251001`) shipped in the Haiku-fix followup. End-to-end smoke test on a single real transcript produced a non-fallback block, and organic SessionEnd data has now accumulated enough to test the population-level result.
 
-1. Only one post-fix block exists; sample is too small.
-2. The single sample happened to hit the classifier's `curator` threshold (`accLen >= 5 && challLen >= 1 && stepLen >= 2`), so it landed in the curator bucket rather than narrative. Lighter-weight sessions should produce narrative-class blocks naturally.
+Current evidence from 2026-05-26:
 
-This task confirms the fix at population level once organic SessionEnd activity has accumulated.
+- Full bench: `196` blocks, `159` fallback, `1` narrative, `36` curator, `0` thin-other, 30-day fallback ratio `0.662`.
+- Post-bump sample (`timestamp >= 2026-05-25T16:48:10Z`, commit `b5dc864`): `10` blocks, `8` fallback, `1` curator, `1` narrative.
+
+The original wait condition is satisfied, and the narrative bucket is no longer zero. But the expected ratio shift did not happen: most post-fix SessionEnd blocks still fall back to file-list summaries. Updating `extract-bench-baseline.json` now would bless the bad state. This task is now a diagnosis pass: explain why post-fix SessionEnd still falls back most of the time, then either fix the narrow cause or leave a sharper follow-up.
 
 ## Phases
 
-### Phase 1: Wait + count
-
-Let the fix ride for at least 5 real SessionEnd runs in the dotclaude/chengdu worktree (or any worktree where the fix is deployed). No work required during the wait — chronicle blocks accumulate on their own.
-
-After ≥5 post-fix blocks exist (filter by `timestamp >= b5dc864`'s commit time), run:
+### Phase 1: Reproduce the current measurement
 
 ```bash
 bun ~/.claude/skills/chronicle/scripts/extract-bench.ts
 ```
 
 **Acceptance:**
-- [ ] At least 5 SessionEnd blocks dated after the HAIKU_MODEL bump commit exist in `~/.claude/chronicle/blocks/`
-- [ ] `narrative` bucket > 0 in the bench report (or, if all post-fix blocks classify as curator-grade, document the surprise and either lower the curator threshold or rename the buckets)
+- [ ] At least 5 SessionEnd blocks dated after the HAIKU_MODEL bump commit exist in `~/.claude/chronicle/blocks/`.
+- [ ] The report still shows `narrative > 0`.
+- [ ] The post-bump fallback ratio is calculated and recorded before changing code or baseline.
 
-### Phase 2: Update baseline
+### Phase 2: Diagnose the fallback path
+
+Inspect at least three post-bump fallback blocks and identify which path caused fallback:
+
+- missing or unavailable `ANTHROPIC_API_KEY` in the hook environment
+- non-substantive transcript/action shape that should stay heuristic
+- stale or missing transcript path
+- Anthropic API error
+- JSON parse failure
+- hook deployment gap where the updated extractor was not actually running
+
+Use `CHRONICLE_DEBUG=1` on a recent real transcript where possible. If the transcript is not available, record that as evidence rather than guessing.
+
+**Acceptance:**
+- [ ] At least three post-bump fallback blocks have a documented cause or best-supported cause.
+- [ ] The leading root cause is named with evidence.
+- [ ] If the fix is narrow, implement it with a regression test.
+- [ ] If the fix is not narrow, create a sharper follow-up task and mark this one done-with-followup.
+
+### Phase 3: Update baseline only after the diagnosis
+
+Only run:
 
 ```bash
 bun ~/.claude/skills/chronicle/scripts/extract-bench.ts --write-baseline
 ```
 
-Inspect the resulting `extract-bench-baseline.json` diff. Expected direction:
-
-- `fallback` ratio drops noticeably (was 0.649 30-day, should fall as new blocks shift the average)
-- `narrative` count > 0
-- `curator` count grows alongside narrative
-
-Commit the new baseline so future regressions are visible in PR diffs.
+after the diagnosis either improves the fallback ratio or intentionally changes the classifier/measurement design. Inspect the resulting `extract-bench-baseline.json` diff before committing.
 
 **Acceptance:**
-- [ ] `extract-bench-baseline.json` updated and committed
-- [ ] Commit message names the model bump as the cause of the shift
+- [ ] `extract-bench-baseline.json` is updated only after the ratio shift is explained.
+- [ ] Commit message names the actual cause, not just the model bump.
 
 ### Out of scope
 
-- Reclassifying high-density Haiku outputs out of the `curator` bucket (a separate measurement-design task if it surfaces as misleading).
 - Backfilling historical fallback blocks (original parent task's out-of-scope; still out of scope here).
 - Removing the `CHRONICLE_DEBUG=1` instrumentation (kept in place — cheap and silent).
+- Broad extractor redesign or a Sonnet tier unless Phase 2 proves the current Haiku path is working as designed and still insufficient.
 
 ## References
 
@@ -64,5 +78,6 @@ Commit the new baseline so future regressions are visible in PR diffs.
 - `skills/chronicle/scripts/extract-bench.ts` — measurement instrument
 - `skills/chronicle/scripts/extract-bench-baseline.json` — current baseline (pre-fix)
 - Commit b5dc864 — model bump
+- 2026-05-26 follow-up read — full bench `fallback 159 / narrative 1 / curator 36`, post-bump sample `8 fallback / 1 curator / 1 narrative`
 
 ---
