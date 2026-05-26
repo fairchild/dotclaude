@@ -153,6 +153,109 @@ def write_fixture(home: Path) -> Path:
     return session_file
 
 
+def write_codex_fixture(home: Path) -> tuple[str, Path]:
+    session_id = "019e6296-7f0f-7090-8572-a48ddfa5d34a"
+    codex_home = home / ".codex"
+    session_dir = codex_home / "sessions" / "2026" / "05" / "26"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    session_file = session_dir / f"rollout-2026-05-26T00-00-00-{session_id}.jsonl"
+    cwd = "/Users/fairchild/.worktrees/dotclaude/codex-import"
+    entries = [
+        {
+            "timestamp": "2026-05-26T00:00:00.000Z",
+            "type": "session_meta",
+            "payload": {
+                "id": session_id,
+                "timestamp": "2026-05-26T00:00:00.000Z",
+                "cwd": cwd,
+                "source": "cli",
+                "originator": "codex_cli_rs",
+                "cli_version": "1.0.0",
+                "model_provider": "openai",
+                "git": {
+                    "branch": "feature/codex",
+                    "commit_hash": "abc123",
+                    "repository_url": "https://github.com/fairchild/dotclaude.git",
+                },
+            },
+        },
+        {
+            "timestamp": "2026-05-26T00:00:01.000Z",
+            "type": "turn_context",
+            "payload": {
+                "cwd": cwd,
+                "model": "gpt-5-codex",
+                "effort": "medium",
+            },
+        },
+        {
+            "timestamp": "2026-05-26T00:00:02.000Z",
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "developer",
+                "content": [{"type": "input_text", "text": "developer policy"}],
+            },
+        },
+        {
+            "timestamp": "2026-05-26T00:00:03.000Z",
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": "show status"}],
+            },
+        },
+        {
+            "timestamp": "2026-05-26T00:00:04.000Z",
+            "type": "response_item",
+            "payload": {
+                "type": "function_call",
+                "name": "exec_command",
+                "arguments": json.dumps({"cmd": "pwd", "workdir": cwd}),
+            },
+        },
+        {
+            "timestamp": "2026-05-26T00:00:05.000Z",
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "working tree clean"}],
+            },
+        },
+        {
+            "timestamp": "2026-05-26T00:00:06.000Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "token_count",
+                "info": {
+                    "last_token_usage": {
+                        "input_tokens": 10,
+                        "cached_input_tokens": 2,
+                        "output_tokens": 5,
+                        "reasoning_output_tokens": 1,
+                        "total_tokens": 15,
+                    },
+                    "model_context_window": 258400,
+                },
+            },
+        },
+    ]
+    session_file.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+    (codex_home / "session_index.jsonl").write_text(
+        json.dumps(
+            {
+                "id": session_id,
+                "thread_name": "fixture thread",
+                "updated_at": "2026-05-26T00:00:07.000Z",
+            }
+        )
+        + "\n"
+    )
+    return session_id, session_file
+
+
 def create_legacy_db(db_path: Path) -> None:
     sql = """
 CREATE TABLE claude_tools (
@@ -290,6 +393,60 @@ def test_standalone_script_bootstraps_schema() -> None:
         assert installed_schema.exists()
 
 
+@test("reload imports Codex transcripts")
+def test_reload_imports_codex_transcripts() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_id, _session_file = write_codex_fixture(home)
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        result = run([str(SCRIPT_PATH), "reload"], env=env)
+        assert_ok(result)
+
+        codex_tools = duckdb_query(
+            db_path,
+            "SELECT tool_name, context, repo_name, worktree_branch FROM codex_tools;",
+        )
+        assert codex_tools == ["exec_command,pwd,dotclaude,codex-import"], codex_tools
+
+        codex_messages = duckdb_query(
+            db_path,
+            "SELECT role, harness, interface, repo_name FROM messages "
+            "WHERE harness='codex' ORDER BY role;",
+        )
+        assert codex_messages == [
+            "assistant,codex,NULL,dotclaude",
+            "user,codex,NULL,dotclaude",
+        ], codex_messages
+
+        codex_metadata = duckdb_query(
+            db_path,
+            "SELECT thread_name, git_branch, tool_count FROM codex_sessions;",
+        )
+        assert codex_metadata == ["fixture thread,feature/codex,1"], codex_metadata
+
+        token_counts = duckdb_query(
+            db_path,
+            "SELECT input_tokens, cached_input_tokens, output_tokens, total_tokens "
+            "FROM codex_token_counts;",
+        )
+        assert token_counts == ["10,2,5,15"], token_counts
+
+        developer_messages = duckdb_query(
+            db_path,
+            "SELECT content FROM codex_developer_messages;",
+        )
+        assert developer_messages == ["developer policy"], developer_messages
+
+        overview = duckdb_query(
+            db_path,
+            f"SELECT summary, git_branch FROM session_overview WHERE session_id='{session_id}';",
+        )
+        assert overview == ["fixture thread,feature/codex"], overview
+
+
 @test("update upgrades legacy table order safely")
 def test_update_legacy_db_upgrade() -> None:
     with tempfile.TemporaryDirectory() as tmp:
@@ -374,6 +531,7 @@ def main() -> None:
     tests = [
         test_reload_bootstraps_schema,
         test_standalone_script_bootstraps_schema,
+        test_reload_imports_codex_transcripts,
         test_update_legacy_db_upgrade,
         test_update_legacy_db_no_change_migration,
     ]

@@ -732,9 +732,51 @@ END;" 2>/dev/null || echo "0"
 
 ensure_current_tables() {
     duckdb "$DB_PATH" << 'ENSURE'
+CREATE TABLE IF NOT EXISTS claude_tools (
+    timestamp TIMESTAMP,
+    session_id VARCHAR,
+    project_dir VARCHAR,
+    model VARCHAR,
+    tool_name VARCHAR,
+    context VARCHAR,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    cache_write_tokens INTEGER,
+    cache_read_tokens INTEGER,
+    repo_name VARCHAR,
+    worktree_branch VARCHAR,
+    is_worktree BOOLEAN,
+    interface VARCHAR,
+    source_file VARCHAR
+);
+CREATE TABLE IF NOT EXISTS messages (
+    uuid VARCHAR,
+    parent_uuid VARCHAR,
+    session_id VARCHAR,
+    role VARCHAR,
+    harness VARCHAR,
+    interface VARCHAR,
+    model VARCHAR,
+    content VARCHAR,
+    thinking VARCHAR,
+    timestamp TIMESTAMP,
+    project_dir VARCHAR,
+    git_branch VARCHAR,
+    repo_name VARCHAR,
+    worktree_branch VARCHAR,
+    is_worktree BOOLEAN,
+    is_sidechain BOOLEAN,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    cache_write_tokens INTEGER,
+    cache_read_tokens INTEGER,
+    tool_use_count INTEGER,
+    source_file VARCHAR
+);
 CREATE TABLE IF NOT EXISTS system_events (uuid VARCHAR PRIMARY KEY, session_id VARCHAR, subtype VARCHAR, timestamp TIMESTAMP, project_dir VARCHAR, git_branch VARCHAR, duration_ms INTEGER, version VARCHAR, is_sidechain BOOLEAN, source_file VARCHAR, repo_name VARCHAR);
 CREATE TABLE IF NOT EXISTS queue_operations (session_id VARCHAR, timestamp TIMESTAMP, operation VARCHAR, content VARCHAR, source_file VARCHAR);
 CREATE TABLE IF NOT EXISTS pr_links (session_id VARCHAR, timestamp TIMESTAMP, pr_number INTEGER, pr_url VARCHAR, pr_repository VARCHAR, source_file VARCHAR);
+CREATE TABLE IF NOT EXISTS _sessions_index (session_id VARCHAR PRIMARY KEY, project_path VARCHAR, first_prompt VARCHAR, summary VARCHAR, message_count INTEGER, git_branch VARCHAR, created_at TIMESTAMP, modified_at TIMESTAMP);
 CREATE TABLE IF NOT EXISTS _loaded_files (file_path VARCHAR PRIMARY KEY, mtime_ns BIGINT, loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS codex_session_index (session_id VARCHAR PRIMARY KEY, thread_name VARCHAR, updated_at TIMESTAMP, source_file VARCHAR);
 CREATE TABLE IF NOT EXISTS codex_session_meta (session_id VARCHAR PRIMARY KEY, started_at TIMESTAMP, project_dir VARCHAR, repo_name VARCHAR, worktree_branch VARCHAR, is_worktree BOOLEAN, source VARCHAR, originator VARCHAR, cli_version VARCHAR, model_provider VARCHAR, git_branch VARCHAR, git_sha VARCHAR, git_origin_url VARCHAR, source_file VARCHAR);
@@ -819,13 +861,15 @@ EOF
 # ============================================================================
 
 emit_tracked_files() {
-    find "$CLAUDE_PROJECTS" -name "*.jsonl" -print0 2>/dev/null | while IFS= read -r -d '' f; do
-        local mtime_ns
-        mtime_ns=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo "0")
-        # Convert to nanoseconds (stat gives seconds on macOS)
-        mtime_ns=$((mtime_ns * 1000000000))
-        printf '%s,%s\n' "$f" "$mtime_ns"
-    done
+    if [ -d "$CLAUDE_PROJECTS" ]; then
+        find "$CLAUDE_PROJECTS" -name "*.jsonl" -print0 2>/dev/null | while IFS= read -r -d '' f; do
+            local mtime_ns
+            mtime_ns=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo "0")
+            # Convert to nanoseconds (stat gives seconds on macOS)
+            mtime_ns=$((mtime_ns * 1000000000))
+            printf '%s,%s\n' "$f" "$mtime_ns"
+        done
+    fi
 
     if [ -n "$CURSOR_WORKSPACE" ] && [ -d "$CURSOR_WORKSPACE" ]; then
         find "$CURSOR_WORKSPACE" \( -name "state.vscdb" -o -name "workspace.json" \) -print0 2>/dev/null | while IFS= read -r -d '' f; do
@@ -2739,6 +2783,7 @@ EOF
 
     ensure_reference_schema
     ensure_cursor_tables
+    ensure_current_tables
     load_claude_data
     load_claude_messages
     load_system_events
