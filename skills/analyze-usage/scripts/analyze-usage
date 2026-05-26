@@ -1,7 +1,7 @@
 #!/bin/bash
 # analyze-usage - Unified usage analyzer for AI coding assistants
 #
-# Loads Claude Code and Cursor logs into a persistent DuckDB database
+# Loads Claude Code, Codex, and Cursor logs into a persistent DuckDB database
 # for analysis via SQL queries.
 #
 # Usage:
@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-VERSION="1.2.2"
+VERSION="1.3.0"
 
 # ============================================================================
 # Configuration
@@ -45,6 +45,11 @@ esac
 
 CURSOR_WORKSPACE="${CURSOR_BASE:+$CURSOR_BASE/workspaceStorage}"
 
+CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
+CODEX_SESSIONS_DIR="$CODEX_HOME_DIR/sessions"
+CODEX_ARCHIVED_DIR="$CODEX_HOME_DIR/archived_sessions"
+CODEX_SESSION_INDEX_FILE="$CODEX_HOME_DIR/session_index.jsonl"
+
 # ============================================================================
 # Prerequisite checks
 # ============================================================================
@@ -70,9 +75,9 @@ show_help() {
 analyze-usage - Unified usage analyzer for AI coding assistants
 
 DESCRIPTION
-    Loads conversation and tool usage logs from Claude Code and Cursor into a
+    Loads conversation and tool usage logs from Claude Code, Codex, and Cursor into a
     persistent DuckDB database. Enables SQL-based analysis of AI coding patterns
-    across both tools.
+    across all three tools.
 
 USAGE
     analyze-usage                     Auto-detect changes, update, show summary
@@ -118,10 +123,19 @@ ENVIRONMENT VARIABLES
     CLAUDE_PROJECTS_DIR     Path to Claude Code projects directory
                             Default: ~/.claude/projects
 
+    CODEX_HOME              Path to Codex home directory
+                            Default: ~/.codex
+
 DATA SOURCES
     Claude Code     ~/.claude/projects/*/*.jsonl
                     Contains: tool invocations, messages, token usage,
                     system events, queue operations, PR links
+
+    Codex           ~/.codex/sessions/**/*.jsonl
+                    ~/.codex/archived_sessions/*.jsonl
+                    ~/.codex/session_index.jsonl
+                    Contains: tool calls, user/assistant messages,
+                    turn token counts, developer prompts, thread titles
 
     Cursor          ~/Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb
                     Contains: prompts, chat history, composer sessions
@@ -136,7 +150,7 @@ EXAMPLES
     # Count tool usage by type
     analyze-usage query "SELECT tool_name, COUNT(*) FROM claude_tools GROUP BY 1 ORDER BY 2 DESC"
 
-    # Daily usage across both tools
+    # Daily usage across all tools
     analyze-usage query "SELECT * FROM daily_summary ORDER BY date DESC LIMIT 14"
 
     # Search conversation content
@@ -286,7 +300,7 @@ COLUMNS:
 ================================================================================
 TABLE: messages
 ================================================================================
-Conversation content from Claude Code and Cursor. Each row represents one
+Conversation content from Claude Code, Codex, and Cursor. Each row represents one
 message turn (user or assistant) with extracted text and thinking content.
 
 COLUMNS:
@@ -294,7 +308,7 @@ COLUMNS:
     parent_uuid     VARCHAR     For conversation threading
     session_id      VARCHAR     Session identifier
     role            VARCHAR     'user' or 'assistant'
-    harness         VARCHAR     'claude_code' or 'cursor'
+    harness         VARCHAR     'claude_code', 'codex', or 'cursor'
     interface       VARCHAR     Wrapper/interface when detectable
     model           VARCHAR     Model used (NULL for user messages)
     content         VARCHAR     User-facing text (concatenated text blocks)
@@ -446,25 +460,110 @@ COLUMNS:
     db_path         VARCHAR     Path to state.vscdb file
 
 ================================================================================
+TABLE: codex_session_index
+================================================================================
+Thread titles from Codex session_index.jsonl.
+
+COLUMNS:
+    session_id      VARCHAR     Codex session / thread identifier
+    thread_name     VARCHAR     Current thread title
+    updated_at      TIMESTAMP   Last title update timestamp
+    source_file     VARCHAR     Source session_index.jsonl path
+
+================================================================================
+TABLE: codex_session_meta
+================================================================================
+Session-level metadata from Codex session_meta records.
+
+COLUMNS:
+    session_id      VARCHAR     Codex session identifier
+    started_at      TIMESTAMP   Session start timestamp
+    project_dir     VARCHAR     Working directory
+    repo_name       VARCHAR     Repository name
+    worktree_branch VARCHAR     Branch name if worktree
+    is_worktree     BOOLEAN     TRUE if worktree path
+    source          VARCHAR     Codex source ('cli', 'vscode', etc.)
+    originator      VARCHAR     Codex originator string
+    cli_version     VARCHAR     Codex version
+    model_provider  VARCHAR     Model provider
+    git_branch      VARCHAR     Git branch from session metadata
+    git_sha         VARCHAR     Git commit from session metadata
+    git_origin_url  VARCHAR     Git remote URL
+    source_file     VARCHAR     Source transcript path
+
+================================================================================
+TABLE: codex_tools
+================================================================================
+Tool invocations extracted from Codex response_item records.
+
+COLUMNS:
+    timestamp       TIMESTAMP   When the tool was invoked
+    session_id      VARCHAR     Codex session identifier
+    project_dir     VARCHAR     Working directory
+    model           VARCHAR     Latest model seen in turn context for the session
+    tool_name       VARCHAR     Tool name (exec_command, apply_patch, etc.)
+    context         VARCHAR     Parsed command / path / raw argument preview
+    repo_name       VARCHAR     Repository name
+    worktree_branch VARCHAR     Branch name if worktree
+    is_worktree     BOOLEAN     TRUE if worktree path
+    source_file     VARCHAR     Source transcript path
+
+================================================================================
+TABLE: codex_token_counts
+================================================================================
+Per-turn token usage snapshots from Codex token_count events.
+
+COLUMNS:
+    timestamp               TIMESTAMP   When the token event was emitted
+    session_id              VARCHAR     Codex session identifier
+    project_dir             VARCHAR     Working directory
+    model                   VARCHAR     Latest model seen for the session
+    reasoning_effort        VARCHAR     Latest reasoning effort seen
+    input_tokens            BIGINT      Last-turn input tokens
+    cached_input_tokens     BIGINT      Last-turn cached input tokens
+    output_tokens           BIGINT      Last-turn output tokens
+    reasoning_output_tokens BIGINT      Last-turn reasoning tokens
+    total_tokens            BIGINT      Last-turn total tokens
+    model_context_window    BIGINT      Context window size
+    source_file             VARCHAR     Source transcript path
+
+================================================================================
+TABLE: codex_developer_messages
+================================================================================
+Developer-role instruction payloads from Codex transcripts. These are stored
+separately so they remain queryable without polluting default conversation
+search and message counts.
+
+COLUMNS:
+    session_id      VARCHAR     Codex session identifier
+    timestamp       TIMESTAMP   When the developer message appeared
+    project_dir     VARCHAR     Working directory
+    model           VARCHAR     Latest model seen for the session
+    content         VARCHAR     Full developer instruction text
+    source_file     VARCHAR     Source transcript path
+
+================================================================================
 VIEW: daily_summary
 ================================================================================
-Aggregated daily usage across both tools.
+Aggregated daily usage across all imported harnesses.
 
 COLUMNS:
     date            DATE        The date
     claude_tools    INTEGER     Number of Claude Code tool invocations
+    codex_tools     INTEGER     Number of Codex tool invocations
     cursor_prompts  INTEGER     Number of Cursor prompts
     total           INTEGER     Combined total
 
 ================================================================================
 VIEW: tool_summary
 ================================================================================
-Aggregated tool usage statistics.
+Aggregated tool usage statistics for harnesses with tool-level detail.
 
 COLUMNS:
+    source          VARCHAR     Harness name ('claude_code' or 'codex')
     tool_name       VARCHAR     Name of the tool
     uses            INTEGER     Total invocations
-    pct             DECIMAL     Percentage of all tool uses
+    pct_of_source   DECIMAL     Percentage within that harness
     first_used      TIMESTAMP   Earliest usage
     last_used       TIMESTAMP   Most recent usage
 
@@ -474,10 +573,10 @@ COLUMNS:
 ================================================================================
 ================================================================================
 
-VIEW: interactions          All interactions from both tools, unified schema
+VIEW: interactions          All interactions from Claude Code, Codex, and Cursor
 VIEW: daily_by_source       Daily counts separated by tool
 VIEW: weekly_summary        Weekly aggregation by source
-VIEW: project_activity      Project-level summary across both tools
+VIEW: project_activity      Project-level summary across all harnesses
 VIEW: repo_activity         Repository-level (aggregates worktrees)
 VIEW: category_breakdown    Usage by category (tool names / prompts)
 VIEW: session_summary       Unified session metrics
@@ -633,10 +732,57 @@ END;" 2>/dev/null || echo "0"
 
 ensure_current_tables() {
     duckdb "$DB_PATH" << 'ENSURE'
+CREATE TABLE IF NOT EXISTS claude_tools (
+    timestamp TIMESTAMP,
+    session_id VARCHAR,
+    project_dir VARCHAR,
+    model VARCHAR,
+    tool_name VARCHAR,
+    context VARCHAR,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    cache_write_tokens INTEGER,
+    cache_read_tokens INTEGER,
+    repo_name VARCHAR,
+    worktree_branch VARCHAR,
+    is_worktree BOOLEAN,
+    interface VARCHAR,
+    source_file VARCHAR
+);
+CREATE TABLE IF NOT EXISTS messages (
+    uuid VARCHAR,
+    parent_uuid VARCHAR,
+    session_id VARCHAR,
+    role VARCHAR,
+    harness VARCHAR,
+    interface VARCHAR,
+    model VARCHAR,
+    content VARCHAR,
+    thinking VARCHAR,
+    timestamp TIMESTAMP,
+    project_dir VARCHAR,
+    git_branch VARCHAR,
+    repo_name VARCHAR,
+    worktree_branch VARCHAR,
+    is_worktree BOOLEAN,
+    is_sidechain BOOLEAN,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    cache_write_tokens INTEGER,
+    cache_read_tokens INTEGER,
+    tool_use_count INTEGER,
+    source_file VARCHAR
+);
 CREATE TABLE IF NOT EXISTS system_events (uuid VARCHAR PRIMARY KEY, session_id VARCHAR, subtype VARCHAR, timestamp TIMESTAMP, project_dir VARCHAR, git_branch VARCHAR, duration_ms INTEGER, version VARCHAR, is_sidechain BOOLEAN, source_file VARCHAR, repo_name VARCHAR);
 CREATE TABLE IF NOT EXISTS queue_operations (session_id VARCHAR, timestamp TIMESTAMP, operation VARCHAR, content VARCHAR, source_file VARCHAR);
 CREATE TABLE IF NOT EXISTS pr_links (session_id VARCHAR, timestamp TIMESTAMP, pr_number INTEGER, pr_url VARCHAR, pr_repository VARCHAR, source_file VARCHAR);
+CREATE TABLE IF NOT EXISTS _sessions_index (session_id VARCHAR PRIMARY KEY, project_path VARCHAR, first_prompt VARCHAR, summary VARCHAR, message_count INTEGER, git_branch VARCHAR, created_at TIMESTAMP, modified_at TIMESTAMP);
 CREATE TABLE IF NOT EXISTS _loaded_files (file_path VARCHAR PRIMARY KEY, mtime_ns BIGINT, loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS codex_session_index (session_id VARCHAR PRIMARY KEY, thread_name VARCHAR, updated_at TIMESTAMP, source_file VARCHAR);
+CREATE TABLE IF NOT EXISTS codex_session_meta (session_id VARCHAR PRIMARY KEY, started_at TIMESTAMP, project_dir VARCHAR, repo_name VARCHAR, worktree_branch VARCHAR, is_worktree BOOLEAN, source VARCHAR, originator VARCHAR, cli_version VARCHAR, model_provider VARCHAR, git_branch VARCHAR, git_sha VARCHAR, git_origin_url VARCHAR, source_file VARCHAR);
+CREATE TABLE IF NOT EXISTS codex_tools (timestamp TIMESTAMP, session_id VARCHAR, project_dir VARCHAR, model VARCHAR, tool_name VARCHAR, context VARCHAR, repo_name VARCHAR, worktree_branch VARCHAR, is_worktree BOOLEAN, source_file VARCHAR);
+CREATE TABLE IF NOT EXISTS codex_token_counts (timestamp TIMESTAMP, session_id VARCHAR, project_dir VARCHAR, model VARCHAR, reasoning_effort VARCHAR, input_tokens BIGINT, cached_input_tokens BIGINT, output_tokens BIGINT, reasoning_output_tokens BIGINT, total_tokens BIGINT, model_context_window BIGINT, source_file VARCHAR);
+CREATE TABLE IF NOT EXISTS codex_developer_messages (session_id VARCHAR, timestamp TIMESTAMP, project_dir VARCHAR, model VARCHAR, content VARCHAR, source_file VARCHAR);
 
 -- Add columns to tables that may predate the current schema.
 ALTER TABLE claude_tools ADD COLUMN IF NOT EXISTS source_file VARCHAR;
@@ -715,13 +861,15 @@ EOF
 # ============================================================================
 
 emit_tracked_files() {
-    find "$CLAUDE_PROJECTS" -name "*.jsonl" -print0 2>/dev/null | while IFS= read -r -d '' f; do
-        local mtime_ns
-        mtime_ns=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo "0")
-        # Convert to nanoseconds (stat gives seconds on macOS)
-        mtime_ns=$((mtime_ns * 1000000000))
-        printf '%s,%s\n' "$f" "$mtime_ns"
-    done
+    if [ -d "$CLAUDE_PROJECTS" ]; then
+        find "$CLAUDE_PROJECTS" -name "*.jsonl" -print0 2>/dev/null | while IFS= read -r -d '' f; do
+            local mtime_ns
+            mtime_ns=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo "0")
+            # Convert to nanoseconds (stat gives seconds on macOS)
+            mtime_ns=$((mtime_ns * 1000000000))
+            printf '%s,%s\n' "$f" "$mtime_ns"
+        done
+    fi
 
     if [ -n "$CURSOR_WORKSPACE" ] && [ -d "$CURSOR_WORKSPACE" ]; then
         find "$CURSOR_WORKSPACE" \( -name "state.vscdb" -o -name "workspace.json" \) -print0 2>/dev/null | while IFS= read -r -d '' f; do
@@ -731,6 +879,61 @@ emit_tracked_files() {
             printf '%s,%s\n' "$f" "$mtime_ns"
         done
     fi
+
+    emit_codex_session_files | while IFS= read -r f; do
+        local mtime_ns
+        mtime_ns=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo "0")
+        mtime_ns=$((mtime_ns * 1000000000))
+        printf '%s,%s\n' "$f" "$mtime_ns"
+    done
+
+    if [ -f "$CODEX_SESSION_INDEX_FILE" ]; then
+        local mtime_ns
+        mtime_ns=$(stat -f %m "$CODEX_SESSION_INDEX_FILE" 2>/dev/null || stat -c %Y "$CODEX_SESSION_INDEX_FILE" 2>/dev/null || echo "0")
+        mtime_ns=$((mtime_ns * 1000000000))
+        printf '%s,%s\n' "$CODEX_SESSION_INDEX_FILE" "$mtime_ns"
+    fi
+}
+
+emit_codex_session_files() {
+    {
+        if [ -d "$CODEX_SESSIONS_DIR" ]; then
+            find "$CODEX_SESSIONS_DIR" -name "*.jsonl" 2>/dev/null | awk '{print "0\t" $0}'
+        fi
+        if [ -d "$CODEX_ARCHIVED_DIR" ]; then
+            find "$CODEX_ARCHIVED_DIR" -name "*.jsonl" 2>/dev/null | awk '{print "1\t" $0}'
+        fi
+    } | awk -F'\t' '
+        {
+            priority = $1
+            path = $2
+            session_id = path
+            sub(/^.*rollout-[0-9T:-]+-/, "", session_id)
+            sub(/\.jsonl$/, "", session_id)
+            if (!(session_id in best_path) || priority < best_priority[session_id]) {
+                best_path[session_id] = path
+                best_priority[session_id] = priority
+            }
+        }
+        END {
+            for (session_id in best_path) {
+                print best_path[session_id]
+            }
+        }
+    ' | sort
+}
+
+sql_list_from_paths_file() {
+    local paths_file="$1"
+    local quoted
+    quoted=$(mktemp)
+
+    while IFS= read -r fpath; do
+        printf "'%s'\n" "${fpath//\'/\'\'}"
+    done < "$paths_file" > "$quoted"
+
+    paste -sd',' "$quoted"
+    rm -f "$quoted"
 }
 
 find_changed_files() {
@@ -1087,7 +1290,7 @@ WHERE timestamp IS NOT NULL;
 EOF
 
     local msg_count
-    msg_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM messages;" 2>/dev/null || echo "0")
+    msg_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM messages WHERE harness='claude_code';" 2>/dev/null || echo "0")
     echo "  Claude Code: $msg_count messages"
 }
 
@@ -1457,6 +1660,502 @@ EOF
 }
 
 # ============================================================================
+# Codex Loaders
+# ============================================================================
+
+load_codex_session_index() {
+    duckdb "$DB_PATH" << 'EOF'
+CREATE OR REPLACE TABLE codex_session_index (
+    session_id VARCHAR PRIMARY KEY,
+    thread_name VARCHAR,
+    updated_at TIMESTAMP,
+    source_file VARCHAR
+);
+EOF
+
+    if [ ! -f "$CODEX_SESSION_INDEX_FILE" ]; then
+        echo "  Codex session index: Not found"
+        return
+    fi
+
+    echo "  Codex session index: Loading thread names..."
+
+    duckdb "$DB_PATH" << EOF
+INSERT INTO codex_session_index
+WITH indexed_rows AS (
+    SELECT
+        json_extract_string(json, '\$.id') as session_id,
+        json_extract_string(json, '\$.thread_name') as thread_name,
+        TRY_CAST(json_extract_string(json, '\$.updated_at') AS TIMESTAMP) as updated_at,
+        '$CODEX_SESSION_INDEX_FILE' as source_file,
+        ROW_NUMBER() OVER (
+            PARTITION BY json_extract_string(json, '\$.id')
+            ORDER BY TRY_CAST(json_extract_string(json, '\$.updated_at') AS TIMESTAMP) DESC NULLS LAST
+        ) as rn
+    FROM read_ndjson_objects('$CODEX_SESSION_INDEX_FILE', filename=true)
+)
+SELECT session_id, thread_name, updated_at, source_file
+FROM indexed_rows
+WHERE session_id IS NOT NULL
+AND rn = 1;
+EOF
+
+    local codex_index_count
+    codex_index_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM codex_session_index;" 2>/dev/null || echo "0")
+    echo "  Codex session index: $codex_index_count entries"
+}
+
+load_codex_data() {
+    duckdb "$DB_PATH" << 'EOF'
+CREATE OR REPLACE TABLE codex_session_meta (
+    session_id VARCHAR PRIMARY KEY,
+    started_at TIMESTAMP,
+    project_dir VARCHAR,
+    repo_name VARCHAR,
+    worktree_branch VARCHAR,
+    is_worktree BOOLEAN,
+    source VARCHAR,
+    originator VARCHAR,
+    cli_version VARCHAR,
+    model_provider VARCHAR,
+    git_branch VARCHAR,
+    git_sha VARCHAR,
+    git_origin_url VARCHAR,
+    source_file VARCHAR
+);
+
+CREATE OR REPLACE TABLE codex_tools (
+    timestamp TIMESTAMP,
+    session_id VARCHAR,
+    project_dir VARCHAR,
+    model VARCHAR,
+    tool_name VARCHAR,
+    context VARCHAR,
+    repo_name VARCHAR,
+    worktree_branch VARCHAR,
+    is_worktree BOOLEAN,
+    source_file VARCHAR
+);
+
+CREATE OR REPLACE TABLE codex_token_counts (
+    timestamp TIMESTAMP,
+    session_id VARCHAR,
+    project_dir VARCHAR,
+    model VARCHAR,
+    reasoning_effort VARCHAR,
+    input_tokens BIGINT,
+    cached_input_tokens BIGINT,
+    output_tokens BIGINT,
+    reasoning_output_tokens BIGINT,
+    total_tokens BIGINT,
+    model_context_window BIGINT,
+    source_file VARCHAR
+);
+
+CREATE OR REPLACE TABLE codex_developer_messages (
+    session_id VARCHAR,
+    timestamp TIMESTAMP,
+    project_dir VARCHAR,
+    model VARCHAR,
+    content VARCHAR,
+    source_file VARCHAR
+);
+EOF
+
+    local codex_files
+    codex_files=$(mktemp)
+    emit_codex_session_files > "$codex_files"
+
+    local codex_file_count
+    codex_file_count=$(wc -l < "$codex_files" | tr -d ' ')
+
+    if [ "$codex_file_count" -eq 0 ]; then
+        rm -f "$codex_files"
+        echo "  Codex: Not found"
+        return
+    fi
+
+    local codex_file_list_sql
+    codex_file_list_sql=$(sql_list_from_paths_file "$codex_files")
+    rm -f "$codex_files"
+
+    echo "  Codex: Loading from $codex_file_count session files..."
+
+    duckdb "$DB_PATH" << EOF
+CREATE OR REPLACE TEMP VIEW codex_raw AS
+SELECT
+    TRY_CAST(json_extract_string(json, '\$.timestamp') AS TIMESTAMP) as event_timestamp,
+    json,
+    filename as source_file,
+    MD5(filename || '|' || CAST(json AS VARCHAR)) as raw_event_id,
+    REGEXP_EXTRACT(filename, 'rollout-[0-9T:-]+-([^.]+)\\.jsonl\$', 1) as session_id
+FROM read_ndjson_objects([${codex_file_list_sql}], filename=true);
+
+CREATE OR REPLACE TEMP VIEW codex_context AS
+SELECT
+    session_id,
+    event_timestamp as timestamp,
+    json_extract_string(json, '\$.payload.model') as model,
+    COALESCE(
+        json_extract_string(json, '\$.payload.reasoning_effort'),
+        json_extract_string(json, '\$.payload.effort')
+    ) as reasoning_effort,
+    json_extract_string(json, '\$.payload.cwd') as project_dir,
+    source_file
+FROM codex_raw
+WHERE json_extract_string(json, '\$.type') = 'turn_context';
+
+CREATE OR REPLACE TEMP TABLE codex_event_context AS
+SELECT
+    raw.raw_event_id,
+    ctx.model,
+    ctx.reasoning_effort,
+    ctx.project_dir
+FROM codex_raw raw
+ASOF LEFT JOIN codex_context ctx
+    ON raw.session_id = ctx.session_id
+    AND raw.event_timestamp >= ctx.timestamp;
+
+INSERT INTO codex_session_meta
+WITH session_meta_rows AS (
+    SELECT
+        session_id,
+        COALESCE(
+            TRY_CAST(json_extract_string(json, '\$.payload.timestamp') AS TIMESTAMP),
+            event_timestamp
+        ) as started_at,
+        json_extract_string(json, '\$.payload.cwd') as project_dir,
+        json_extract_string(json, '\$.payload.source') as source,
+        json_extract_string(json, '\$.payload.originator') as originator,
+        json_extract_string(json, '\$.payload.cli_version') as cli_version,
+        json_extract_string(json, '\$.payload.model_provider') as model_provider,
+        json_extract_string(json, '\$.payload.git.branch') as git_branch,
+        json_extract_string(json, '\$.payload.git.commit_hash') as git_sha,
+        json_extract_string(json, '\$.payload.git.repository_url') as git_origin_url,
+        source_file,
+        ROW_NUMBER() OVER (
+            PARTITION BY session_id
+            ORDER BY event_timestamp DESC NULLS LAST, source_file DESC
+        ) as rn
+    FROM codex_raw
+    WHERE json_extract_string(json, '\$.type') = 'session_meta'
+)
+SELECT
+    session_id,
+    started_at,
+    project_dir,
+    $(worktree_repo_sql project_dir) as repo_name,
+    $(worktree_branch_sql project_dir) as worktree_branch,
+    $(worktree_is_sql project_dir) as is_worktree,
+    source,
+    originator,
+    cli_version,
+    model_provider,
+    git_branch,
+    git_sha,
+    git_origin_url,
+    source_file
+FROM session_meta_rows
+WHERE rn = 1
+AND session_id IS NOT NULL;
+
+INSERT INTO codex_tools
+WITH tool_rows AS (
+    SELECT
+        raw.event_timestamp as timestamp,
+        raw.session_id,
+        json_extract_string(raw.json, '\$.payload.arguments') as arguments_text,
+        COALESCE(
+            CASE
+                WHEN json_valid(json_extract_string(raw.json, '\$.payload.arguments'))
+                THEN json_extract_string(json_extract_string(raw.json, '\$.payload.arguments'), '\$.workdir')
+            END,
+            ec.project_dir,
+            sm.project_dir
+        ) as project_dir,
+        ec.model as model,
+        json_extract_string(raw.json, '\$.payload.name') as tool_name,
+        COALESCE(
+            CASE
+                WHEN json_valid(json_extract_string(raw.json, '\$.payload.arguments'))
+                THEN json_extract_string(json_extract_string(raw.json, '\$.payload.arguments'), '\$.cmd')
+            END,
+            CASE
+                WHEN json_valid(json_extract_string(raw.json, '\$.payload.arguments'))
+                THEN json_extract_string(json_extract_string(raw.json, '\$.payload.arguments'), '\$.path')
+            END,
+            CASE
+                WHEN json_valid(json_extract_string(raw.json, '\$.payload.arguments'))
+                THEN json_extract_string(json_extract_string(raw.json, '\$.payload.arguments'), '\$.workdir')
+            END,
+            LEFT(json_extract_string(raw.json, '\$.payload.arguments'), 200),
+            LEFT(json_extract_string(raw.json, '\$.payload.input'), 200)
+        ) as context,
+        raw.source_file
+    FROM codex_raw raw
+    LEFT JOIN codex_session_meta sm ON raw.session_id = sm.session_id
+    LEFT JOIN codex_event_context ec ON raw.raw_event_id = ec.raw_event_id
+    WHERE json_extract_string(raw.json, '\$.type') = 'response_item'
+    AND json_extract_string(raw.json, '\$.payload.type') IN ('function_call', 'custom_tool_call')
+)
+SELECT
+    timestamp,
+    session_id,
+    project_dir,
+    model,
+    tool_name,
+    context,
+    $(worktree_repo_sql project_dir) as repo_name,
+    $(worktree_branch_sql project_dir) as worktree_branch,
+    $(worktree_is_sql project_dir) as is_worktree,
+    source_file
+FROM tool_rows
+WHERE timestamp IS NOT NULL
+AND tool_name IS NOT NULL;
+
+INSERT INTO codex_token_counts
+SELECT
+    raw.event_timestamp as timestamp,
+    raw.session_id,
+    COALESCE(
+        ec.project_dir,
+        sm.project_dir
+    ) as project_dir,
+    ec.model as model,
+    ec.reasoning_effort as reasoning_effort,
+    TRY_CAST(json_extract(raw.json, '\$.payload.info.last_token_usage.input_tokens') AS BIGINT) as input_tokens,
+    TRY_CAST(json_extract(raw.json, '\$.payload.info.last_token_usage.cached_input_tokens') AS BIGINT) as cached_input_tokens,
+    TRY_CAST(json_extract(raw.json, '\$.payload.info.last_token_usage.output_tokens') AS BIGINT) as output_tokens,
+    TRY_CAST(json_extract(raw.json, '\$.payload.info.last_token_usage.reasoning_output_tokens') AS BIGINT) as reasoning_output_tokens,
+    TRY_CAST(json_extract(raw.json, '\$.payload.info.last_token_usage.total_tokens') AS BIGINT) as total_tokens,
+    TRY_CAST(json_extract(raw.json, '\$.payload.info.model_context_window') AS BIGINT) as model_context_window,
+    raw.source_file
+FROM codex_raw raw
+LEFT JOIN codex_session_meta sm ON raw.session_id = sm.session_id
+LEFT JOIN codex_event_context ec ON raw.raw_event_id = ec.raw_event_id
+WHERE json_extract_string(raw.json, '\$.type') = 'event_msg'
+AND json_extract_string(raw.json, '\$.payload.type') = 'token_count'
+AND raw.event_timestamp IS NOT NULL;
+
+INSERT INTO codex_developer_messages
+WITH developer_rows AS (
+    SELECT
+        raw.raw_event_id,
+        raw.session_id,
+        COALESCE(raw.event_timestamp, sm.started_at) as timestamp,
+        COALESCE(
+            ec.project_dir,
+            sm.project_dir
+        ) as project_dir,
+        ec.model as model,
+        STRING_AGG(
+            CASE
+                WHEN json_extract_string(block.value, '\$.text') IS NOT NULL
+                THEN json_extract_string(block.value, '\$.text')
+            END,
+            E'\n'
+    ) as content,
+        raw.source_file
+    FROM codex_raw raw
+    LEFT JOIN codex_session_meta sm ON raw.session_id = sm.session_id
+    LEFT JOIN codex_event_context ec ON raw.raw_event_id = ec.raw_event_id,
+    LATERAL UNNEST(
+        from_json(COALESCE(json_extract(raw.json, '\$.payload.content')::VARCHAR, '[]'), '["JSON"]')
+    ) as block(value)
+    WHERE json_extract_string(raw.json, '\$.type') = 'response_item'
+    AND json_extract_string(raw.json, '\$.payload.type') = 'message'
+    AND json_extract_string(raw.json, '\$.payload.role') = 'developer'
+    GROUP BY
+        raw.raw_event_id,
+        raw.session_id,
+        COALESCE(raw.event_timestamp, sm.started_at),
+        COALESCE(ec.project_dir, sm.project_dir),
+        ec.model,
+        raw.source_file
+)
+SELECT
+    session_id,
+    timestamp,
+    project_dir,
+    model,
+    content,
+    source_file
+FROM developer_rows
+WHERE content IS NOT NULL;
+
+DROP TABLE codex_event_context;
+DROP VIEW codex_context;
+DROP VIEW codex_raw;
+EOF
+
+    local codex_tool_count codex_token_count codex_developer_count
+    codex_tool_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM codex_tools;" 2>/dev/null || echo "0")
+    codex_token_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM codex_token_counts;" 2>/dev/null || echo "0")
+    codex_developer_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM codex_developer_messages;" 2>/dev/null || echo "0")
+
+    echo "  Codex: $codex_tool_count tool invocations"
+    echo "  Codex: $codex_token_count token snapshots"
+    echo "  Codex: $codex_developer_count developer prompts"
+}
+
+load_codex_messages() {
+    duckdb "$DB_PATH" << 'EOF'
+CREATE TABLE IF NOT EXISTS messages (
+    uuid VARCHAR,
+    parent_uuid VARCHAR,
+    session_id VARCHAR,
+    role VARCHAR,
+    harness VARCHAR,
+    interface VARCHAR,
+    model VARCHAR,
+    content VARCHAR,
+    thinking VARCHAR,
+    timestamp TIMESTAMP,
+    project_dir VARCHAR,
+    git_branch VARCHAR,
+    repo_name VARCHAR,
+    worktree_branch VARCHAR,
+    is_worktree BOOLEAN,
+    is_sidechain BOOLEAN,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    cache_write_tokens INTEGER,
+    cache_read_tokens INTEGER,
+    tool_use_count INTEGER,
+    source_file VARCHAR
+);
+EOF
+
+    local codex_files
+    codex_files=$(mktemp)
+    emit_codex_session_files > "$codex_files"
+
+    local codex_file_count
+    codex_file_count=$(wc -l < "$codex_files" | tr -d ' ')
+
+    if [ "$codex_file_count" -eq 0 ]; then
+        rm -f "$codex_files"
+        return
+    fi
+
+    local codex_file_list_sql
+    codex_file_list_sql=$(sql_list_from_paths_file "$codex_files")
+    rm -f "$codex_files"
+
+    echo "  Codex: Bridging user and assistant messages..."
+
+    duckdb "$DB_PATH" << EOF
+DELETE FROM messages WHERE harness='codex';
+
+CREATE OR REPLACE TEMP VIEW codex_raw AS
+SELECT
+    TRY_CAST(json_extract_string(json, '\$.timestamp') AS TIMESTAMP) as event_timestamp,
+    json,
+    filename as source_file,
+    MD5(filename || '|' || CAST(json AS VARCHAR)) as raw_event_id,
+    REGEXP_EXTRACT(filename, 'rollout-[0-9T:-]+-([^.]+)\\.jsonl\$', 1) as session_id
+FROM read_ndjson_objects([${codex_file_list_sql}], filename=true);
+
+CREATE OR REPLACE TEMP VIEW codex_context AS
+SELECT
+    session_id,
+    event_timestamp as timestamp,
+    json_extract_string(json, '\$.payload.model') as model,
+    json_extract_string(json, '\$.payload.cwd') as project_dir
+FROM codex_raw
+WHERE json_extract_string(json, '\$.type') = 'turn_context';
+
+CREATE OR REPLACE TEMP TABLE codex_event_context AS
+SELECT
+    raw.raw_event_id,
+    ctx.model,
+    ctx.project_dir
+FROM codex_raw raw
+ASOF LEFT JOIN codex_context ctx
+    ON raw.session_id = ctx.session_id
+    AND raw.event_timestamp >= ctx.timestamp;
+
+INSERT INTO messages (
+    uuid, parent_uuid, session_id, role, harness, interface, model,
+    content, thinking, timestamp, project_dir, git_branch, repo_name,
+    worktree_branch, is_worktree, is_sidechain, input_tokens, output_tokens,
+    cache_write_tokens, cache_read_tokens, tool_use_count, source_file
+)
+WITH codex_message_rows AS (
+    SELECT
+        raw.raw_event_id,
+        raw.session_id,
+        json_extract_string(raw.json, '\$.payload.role') as role,
+        COALESCE(raw.event_timestamp, sm.started_at) as timestamp,
+        COALESCE(
+            ec.project_dir,
+            sm.project_dir
+        ) as project_dir,
+        ec.model as model,
+        STRING_AGG(
+            CASE
+                WHEN json_extract_string(block.value, '\$.text') IS NOT NULL
+                THEN json_extract_string(block.value, '\$.text')
+            END,
+            E'\n'
+    ) as content,
+        raw.source_file
+    FROM codex_raw raw
+    LEFT JOIN codex_session_meta sm ON raw.session_id = sm.session_id
+    LEFT JOIN codex_event_context ec ON raw.raw_event_id = ec.raw_event_id,
+    LATERAL UNNEST(
+        from_json(COALESCE(json_extract(raw.json, '\$.payload.content')::VARCHAR, '[]'), '["JSON"]')
+    ) as block(value)
+    WHERE json_extract_string(raw.json, '\$.type') = 'response_item'
+    AND json_extract_string(raw.json, '\$.payload.type') = 'message'
+    AND json_extract_string(raw.json, '\$.payload.role') IN ('user', 'assistant')
+    GROUP BY
+        raw.raw_event_id,
+        raw.session_id,
+        role,
+        COALESCE(raw.event_timestamp, sm.started_at),
+        COALESCE(ec.project_dir, sm.project_dir),
+        ec.model,
+        raw.source_file
+)
+SELECT
+    raw_event_id as uuid,
+    NULL as parent_uuid,
+    session_id,
+    role,
+    'codex' as harness,
+    NULL as interface,
+    model,
+    content,
+    NULL as thinking,
+    timestamp,
+    project_dir,
+    NULL as git_branch,
+    $(worktree_repo_sql project_dir) as repo_name,
+    $(worktree_branch_sql project_dir) as worktree_branch,
+    $(worktree_is_sql project_dir) as is_worktree,
+    FALSE as is_sidechain,
+    NULL as input_tokens,
+    NULL as output_tokens,
+    NULL as cache_write_tokens,
+    NULL as cache_read_tokens,
+    0 as tool_use_count,
+    source_file
+FROM codex_message_rows
+WHERE content IS NOT NULL
+AND timestamp IS NOT NULL;
+
+DROP TABLE codex_event_context;
+DROP VIEW codex_context;
+DROP VIEW codex_raw;
+EOF
+
+    local codex_msg_count
+    codex_msg_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM messages WHERE harness='codex';" 2>/dev/null || echo "0")
+    echo "  Codex: $codex_msg_count searchable messages"
+}
+
+# ============================================================================
 # Views
 # ============================================================================
 
@@ -1480,6 +2179,58 @@ SELECT
 FROM claude_tools
 WHERE session_id IS NOT NULL
 GROUP BY session_id, project_dir, repo_name, interface, worktree_branch, is_worktree;
+
+-- ============================================================================
+-- CODEX SESSIONS (derived from session metadata + activity)
+-- ============================================================================
+CREATE OR REPLACE TABLE codex_sessions AS
+WITH activity AS (
+    SELECT
+        session_id,
+        MIN(timestamp) as started_at,
+        MAX(timestamp) as ended_at
+    FROM (
+        SELECT session_id, timestamp FROM codex_tools
+        UNION ALL
+        SELECT session_id, timestamp FROM messages WHERE harness = 'codex'
+        UNION ALL
+        SELECT session_id, timestamp FROM codex_token_counts
+    )
+    WHERE session_id IS NOT NULL
+    GROUP BY session_id
+),
+tool_stats AS (
+    SELECT
+        session_id,
+        COUNT(*) as tool_count,
+        COUNT(DISTINCT tool_name) as unique_tools
+    FROM codex_tools
+    GROUP BY session_id
+)
+SELECT
+    COALESCE(sm.session_id, activity.session_id, idx.session_id) as session_id,
+    sm.project_dir,
+    sm.repo_name,
+    sm.worktree_branch,
+    sm.is_worktree,
+    COALESCE(activity.started_at, sm.started_at) as started_at,
+    activity.ended_at,
+    idx.thread_name,
+    sm.source,
+    sm.originator,
+    sm.cli_version,
+    sm.model_provider,
+    sm.git_branch,
+    sm.git_sha,
+    sm.git_origin_url,
+    COALESCE(tool_stats.tool_count, 0) as tool_count,
+    COALESCE(tool_stats.unique_tools, 0) as unique_tools
+FROM codex_session_meta sm
+FULL OUTER JOIN activity ON sm.session_id = activity.session_id
+FULL OUTER JOIN codex_session_index idx
+    ON COALESCE(sm.session_id, activity.session_id) = idx.session_id
+LEFT JOIN tool_stats
+    ON COALESCE(sm.session_id, activity.session_id, idx.session_id) = tool_stats.session_id;
 
 -- ============================================================================
 -- TURN DURATIONS VIEW
@@ -1518,6 +2269,30 @@ SELECT
     cache_read_tokens,
     input_tokens + output_tokens as total_tokens
 FROM claude_tools
+WHERE timestamp IS NOT NULL
+
+UNION ALL
+
+SELECT
+    TRY_CAST(timestamp AS TIMESTAMP) as timestamp,
+    'codex' as source,
+    NULL as interface,
+    session_id as session_id,
+    project_dir as project,
+    REGEXP_EXTRACT(project_dir, '[^/]+$') as project_name,
+    repo_name,
+    worktree_branch,
+    is_worktree,
+    model,
+    'tool_use' as interaction_type,
+    tool_name as category,
+    context as detail,
+    NULL as input_tokens,
+    NULL as output_tokens,
+    NULL as cache_write_tokens,
+    NULL as cache_read_tokens,
+    NULL as total_tokens
+FROM codex_tools
 WHERE timestamp IS NOT NULL
 
 UNION ALL
@@ -1703,6 +2478,12 @@ WITH claude_daily AS (
     WHERE timestamp IS NOT NULL
     GROUP BY date
 ),
+codex_daily AS (
+    SELECT DATE_TRUNC('day', TRY_CAST(timestamp AS TIMESTAMP))::DATE as date, COUNT(*) as cnt
+    FROM codex_tools
+    WHERE timestamp IS NOT NULL
+    GROUP BY date
+),
 cursor_daily AS (
     SELECT DATE_TRUNC('day', TRY_CAST(timestamp AS TIMESTAMP))::DATE as date, COUNT(*) as cnt
     FROM cursor_prompts
@@ -1712,15 +2493,19 @@ cursor_daily AS (
 all_dates AS (
     SELECT date FROM claude_daily
     UNION
+    SELECT date FROM codex_daily
+    UNION
     SELECT date FROM cursor_daily
 )
 SELECT
     d.date,
     COALESCE(c.cnt, 0) as claude_tools,
+    COALESCE(cx.cnt, 0) as codex_tools,
     COALESCE(cu.cnt, 0) as cursor_prompts,
-    COALESCE(c.cnt, 0) + COALESCE(cu.cnt, 0) as total
+    COALESCE(c.cnt, 0) + COALESCE(cx.cnt, 0) + COALESCE(cu.cnt, 0) as total
 FROM all_dates d
 LEFT JOIN claude_daily c ON d.date = c.date
+LEFT JOIN codex_daily cx ON d.date = cx.date
 LEFT JOIN cursor_daily cu ON d.date = cu.date;
 
 -- ============================================================================
@@ -1728,14 +2513,19 @@ LEFT JOIN cursor_daily cu ON d.date = cu.date;
 -- ============================================================================
 CREATE OR REPLACE VIEW tool_summary AS
 SELECT
+    source,
     tool_name,
     COUNT(*) as uses,
-    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) as pct,
+    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY source), 2) as pct_of_source,
     MIN(timestamp) as first_used,
     MAX(timestamp) as last_used
-FROM claude_tools
-GROUP BY tool_name
-ORDER BY uses DESC;
+FROM (
+    SELECT 'claude_code' as source, tool_name, timestamp FROM claude_tools
+    UNION ALL
+    SELECT 'codex' as source, tool_name, timestamp FROM codex_tools
+) combined_tools
+GROUP BY source, tool_name
+ORDER BY source, uses DESC;
 
 -- ============================================================================
 -- MODEL PRICING TABLE
@@ -1833,10 +2623,20 @@ CREATE OR REPLACE VIEW session_overview AS
 SELECT
     sm.session_id, sm.repo_name, sm.interface, sm.started_at, sm.ended_at,
     sm.message_count, sm.user_messages, sm.assistant_messages,
-    si.summary, si.first_prompt, si.git_branch,
+    COALESCE(si.summary, csi.thread_name) as summary,
+    si.first_prompt,
+    COALESCE(si.git_branch, cs.git_branch) as git_branch,
     sm.total_input_tokens, sm.total_output_tokens
 FROM session_messages sm
-LEFT JOIN _sessions_index si ON sm.session_id = si.session_id;
+LEFT JOIN _sessions_index si
+    ON sm.harness = 'claude_code'
+    AND sm.session_id = si.session_id
+LEFT JOIN codex_session_index csi
+    ON sm.harness = 'codex'
+    AND sm.session_id = csi.session_id
+LEFT JOIN codex_sessions cs
+    ON sm.harness = 'codex'
+    AND sm.session_id = cs.session_id;
 
 -- ============================================================================
 -- RECENT CONVERSATIONS VIEW
@@ -1962,6 +2762,12 @@ DROP TABLE IF EXISTS _sessions_index CASCADE;
 DROP TABLE IF EXISTS _loaded_files CASCADE;
 DROP TABLE IF EXISTS cursor_prompts CASCADE;
 DROP TABLE IF EXISTS cursor_workspaces CASCADE;
+DROP TABLE IF EXISTS codex_session_index CASCADE;
+DROP TABLE IF EXISTS codex_session_meta CASCADE;
+DROP TABLE IF EXISTS codex_sessions CASCADE;
+DROP TABLE IF EXISTS codex_tools CASCADE;
+DROP TABLE IF EXISTS codex_token_counts CASCADE;
+DROP TABLE IF EXISTS codex_developer_messages CASCADE;
 DROP TABLE IF EXISTS model_pricing CASCADE;
 DROP TABLE IF EXISTS _metadata CASCADE;
 DROP TABLE IF EXISTS agent_tokens CASCADE;
@@ -1977,6 +2783,7 @@ EOF
 
     ensure_reference_schema
     ensure_cursor_tables
+    ensure_current_tables
     load_claude_data
     load_claude_messages
     load_system_events
@@ -1985,6 +2792,9 @@ EOF
     load_sessions_index
     load_cursor_data
     load_cursor_messages
+    load_codex_session_index
+    load_codex_data
+    load_codex_messages
     create_views
     create_fts_index
     populate_loaded_files
@@ -2044,7 +2854,9 @@ EOF
 
         find "$CLAUDE_PROJECTS" -name "*.jsonl" > "$claude_changed_paths" 2>/dev/null || true
     else
-        grep -E '\.jsonl$' "$changed_paths" > "$claude_changed_paths" || true
+        awk -v root="${CLAUDE_PROJECTS%/}/" '
+            index($0, root) == 1 && $0 ~ /\.jsonl$/ { print }
+        ' "$changed_paths" > "$claude_changed_paths" || true
     fi
 
     local claude_changed_count
@@ -2087,6 +2899,12 @@ EOF
     if grep -Eq '/Cursor/User/workspaceStorage/.*/(state\.vscdb|workspace\.json)$' "$changed_paths"; then
         load_cursor_data
         load_cursor_messages
+    fi
+
+    if grep -Eq '/\.codex/(sessions|archived_sessions)/.*\.jsonl$|/\.codex/session_index\.jsonl$' "$changed_paths"; then
+        load_codex_session_index
+        load_codex_data
+        load_codex_messages
     fi
 
     # Recreate views and FTS
@@ -2327,10 +3145,10 @@ EOF
 
     echo ""
 
-    local claude_tools claude_sessions searchable_messages
+    local claude_tools claude_sessions claude_messages
     claude_tools=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM claude_tools;" 2>/dev/null || echo "0")
     claude_sessions=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM claude_sessions;" 2>/dev/null || echo "0")
-    searchable_messages=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM messages WHERE content IS NOT NULL OR thinking IS NOT NULL;" 2>/dev/null || echo "0")
+    claude_messages=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM messages WHERE harness='claude_code' AND (content IS NOT NULL OR thinking IS NOT NULL);" 2>/dev/null || echo "0")
 
     local system_events queue_ops pr_links_count sessions_index_count
     system_events=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM system_events;" 2>/dev/null || echo "0")
@@ -2341,20 +3159,39 @@ EOF
     echo "Claude Code"
     echo "  Tool invocations: $claude_tools"
     echo "  Sessions: $claude_sessions"
-    echo "  Searchable messages: $searchable_messages"
+    echo "  Searchable messages: $claude_messages"
     echo "  System events: $system_events"
     echo "  Queued inputs: $queue_ops"
     echo "  PR links: $pr_links_count"
     echo "  Session summaries: $sessions_index_count"
     echo ""
 
-    local cursor_prompts cursor_workspaces
+    local codex_tools codex_sessions codex_messages codex_token_counts codex_developer_messages codex_thread_names
+    codex_tools=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM codex_tools;" 2>/dev/null || echo "0")
+    codex_sessions=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM codex_sessions;" 2>/dev/null || echo "0")
+    codex_messages=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM messages WHERE harness='codex' AND content IS NOT NULL;" 2>/dev/null || echo "0")
+    codex_token_counts=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM codex_token_counts;" 2>/dev/null || echo "0")
+    codex_developer_messages=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM codex_developer_messages;" 2>/dev/null || echo "0")
+    codex_thread_names=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM codex_session_index;" 2>/dev/null || echo "0")
+
+    echo "Codex"
+    echo "  Tool invocations: $codex_tools"
+    echo "  Sessions: $codex_sessions"
+    echo "  Searchable messages: $codex_messages"
+    echo "  Token snapshots: $codex_token_counts"
+    echo "  Developer prompts: $codex_developer_messages"
+    echo "  Thread titles: $codex_thread_names"
+    echo ""
+
+    local cursor_prompts cursor_workspaces cursor_messages
     cursor_prompts=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM cursor_prompts;" 2>/dev/null || echo "0")
     cursor_workspaces=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM cursor_workspaces WHERE prompt_count > 0;" 2>/dev/null || echo "0")
+    cursor_messages=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM messages WHERE harness='cursor' AND content IS NOT NULL;" 2>/dev/null || echo "0")
 
     echo "Cursor"
     echo "  Prompts: $cursor_prompts"
     echo "  Active workspaces: $cursor_workspaces"
+    echo "  Searchable messages: $cursor_messages"
     echo ""
 
     local file_count

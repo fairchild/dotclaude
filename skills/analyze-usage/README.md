@@ -1,6 +1,6 @@
 # analyze-usage
 
-Unified usage analyzer for AI coding assistants (Claude Code & Cursor).
+Unified usage analyzer for AI coding assistants (Claude Code, Codex, and Cursor).
 
 Loads local logs into a **persistent DuckDB database** for SQL-based analysis. Designed to be agent-friendly with comprehensive `--help` and `--schema` documentation.
 
@@ -24,11 +24,13 @@ analyze-usage query "SELECT * FROM tool_summary"
 
 ## Features
 
-- Unified — loads both Claude Code and Cursor data into one database
-- Incremental — auto-detects new/changed files and updates only what's needed
-- Persistent — DuckDB database persists between runs (`~/.local/share/analyze-usage/usage.duckdb`)
-- Safe — timestamped backup before every load/reload
-- Agent-friendly — `--help` and `--schema` document the schema for AI agents
+- **Unified**: Loads Claude Code, Codex, and Cursor data into one database
+- **Incremental**: Auto-detects new/changed files and updates only what's needed
+- **Persistent**: DuckDB database persists between runs (`~/.local/share/analyze-usage/usage.duckdb`)
+- **Safe**: Timestamped backup before every load/reload
+- **Agent-friendly**: `--help` and `--schema` provide complete documentation for AI agents
+- **Canonical schema**: Installs and bootstraps the cross-harness reference schema
+- **Fast**: DuckDB is extremely fast for analytical queries
 
 ## Commands
 
@@ -92,6 +94,10 @@ analyze-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
 | `claude_tools` | Claude Code tool invocations (with source_file for incremental) |
 | `claude_sessions` | Claude Code session metadata |
 | `messages` | Conversation content (user text, assistant text + thinking) |
+| `codex_tools` | Codex tool invocations |
+| `codex_sessions` | Codex session metadata |
+| `codex_token_counts` | Codex per-turn token snapshots |
+| `codex_developer_messages` | Codex developer-role instruction payloads |
 | `cursor_prompts` | Cursor user prompts |
 | `cursor_workspaces` | Cursor workspace metadata |
 | `system_events` | System records: turn_duration, api_error, stop_hook_summary |
@@ -193,14 +199,13 @@ WHERE tool_name = 'Skill'
 GROUP BY context
 ORDER BY uses DESC;
 
--- Compare Claude vs Cursor usage
+-- Compare harness usage
 SELECT
-    DATE_TRUNC('week', date) as week,
-    SUM(claude_tools) as claude,
-    SUM(cursor_prompts) as cursor
-FROM daily_summary
-GROUP BY week
-ORDER BY week DESC;
+    source,
+    COUNT(*) as interactions
+FROM interactions
+GROUP BY source
+ORDER BY interactions DESC;
 ```
 
 ## Data Sources
@@ -209,6 +214,12 @@ ORDER BY week DESC;
 - **Location**: `~/.claude/projects/*/*.jsonl`
 - **Contents**: Full tool invocation logs, messages, system events, queue operations, PR links
 - **Metadata**: `sessions-index.json` files with session summaries
+
+### Codex
+- **Location**: `~/.codex/sessions/**/*.jsonl`, `~/.codex/archived_sessions/*.jsonl`
+- **Metadata**: `~/.codex/session_index.jsonl`
+- **Contents**: session metadata, user/assistant messages, tool calls, token-count snapshots, developer-role instruction payloads
+- **Note**: developer-role payloads are stored separately in `codex_developer_messages` so they remain queryable without polluting default conversation search
 
 ### Cursor
 - **Location**: `~/Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb`
@@ -221,6 +232,7 @@ ORDER BY week DESC;
 |----------|---------|-------------|
 | `ANALYZE_USAGE_DB` | `~/.local/share/analyze-usage/usage.duckdb` | Database path |
 | `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Claude Code logs path |
+| `CODEX_HOME` | `~/.codex` | Codex logs path |
 
 ## Requirements
 
@@ -231,7 +243,7 @@ ORDER BY week DESC;
 
 1. On first run, scans source directories and loads all log files
 2. On subsequent runs, auto-detects new/changed files via mtime comparison
-3. Incrementally updates only changed files (delete stale rows by `source_file`, reinsert)
+3. Incrementally updates changed Claude files by `source_file`; Cursor and Codex are reloaded wholesale when their tracked files change
 4. Creates timestamped backup before every load/reload
 5. Database persists at `~/.local/share/analyze-usage/usage.duckdb`
 
