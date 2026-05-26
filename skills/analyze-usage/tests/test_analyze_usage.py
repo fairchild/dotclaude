@@ -447,6 +447,32 @@ def test_reload_imports_codex_transcripts() -> None:
         assert overview == ["fixture thread,feature/codex"], overview
 
 
+@test("update imports Codex transcripts without Claude logs")
+def test_update_imports_codex_without_claude_logs() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        write_codex_fixture(home)
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        result = run([str(SCRIPT_PATH), "update"], env=env)
+        assert_ok(result)
+        assert "Binder Error" not in result.stderr, result.stderr
+
+        codex_counts = duckdb_query(
+            db_path,
+            "SELECT COUNT(*), COUNT(DISTINCT session_id) FROM codex_tools;",
+        )
+        assert codex_counts == ["1,1"], codex_counts
+
+        loaded_files = duckdb_query(
+            db_path,
+            "SELECT COUNT(*) FROM _loaded_files WHERE file_path LIKE '%.codex/%';",
+        )
+        assert loaded_files == ["2"], loaded_files
+
+
 @test("update upgrades legacy table order safely")
 def test_update_legacy_db_upgrade() -> None:
     with tempfile.TemporaryDirectory() as tmp:
@@ -532,6 +558,7 @@ def main() -> None:
         test_reload_bootstraps_schema,
         test_standalone_script_bootstraps_schema,
         test_reload_imports_codex_transcripts,
+        test_update_imports_codex_without_claude_logs,
         test_update_legacy_db_upgrade,
         test_update_legacy_db_no_change_migration,
     ]

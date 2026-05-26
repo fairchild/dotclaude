@@ -2854,7 +2854,9 @@ EOF
 
         find "$CLAUDE_PROJECTS" -name "*.jsonl" > "$claude_changed_paths" 2>/dev/null || true
     else
-        grep -E '\.jsonl$' "$changed_paths" > "$claude_changed_paths" || true
+        awk -v root="${CLAUDE_PROJECTS%/}/" '
+            index($0, root) == 1 && $0 ~ /\.jsonl$/ { print }
+        ' "$changed_paths" > "$claude_changed_paths" || true
     fi
 
     local claude_changed_count
