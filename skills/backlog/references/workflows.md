@@ -13,6 +13,8 @@ Ask the operator:
 > Which backend? Choose one:
 > - **`maildir-git`** — single-worktree project. Everything committed to git; claim is `git mv`. Simplest; the default unless multi-worktree work is expected.
 > - **`maildir-shared`** — multi-worktree project (Conductor, parallel `git worktree`). In-flight files live in a git-common-dir shared dir; claim is atomic across worktrees of the clone.
+> - **`github-issues`** — tasks live as GitHub Issues; useful when the repo's existing issue queue is already the public work ledger.
+> - **`jira`** — tasks live as Jira work items via Atlassian CLI; useful when the team already triages and prioritizes in Jira.
 > - **`Custom`** — Create a custom backend.
 
 Default to `maildir-git` if the operator declines to choose. Recommend `maildir-shared` if `git worktree list` shows more than one worktree, or if the project hints at Conductor/cmux use.
@@ -112,6 +114,32 @@ Strategic counterpart at `backlog/ROADMAP.md` — Intent, Principles, Current Fo
 EOF
 ln -s AGENTS.md backlog/CLAUDE.md
 ```
+
+### Step 2c — scaffold for remote backends
+
+Remote backends are configured by `scripts/backlog.sh setup`; do not hand-roll their AGENTS.md from the maildir templates above.
+
+For GitHub Issues:
+
+```bash
+skills/backlog/scripts/backlog.sh setup --backend=github-issues
+```
+
+For Jira:
+
+```bash
+skills/backlog/scripts/backlog.sh setup \
+  --backend=jira \
+  --project=TEAM \
+  --type=Task \
+  --label=backlog \
+  --status-todo="To Do" \
+  --status-doing="In Progress" \
+  --status-done="Done" \
+  --status-failed="Failed"
+```
+
+Jira setup requires Atlassian CLI authentication (`acli jira auth status`) and a project workflow whose statuses already match the configured `## Statuses` mapping. Full setup notes and smoke-test guidance: `backends/jira.md`.
 
 ### Step 3 — scaffold ROADMAP.md (both backends)
 

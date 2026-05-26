@@ -23,7 +23,7 @@ Invokable as `/backlog <subcommand> [args]`. The canonical mechanism is `scripts
 
 | Subcommand | Script call | Semantics |
 |---|---|---|
-| `/backlog setup` | `scripts/backlog.sh setup --backend=<maildir-git\|maildir-shared\|github-issues>` | One-time scaffold: for maildir backends, creates dirs, AGENTS.md, ROADMAP skeleton, symlinks + .gitignore for `maildir-shared`; for `github-issues`, creates the static labels on the remote and writes AGENTS.md + ROADMAP skeleton (no local task tree). Backend flag is **required** — the script refuses without it and prints a heuristic hint based on `git worktree list`. |
+| `/backlog setup` | `scripts/backlog.sh setup --backend=<maildir-git\|maildir-shared\|github-issues\|jira>` | One-time scaffold: for maildir backends, creates dirs, AGENTS.md, ROADMAP skeleton, symlinks + .gitignore for `maildir-shared`; for `github-issues`, creates static labels on the remote; for `jira`, writes the Jira project/JQL/status mapping expected by the Atlassian CLI adapter. Remote backends write AGENTS.md + ROADMAP skeleton (no local task tree). Backend flag is **required** — the script refuses without it and prints a heuristic hint based on `git worktree list`. |
 | `/backlog add <slug> [category]` | `scripts/backlog.sh add <slug> [category]` | Create new task in `todo/` |
 | `/backlog take [slug]` | `scripts/backlog.sh take [slug]` | Claim from `todo/` (auto-pick if no slug) |
 | `/backlog advance <slug>` | `scripts/backlog.sh advance <slug>` | One forward step along the pipeline |
@@ -37,7 +37,7 @@ Invokable as `/backlog <subcommand> [args]`. The canonical mechanism is `scripts
 | `/backlog worker` | follow `references/worker-loop.md` | Full loop: load + maintain + rank + claim + execute + close |
 | `/backlog` (no args) | — | Skill loads; agent infers intent from conversation context |
 
-The full script path from a deployed dotclaude is `~/.claude/skills/backlog/scripts/backlog.sh`. Semantics for each verb live in `references/worker.md`; mechanism details (what the script actually does) live in `references/backends/<name>.md`. The test harness `scripts/test.sh` exercises both backends end-to-end including a real `git worktree`-based race test.
+The full script path from a deployed dotclaude is `~/.claude/skills/backlog/scripts/backlog.sh`. Semantics for each verb live in `references/worker.md`; mechanism details (what the script actually does) live in `references/backends/<name>.md`. The test harness `scripts/test.sh` exercises the maildir backends end-to-end including a real `git worktree`-based race test, and syntax-checks every bundled script.
 
 ## File shape
 
@@ -116,12 +116,14 @@ For advance, progress, cancel, fail, rescue, retry, status, and maintain — the
 - `scripts/backlog-maildir-git.sh` — maildir-git implementation
 - `scripts/backlog-maildir-shared.sh` — maildir-shared implementation
 - `scripts/backlog-github-issues.sh` — github-issues implementation
-- `scripts/test.sh` — full verb cycle + cross-worktree race harness on temp repos (maildir backends only — github-issues integration tests are a followup)
+- `scripts/backlog-jira.sh` — Jira implementation over Atlassian CLI (`acli`)
+- `scripts/test.sh` — full verb cycle + cross-worktree race harness on temp repos (maildir backends only — remote backend integration tests are followups)
 - `references/worker.md` — verb semantics for workers (advance, progress, cancel, fail, rescue, retry, status, maintain)
 - `references/worker-loop.md` — canonical `/backlog worker` recipe (load, maintain, rank, claim, execute, close, report)
 - `references/backends/maildir-git.md` — default backend; mechanism docs for git-tracked maildir
 - `references/backends/maildir-shared.md` — multi-worktree backend; mechanism docs for git-common-dir shared dir
 - `references/backends/github-issues.md` — cross-machine backend; mechanism docs for `gh issue`-backed storage
+- `references/backends/jira.md` — cross-machine backend; mechanism docs for Jira work item-backed storage via `acli`
 - `references/pipeline.md` — declaring the pipeline; how `advance` knows where to go; conventions for intermediate dirs
 - `references/agents-schema.md` — frontmatter schema, log line format, kinds table, reading-state queries
 - `references/parallel-agents.md` — distributed-systems patterns and design rationale
