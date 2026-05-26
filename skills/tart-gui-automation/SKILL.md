@@ -2,6 +2,7 @@
 name: tart-gui-automation
 description: Run deterministic GUI workflows in isolated Tart macOS VMs. Provides VM lifecycle management, guest command execution via tart exec (SSH fallback), VNC interaction (clicks, keyboard, captures), batch operations, target manifests for project-specific landmarks, and clean teardown. Headless by default with optional VNC observation.
 license: Apache 2.0
+disable-model-invocation: true
 ---
 
 # Tart GUI Automation

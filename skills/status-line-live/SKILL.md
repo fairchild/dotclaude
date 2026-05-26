@@ -2,6 +2,7 @@
 name: status-line-live
 description: Customize or troubleshoot the live status line. Use when modifying statusline.sh, debugging token display, or understanding the rendering pipeline. The status line runs passively -- this skill is for working on it, not using it.
 license: Apache-2.0
+disable-model-invocation: true
 ---
 
 # status-line-live
