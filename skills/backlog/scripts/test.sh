@@ -14,6 +14,18 @@ trap 'rm -f "$PASS_FILE" "$FAIL_FILE"' EXIT
 ok() { echo "  PASS: $*"; n=$(cat "$PASS_FILE"); echo $((n+1)) > "$PASS_FILE"; }
 nok() { echo "  FAIL: $*" >&2; n=$(cat "$FAIL_FILE"); echo $((n+1)) > "$FAIL_FILE"; }
 
+test_script_syntax() {
+  echo "=== script syntax ==="
+  local f
+  for f in "$script_dir"/*.sh; do
+    if bash -n "$f"; then
+      ok "bash -n $(basename "$f")"
+    else
+      nok "bash -n $(basename "$f")"
+    fi
+  done
+}
+
 # ---------- maildir-git ----------
 test_maildir_git() {
   echo "=== maildir-git ==="
@@ -329,6 +341,7 @@ test_cross_worktree_race() {
   rm -rf "$tmp" "$wt_a" "$wt_b"
 }
 
+test_script_syntax
 test_maildir_git
 test_maildir_shared
 test_cross_worktree_race

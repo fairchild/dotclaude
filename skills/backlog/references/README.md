@@ -10,7 +10,7 @@ A maildir-style task tracker. Each task is a markdown file; its location (`todo/
 - **Append-only log.** Frontmatter and description are author-set at creation; the bullet log below the `---` divider grows by `echo >> file && git commit`. The log *is* the state — no separate mutable claim fields to drift out of sync.
 - **Single writer.** Between the first `advance` and the final exit, only the claiming agent appends. The maildir mv is the actual lock; the `advanced to=doing` log line is documentation.
 - **Graph-native deps.** `dependencies:` is a map of slugs; each task declares its own preconditions. Parallel by default; ordering encoded in the chain itself, not in any single task.
-- **Docs are the spec.** Every verb is described as an inline bash recipe in the references so any agent in any repo can operate without prep. `scripts/backlog.sh` exists as an opinionated implementation for dotclaude itself (covering both `maildir-git` and `maildir-shared` backends), but it implements the docs — the docs do not document the script. If the two disagree, the docs win and the script gets fixed.
+- **Docs are the spec.** Every verb is described in the references so any agent in any repo can operate without prep. `scripts/backlog.sh` exists as an opinionated implementation for dotclaude itself (covering maildir and remote backend adapters), but it implements the docs — the docs do not document the script. If the two disagree, the docs win and the script gets fixed.
 
 ## Minimal snippets
 
