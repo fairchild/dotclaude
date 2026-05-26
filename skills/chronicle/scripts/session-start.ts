@@ -61,14 +61,12 @@ function chooseRecommendation(
   lastSession: ChronicleBlock | null,
   pending: PendingItemWithAge[]
 ): Recommendation | null {
-  const staleCount = pending.filter(p => p.isStale).length;
-
-  if (staleCount > 0) {
-    return { command: "/chronicle stale" };
+  if (lastSession) {
+    return { command: "/chronicle catchup" };
   }
 
-  if (lastSession || pending.length > 0) {
-    return { command: "/chronicle catchup" };
+  if (pending.length > 0) {
+    return { command: "/chronicle pending" };
   }
 
   return null;
