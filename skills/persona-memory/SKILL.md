@@ -4,7 +4,7 @@ description: Build and operate a persistent persona and memory framework for Cla
 license: Apache 2.0
 metadata:
   status: experimental
-  experimental_reason: "Framework is useful but still lacks continuous background agents and full interactive-session CI coverage."
+  experimental_reason: "Healthy framework, intentionally experimental until background memory agents and full interactive-session CI coverage exist."
 ---
 
 # Persona Memory
@@ -15,7 +15,7 @@ General memory framework for teammate-style agents.
 
 This skill is framework-first: any specific persona (for example Bertram) should be implemented as a profile by providing `personality.md` and using the shared memory store.
 
-## Current Scope (Experimental)
+## Healthy Experimental Scope
 
 - Local-first memory store in `~/.ai-memory`.
 - Personality/profile loading via launcher and appended prompt context.
