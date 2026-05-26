@@ -34,26 +34,37 @@ afterEach(() => {
   fetchMock.deactivate();
 });
 
+// Anthropic's Standard Webhooks envelope, decoded from the live API during
+// the L4 deploy:
+//   { type: "event", id, created_at, data: { type, id, organization_id, workspace_id } }
+function envelope(opts: { sessionType: string; sessionId?: string }): string {
+  return JSON.stringify({
+    type: "event",
+    id: `whevt_${crypto.randomUUID()}`,
+    created_at: new Date().toISOString(),
+    data: {
+      type: opts.sessionType,
+      id: opts.sessionId ?? "sesn_test",
+      organization_id: "org_test",
+      workspace_id: "wrkspc_test",
+    },
+  });
+}
+
 describe("POST /webhooks", () => {
-  it("accepts a valid session.status_run_started", async () => {
-    const payload = JSON.stringify({
-      type: "session.status_run_started",
-      data: { session_id: "session_abc" },
-    });
+  it("accepts a valid session.status_run_started envelope", async () => {
+    const payload = envelope({ sessionType: "session.status_run_started", sessionId: "sesn_abc" });
     const res = await SELF.fetch("https://worker.test/webhooks", {
       method: "POST",
       headers: signPayload(payload),
       body: payload,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: "accepted", session_id: "session_abc" });
+    expect(await res.json()).toEqual({ status: "accepted", session_id: "sesn_abc" });
   });
 
   it("rejects a tampered signature with 401", async () => {
-    const payload = JSON.stringify({
-      type: "session.status_run_started",
-      data: { session_id: "session_abc" },
-    });
+    const payload = envelope({ sessionType: "session.status_run_started", sessionId: "sesn_abc" });
     const headers = signPayload(payload);
     headers["webhook-signature"] = `${headers["webhook-signature"]!.slice(0, -4)}AAAA`;
     const res = await SELF.fetch("https://worker.test/webhooks", {
@@ -64,22 +75,19 @@ describe("POST /webhooks", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns ignored for unrelated event types", async () => {
-    const payload = JSON.stringify({ type: "session.status_run_ended", data: {} });
+  it("returns ignored for non-run-started session events", async () => {
+    const payload = envelope({ sessionType: "session.status_idled" });
     const res = await SELF.fetch("https://worker.test/webhooks", {
       method: "POST",
       headers: signPayload(payload),
       body: payload,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: "ignored", type: "session.status_run_ended" });
+    expect(await res.json()).toEqual({ status: "ignored", type: "session.status_idled" });
   });
 
   it("rejects unsigned requests with 401", async () => {
-    const payload = JSON.stringify({
-      type: "session.status_run_started",
-      data: { session_id: "session_abc" },
-    });
+    const payload = envelope({ sessionType: "session.status_run_started", sessionId: "sesn_abc" });
     const res = await SELF.fetch("https://worker.test/webhooks", {
       method: "POST",
       headers: { "content-type": "application/json" },
