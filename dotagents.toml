@@ -56,8 +56,6 @@ tdd = true
 to-issues = true
 to-prd = true
 triage = true
-vercel-react-best-practices = true
-web-design-guidelines = true
 zoom-out = true
 
 # Dotclaude-authored skills to share with ~/.agents/skills/
