@@ -13,6 +13,7 @@
     "smoke": "bun scripts/smoke.ts",
     "ops": "bun scripts/ops.ts",
     "bootstrap": "./scripts/bootstrap-dev-vars.sh",
+    "secrets:put": "./scripts/secrets-put.sh",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
