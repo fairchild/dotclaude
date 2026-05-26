@@ -81,3 +81,6 @@ after the diagnosis either improves the fallback ratio or intentionally changes 
 - 2026-05-26 follow-up read — full bench `fallback 159 / narrative 1 / curator 36`, post-bump sample `8 fallback / 1 curator / 1 narrative`
 
 ---
+- 2026-05-26T06:40:34Z advanced to=doing claimer=fairchild@Mac branch=codex-chronicle-sessionend-fallback
+- 2026-05-26T06:47:06Z progress | Diagnosis: post-bump fallbacks were caused by runtime deployment drift. Three real fallback transcripts (ad712858, aafa68bd, 1a52548d) replayed through the stale installed hook logged ANTHROPIC_API_KEY absent despite available ~/.env/~/.zprofile keys; the same transcripts through the repo hook reached Haiku and classified as curator/narrative. Fast-forwarded ~/.claude runtime to 32e949e and verified installed hook now matches repo hashes and reaches Haiku.
+- 2026-05-26T06:47:50Z advanced to=done | PR=https://github.com/fairchild/dotclaude/pull/198
