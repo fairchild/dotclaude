@@ -16,15 +16,15 @@ A ~/.claude/ configuration that makes Claude Code both more capable and more per
 
 ## Current Focus
 
-The backlog+roadmap layer has passed its first dogfood loop. The repo used the layer to normalize backlog metadata, route new ideas through `inbox/`, share in-flight state across worktrees, add dependency validation, ship the GitHub Issues backend, and feed observed friction back into the backlog skill itself.
+The backlog+roadmap layer has passed its first dogfood loop. The repo used the layer to normalize backlog metadata, route new ideas through `inbox/`, share in-flight state across worktrees, add dependency validation, ship GitHub Issues and Jira backends, and feed observed friction back into the backlog skill itself.
 
 Current focus is now stabilization: keep `inbox/` for triage, keep `todo/` ready-for-agent, and keep each active task tied to an arc unless there is a deliberate exception. The skill-catalog health pass has closed the biggest remaining dogfood gap: no known stale status labels, no known duplicate command wrappers, and no oversized first-load docs in the dotclaude-authored skill catalog. Dogfooding is claimable when this stays true in normal use: backlog status is boring, stale ideas live in `inbox/`, `done/`, or `failed/`, and a fresh worker can choose useful work without rediscovering schema or process questions.
 
 ## Priorities
 
 1. **backlog-roadmap-dogfood** — Stabilize the dogfooded backlog loop now that it has real usage behind it: triage through `inbox/`, ready work in `todo/`, dependency validation, arc hygiene, and worker-friendly tasks. Keep this first until those invariants are boring in day-to-day use.
-2. **memory-loop-quality** — Chronicle Haiku diagnosis/fix has shipped; next is confirming organic SessionEnd output quality, then continuing ai-coding-usage memory imports and token parsing pressure work. Strengthens Principle #1 from aspirational to load-bearing.
-3. **backlog-pluggable-backends** — GitHub Issues backend has shipped. Remaining work is hardening, especially offline test coverage and label semantics. Dotclaude itself stays on `maildir-shared` (Principles #5, #6); this arc adds optionality for other projects, not a migration here.
+2. **memory-loop-quality** — Chronicle Haiku diagnosis/fix, fallback surfacing, and the SessionEnd fallback diagnosis have shipped. Watch post-runtime-sync organic output before blessing a new extract-bench baseline, then continue ai-coding-usage memory imports and token parsing pressure work. Strengthens Principle #1 from aspirational to load-bearing.
+3. **backlog-pluggable-backends** — GitHub Issues and Jira backends have shipped. Remaining work is remote-backend hardening, especially offline adapter tests, side-effect-safe smoke guidance, and tracker-specific semantics. Dotclaude itself stays on `maildir-shared` (Principles #5, #6); this arc adds optionality for other projects, not a migration here.
 4. **prototype-surface** — Vocal loop integration, image-gen protocol, video-gen skill, voxcode-swift, ship command. The adventure arc — keep the surface alive but don't let it crowd #1–#3.
 5. **skill-catalog-grooming** — Current health pass is complete. Keep this as a maintenance arc for future catalog drift, stale experimental labels, duplicate command wrappers, or first-load docs that grow past progressive-disclosure size.
 
