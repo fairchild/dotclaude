@@ -10,15 +10,17 @@ The layout mirrors [`cloudflare/claude-managed-agents`](https://github.com/cloud
 |---|---|
 | `runtime/index.ts` — `fetch` + `email` entry exports | ✅ wired |
 | `runtime/webhooks.ts` — Standard Webhooks signature verify, dispatch | ✅ wired |
-| `runtime/anthropic.ts` — Work API client | ⚠️ `stop` endpoint is documented; the rest are inferred from SDK behavior and need verification |
-| `runtime/heartbeat.ts` — per-session claim + keepalive | ⚠️ structural seam in place; poll-after-webhook has known issues (see file comments) |
-| `runtime/isolate/runner.ts` — per-session sandbox | ⚠️ scaffold only — logs and returns without executing tool calls |
+| `runtime/anthropic.ts` — Work API client | ✅ wired — endpoints verified against the live beta API (poll/ack/heartbeat/stop/stats) |
+| `runtime/heartbeat.ts` — per-session claim + keepalive | ✅ wired — full lifecycle verified end-to-end on the live API |
+| `runtime/isolate/runner.ts` — per-session sandbox | ⚠️ scaffold only — logs and returns without executing tool calls (V1.1 lands the agent loop body) |
 | `runtime/egress/*` — KV-backed credential injection | ✅ wired + tested |
 | `runtime/tools/*` — registry + echo/http_get + pr_diff/pr_files/pr_post_review | ✅ wired + tested |
 | `runtime/email-handler.ts` — per-agent inbound mail | ✅ wired + tested |
 | `agents/pr-review/` — agent definition, system prompt, trigger workflow | ✅ wired (will execute once `runner.ts` lands) |
 
 42 vitest tests pass — pure-function tests (egress matching, secret resolution, tool schemas, address parsing) plus Worker integration tests via `@cloudflare/vitest-pool-workers` (webhook signature verify against the real `/webhooks` route, `/healthz`, email handler with KV writes, egress fetch with header injection through mocked outbound, custom tool dispatch end-to-end including GitHub tools).
+
+The full webhook → poll → ack → run → stop cycle has been verified against the live Anthropic beta API on a real Cloudflare Workers deployment. Anthropic confirms session lifecycle via a follow-up `session.status_idled` webhook. The remaining V1.1 work is the agent loop body inside the isolate runner (Worker Loader integration + the per-tool-call exchange).
 
 ## Layout
 
