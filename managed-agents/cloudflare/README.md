@@ -137,6 +137,7 @@ bun run ops agent register                        # equivalent to ./agents/pr-re
 
 ## Docs
 
+- **[Orientation page](./docs/index.html)** — start here if you've been away. Concepts, architecture diagram, file map, links. Open in a browser.
 - [Architecture](./docs/architecture.md) — the work-queue protocol and how the Worker implements it
 - [Isolate vs VM sandboxes](./docs/isolate-vs-vm-sandboxes.md) — when to pick which (V1 ships isolate path; runner is scaffold)
 - [Adding custom tools](./docs/adding-custom-tools.md) — the `{schema, handler}` pattern
