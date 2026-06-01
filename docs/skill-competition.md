@@ -23,9 +23,10 @@ Use the repo-level UV script:
 
 ```bash
 uv run --script scripts/skill_competition.py \
-  --challenger cmux-orchestrator \
-  --baseline none
+  --challenger ascii-art-fix
 ```
+
+The default comparison is skill vs no skill.
 
 Compare two skills:
 
@@ -39,8 +40,7 @@ Smoke one case:
 
 ```bash
 uv run --script scripts/skill_competition.py \
-  --challenger cmux-orchestrator \
-  --baseline none \
+  --challenger ascii-art-fix \
   --max-cases 1
 ```
 
@@ -49,7 +49,6 @@ Use an explicit eval file:
 ```bash
 uv run --script scripts/skill_competition.py \
   --challenger cmux-orchestrator \
-  --baseline none \
   --evals-file skills/cmux-orchestrator/evals/evals.json
 ```
 
@@ -57,8 +56,7 @@ Preview without writing artifacts:
 
 ```bash
 uv run --script scripts/skill_competition.py \
-  --challenger cmux-orchestrator \
-  --baseline none \
+  --challenger ascii-art-fix \
   --dry-run
 ```
 
@@ -115,7 +113,9 @@ cases/
 
 ## Comparison Modes
 
-`--baseline none` means the same task is run without consulting the challenger skill.
+Omitting `--baseline` means the same task is run without consulting the challenger skill.
+
+`--baseline none` is accepted as the explicit form of the default.
 
 `--baseline <skill>` means the same task is run with the baseline skill as the comparison competitor.
 

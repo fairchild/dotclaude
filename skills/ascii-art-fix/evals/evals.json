@@ -1,0 +1,47 @@
+{
+  "skill_name": "ascii-art-fix",
+  "evals": [
+    {
+      "id": "fix-simple-box",
+      "prompt": "Fix the misaligned right border in the ASCII box diagram in skills/ascii-art-fix/assets/cases/fix-simple-box/input.txt. Preserve all non-box text exactly.",
+      "expected_output": "The corrected text should match skills/ascii-art-fix/assets/cases/fix-simple-box/expected.txt, with every box line having the same width.",
+      "expectations": [
+        "Pads short content lines so the closing border aligns with the top and bottom borders",
+        "Preserves the original box text and border characters",
+        "Does not add commentary around the corrected artifact"
+      ],
+      "files": [
+        "skills/ascii-art-fix/assets/cases/fix-simple-box/input.txt",
+        "skills/ascii-art-fix/assets/cases/fix-simple-box/expected.txt"
+      ]
+    },
+    {
+      "id": "noop-markdown-table",
+      "prompt": "Review skills/ascii-art-fix/assets/cases/noop-markdown-table/input.md and return it unchanged if it is a Markdown table rather than an ASCII box diagram.",
+      "expected_output": "The output should match skills/ascii-art-fix/assets/cases/noop-markdown-table/expected.md exactly.",
+      "expectations": [
+        "Recognizes Markdown table separator rows",
+        "Leaves Markdown table alignment unchanged",
+        "Does not treat table pipe characters as box borders"
+      ],
+      "files": [
+        "skills/ascii-art-fix/assets/cases/noop-markdown-table/input.md",
+        "skills/ascii-art-fix/assets/cases/noop-markdown-table/expected.md"
+      ]
+    },
+    {
+      "id": "fix-unicode-borders",
+      "prompt": "Fix the misaligned Unicode box borders in skills/ascii-art-fix/assets/cases/fix-unicode-borders/input.txt.",
+      "expected_output": "The corrected text should match skills/ascii-art-fix/assets/cases/fix-unicode-borders/expected.txt, using the original Unicode border characters.",
+      "expectations": [
+        "Handles Unicode corner and vertical border characters",
+        "Pads content lines so the closing border aligns with the border width",
+        "Preserves the original content text"
+      ],
+      "files": [
+        "skills/ascii-art-fix/assets/cases/fix-unicode-borders/input.txt",
+        "skills/ascii-art-fix/assets/cases/fix-unicode-borders/expected.txt"
+      ]
+    }
+  ]
+}
