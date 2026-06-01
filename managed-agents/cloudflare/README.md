@@ -75,7 +75,7 @@ Then iterate:
 
 ```bash
 bun run dev                                       # wrangler dev (port 8787)
-bun run test                                      # vitest (42 tests)
+bun run test                                      # vitest (65 tests)
 bun run typecheck                                 # tsc --noEmit
 ```
 
