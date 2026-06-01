@@ -138,17 +138,17 @@ async function main(): Promise<void> {
       name: string;
       description: string;
       model: string;
-      tools: string[];
-      max_turns?: number;
+      tools: unknown[];
     };
-    const systemPrompt = readFileSync(`${dir}/system-prompt.md`, "utf8");
+    // The system prompt lives in a sibling markdown file so reviewers can
+    // edit it in their editor of choice; the API expects it as `system`.
+    const system = readFileSync(`${dir}/system-prompt.md`, "utf8");
     const out = await api("POST", "/v1/agents", {
       name: def.name,
       description: def.description,
       model: def.model,
-      system_prompt: systemPrompt,
+      system,
       tools: def.tools,
-      max_turns: def.max_turns,
     });
     console.log(JSON.stringify(out, null, 2));
     return;
