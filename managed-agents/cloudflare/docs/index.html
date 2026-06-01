@@ -356,13 +356,13 @@ footer a:hover { color: var(--accent); border-color: var(--accent); }
 
 <div class="wide">
 <header class="masthead">
-<div class="eyebrow">managed-agents · cloudflare · v1</div>
+<div class="eyebrow">managed-agents · cloudflare · v1.1</div>
 <h1>An orientation for the worker that runs Claude's tools on Cloudflare</h1>
 <p class="dek">
 A reading reference, a deployable scaffold, and a verified protocol. This page exists so any time you (or another agent) open the project after a gap, the concepts and pointers fit on one screen.
 </p>
 <div class="meta">
-  <span>11 commits · 51 tests · TypeScript strict</span>
+  <span>13 commits · 65 tests · TypeScript strict</span>
   <span><a href="https://github.com/fairchild/dotclaude/pull/187">PR #187</a></span>
   <span><a href="../README.md">README</a></span>
   <span><a href="https://github.com/cloudflare/claude-managed-agents">upstream</a></span>
@@ -661,13 +661,13 @@ All nine pieces are pinned in <code>tests/anthropic-protocol.test.ts</code> — 
 <tr><td><code>runtime/egress/*</code> — KV-backed credential injection</td><td><span class="status-good">wired + tested</span></td></tr>
 <tr><td><code>runtime/tools/*</code> — registry + generic + GitHub tools</td><td><span class="status-good">wired + tested</span></td></tr>
 <tr><td><code>runtime/email-handler.ts</code> — per-agent inbound mail</td><td><span class="status-good">wired + tested</span></td></tr>
-<tr><td><code>runtime/isolate/runner.ts</code> — per-session sandbox</td><td><span class="status-warn">scaffold (V1.1)</span></td></tr>
+<tr><td><code>runtime/isolate/runner.ts</code> — per-session sandbox</td><td><span class="status-good">V1.1 wired — stream + dispatch + result</span></td></tr>
 <tr><td><code>agents/pr-review/</code> — agent def + system prompt + GH Action</td><td><span class="status-good">wired (runs once V1.1 lands)</span></td></tr>
 </tbody>
 </table>
 
 <p>
-V1.1 is one thing: the per-tool-call exchange between Anthropic's agent loop and our tool dispatch. The SDK's <code>EnvironmentWorker.handleItem()</code> does it internally via the Messages API; we need to wire the equivalent here, either by adopting the SDK in a different runtime (Cloudflare Containers) or by implementing the loop directly in workerd. The choice has implications for sandbox isolation that go beyond this orientation.
+V1.1 landed: <code>runtime/isolate/runner.ts</code> now opens the session event stream (<code>GET /v1/sessions/{id}/events/stream</code>), dispatches each <code>agent.custom_tool_use</code> through the tool registry, posts a matching <code>user.custom_tool_result</code> back, and handles dedup, 60s tool timeout, 30s end-turn idle window, and termination events. Skipped (intentional V1.1 simplifications): stream reconnect with backoff, history reconcile via <code>events.list</code>, result-post retries. At pr-review scale these simplifications cost nothing.
 </p>
 
 <div class="callout">

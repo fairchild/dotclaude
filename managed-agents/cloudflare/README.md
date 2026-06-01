@@ -12,15 +12,15 @@ The layout mirrors [`cloudflare/claude-managed-agents`](https://github.com/cloud
 | `runtime/webhooks.ts` — Standard Webhooks signature verify, dispatch | ✅ wired |
 | `runtime/anthropic.ts` — Work API client | ✅ wired — endpoints verified against the live beta API (poll/ack/heartbeat/stop/stats) |
 | `runtime/heartbeat.ts` — per-session claim + keepalive | ✅ wired — full lifecycle verified end-to-end on the live API |
-| `runtime/isolate/runner.ts` — per-session sandbox | ⚠️ scaffold only — logs and returns without executing tool calls (V1.1 lands the agent loop body) |
+| `runtime/isolate/runner.ts` — per-session sandbox | ✅ V1.1 wired — opens session event stream, dispatches `agent.custom_tool_use`, posts `user.custom_tool_result`, handles idle / termination / dedup |
 | `runtime/egress/*` — KV-backed credential injection | ✅ wired + tested |
 | `runtime/tools/*` — registry + echo/http_get + pr_diff/pr_files/pr_post_review | ✅ wired + tested |
 | `runtime/email-handler.ts` — per-agent inbound mail | ✅ wired + tested |
 | `agents/pr-review/` — agent definition, system prompt, trigger workflow | ✅ wired (will execute once `runner.ts` lands) |
 
-42 vitest tests pass — pure-function tests (egress matching, secret resolution, tool schemas, address parsing) plus Worker integration tests via `@cloudflare/vitest-pool-workers` (webhook signature verify against the real `/webhooks` route, `/healthz`, email handler with KV writes, egress fetch with header injection through mocked outbound, custom tool dispatch end-to-end including GitHub tools).
+65 vitest tests pass — pure-function tests (egress matching, secret resolution, tool schemas, address parsing), Worker integration tests via `@cloudflare/vitest-pool-workers` (webhook signature verify, `/healthz`, email handler, egress fetch, custom tool dispatch), protocol regression tests pinning the Work API shapes, and V1.1 agent-loop tests covering the session event stream, tool dispatch, dedup, and termination handling.
 
-The full webhook → poll → ack → run → stop cycle has been verified against the live Anthropic beta API on a real Cloudflare Workers deployment. Anthropic confirms session lifecycle via a follow-up `session.status_idled` webhook. The remaining V1.1 work is the agent loop body inside the isolate runner (Worker Loader integration + the per-tool-call exchange).
+The full webhook → poll → ack → stream → dispatch → result → stop cycle is implemented and tested. End-to-end protocol verified against the live Anthropic beta API on a real Cloudflare Workers deployment; Anthropic confirms session lifecycle via a follow-up `session.status_idled` webhook.
 
 ## Layout
 

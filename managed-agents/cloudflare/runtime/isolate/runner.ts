@@ -1,49 +1,170 @@
 /**
- * Per-session isolate runner.
+ * Per-session agent loop body.
  *
- * V1 STATUS: scaffold only. This function is invoked once per claimed work
- * item; in V1 it returns without executing tool calls. The surrounding flow
- * (webhook → claim → keepalive → stop) exercises end-to-end, but the agent
- * loop body is not implemented.
+ * Once heartbeat.ts has claimed and acked a work item, this runner:
+ *   1. Opens an SSE stream of session events (GET /sessions/{id}/events/stream)
+ *   2. For each `agent.custom_tool_use` event, dispatches to the registered
+ *      tool handler via adapter.ts
+ *   3. Posts the matching `user.custom_tool_result` back via POST /sessions/{id}/events
+ *   4. Exits when:
+ *      - The stream closes
+ *      - A `session.status_terminated` or `session.deleted` event arrives
+ *      - The session reaches `end_turn` and stays idle for `MAX_IDLE_MS`
+ *      - A tool call exceeds `TOOL_TIMEOUT_MS` (the call is cancelled; loop continues)
  *
- * Two things need to settle before the loop can land:
+ * Skipped for V1.1 (intentionally — see comments):
+ *   - Stream reconnect with backoff (one stream attempt; close = exit)
+ *   - History reconcile via events.list (no catch-up if events missed)
+ *   - Result-post retries (one POST attempt per result)
+ *   - Built-in `agent.tool_use` events (bash/read/glob/etc.); only custom tools handled
  *
- *   1. The HTTP shape for receiving tool calls from Anthropic and posting
- *      results back. The documented endpoints expose `/work/poll`,
- *      `/work/{id}/keepalive`, `/work/{id}/stop`, and `/work/stats`, but the
- *      per-tool-call exchange happens inside the SDK's EnvironmentWorker and
- *      isn't directly described in the public docs. Reading the SDK source
- *      or running the SDK against the beta API will reveal it.
- *
- *   2. The Cloudflare Worker Loader API for spawning a child JS isolate per
- *      session, including how to inject a fetch override that routes the
- *      isolate's outbound HTTP back through this parent worker's egress
- *      layer. The unsafe binding type "worker_loader" is in wrangler.jsonc
- *      but commented out until the shape is verified.
- *
- * When both land, the loop body looks like:
- *
- *   while (sessionActive) {
- *     const call = await client.nextToolCall(work.id);   // long-poll
- *     if (!call) break;
- *     const result = await dispatchToolCall(env, call);  // adapter.ts
- *     await client.postToolResult(work.id, result);
- *   }
- *
- * See docs/architecture.md for the model and docs/isolate-vs-vm-sandboxes.md
- * for the sandbox choice.
+ * The shape mirrors the SDK's SessionToolRunner but the simplifications are
+ * load-bearing: at V1.1 scale (the pr-review agent makes ~3 tool calls per
+ * session), the missing reconnect/retry surface doesn't pay back its cost.
  */
-import type { AnthropicClient, WorkItem } from "../anthropic.ts";
+import type {
+  AgentCustomToolUseEvent,
+  AgentToolUseEvent,
+  AnthropicClient,
+  SessionEvent,
+  SessionEventParam,
+} from "../anthropic.ts";
 import type { Env } from "../env.d.ts";
 import { log } from "../helpers.ts";
+import { dispatchToolCall } from "./adapter.ts";
+
+const TOOL_TIMEOUT_MS = 60_000;
+const MAX_IDLE_MS = 30_000;
 
 export interface RunIsolateArgs {
   env: Env;
-  work: WorkItem;
+  work: { id: string; data: { id: string; type: string } };
   client: AnthropicClient;
 }
 
-export async function runIsolate({ work }: RunIsolateArgs): Promise<void> {
-  log("info", "isolate.scaffold_invoked", { workId: work.id, sessionId: work.data.id });
-  // The agent loop body lands in V1.1. Until then this is a structural no-op.
+export async function runIsolate({ env, work, client }: RunIsolateArgs): Promise<void> {
+  const sessionId = work.data.id;
+  const ctrl = new AbortController();
+  const answered = new Set<string>();
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const armIdle = (): void => {
+    disarmIdle();
+    idleTimer = setTimeout(() => {
+      log("info", "isolate.idle_timeout", { sessionId });
+      ctrl.abort();
+    }, MAX_IDLE_MS);
+  };
+  const disarmIdle = (): void => {
+    if (idleTimer !== undefined) {
+      clearTimeout(idleTimer);
+      idleTimer = undefined;
+    }
+  };
+
+  log("info", "isolate.start", { sessionId, workId: work.id });
+  let toolCount = 0;
+
+  try {
+    for await (const ev of client.streamEvents(sessionId, { signal: ctrl.signal })) {
+      // Arm the idle countdown on `end_turn`; any non-idle event re-cancels it.
+      if (isEndTurn(ev)) armIdle();
+      else disarmIdle();
+
+      switch (ev.type) {
+        case "session.status_terminated":
+        case "session.deleted":
+          log("info", "isolate.session_terminated", { sessionId, eventType: ev.type });
+          return;
+
+        case "agent.custom_tool_use": {
+          const e = ev as AgentCustomToolUseEvent;
+          if (answered.has(e.id)) break;
+          answered.add(e.id);
+          toolCount++;
+          await runTool(env, client, sessionId, e, ctrl.signal).catch((err) => {
+            log("error", "isolate.tool_dispatch_failed", { sessionId, toolUseId: e.id, error: String(err) });
+          });
+          break;
+        }
+
+        case "agent.tool_use": {
+          // Built-in tools (bash, read, glob, …) are not implemented in V1.
+          // Post a clear error so the agent doesn't hang waiting for a result.
+          const e = ev as AgentToolUseEvent;
+          if (answered.has(e.id)) break;
+          answered.add(e.id);
+          await client.postEvents(sessionId, [{
+            type: "user.tool_result",
+            tool_use_id: e.id,
+            is_error: true,
+            content: [{ type: "text", text: `built-in tool "${e.name}" is not implemented by this worker` }],
+          }]).catch((err) => {
+            log("warn", "isolate.builtin_result_failed", { sessionId, error: String(err) });
+          });
+          break;
+        }
+
+        default:
+          // user.tool_result, user.custom_tool_result, agent.message, agent.thinking, etc.
+          // Recorded by the agent loop, no worker-side action needed.
+          break;
+      }
+    }
+  } finally {
+    disarmIdle();
+    ctrl.abort();
+  }
+
+  log("info", "isolate.complete", { sessionId, toolsRun: toolCount });
+}
+
+function isEndTurn(ev: SessionEvent): boolean {
+  return ev.type === "agent.message" && (ev as { stop_reason?: string }).stop_reason === "end_turn";
+}
+
+async function runTool(
+  env: Env,
+  client: AnthropicClient,
+  sessionId: string,
+  ev: { id: string; name: string; input: unknown },
+  parentSignal: AbortSignal,
+): Promise<void> {
+  log("info", "isolate.tool_use", { sessionId, name: ev.name, toolUseId: ev.id });
+
+  const toolCtrl = new AbortController();
+  const timer = setTimeout(() => toolCtrl.abort(), TOOL_TIMEOUT_MS);
+  const onParentAbort = (): void => toolCtrl.abort();
+  parentSignal.addEventListener("abort", onParentAbort);
+
+  let result: SessionEventParam;
+  try {
+    const dispatched = await dispatchToolCall(env, { id: ev.id, name: ev.name, input: ev.input });
+    result = {
+      type: "user.custom_tool_result",
+      custom_tool_use_id: ev.id,
+      is_error: dispatched.is_error ?? false,
+      content: [
+        {
+          type: "text",
+          text: typeof dispatched.content === "string"
+            ? (dispatched.content || "(no output)")
+            : JSON.stringify(dispatched.content),
+        },
+      ],
+    };
+  } catch (err) {
+    result = {
+      type: "user.custom_tool_result",
+      custom_tool_use_id: ev.id,
+      is_error: true,
+      content: [{ type: "text", text: err instanceof Error ? err.message : String(err) }],
+    };
+  } finally {
+    clearTimeout(timer);
+    parentSignal.removeEventListener("abort", onParentAbort);
+  }
+
+  await client.postEvents(sessionId, [result]);
+  log("info", "isolate.tool_result_posted", { sessionId, toolUseId: ev.id, isError: result.is_error });
 }

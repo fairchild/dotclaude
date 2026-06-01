@@ -138,6 +138,159 @@ export class AnthropicClient {
     });
     if (!res.ok && res.status !== 409) throw new ApiError("stop", res);
   }
+
+  // ===== session events surface =====
+
+  private sessionUrl(sessionId: string, path = ""): string {
+    return `${this.env.ANTHROPIC_API_BASE}/v1/sessions/${sessionId}${path}?beta=true`;
+  }
+
+  /**
+   * Open an SSE stream of session events and yield each parsed event object.
+   * Iteration ends when the stream closes (end of session) or the AbortSignal
+   * fires. The Anthropic API sends Standard SSE blocks (event:/data:/\n\n);
+   * we only need the JSON in the data field — the type lives inside it.
+   */
+  async *streamEvents(
+    sessionId: string,
+    opts: { signal?: AbortSignal } = {},
+  ): AsyncGenerator<SessionEvent, void, void> {
+    const res = await fetch(this.sessionUrl(sessionId, "/events/stream"), {
+      method: "GET",
+      headers: { ...this.headers(), accept: "text/event-stream" },
+      signal: opts.signal,
+    });
+    if (!res.ok || !res.body) throw new ApiError("streamEvents", res);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+
+        // SSE events are delimited by a blank line. Pull complete blocks.
+        let sep: number;
+        while ((sep = findEventBoundary(buf)) >= 0) {
+          const block = buf.slice(0, sep);
+          buf = buf.slice(sep).replace(/^(?:\r?\n){1,2}/, "");
+          const event = parseSseBlock(block);
+          if (event) yield event;
+        }
+      }
+      // Flush any trailing block at stream end.
+      if (buf.trim()) {
+        const event = parseSseBlock(buf);
+        if (event) yield event;
+      }
+    } finally {
+      try { reader.releaseLock(); } catch { /* reader already released */ }
+    }
+  }
+
+  /** Post one or more events to a session. Used for tool_result, user.message. */
+  async postEvents(sessionId: string, events: SessionEventParam[]): Promise<void> {
+    const res = await fetch(this.sessionUrl(sessionId, "/events"), {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify({ events }),
+    });
+    if (!res.ok) throw new ApiError("postEvents", res);
+  }
+}
+
+// ===== session event types =====
+
+/**
+ * One session event as the API surfaces it. Discriminated by `type`. We don't
+ * enumerate every shape - only the fields the runner reads. Unknown event
+ * types pass through and are ignored by the dispatcher.
+ */
+export type SessionEvent =
+  | AgentCustomToolUseEvent
+  | AgentToolUseEvent
+  | UserCustomToolResultEvent
+  | UserToolResultEvent
+  | AgentMessageEvent
+  | SessionStatusEvent
+  | { type: string; id?: string; [key: string]: unknown };
+
+export interface AgentCustomToolUseEvent {
+  type: "agent.custom_tool_use";
+  id: string;
+  name: string;
+  input: unknown;
+}
+
+export interface AgentToolUseEvent {
+  type: "agent.tool_use";
+  id: string;
+  name: string;
+  input: unknown;
+}
+
+export interface UserCustomToolResultEvent {
+  type: "user.custom_tool_result";
+  id?: string;
+  custom_tool_use_id: string;
+}
+
+export interface UserToolResultEvent {
+  type: "user.tool_result";
+  id?: string;
+  tool_use_id: string;
+}
+
+export interface AgentMessageEvent {
+  type: "agent.message";
+  id: string;
+  stop_reason?: "end_turn" | "tool_use" | "max_tokens" | string;
+}
+
+export interface SessionStatusEvent {
+  type: "session.status_terminated" | "session.deleted" | "session.status_idled";
+  id?: string;
+}
+
+/** Params for posting a tool-result event back to a session. */
+export type SessionEventParam =
+  | { type: "user.custom_tool_result"; custom_tool_use_id: string; is_error?: boolean; content: SessionContent[] }
+  | { type: "user.tool_result"; tool_use_id: string; is_error?: boolean; content: SessionContent[] }
+  | { type: "user.message"; content: SessionContent[] };
+
+export type SessionContent =
+  | { type: "text"; text: string }
+  | { type: "image"; source: unknown }
+  | { type: "document"; source: unknown };
+
+// ===== SSE helpers (exported for tests) =====
+
+export function findEventBoundary(s: string): number {
+  const a = s.indexOf("\n\n");
+  const b = s.indexOf("\r\n\r\n");
+  if (a < 0) return b;
+  if (b < 0) return a;
+  return Math.min(a, b);
+}
+
+export function parseSseBlock(block: string): SessionEvent | null {
+  const lines = block.split(/\r?\n/);
+  const dataLines: string[] = [];
+  for (const line of lines) {
+    if (line.startsWith("data:")) {
+      dataLines.push(line.slice(5).replace(/^ /, ""));
+    }
+  }
+  if (dataLines.length === 0) return null;
+  const data = dataLines.join("\n");
+  if (data === "[DONE]") return null;
+  try {
+    return JSON.parse(data) as SessionEvent;
+  } catch {
+    return null;
+  }
 }
 
 export class ApiError extends Error {
