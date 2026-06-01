@@ -38,6 +38,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Create review session
+        id: session
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           AGENT_ID: ${{ vars.PR_REVIEW_AGENT_ID }}
@@ -48,7 +49,7 @@ jobs:
             -H "anthropic-version: 2023-06-01" \
             -H "anthropic-beta: managed-agents-2026-04-01" \
             -H "content-type: application/json" \
-            -d @- <<EOF
+            -d @- <<EOF > session.json
           {
             "agent": "$AGENT_ID",
             "environment_id": "$ENVIRONMENT_ID",
@@ -59,5 +60,35 @@ jobs:
               "base_sha": "${{ steps.pr.outputs.base_sha }}",
               "repo": "${{ github.repository }}"
             }
+          }
+          EOF
+          SESSION_ID=$(jq -r .id session.json)
+          echo "session_id=$SESSION_ID" >> "$GITHUB_OUTPUT"
+          echo "Created session $SESSION_ID for PR #${{ steps.pr.outputs.number }}"
+
+      - name: Kick off agent run with user message
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SESSION_ID: ${{ steps.session.outputs.session_id }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          # Without this, the session sits idle and the agent loop never
+          # starts — sessions are created idle and need a user message
+          # to transition to running, which is what fires the webhook to
+          # our worker.
+          curl -sS --fail-with-body "https://api.anthropic.com/v1/sessions/$SESSION_ID/events" \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "anthropic-beta: managed-agents-2026-04-01" \
+            -H "content-type: application/json" \
+            -d @- <<EOF
+          {
+            "events": [{
+              "type": "user.message",
+              "content": [{
+                "type": "text",
+                "text": "Review pull request #$PR_NUMBER in the repo described in your session metadata. Read the diff, decide on a verdict (Approve / Comments only / Reject), and post a single review with pr_post_review. Follow the format and heuristics in your system prompt."
+              }]
+            }]
           }
           EOF
