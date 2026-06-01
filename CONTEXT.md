@@ -12,10 +12,15 @@ _Avoid_: Effectiveness eval, agent eval
 A script-backed assessment of a skill's implementation correctness against fixed fixtures and thresholds.
 _Avoid_: Unit test, smoke test
 
+**Skill Competition**:
+A comparison of one skill against no skill, another skill, or another version of the same skill on the same skill eval cases.
+_Avoid_: Leaderboard, bake-off
+
 ## Relationships
 
 - A **Skill Eval** evaluates agent behavior with or without a skill.
 - A **Deterministic Eval** evaluates a skill's bundled scripts, state transitions, or machine-checkable outputs.
+- A **Skill Competition** compares outputs from the same **Skill Eval** cases across two competitors.
 - A skill may have zero or more **Skill Evals** and zero or more **Deterministic Evals**.
 
 ## Example Dialogue
