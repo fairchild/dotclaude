@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "smoke": "bun scripts/smoke.ts",
+    "verify": "bun scripts/verify.ts",
     "ops": "bun scripts/ops.ts",
     "bootstrap": "./scripts/bootstrap-dev-vars.sh",
     "push-keys": "./scripts/push-env-keys.sh",

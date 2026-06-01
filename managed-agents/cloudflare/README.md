@@ -93,6 +93,71 @@ bun run smoke
 
 `scripts/smoke.ts` signs a payload against the `ANTHROPIC_WEBHOOK_SIGNING_KEY` in your `.dev.vars`, posts it to the dev server, and asserts the response shape. Confirms wrangler boots cleanly, KV bindings resolve under miniflare, `standardwebhooks` verifies in the real workerd runtime, and `ctx.waitUntil` invokes `runSession` (you'll see a `session.runtime_error` log when its outbound call to the fake Anthropic API fails — that's expected and proves the code path ran).
 
+## Verifying after merge
+
+Three tiers, ordered by cost and breadth:
+
+### Tier 1 — health check (5 seconds, no side effects)
+
+```bash
+curl https://managed-agents-cloudflare.irons-in-the-fire8698.workers.dev/healthz
+bun run ops env show env_01KabR6oarLjCHEJHRnpbEbg
+bun run ops work stats --env-id env_01KabR6oarLjCHEJHRnpbEbg
+```
+
+Proves the worker is responding, the env still exists, and the queue is reachable. Catches deploy bit-rot and credential expiry.
+
+### Tier 2 — end-to-end round-trip (60 seconds, creates one session)
+
+```bash
+bun run verify
+```
+
+`scripts/verify.ts` runs five checks against the live deployed worker:
+1. `/healthz` returns `{ok: true}`
+2. The configured Anthropic environment is `active` and `self_hosted`
+3. A `v1.1-verify` test agent exists (creates one with an `echo` custom tool on first run)
+4. Creates a session, posts a user message that prompts a tool call
+5. Polls until the session reaches `idle`, then asserts the events list contains both an `agent.custom_tool_use` and a matching `user.custom_tool_result`
+
+The matching-id assertion is the load-bearing check — it's only true if our worker received the webhook, claimed the work, reconciled history (or saw the live event), dispatched to the `echo` handler, and posted the result back. Anything broken in the V1.1 chain shows up here.
+
+Pass output:
+```
+[1/5] worker /healthz
+  ✓ worker is alive (200, {ok: true})
+[2/5] anthropic environment
+  ✓ env "dotclaude-pr-review-test" is active (self_hosted)
+[3/5] verify agent
+  ✓ agent "v1.1-verify" available (agent_…)
+[4/5] session round-trip
+  ✓ session created (sesn_…)
+  ✓ user.message posted (triggers webhook to worker)
+[5/5] waiting for tool dispatch + result
+  ✓ agent emitted custom_tool_use (sevt_… → echo)
+  ✓ worker posted matching custom_tool_result (sevt_…)
+  ✓ session reached idle in 6s
+
+9/9 checks passed
+```
+
+The whole script is idempotent — re-running reuses the `v1.1-verify` agent.
+
+### Tier 3 — the actual deployed agent (real PR review)
+
+The pr-review agent at `agents/pr-review/` is configured but not yet registered against the live Anthropic API with the correct tool-object shape (V1's `tools: ["pr_diff", …]` predated our `tools: [{type:"custom", name, description, input_schema}]` discovery). To run a real PR review:
+
+1. Update `agents/pr-review/agent.json` so `tools` matches the verified `{type, name, description, input_schema}` shape for each of `pr_diff`, `pr_files`, `pr_post_review`, `http_get`
+2. `bun run ops agent register --dir agents/pr-review` to create the agent on Anthropic; copy the returned `agent_id`
+3. In Cloudflare dashboard or via `wrangler kv key put`, set up the GitHub egress policy:
+   - `SECRETS` KV: `GITHUB_PR_TOKEN` = a PAT or installation token with `pull_requests: write`, `contents: read`
+   - `EGRESS_POLICIES` KV: `policy:github` with host `api.github.com` and `value_template: "Bearer ${ref:GITHUB_PR_TOKEN}"`
+   - `EGRESS_POLICIES` KV: `policies:index` = `["github"]`
+4. Set repo-level GitHub Actions vars: `PR_REVIEW_AGENT_ID`, `MANAGED_AGENTS_ENVIRONMENT_ID`; secret: `ANTHROPIC_API_KEY`
+5. Open a draft PR in dotclaude → the workflow fires → session created → worker runs the agent loop → review comment lands on the PR
+
+This is the "did the actual thing we built achieve its actual purpose" verification. Wire it up when you're ready to let the agent post real reviews; until then, Tier 2 is the reliable signal that the V1.1 protocol layer works.
+
 ## Platform operations
 
 ```bash
