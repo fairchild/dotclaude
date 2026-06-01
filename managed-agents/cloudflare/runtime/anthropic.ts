@@ -190,6 +190,24 @@ export class AnthropicClient {
     }
   }
 
+  /**
+   * List past events for a session. Used by the agent loop to reconcile
+   * history right after opening the live stream - SSE doesn't replay events
+   * that fired before the subscription attached, and the webhook → poll →
+   * stream open path always leaves a window where a tool_use can be emitted
+   * and missed.
+   */
+  async listEvents(sessionId: string, opts: { limit?: number } = {}): Promise<SessionEvent[]> {
+    const limit = opts.limit ?? 1000;
+    const res = await fetch(this.sessionUrl(sessionId, "/events") + `&limit=${limit}`, {
+      method: "GET",
+      headers: this.headers(),
+    });
+    if (!res.ok) throw new ApiError("listEvents", res);
+    const body = (await res.json()) as { data?: SessionEvent[] };
+    return body.data ?? [];
+  }
+
   /** Post one or more events to a session. Used for tool_result, user.message. */
   async postEvents(sessionId: string, events: SessionEventParam[]): Promise<void> {
     const res = await fetch(this.sessionUrl(sessionId, "/events"), {

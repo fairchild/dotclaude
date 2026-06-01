@@ -65,6 +65,55 @@ export async function runIsolate({ env, work, client }: RunIsolateArgs): Promise
   log("info", "isolate.start", { sessionId, workId: work.id });
   let toolCount = 0;
 
+  // Reconcile history right after the (eventual) stream attaches. The webhook
+  // → poll → ack → stream-open path is long enough that an agent.tool_use can
+  // fire before we've subscribed, and SSE doesn't replay past events.
+  //
+  // The list pass also discovers tool_results we already posted (in case a
+  // previous worker instance ran briefly) and marks them answered so we don't
+  // re-execute on a duplicate stream delivery.
+  try {
+    const history = await client.listEvents(sessionId);
+    // Walk events in order, marking results as "answered" first so we don't
+    // dispatch a tool_use whose result is already in history.
+    for (const ev of history) {
+      if (ev.type === "user.custom_tool_result") {
+        const id = (ev as { custom_tool_use_id?: string }).custom_tool_use_id;
+        if (id) answered.add(id);
+      } else if (ev.type === "user.tool_result") {
+        const id = (ev as { tool_use_id?: string }).tool_use_id;
+        if (id) answered.add(id);
+      }
+    }
+    // Now dispatch any unanswered tool_use events that already happened.
+    for (const ev of history) {
+      if (ev.type === "agent.custom_tool_use") {
+        const e = ev as AgentCustomToolUseEvent;
+        if (!answered.has(e.id)) {
+          answered.add(e.id);
+          toolCount++;
+          await runTool(env, client, sessionId, e, ctrl.signal).catch((err) => {
+            log("error", "isolate.tool_dispatch_failed", { sessionId, toolUseId: e.id, error: String(err) });
+          });
+        }
+      } else if (ev.type === "agent.tool_use") {
+        const e = ev as AgentToolUseEvent;
+        if (!answered.has(e.id)) {
+          answered.add(e.id);
+          await client.postEvents(sessionId, [{
+            type: "user.tool_result",
+            tool_use_id: e.id,
+            is_error: true,
+            content: [{ type: "text", text: `built-in tool "${e.name}" is not implemented by this worker` }],
+          }]).catch((err) => log("warn", "isolate.builtin_result_failed", { sessionId, error: String(err) }));
+        }
+      }
+    }
+    log("info", "isolate.reconciled", { sessionId, historyCount: history.length, dispatched: toolCount });
+  } catch (err) {
+    log("warn", "isolate.reconcile_failed", { sessionId, error: String(err) });
+  }
+
   try {
     for await (const ev of client.streamEvents(sessionId, { signal: ctrl.signal })) {
       // Arm the idle countdown on `end_turn`; any non-idle event re-cancels it.
