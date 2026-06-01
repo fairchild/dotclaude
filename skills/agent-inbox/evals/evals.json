@@ -1,0 +1,41 @@
+{
+  "skill_name": "agent-inbox",
+  "evals": [
+    {
+      "id": "setup-shared-inbox",
+      "prompt": "Set up an agent inbox for a coding task called sidebar-focus in the current git repository. Explain where the shared inbox root should live and create the agent directories needed for your own inbox.",
+      "expected_output": "A repo-shared inbox setup that resolves the git common directory, creates new/tmp/archive directories for the sidebar-focus agent, and uses a goal-oriented slug.",
+      "expectations": [
+        "Resolves the inbox root from git rev-parse --git-common-dir when inside a git repo",
+        "Creates new, tmp, and archive directories for the agent slug",
+        "Uses a goal-oriented slug rather than a generic role name",
+        "Explains the fallback to .agents/inbox outside git"
+      ],
+      "files": []
+    },
+    {
+      "id": "send-atomic-message",
+      "prompt": "Send a message from reviewer to test-runner saying that PR #42 is ready for verification. Use the agent inbox protocol and make the write safe for concurrent readers.",
+      "expected_output": "A Markdown message with YAML frontmatter written to the recipient tmp directory first, then moved atomically into new.",
+      "expectations": [
+        "Creates the recipient new/tmp/archive directories if needed",
+        "Writes the message to tmp before moving it into new",
+        "Includes from, to, reply_to, timestamp, and thread frontmatter",
+        "Uses a filename with a timestamp and short subject slug"
+      ],
+      "files": []
+    },
+    {
+      "id": "read-archive-reply",
+      "prompt": "You have an unread message in your agent inbox. Read it, archive it, and reply to the sender using the reply_to field.",
+      "expected_output": "The workflow should read a file from new, move it to archive after reading, parse reply_to, write the reply through tmp, and move it into the sender's new directory.",
+      "expectations": [
+        "Reads messages from the new directory",
+        "Archives the message after reading",
+        "Uses reply_to from frontmatter rather than guessing a sender path",
+        "Writes the reply through tmp before moving it to new"
+      ],
+      "files": []
+    }
+  ]
+}
