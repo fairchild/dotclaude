@@ -2,14 +2,14 @@
 
 Skill Competition is the repo-level workflow for comparing one skill against no skill, another skill, or another version of the same skill on the same Skill Eval cases.
 
-The first implementation is deliberately artifact-first. It creates reproducible run packs and manual judgement templates from `skills/<skill>/evals/evals.json`; it does not pretend to automatically load or isolate Claude/Codex skills.
+The first implementation is deliberately artifact-first. It creates reproducible manual run packs and judgement templates from `skills/<skill>/evals/evals.json`; it does not pretend to automatically load or isolate Claude/Codex skills.
 
 ## Goals
 
 - Compare a challenger skill against `none` to measure whether the skill adds value.
 - Compare a challenger skill against another skill to understand overlap and relative quality.
 - Preserve prompts, outputs, judgement templates, and summary metadata for later inspection.
-- Keep the runner deterministic and usable before automated model adapters exist.
+- Keep run-pack generation deterministic and usable before automated execution exists.
 
 ## Non-Goals
 
@@ -17,7 +17,7 @@ The first implementation is deliberately artifact-first. It creates reproducible
 - Produce a public leaderboard.
 - Replace skill-specific Deterministic Evals for scripts, state transitions, or fixed fixtures.
 
-## Runner
+## Run Pack Generator
 
 Use the repo-level UV script:
 
@@ -44,6 +44,15 @@ uv run --script scripts/skill_competition.py \
   --max-cases 1
 ```
 
+Use an explicit eval file:
+
+```bash
+uv run --script scripts/skill_competition.py \
+  --challenger cmux-orchestrator \
+  --baseline none \
+  --evals-file skills/cmux-orchestrator/evals/evals.json
+```
+
 Preview without writing artifacts:
 
 ```bash
@@ -55,7 +64,7 @@ uv run --script scripts/skill_competition.py \
 
 ## Inputs
 
-The runner reads AgentSkills-style eval files:
+The generator reads AgentSkills-style eval files:
 
 ```text
 skills/<skill>/evals/evals.json
@@ -114,9 +123,9 @@ Future versions can add version comparisons by letting `--baseline` resolve a di
 
 ## Judgement
 
-The first runner uses manual judgement templates. This is intentional: skill outputs are often qualitative, and the repo needs inspectable artifacts before automated judging is trustworthy.
+The first version uses manual judgement templates. This is intentional: skill outputs are often qualitative, and the repo needs inspectable artifacts before automated judging is trustworthy.
 
-Future adapters can add:
+Future versions can add:
 
 - LLM-as-judge scoring
 - Deterministic assertion checks

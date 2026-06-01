@@ -38,7 +38,7 @@ class EvalCase:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Create skill-vs-baseline competition run packs from evals/evals.json.",
+        description="Create manual skill-vs-baseline competition run packs from evals/evals.json.",
     )
     parser.add_argument(
         "--challenger",
@@ -51,9 +51,9 @@ def parse_args() -> argparse.Namespace:
         help="Baseline skill name/path, or 'none' for no-skill comparison.",
     )
     parser.add_argument(
-        "--evals-from",
-        default="challenger",
-        help="Where to load evals from: challenger, baseline, or a path to an evals.json file.",
+        "--evals-file",
+        type=Path,
+        help="Optional evals.json path. Defaults to the challenger's evals/evals.json.",
     )
     parser.add_argument(
         "--case-id",
@@ -76,12 +76,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-name",
         help="Optional run id suffix/name. Defaults to timestamp plus competitor names.",
-    )
-    parser.add_argument(
-        "--repo-root",
-        type=Path,
-        default=Path.cwd(),
-        help="Repository root. Defaults to the current working directory.",
     )
     parser.add_argument(
         "--dry-run",
@@ -153,19 +147,13 @@ def resolve_skill(ref: str, repo_root: Path, *, allow_none: bool = False) -> Ski
     return SkillRef(kind="skill", name=read_skill_name(skill_dir), path=skill_dir)
 
 
-def resolve_evals_file(evals_from: str, challenger: SkillRef, baseline: SkillRef, repo_root: Path) -> Path:
-    if evals_from == "challenger":
+def resolve_evals_file(evals_file: Path | None, challenger: SkillRef, repo_root: Path) -> Path:
+    if evals_file is None:
         if challenger.path is None:
             fail("challenger cannot be none")
         return challenger.path / "evals" / "evals.json"
 
-    if evals_from == "baseline":
-        if baseline.path is None:
-            fail("--evals-from baseline cannot be used with --baseline none")
-        return baseline.path / "evals" / "evals.json"
-
-    evals_path = Path(evals_from)
-    return evals_path if evals_path.is_absolute() else repo_root / evals_path
+    return evals_file if evals_file.is_absolute() else repo_root / evals_file
 
 
 def normalize_string_list(value: Any, field: str, case_id: str) -> list[str]:
@@ -427,10 +415,7 @@ def build_plan(
         "schema_version": SCHEMA_VERSION,
         "run_id": run_id,
         "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "adapter": "manual",
-        "judge": "manual",
         "mode": "skill-vs-none" if baseline.kind == "none" else "skill-vs-skill",
-        "repo_root": rel(repo_root, repo_root),
         "eval_source": {
             "path": rel(evals_file, repo_root),
             "skill_name": eval_skill_name,
@@ -503,10 +488,10 @@ def write_artifacts(
 
 def main() -> None:
     args = parse_args()
-    repo_root = args.repo_root.resolve()
+    repo_root = Path.cwd().resolve()
     challenger = resolve_skill(args.challenger, repo_root)
     baseline = resolve_skill(args.baseline, repo_root, allow_none=True)
-    evals_file = resolve_evals_file(args.evals_from, challenger, baseline, repo_root).resolve()
+    evals_file = resolve_evals_file(args.evals_file, challenger, repo_root).resolve()
     eval_skill_name, all_cases = load_eval_cases(evals_file)
     cases = filter_cases(all_cases, args.case_id, args.max_cases)
 
