@@ -85,21 +85,30 @@ ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
 
 ### Runtime Config Changes
 
-Claude Code sometimes modifies `settings.json` automatically (adding permissions, changing model, etc.). These small mechanical changes push directly from `~/.claude` — no branch or PR needed:
+`main` is protected, so nothing — including `~/.claude` — pushes to it directly. When Claude Code or another app (e.g. the workspaces hook installer) modifies `~/.claude/settings.json` at runtime, codify the change through a PR from the dev repo:
 
 ```bash
-git -C ~/.claude add settings.json
-git -C ~/.claude commit -m "chore: update settings from runtime"
-git -C ~/.claude push origin main
-# Dev repo catches up: git -C ~/code/dotclaude pull
+cp ~/.claude/settings.json ~/code/dotclaude/settings.json
+git -C ~/code/dotclaude checkout -b chore/settings-sync main
+git -C ~/code/dotclaude add settings.json
+git -C ~/code/dotclaude commit -m "chore: sync settings.json from runtime"
+git -C ~/code/dotclaude push -u origin chore/settings-sync
+gh pr create --fill   # review, merge
 ```
 
-All other development (new skills, workflow changes, doc updates) goes through feature branches and PRs in `~/code/dotclaude`.
+After merge, discard the now-redundant runtime drift so the tree is clean, then deploy:
+
+```bash
+git -C ~/.claude checkout settings.json
+~/.claude/scripts/deploy.sh
+```
+
+Until you do this, `~/.claude` shows `settings.json` as modified and the `SessionStart` auto-deploy skips. Everything else (new skills, workflow changes, doc updates) goes through feature branches and PRs in `~/code/dotclaude` the same way.
 
 ### Key Rules
 
 - **All development happens in `~/code/dotclaude`** — feature branches, PRs, code review
-- **`~/.claude` is deploy-only** — only commit small runtime config changes there
+- **`~/.claude` is deploy-only** — read and fast-forward only; never commit there. `main` is protected, so even runtime `settings.json` drift is codified via a dev-repo PR
 - **Symlink direction**: `~/.claude/skills/<name>` → `~/code/dotclaude/skills/<name>`
 - **Ecosystem installs**: `npx skills add <repo>` places content at `~/.agents/skills/<name>/`, symlinked into `~/.claude/skills/<name>`. Provenance (origin URL, commit hash, install timestamps) is tracked by the CLI in `~/.agents/.skill-lock.json`. This repo does not vendor third-party skill content; the lockfile is the source of truth.
 - **Full workflow docs**: `skills/dotclaude-config/references/development-workflow.md`

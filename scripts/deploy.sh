@@ -64,9 +64,10 @@ if [ "$local_main" = "$remote_main" ]; then
 fi
 
 if ! git -C "$RUNTIME" merge --ff-only origin/main --quiet 2>/dev/null; then
-  echo "⚠ ~/.claude has local commits that aren't on origin/main — auto-sync skipped"
-  echo "  To inspect: git -C ~/.claude log --oneline origin/main..HEAD"
-  echo "  To fix: git -C ~/.claude push origin main"
+  echo "⚠ ~/.claude could not fast-forward to origin/main — auto-sync skipped"
+  echo "  Inspect: git -C ~/.claude status && git -C ~/.claude log --oneline origin/main..HEAD"
+  echo "  Usually settings.json drifted at runtime. To sync: git -C ~/.claude checkout settings.json && ~/.claude/scripts/deploy.sh"
+  echo "  To keep the drift, codify it via a PR from ~/code/dotclaude (main is protected; direct push is rejected)."
   exit 0
 fi
 
