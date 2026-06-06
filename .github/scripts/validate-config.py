@@ -9,6 +9,7 @@ Validates:
 - skills/*/SKILL.md YAML frontmatter and integrity
 """
 
+import argparse
 import json
 import re
 import sys
@@ -28,6 +29,10 @@ class ValidationResult(TypedDict):
     valid: bool
     errors: list[str]
     warnings: list[str]
+
+
+ACTIVE_WORKTREE_HOOK_EVENTS = ("WorktreeCreate", "WorktreeRemove")
+WORKSPACES_EVENT_FORWARDER = "com.cloudcompute.workspaces/HookForwarders/event-forwarder.sh"
 
 
 def load_json_schema(schema_path: Path) -> dict | None:
@@ -63,7 +68,43 @@ def validate_json_file(file_path: Path, schema: dict) -> ValidationResult:
         if e.path:
             result["errors"].append(f"  at: {'.'.join(str(p) for p in e.path)}")
 
+    if schema.get("title") == "Claude Code Settings":
+        validate_settings_semantics(data, result)
+
     return result
+
+
+def validate_settings_semantics(data: dict, result: ValidationResult) -> None:
+    hooks = data.get("hooks")
+    if not isinstance(hooks, dict):
+        return
+
+    for event_name in ACTIVE_WORKTREE_HOOK_EVENTS:
+        for command in iter_hook_commands(hooks.get(event_name)):
+            if WORKSPACES_EVENT_FORWARDER in command:
+                result["valid"] = False
+                result["errors"].append(
+                    f"{event_name} must not use passive WorkSpaces event-forwarder.sh; "
+                    "active worktree hooks must perform the lifecycle action and emit the expected result"
+                )
+
+
+def iter_hook_commands(groups: object):
+    if not isinstance(groups, list):
+        return
+
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        handlers = group.get("hooks")
+        if not isinstance(handlers, list):
+            continue
+        for handler in handlers:
+            if not isinstance(handler, dict):
+                continue
+            command = handler.get("command")
+            if isinstance(command, str):
+                yield command
 
 
 def extract_frontmatter(content: str) -> tuple[dict | None, str | None]:
@@ -231,6 +272,14 @@ def check_skill_scripts(skill_dir: Path, result: ValidationResult):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Validate Claude Code configuration files.")
+    parser.add_argument(
+        "--settings-only",
+        type=Path,
+        help="Validate one settings JSON file against the settings schema and semantic guards.",
+    )
+    args = parser.parse_args()
+
     root = Path(__file__).parent.parent.parent
     schemas_dir = root / ".github" / "schemas"
 
@@ -240,10 +289,15 @@ def main():
     # Validate settings.json
     settings_schema = load_json_schema(schemas_dir / "settings.schema.json")
     if settings_schema:
-        result = validate_json_file(root / "settings.json", settings_schema)
+        settings_path = args.settings_only or root / "settings.json"
+        result = validate_json_file(settings_path, settings_schema)
         results.append(result)
         if not result["valid"]:
             has_errors = True
+
+    if args.settings_only:
+        print_results(results)
+        sys.exit(1 if has_errors else 0)
 
     # Validate .mcp.json
     mcp_schema = load_json_schema(schemas_dir / "mcp.schema.json")
