@@ -17,6 +17,14 @@ A `SessionStart` hook runs `hooks/dotclaude-deploy.sh`, which delegates to `scri
 
 After merging a PR, the next session start picks it up automatically.
 
+## Hook Boundaries
+
+Passive event forwarders may observe lifecycle events, but they must not own
+active lifecycle hooks. In particular, `WorktreeCreate` and `WorktreeRemove`
+replace Claude Code's built-in worktree behavior; handlers for those events must
+perform the worktree action and emit the expected result. Do not register the
+WorkSpaces `event-forwarder.sh` on those events.
+
 ## Skill Sources
 
 Three origins coexist in `~/.claude/skills/`:

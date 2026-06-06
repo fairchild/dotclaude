@@ -225,28 +225,6 @@
           }
         ]
       }
-    ],
-    "WorktreeCreate" : [
-      {
-        "hooks" : [
-          {
-            "async" : true,
-            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
-            "type" : "command"
-          }
-        ]
-      }
-    ],
-    "WorktreeRemove" : [
-      {
-        "hooks" : [
-          {
-            "async" : true,
-            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
-            "type" : "command"
-          }
-        ]
-      }
     ]
   },
   "permissions" : {
