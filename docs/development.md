@@ -58,18 +58,25 @@ ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
 
 ## Runtime Config Changes
 
-Claude Code sometimes modifies `settings.json` automatically (adding permissions, changing model). These small mechanical changes push directly — no branch or PR needed:
+`main` is protected, so nothing — including `~/.claude` — pushes to it directly. When Claude Code or another app (e.g. the workspaces hook installer) modifies `~/.claude/settings.json` at runtime, codify the change through a PR from the dev repo:
 
 ```bash
-git -C ~/.claude add settings.json
-git -C ~/.claude commit -m "chore: update settings from runtime"
-git -C ~/.claude push origin main
-
-# Dev repo catches up whenever needed:
-git -C ~/code/dotclaude pull
+cp ~/.claude/settings.json ~/code/dotclaude/settings.json
+git -C ~/code/dotclaude checkout -b chore/settings-sync main
+git -C ~/code/dotclaude add settings.json
+git -C ~/code/dotclaude commit -m "chore: sync settings.json from runtime"
+git -C ~/code/dotclaude push -u origin chore/settings-sync
+gh pr create --fill   # review, merge
 ```
 
-All other development (new skills, workflow changes, doc updates) goes through feature branches and PRs in `~/code/dotclaude`.
+After merge, discard the now-redundant runtime drift so the tree is clean, then deploy:
+
+```bash
+git -C ~/.claude checkout settings.json
+~/.claude/scripts/deploy.sh
+```
+
+Until you do this, `~/.claude` shows `settings.json` as modified and the `SessionStart` auto-deploy skips. Everything else (new skills, workflow changes, doc updates) goes through feature branches and PRs in `~/code/dotclaude` the same way.
 
 ## Gitignore
 

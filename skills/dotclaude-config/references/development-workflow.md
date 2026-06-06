@@ -81,18 +81,25 @@ ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
 
 ## Runtime Config Changes
 
-Claude Code sometimes modifies `settings.json` automatically (adding permissions, changing model, etc.). These small mechanical changes push directly — no branch or PR needed:
+`main` is protected, so nothing — including `~/.claude` — pushes to it directly. When Claude Code or another app (e.g. the workspaces hook installer) modifies `~/.claude/settings.json` at runtime, codify the change through a PR from the dev repo:
 
 ```bash
-git -C ~/.claude add settings.json
-git -C ~/.claude commit -m "chore: update settings from runtime"
-git -C ~/.claude push origin main
-
-# Dev repo catches up whenever needed:
-git -C ~/code/dotclaude pull
+cp ~/.claude/settings.json ~/code/dotclaude/settings.json
+git -C ~/code/dotclaude checkout -b chore/settings-sync main
+git -C ~/code/dotclaude add settings.json
+git -C ~/code/dotclaude commit -m "chore: sync settings.json from runtime"
+git -C ~/code/dotclaude push -u origin chore/settings-sync
+gh pr create --fill   # review, merge
 ```
 
-All other development (new skills, workflow changes, doc updates) goes through feature branches and PRs in `~/code/dotclaude`.
+After merge, discard the now-redundant runtime drift so the tree is clean, then deploy:
+
+```bash
+git -C ~/.claude checkout settings.json
+~/.claude/scripts/deploy.sh
+```
+
+Until you do this, `~/.claude` shows `settings.json` as modified and the `SessionStart` auto-deploy skips. Everything else (new skills, workflow changes, doc updates) goes through feature branches and PRs in `~/code/dotclaude` the same way.
 
 ## Setup (Fresh)
 
@@ -205,10 +212,10 @@ Three origins coexist in `~/.claude/skills/`:
 
 ## Gotchas
 
-- **Never develop directly in `~/.claude`** — it's the deploy target. Only commit runtime changes (settings.json, etc.) there.
+- **Never develop directly in `~/.claude`** — it's the deploy target, read/fast-forward only. `main` is protected; never commit there, even runtime `settings.json` drift goes through a dev-repo PR.
 - **Dev symlinks shadow tracked skills** — a symlink at `~/.claude/skills/foo` overrides a tracked `skills/foo`. The deploy script handles cleanup, but be aware during development.
-- **Push runtime changes before deploying** — if `~/.claude` has unpushed commits, the deploy script warns and skips the pull.
-- **`settings.json` drifts** — Claude Code modifies it at runtime. Commit and push from `~/.claude` promptly.
+- **Keep `~/.claude` clean before deploying** — the deploy script fast-forwards only when the runtime tree has no local commits and no uncommitted drift; otherwise it warns and skips.
+- **`settings.json` drifts** — Claude Code (and the workspaces app) modify it at runtime. Codify the drift via a dev-repo PR, then `git -C ~/.claude checkout settings.json` and deploy; `main` rejects direct pushes.
 - **Claude Code recreates `~/.claude`** — if you move it while a session is active, Claude Code may recreate it. Close all sessions first.
 
 ## Preventing Common Mistakes
