@@ -33,7 +33,7 @@
         "hooks" : [
           {
             "async" : true,
-            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "command" : "'\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh'",
             "type" : "command"
           }
         ]
@@ -44,7 +44,7 @@
         "hooks" : [
           {
             "async" : true,
-            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "command" : "'\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh'",
             "type" : "command"
           }
         ]
@@ -55,7 +55,7 @@
         "hooks" : [
           {
             "async" : true,
-            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "command" : "'\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh'",
             "type" : "command"
           }
         ]
@@ -66,7 +66,7 @@
         "hooks" : [
           {
             "async" : true,
-            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "command" : "'\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh'",
             "type" : "command"
           }
         ]
@@ -77,7 +77,7 @@
         "hooks" : [
           {
             "async" : true,
-            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "command" : "'\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh'",
             "type" : "command"
           }
         ]
@@ -88,7 +88,7 @@
         "hooks" : [
           {
             "async" : true,
-            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "command" : "'\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh'",
             "type" : "command"
           }
         ]
@@ -149,7 +149,7 @@
         "hooks" : [
           {
             "async" : true,
-            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "command" : "'\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh'",
             "type" : "command"
           }
         ]
@@ -176,7 +176,7 @@
         "hooks" : [
           {
             "async" : true,
-            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "command" : "'\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh'",
             "type" : "command"
           }
         ]
@@ -187,7 +187,7 @@
         "hooks" : [
           {
             "async" : true,
-            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "command" : "'\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh'",
             "type" : "command"
           }
         ]
@@ -198,7 +198,7 @@
         "hooks" : [
           {
             "async" : true,
-            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "command" : "'\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh'",
             "type" : "command"
           }
         ]
@@ -209,7 +209,7 @@
         "hooks" : [
           {
             "async" : true,
-            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "command" : "'\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh'",
             "type" : "command"
           }
         ]
@@ -220,7 +220,7 @@
         "hooks" : [
           {
             "async" : true,
-            "command" : "\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh",
+            "command" : "'\/Users\/fairchild\/Library\/Application Support\/com.cloudcompute.workspaces\/HookForwarders\/event-forwarder.sh'",
             "type" : "command"
           }
         ]
