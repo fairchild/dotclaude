@@ -33,6 +33,7 @@ class ValidationResult(TypedDict):
 
 ACTIVE_WORKTREE_HOOK_EVENTS = ("WorktreeCreate", "WorktreeRemove")
 WORKSPACES_EVENT_FORWARDER = "com.cloudcompute.workspaces/HookForwarders/event-forwarder.sh"
+CODEX_WORKTREE_PATH = "/.codex/worktrees/"
 
 
 def load_json_schema(schema_path: Path) -> dict | None:
@@ -76,17 +77,27 @@ def validate_json_file(file_path: Path, schema: dict) -> ValidationResult:
 
 def validate_settings_semantics(data: dict, result: ValidationResult) -> None:
     hooks = data.get("hooks")
-    if not isinstance(hooks, dict):
+    if isinstance(hooks, dict):
+        for event_name in ACTIVE_WORKTREE_HOOK_EVENTS:
+            for command in iter_hook_commands(hooks.get(event_name)):
+                if WORKSPACES_EVENT_FORWARDER in command:
+                    result["valid"] = False
+                    result["errors"].append(
+                        f"{event_name} must not use passive WorkSpaces event-forwarder.sh; "
+                        "active worktree hooks must perform the lifecycle action and emit the expected result"
+                    )
+
+    status_line = data.get("statusLine")
+    if not isinstance(status_line, dict):
         return
 
-    for event_name in ACTIVE_WORKTREE_HOOK_EVENTS:
-        for command in iter_hook_commands(hooks.get(event_name)):
-            if WORKSPACES_EVENT_FORWARDER in command:
-                result["valid"] = False
-                result["errors"].append(
-                    f"{event_name} must not use passive WorkSpaces event-forwarder.sh; "
-                    "active worktree hooks must perform the lifecycle action and emit the expected result"
-                )
+    command = status_line.get("command")
+    if isinstance(command, str) and CODEX_WORKTREE_PATH in command:
+        result["valid"] = False
+        result["errors"].append(
+            "statusLine.command must not point into .codex/worktrees; "
+            "source settings need a stable command or a runtime-generated local value"
+        )
 
 
 def iter_hook_commands(groups: object):

@@ -25,6 +25,17 @@ replace Claude Code's built-in worktree behavior; handlers for those events must
 perform the worktree action and emit the expected result. Do not register the
 WorkSpaces `event-forwarder.sh` on those events.
 
+## Source Settings Boundaries
+
+Tracked `settings.json` should not contain machine- or session-specific paths
+such as `.codex/worktrees/<id>/...`. Use stable repo/runtime commands in source,
+for example `~/.claude/skills/status-line-live/scripts/statusline.sh`, or let a
+runtime installer own the local value. Passive WorkSpaces hook commands are
+quoted in source so paths under `Application Support` execute safely.
+
+Theme is a user preference. Keep the tracked value conservative unless the user
+intends it as the global default across machines.
+
 ## Skill Sources
 
 Three origins coexist in `~/.claude/skills/`:
