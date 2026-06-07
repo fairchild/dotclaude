@@ -13,6 +13,7 @@ import argparse
 import json
 import re
 import sys
+import tomllib
 from pathlib import Path
 from typing import TypedDict
 
@@ -34,6 +35,8 @@ class ValidationResult(TypedDict):
 ACTIVE_WORKTREE_HOOK_EVENTS = ("WorktreeCreate", "WorktreeRemove")
 WORKSPACES_EVENT_FORWARDER = "com.cloudcompute.workspaces/HookForwarders/event-forwarder.sh"
 CODEX_WORKTREE_PATH = "/.codex/worktrees/"
+DOTAGENTS_GITIGNORE_BEGIN = "# BEGIN sync-dotagents (generated from dotagents.toml — do not edit)"
+DOTAGENTS_GITIGNORE_END = "# END sync-dotagents"
 
 
 def load_json_schema(schema_path: Path) -> dict | None:
@@ -72,6 +75,71 @@ def validate_json_file(file_path: Path, schema: dict) -> ValidationResult:
     if schema.get("title") == "Claude Code Settings":
         validate_settings_semantics(data, result)
 
+    return result
+
+
+def validate_dotagents_gitignore(root: Path) -> ValidationResult:
+    result: ValidationResult = {
+        "file": str(root / ".gitignore"),
+        "valid": True,
+        "errors": [],
+        "warnings": [],
+    }
+
+    manifest_path = root / "dotagents.toml"
+    gitignore_path = root / ".gitignore"
+    if not manifest_path.exists():
+        result["warnings"].append("dotagents.toml not found; skipping sync-dotagents .gitignore check")
+        return result
+    if not gitignore_path.exists():
+        result["valid"] = False
+        result["errors"].append(".gitignore not found")
+        return result
+
+    raw = tomllib.loads(manifest_path.read_text())
+    link_to_claude = raw.get("link-to-claude", {})
+    entries = sorted(
+        name for name, enabled in link_to_claude.items()
+        if isinstance(enabled, bool) and enabled
+    )
+    expected = [
+        DOTAGENTS_GITIGNORE_BEGIN,
+        *(f"skills/{name}" for name in entries),
+        DOTAGENTS_GITIGNORE_END,
+    ]
+
+    lines = gitignore_path.read_text().splitlines()
+    try:
+        start = lines.index(DOTAGENTS_GITIGNORE_BEGIN)
+        end = lines.index(DOTAGENTS_GITIGNORE_END, start)
+    except ValueError:
+        result["valid"] = False
+        result["errors"].append(
+            "Missing sync-dotagents .gitignore block; run ./scripts/sync-dotagents.py gitignore"
+        )
+        return result
+
+    actual = lines[start:end + 1]
+    if actual == expected:
+        return result
+
+    actual_entries = {
+        line.removeprefix("skills/")
+        for line in actual[1:-1]
+        if line.startswith("skills/")
+    }
+    expected_entries = set(entries)
+    missing = sorted(expected_entries - actual_entries)
+    extra = sorted(actual_entries - expected_entries)
+
+    result["valid"] = False
+    result["errors"].append(
+        "sync-dotagents .gitignore block is stale; run ./scripts/sync-dotagents.py gitignore"
+    )
+    if missing:
+        result["errors"].append(f"Missing ignored link-to-claude skills: {', '.join(missing)}")
+    if extra:
+        result["errors"].append(f"Unexpected ignored link-to-claude skills: {', '.join(extra)}")
     return result
 
 
@@ -317,6 +385,11 @@ def main():
         results.append(result)
         if not result["valid"]:
             has_errors = True
+
+    result = validate_dotagents_gitignore(root)
+    results.append(result)
+    if not result["valid"]:
+        has_errors = True
 
     # Validate agents
     agents_dir = root / "agents"

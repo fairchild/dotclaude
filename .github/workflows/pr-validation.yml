@@ -6,8 +6,11 @@ on:
     paths:
       - 'settings.json'
       - '.mcp.json'
+      - '.gitignore'
+      - 'dotagents.toml'
       - 'agents/*.md'
       - 'skills/**'
+      - 'scripts/sync-dotagents.py'
       - '.github/schemas/**'
       - '.github/scripts/validate-config.py'
 
