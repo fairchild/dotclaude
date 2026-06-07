@@ -1,6 +1,6 @@
 ---
 name: swiftui-expert
-description: Write, review, or improve SwiftUI code following best practices for state management, view composition, performance, modern APIs, Swift concurrency, and iOS 26+ Liquid Glass adoption. Use when building new SwiftUI features, refactoring existing views, reviewing code quality, or adopting modern SwiftUI patterns.
+description: Write, review, or improve SwiftUI code. Use for SwiftUI features/refactors, state management, view composition, performance, concurrency, modern Apple APIs, or native UI quality.
 ---
 
 # SwiftUI Expert
