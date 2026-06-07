@@ -34,6 +34,8 @@ class ValidationResult(TypedDict):
 
 ACTIVE_WORKTREE_HOOK_EVENTS = ("WorktreeCreate", "WorktreeRemove")
 WORKSPACES_EVENT_FORWARDER = "com.cloudcompute.workspaces/HookForwarders/event-forwarder.sh"
+WORKSPACES_LEGACY_FORWARDER_SUFFIX = "/HookForwarders/event-forwarder.sh"
+WORKSPACES_CANONICAL_FORWARDER = "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh"
 CODEX_WORKTREE_PATH = "/.codex/worktrees/"
 DOTAGENTS_GITIGNORE_BEGIN = "# BEGIN sync-dotagents (generated from dotagents.toml — do not edit)"
 DOTAGENTS_GITIGNORE_END = "# END sync-dotagents"
@@ -146,9 +148,21 @@ def validate_dotagents_gitignore(root: Path) -> ValidationResult:
 def validate_settings_semantics(data: dict, result: ValidationResult) -> None:
     hooks = data.get("hooks")
     if isinstance(hooks, dict):
+        for event_name, groups in hooks.items():
+            for command in iter_hook_commands(groups):
+                if (
+                    command != WORKSPACES_CANONICAL_FORWARDER
+                    and unquote_single_quoted_command(command).endswith(WORKSPACES_LEGACY_FORWARDER_SUFFIX)
+                ):
+                    result["valid"] = False
+                    result["errors"].append(
+                        f"{event_name} uses legacy machine-specific WorkSpaces event-forwarder path; "
+                        f"use {WORKSPACES_CANONICAL_FORWARDER}"
+                    )
+
         for event_name in ACTIVE_WORKTREE_HOOK_EVENTS:
             for command in iter_hook_commands(hooks.get(event_name)):
-                if WORKSPACES_EVENT_FORWARDER in command:
+                if is_workspaces_event_forwarder_command(command):
                     result["valid"] = False
                     result["errors"].append(
                         f"{event_name} must not use passive WorkSpaces event-forwarder.sh; "
@@ -184,6 +198,21 @@ def iter_hook_commands(groups: object):
             command = handler.get("command")
             if isinstance(command, str):
                 yield command
+
+
+def is_workspaces_event_forwarder_command(command: str) -> bool:
+    unquoted = unquote_single_quoted_command(command)
+    return (
+        command == WORKSPACES_CANONICAL_FORWARDER
+        or WORKSPACES_EVENT_FORWARDER in command
+        or unquoted.endswith(WORKSPACES_LEGACY_FORWARDER_SUFFIX)
+    )
+
+
+def unquote_single_quoted_command(command: str) -> str:
+    if len(command) < 2 or not command.startswith("'") or not command.endswith("'"):
+        return command
+    return command[1:-1].replace("'\\''", "'")
 
 
 def extract_frontmatter(content: str) -> tuple[dict | None, str | None]:
