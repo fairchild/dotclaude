@@ -337,7 +337,7 @@
   "preferredNotifChannel" : "iterm2",
   "skipDangerousModePermissionPrompt" : true,
   "statusLine" : {
-    "command" : "\/Users\/fairchild\/.codex\/worktrees\/6954\/workspaces\/.build\/arm64-apple-macosx\/debug\/WorkspaceManager_WorkspaceManager.bundle\/HookForwarders\/statusline.sh",
+    "command" : "~\/.claude\/skills\/status-line-live\/scripts\/statusline.sh",
     "refreshInterval" : 5000,
     "type" : "command"
   },
