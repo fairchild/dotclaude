@@ -140,9 +140,13 @@ backlog/doing
 # BEGIN sync-dotagents (generated from dotagents.toml — do not edit)
 skills/apple-hig-designer
 skills/apple-ui-designer
-skills/caveman
 skills/diagnose
 skills/find-skills
+skills/firecrawl
+skills/firecrawl-monitor
+skills/firecrawl-parse
+skills/firecrawl-scrape
+skills/firecrawl-search
 skills/fun-brainstorming
 skills/grill-me
 skills/grill-with-docs
@@ -151,13 +155,9 @@ skills/improve-codebase-architecture
 skills/macos-development
 skills/prototype
 skills/setup-matt-pocock-skills
-skills/slidev
 skills/tdd
 skills/to-issues
 skills/to-prd
 skills/triage
-skills/vercel-react-best-practices
-skills/web-design-guidelines
-skills/write-a-skill
 skills/zoom-out
 # END sync-dotagents

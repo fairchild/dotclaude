@@ -120,8 +120,8 @@ class Manifest:
         raw = tomllib.loads(MANIFEST.read_text())
         manifest = cls(
             ecosystem={k: v for k, v in raw.get("ecosystem", {}).items() if isinstance(v, str)},
-            link_to_claude={k: v for k, v in raw.get("link-to-claude", {}).items() if isinstance(v, bool)},
-            share_to_agents={k: v for k, v in raw.get("share-to-agents", {}).items() if isinstance(v, bool)},
+            link_to_claude={k: v for k, v in raw.get("link-to-claude", {}).items() if v is True},
+            share_to_agents={k: v for k, v in raw.get("share-to-agents", {}).items() if v is True},
         )
 
         # Two structural invariants. Violations are operator errors
