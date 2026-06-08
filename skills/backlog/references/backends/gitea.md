@@ -130,6 +130,8 @@ Every data operation goes through one chokepoint, `gitea_api <METHOD> <path>` �
 
 From maildir-* to gitea: for each `todo/` file `POST` an issue (title=slug, body=spec); for `doing/` also post the claim comment + add the label; for `done/` replay the worklog lines as comments + close. The replay is load-bearing — claimer/branch/timestamp metadata must survive. Keep the old tree under `.backlog-archive/` rather than deleting.
 
-## Test coverage (followup)
+## Test coverage
 
-`scripts/test.sh` exercises the maildir backends end-to-end and `bash -n`-syntax-checks every bundled script (so this backend is syntax-covered). Behavioral testing against a live Gitea (or a mock `tea`) is a followup, mirroring `github-issues-test-harness-followup` and `jira-backend-test-harness-followup` — tracked in `backlog/todo/gitea-backend-test-harness-followup.md`.
+`scripts/test-gitea.sh` runs the verbs offline against an embedded mock `tea` — the full cycle (setup → add → take → progress → advance→done), the branch-based claim conflict, fail/retry, rescue's timeout refusal, and the pagination loop (a server whose page cap is below the requested limit). It's kept out of `scripts/test.sh` so gitea tests don't run on maildir-only changes.
+
+A mock validates the script against its own assumptions about the API, not against Gitea. The real-instance assumptions — label color format, label-by-id add/remove on 1.26, `tea api` auth resolution, `type=issues` PR exclusion — need a one-time live smoke, tracked in `backlog/todo/gitea-backend-test-harness-followup.md`.

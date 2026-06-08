@@ -118,7 +118,8 @@ For advance, progress, cancel, fail, rescue, retry, status, and maintain — the
 - `scripts/backlog-github-issues.sh` — github-issues implementation
 - `scripts/backlog-jira.sh` — Jira implementation over Atlassian CLI (`acli`)
 - `scripts/backlog-gitea.sh` — Gitea implementation over `tea api` (self-hosted, GitHub-compatible forge)
-- `scripts/test.sh` — full verb cycle + cross-worktree race harness on temp repos (maildir backends only — remote backend integration tests are followups)
+- `scripts/test.sh` — full verb cycle + cross-worktree race harness on temp repos (maildir backends only)
+- `scripts/test-gitea.sh` — offline gitea-backend harness over a mock `tea` (verb cycle, claim conflict, pagination); run separately from `test.sh`
 - `references/worker.md` — verb semantics for workers (advance, progress, cancel, fail, rescue, retry, status, maintain)
 - `references/worker-loop.md` — canonical `/backlog worker` recipe (load, maintain, rank, claim, execute, close, report)
 - `references/backends/maildir-git.md` — default backend; mechanism docs for git-tracked maildir
