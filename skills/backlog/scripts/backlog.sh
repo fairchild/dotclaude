@@ -13,7 +13,7 @@ usage() {
 backlog — task tracker shaped like a maildir
 
 Usage:
-  backlog setup [--backend=maildir-git|maildir-shared|github-issues|jira]
+  backlog setup [--backend=maildir-git|maildir-shared|github-issues|jira|gitea]
   backlog add <slug> [category]
   backlog take [slug]
   backlog advance <slug>
@@ -58,7 +58,7 @@ if [[ "$cmd" == "setup" ]]; then
     hint="maildir-git (single worktree)"
     [[ "$wt_count" -gt 1 ]] && hint="maildir-shared (>1 worktree detected)"
     cat >&2 <<EOF
-setup requires --backend=<maildir-git|maildir-shared|github-issues|jira>.
+setup requires --backend=<maildir-git|maildir-shared|github-issues|jira|gitea>.
 
   maildir-git    — everything committed; claim is \`git mv\`. Single-worktree friendly.
   maildir-shared — todo/done committed; in-flight set lives in git-common-dir
@@ -66,14 +66,16 @@ setup requires --backend=<maildir-git|maildir-shared|github-issues|jira>.
   github-issues  — tasks live as GitHub Issues on the current repo's remote;
                    verbs dispatch to \`gh\`. Cross-machine. Requires gh auth.
   jira           — tasks live as Jira work items; verbs dispatch to \`acli jira workitem\`; requires acli auth.
+  gitea          — tasks live as Gitea issues on a self-hosted instance; verbs
+      dispatch to \`tea api\`. Requires a \`gitea\` git remote + a tea login.
 
 This clone has $wt_count worktree(s). Likely fit: $hint.
 EOF
     exit 2
   fi
   case "$backend" in
-    maildir-git|maildir-shared|github-issues|jira) ;;
-    *) echo "unknown backend: $backend (expected maildir-git, maildir-shared, github-issues, or jira)" >&2; exit 1 ;;
+    maildir-git|maildir-shared|github-issues|jira|gitea) ;;
+    *) echo "unknown backend: $backend (expected maildir-git, maildir-shared, github-issues, jira, or gitea)" >&2; exit 1 ;;
   esac
   impl="$script_dir/backlog-${backend}.sh"
   [[ -x "$impl" ]] || { echo "missing impl: $impl" >&2; exit 1; }
