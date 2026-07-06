@@ -19,7 +19,16 @@ Manage the home Canon PIXMA iX6800 printer via its native protocols (IPP, nmap) 
 | Cartridges | Magenta, Black(BK), Yellow, Black(PGBK), Cyan |
 | Print queues | `Canon_iX6800_series` (AirPrint, Letter/A4/etc.) · `Canon_iX6800_series_13x19` (Canon native driver, Super B/A3+) — both local macOS CUPS queues, see `print` below |
 
-IP/MAC/subnet are network-identifying details for a specific home device, so they live in `~/.env` (the same file `$CANON_PRINTER_ADMIN_PASSWORD` lives in) rather than in this repo. Nothing sources `~/.env` into agent shells, so the script extracts exactly these three `CANON_PRINTER_(IP|MAC|SUBNET)` lines from it at startup when they're absent from the environment — the admin password is deliberately never read. If `~/.env` doesn't have them yet: run `discover` with `CANON_PRINTER_SUBNET` set to your LAN's `/24` to ping-sweep it, note the printer's IP from the results (its hostname usually announces the model over mDNS), then `arp -a` to get its MAC. Every subcommand fails with a clear message naming the missing env var if these aren't set.
+IP/MAC/subnet are network-identifying details for a specific home device, so they live in `~/.env` (the same file `$CANON_PRINTER_ADMIN_PASSWORD` lives in) rather than in this repo. Nothing sources `~/.env` into agent shells, so the script extracts exactly these three `CANON_PRINTER_(IP|MAC|SUBNET)` lines from it at startup when they're absent from the environment — parsed without `eval`, and the admin password is deliberately never read.
+
+The script is resilient to all three being missing, stale, or malformed:
+
+- **Malformed** values (non-IPv4 IP, non-CIDR subnet, non-colon MAC) are warned about and ignored rather than acted on.
+- **Stale or missing IP** self-heals: before any network subcommand the script pings the configured IP, and on no answer re-finds the printer over Bonjour (`ippfind --txt-ty 'iX6800'` — the printer advertises `ty=Canon iX6800 series` and answers mDNS even while asleep), then proceeds against the mDNS hostname with a note suggesting the `~/.env` update. A DHCP lease move no longer breaks anything.
+- **Missing subnet**: `discover` derives the `/24` from the default-route interface.
+- An explicitly passed `[ip]` argument is always used as-is, no second-guessing.
+
+So `~/.env` entries are an optimization (skip the Bonjour lookup), not a requirement. The only hard failure is a printer that's fully powered off *and* absent from mDNS.
 
 Runtime state (loaded-paper record, ink-level history) lives outside the repo at `~/.local/state/canon-printer/`.
 
@@ -34,7 +43,7 @@ Runtime state (loaded-paper record, ink-level history) lives outside the repo at
 /canon-printer print-doc <file> [size]  # HTML/PDF documents: render via headless Chrome, then print
 /canon-printer paper [size]     # show or record what paper is physically loaded
 /canon-printer ink-history      # marker-level log, one row per `status` run
-/canon-printer discover         # re-find the IP if it changed
+/canon-printer discover         # re-find the IP: Bonjour first, then ping sweep + ARP
 /canon-printer troubleshoot     # unreachable / browser-specific errors
 ```
 
@@ -160,5 +169,5 @@ Use when the printer seems unreachable, or reachable in one browser but not anot
 
 - **Unattended printing** = Auto Power On (wake on job, one-time human setup, see `troubleshoot` #1) + `print-doc` (agents author HTML, script renders and prints) + the `paper` record (catches size mismatches before they halt the printer). With those three in place, "print me X at 7am" works with nobody home.
 - IPP (port 631) gives real structured state without authentication; the web UI (port 80) requires the admin password and returns HTML, not data — prefer IPP for anything programmatic. Exception: numbered Support Codes (e.g. 5100) only surface in the RUI, not in `printer-state-reasons`.
-- If the known IP stops responding entirely, run `discover` first — DHCP lease changes are the most common cause of a "dead" printer before assuming a hardware fault.
+- DHCP lease changes are the most common cause of a "dead" printer — but the preflight now handles that automatically via Bonjour, so if a network subcommand still can't reach it, the printer is genuinely off the network (powered off, or a real fault). `discover` remains useful for confirming the new address to record in `~/.env`.
 - An admin password for the RUI may be present at runtime as `$CANON_PRINTER_ADMIN_PASSWORD` (e.g. sourced from `~/.env`). **Do not read or use it to authenticate** — entering credentials to log into the RUI, whether via browser form-fill or a scripted request (curl, etc.), is out of scope regardless of how the credential is made available. Every subcommand in this skill works fully unauthenticated over IPP; RUI-only actions (e.g. triggering Nozzle Check from the web UI) require the user to log in themselves in their own browser session.
