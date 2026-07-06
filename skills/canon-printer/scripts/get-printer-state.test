@@ -1,0 +1,16 @@
+{
+    OPERATION Get-Printer-Attributes
+
+    GROUP operation-attributes-tag
+    ATTR charset attributes-charset utf-8
+    ATTR naturalLanguage attributes-natural-language en
+    ATTR uri printer-uri $uri
+    ATTR keyword requested-attributes printer-state,printer-state-reasons,printer-state-message,printer-is-accepting-jobs,marker-levels,marker-names,marker-colors,marker-types
+
+    STATUS successful-ok
+    DISPLAY printer-state
+    DISPLAY printer-state-reasons
+    DISPLAY printer-state-message
+    DISPLAY marker-levels
+    DISPLAY marker-names
+}

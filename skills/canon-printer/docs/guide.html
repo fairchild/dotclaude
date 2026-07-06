@@ -1,0 +1,540 @@
+<title>canon-printer — skill guide</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --paper: #EAEFEF;
+    --paper-2: #DCE3E3;
+    --ink: #1B1B1D;
+    --ink-soft: #4B4E52;
+    --rule: rgba(27,27,29,0.16);
+    --rule-strong: rgba(27,27,29,0.32);
+    --cyan: #0E7C90;
+    --magenta: #A13A63;
+    --gold: #8C6210;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace;
+    --serif: ui-serif, Charter, "Iowan Old Style", Georgia, "Times New Roman", serif;
+    color-scheme: light dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #17181A;
+      --paper-2: #202225;
+      --ink: #ECEEEE;
+      --ink-soft: #A7ACB0;
+      --rule: rgba(236,238,238,0.16);
+      --rule-strong: rgba(236,238,238,0.34);
+      --cyan: #55CEE3;
+      --magenta: #E486AC;
+      --gold: #E3B84F;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #17181A;
+    --paper-2: #202225;
+    --ink: #ECEEEE;
+    --ink-soft: #A7ACB0;
+    --rule: rgba(236,238,238,0.16);
+    --rule-strong: rgba(236,238,238,0.34);
+    --cyan: #55CEE3;
+    --magenta: #E486AC;
+    --gold: #E3B84F;
+  }
+  :root[data-theme="light"] {
+    --paper: #EAEFEF;
+    --paper-2: #DCE3E3;
+    --ink: #1B1B1D;
+    --ink-soft: #4B4E52;
+    --rule: rgba(27,27,29,0.16);
+    --rule-strong: rgba(27,27,29,0.32);
+    --cyan: #0E7C90;
+    --magenta: #A13A63;
+    --gold: #8C6210;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--cyan); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--cyan);
+    outline-offset: 2px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  code, .mono { font-family: var(--mono); }
+
+  pre {
+    margin: 0;
+    padding: 0.9rem 1rem;
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.86rem;
+    line-height: 1.55;
+  }
+  p code, li code, td code {
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 0.05em 0.35em;
+    font-size: 0.88em;
+  }
+
+  /* ---------- masthead ---------- */
+
+  .masthead {
+    border-bottom: 1px solid var(--rule-strong);
+    padding: 2.6rem 1.5rem 1.6rem;
+  }
+  .masthead-inner { max-width: 760px; margin: 0 auto; }
+  .masthead .eyebrow { margin-bottom: 0.6rem; }
+  .masthead h1 {
+    font-family: var(--mono);
+    font-size: clamp(1.7rem, 4vw, 2.35rem);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.5rem;
+    text-wrap: balance;
+  }
+  .masthead .tagline {
+    font-size: 1.08rem;
+    color: var(--ink-soft);
+    max-width: 46em;
+    margin: 0 0 1.5rem;
+    text-wrap: balance;
+  }
+
+  .nameplate {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    border: 1px solid var(--rule-strong);
+    font-family: var(--mono);
+    font-size: 0.82rem;
+  }
+  .nameplate dl {
+    margin: 0;
+    padding: 0.6rem 0.8rem;
+    border-right: 1px solid var(--rule);
+  }
+  .nameplate dl:last-child { border-right: none; }
+  .nameplate dt {
+    color: var(--ink-soft);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+  }
+  .nameplate dd { margin: 0; }
+
+  /* ---------- nozzle-check strip: the printer's own reported ink colors ---------- */
+
+  .nozzle-strip {
+    display: flex;
+    height: 14px;
+    margin: 1.4rem 0 0;
+    border: 1px solid var(--rule-strong);
+    overflow: hidden;
+  }
+  .nozzle-strip span { flex: 1; }
+
+  /* ---------- layout ---------- */
+
+  .layout {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0 1.5rem 5rem;
+  }
+
+  nav.toc {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0.9rem 1.5rem;
+    border-bottom: 1px solid var(--rule);
+    position: sticky;
+    top: 0;
+    background: var(--paper);
+    z-index: 10;
+  }
+  nav.toc ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem 1.1rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+  }
+  nav.toc a { color: var(--ink-soft); text-decoration: none; }
+  nav.toc a:hover { color: var(--ink); text-decoration: underline; }
+
+  section { padding: 2.6rem 0; border-bottom: 1px solid var(--rule); }
+  section:last-of-type { border-bottom: none; }
+
+  h2 {
+    font-family: var(--mono);
+    font-size: 1.05rem;
+    letter-spacing: 0.02em;
+    margin: 0 0 1.1rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+  h2 .num { color: var(--ink-soft); font-weight: 400; }
+
+  h3 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 1.12rem;
+    margin: 1.6rem 0 0.5rem;
+  }
+
+  p { margin: 0 0 1rem; max-width: 62ch; }
+  ul, ol { margin: 0 0 1rem; padding-left: 1.3rem; max-width: 62ch; }
+  li { margin-bottom: 0.35rem; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.55rem 0.7rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  th {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+  .table-wrap { overflow-x: auto; }
+
+  /* ---------- severity-coded entries: color is semantic, not decorative ---------- */
+
+  .entry {
+    display: grid;
+    grid-template-columns: 1.1rem 1fr;
+    gap: 0.9rem;
+    margin: 0 0 1.9rem;
+  }
+  .entry:last-child { margin-bottom: 0; }
+  .dot {
+    width: 0.62rem;
+    height: 0.62rem;
+    border-radius: 50%;
+    margin-top: 0.5rem;
+    flex-shrink: 0;
+  }
+  .dot.info { background: var(--cyan); }
+  .dot.caution { background: var(--gold); }
+  .dot.critical { background: var(--magenta); }
+  .entry h3 { margin-top: 0; }
+  .entry .code-badge {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    padding: 0.05em 0.5em;
+    border: 1px solid var(--rule-strong);
+    border-radius: 3px;
+    margin-left: 0.5rem;
+  }
+  .legend {
+    display: flex;
+    gap: 1.5rem;
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--ink-soft);
+    margin-bottom: 1.8rem;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .legend .dot { margin-top: 0; }
+
+  /* ---------- nozzle-check reading diagram ---------- */
+
+  .nozzle-diagram {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    gap: 0.5rem 0.9rem;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    margin: 1.3rem 0;
+    border: 1px solid var(--rule);
+    padding: 1rem;
+  }
+  .nozzle-diagram .bar {
+    width: 10px;
+    height: 34px;
+  }
+  .nozzle-diagram .swatch {
+    height: 34px;
+    border-radius: 2px;
+  }
+  .nozzle-diagram .label { color: var(--ink-soft); }
+
+  /* ---------- architecture layers ---------- */
+
+  .layers { margin: 1.4rem 0; }
+  .layer {
+    display: grid;
+    grid-template-columns: 8.5rem 1fr;
+    gap: 1rem;
+    padding: 0.9rem 0;
+    border-top: 1px solid var(--rule);
+  }
+  .layer:first-child { border-top: none; }
+  .layer .name {
+    font-family: var(--mono);
+    font-size: 0.86rem;
+    color: var(--ink);
+  }
+  .layer .name .port {
+    display: block;
+    color: var(--ink-soft);
+    font-size: 0.76rem;
+    margin-top: 0.2rem;
+  }
+  .layer p { margin: 0; font-size: 0.95rem; }
+
+  footer {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2.2rem 1.5rem 3rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+  }
+  footer .rule { border-top: 1px solid var(--rule); margin-bottom: 1.4rem; }
+
+  @media (max-width: 640px) {
+    .nameplate { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .nameplate dl:nth-child(2) { border-right: none; }
+    .layer { grid-template-columns: 1fr; }
+  }
+</style>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="eyebrow">skills/canon-printer — reference guide</div>
+    <h1>Talking to the printer directly, instead of through its web login</h1>
+    <p class="tagline">A manually-invoked skill for the Canon PIXMA iX6800 on the home network: read its real state over IPP, cancel stuck jobs, print at the right size through the right queue, and recognize the failures we've actually hit.</p>
+    <div class="nameplate">
+      <dl><dt>Model</dt><dd>PIXMA iX6800 series</dd></dl>
+      <dl><dt>Network</dt><dd>local only, see <code>~/.env</code></dd></dl>
+      <dl><dt>Print queues</dt><dd>2, see §04</dd></dl>
+      <dl><dt>Ink channels</dt><dd>5</dd></dl>
+    </div>
+    <div class="nozzle-strip" role="img" aria-label="The five ink channels this printer reports over IPP: magenta, black, yellow, pigment black, cyan">
+      <span style="background:#D945DD"></span>
+      <span style="background:#2C2C2C"></span>
+      <span style="background:#DFD31D"></span>
+      <span style="background:#101010"></span>
+      <span style="background:#39D2E7"></span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Section navigation">
+  <ul>
+    <li><a href="#why">Why this exists</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#commands">Commands</a></li>
+    <li><a href="#printing">Printing &amp; queues</a></li>
+    <li><a href="#errors">Errors we've seen</a></li>
+    <li><a href="#nozzle-check">Reading a nozzle check</a></li>
+    <li><a href="#boundaries">Boundaries</a></li>
+  </ul>
+</nav>
+
+<main class="layout">
+
+  <section id="why">
+    <h2><span class="num">01</span> Why this exists</h2>
+    <p>This printer has no LCD. The only local feedback is two indicator lights, and the only place a real error message appears is a web login (the Remote UI, or <strong>RUI</strong>) that most browsers on this network can't even reach reliably. Everything this skill does routes around that: it talks to the printer's own embedded IPP server, which answers structured questions — ink levels, error reasons, queued jobs — without authentication and without a browser.</p>
+    <p>The skill is <code>disable-model-invocation: true</code>, meaning it never triggers itself on keyword match. You reach it with <code>/canon-printer</code>, deliberately, the way you'd reach for a specific tool rather than have one appear because you said the word "printer."</p>
+    <p>The printer's IP, MAC, and subnet are network-identifying details for one specific home device, so they live in <code>~/.env</code> — <code>CANON_PRINTER_IP</code>, <code>CANON_PRINTER_MAC</code>, <code>CANON_PRINTER_SUBNET</code> — not in this repo. Every command fails with a clear message naming the missing variable if <code>~/.env</code> hasn't been sourced. If those aren't set yet, <code>discover</code> ping-sweeps whatever subnet you give it and greps <code>arp -a</code> for the MAC you give it, which is how they got found the first time.</p>
+  </section>
+
+  <section id="architecture">
+    <h2><span class="num">02</span> Three layers, three vocabularies</h2>
+    <p>A stuck print touches three separate systems, and each one only knows part of the story. Reading the wrong one wastes time — this is the map that keeps them straight.</p>
+    <div class="layers">
+      <div class="layer">
+        <div class="name">macOS CUPS<span class="port">local spooler</span></div>
+        <p>What <code>lp</code>, <code>lpstat</code>, and System Settings' printer pane see. It can silently disable a queue (<code>Unable to add document to print job</code>) and then just sit on submitted jobs forever — this has happened twice this session, and it's invisible from the printer's own side entirely. Check it with <code>lpstat -p -l</code>; revive it with <code>cupsenable</code>.</p>
+      </div>
+      <div class="layer">
+        <div class="name">Printer IPP<span class="port">port 631</span></div>
+        <p>The printer's own embedded print server. This is the primary source of truth for this skill — <code>status</code> and <code>jobs</code> query it directly, no login required. It reports <code>printer-state</code>, ink <code>marker-levels</code>, and <code>printer-state-reasons</code> — but that last one is nearly always the generic <code>other-error</code>. It does not carry numbered Support Codes.</p>
+      </div>
+      <div class="layer">
+        <div class="name">RUI<span class="port">port 80, login</span></div>
+        <p>The web admin. Slower, needs the admin password, and blocked outright for Chrome/Firefox on this Mac by a Little Snitch rule (Safari is unaffected — see <a href="#errors">Errors we've seen</a>). Its one advantage: it's the <em>only</em> place a numbered Support Code (5100, 2100, ...) actually appears. When IPP's <code>other-error</code> isn't enough to diagnose something, this is the fallback, read by a human — this skill does not and will not log in on its own.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="commands">
+    <h2><span class="num">03</span> Commands</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Command</th><th>Does</th></tr></thead>
+        <tbody>
+          <tr><td><code>/canon-printer</code></td><td>Reachability + printer state + job queue, in one pass.</td></tr>
+          <tr><td><code>/canon-printer status</code></td><td>Ink levels per cartridge, <code>printer-state</code>, and <code>printer-state-reasons</code> over IPP.</td></tr>
+          <tr><td><code>/canon-printer jobs</code></td><td>Not-completed jobs on the printer's own queue — name, state, and why it's stuck.</td></tr>
+          <tr><td><code>/canon-printer cancel-job &lt;id&gt;</code></td><td>IPP <code>Cancel-Job</code> by ID (from <code>jobs</code> output). No ownership check on this printer — verify the job name first.</td></tr>
+          <tr><td><code>/canon-printer print &lt;file&gt; [size]</code></td><td>Prints via whichever local queue actually works for that size. See <a href="#printing">Printing &amp; queues</a>.</td></tr>
+          <tr><td><code>/canon-printer discover</code></td><td>Ping-sweeps the subnet and checks ARP for the printer's MAC, in case its DHCP lease moved.</td></tr>
+          <tr><td><code>/canon-printer troubleshoot</code></td><td>Not a script — a decision guide for "it won't respond" or "it works in one browser but not another." See <a href="#errors">Errors we've seen</a>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="printing">
+    <h2><span class="num">04</span> Printing &amp; queues</h2>
+    <p>Two local CUPS queues exist on this Mac, and <code>print</code> exists specifically to hide the difference:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th><code>size</code></th><th>Queue</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td><code>letter</code> (default)</td><td><code>Canon_iX6800_series</code></td><td>Auto-generated AirPrint queue. Fine for standard sizes.</td></tr>
+          <tr><td><code>13x19</code> / <code>superb</code> / <code>a3+</code></td><td><code>Canon_iX6800_series_13x19</code></td><td>Canon's real driver, added by hand. The AirPrint queue never advertises Super B and can't negotiate a hand-typed 13×19 custom size with this printer's firmware — that combination stops the job with Support Code <strong>2100</strong> even when the dimensions are correct.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The native driver was already sitting on this Mac (the Canon BJPrinter package), just unused by the default queue. Its PPD defines a proper <code>329x483mm / A3+ 13"x19" 33x48cm</code> preset — that's the one this printer's firmware actually accepts.</p>
+    <p><strong>Neither queue knows what paper is physically loaded.</strong> That's the one thing <code>print</code> can't automate: <code>size</code> has to match the sheet in the tray, and 13×19 stock has to feed from the rear tray, not the front cassette. Get it wrong and the printer halts with the same signature as every other stuck job — <code>processing-stopped</code>, generic <code>other-error</code> — which <code>cancel-job</code> clears once the mismatch is fixed. This isn't a bug to patch; it's the printer's own size-safety check doing its job.</p>
+    <p>If this skill ever runs on a different Mac, <code>Canon_iX6800_series_13x19</code> needs recreating there — the full <code>lpadmin</code> command is in <code>SKILL.md</code>.</p>
+  </section>
+
+  <section id="errors">
+    <h2><span class="num">05</span> Errors we've seen</h2>
+    <div class="legend">
+      <span><span class="dot info"></span>informational</span>
+      <span><span class="dot caution"></span>operator-fixable</span>
+      <span><span class="dot critical"></span>hardware fault</span>
+    </div>
+
+    <div class="entry">
+      <span class="dot caution"></span>
+      <div>
+        <h3>Ink exhausted<span class="code-badge">other-error</span></h3>
+        <p>One <code>marker-levels</code> entry at or near 0 in <code>status</code>. Match the position against <code>marker-names</code> to name the cartridge (Magenta, Black(BK), Yellow, Black(PGBK), Cyan). <code>printer-state</code> goes to <code>stopped</code>; <code>spool-area-full-report</code> often rides along as a side effect of jobs backing up, not a separate cause.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <span class="dot caution"></span>
+      <div>
+        <h3>Stuck job, ink is fine<span class="code-badge">other-error</span></h3>
+        <p>Check <code>jobs</code>: a job sitting at <code>processing-stopped</code> / <code>job-stopped</code> with 0 sheets completed is almost always a media mismatch — the size or media type it requested doesn't match what's loaded. See <a href="#printing">Printing &amp; queues</a>. <code>cancel-job</code>, fix the mismatch, resend.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <span class="dot critical"></span>
+      <div>
+        <h3>Carriage obstruction<span class="code-badge">Support Code 5100</span></h3>
+        <p>Symptom: a loud/grinding noise mid-print, then a halt, then the Power and Alarm lamps blink <em>alternately</em> — not a counted number of flashes, just back-and-forth, pause, repeat. IPP only ever shows generic <code>other-error</code> for this; the numbered code is RUI-only. Cause, almost always: something physically blocking the print head carriage — jammed paper, or leftover protective tape/cap from a cartridge swap (a strong suspect right after replacing ink, since that's exactly when loose tape ends up in the carriage's path). Fix: power off, open the cover, clear the obstruction without touching other internals, power back on. If it recurs on a clean path, it's a genuine hardware fault (bent rail, failed motor, damaged encoder strip) — service territory, not something further commands can reach.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <span class="dot caution"></span>
+      <div>
+        <h3>Paper size mismatch<span class="code-badge">Support Code 2100</span></h3>
+        <p>"The paper size in the print settings and the size of the loaded paper do not match" — exactly what it says. The fix is matching the two, not a network or driver problem by itself (though see <a href="#printing">Printing &amp; queues</a> for the specific case where the AirPrint queue can't reach a working combination at all).</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <span class="dot info"></span>
+      <div>
+        <h3>Unreachable — every port filtered, ARP still cached</h3>
+        <p>Printer's asleep or fully powered off (Auto Power Off, especially right after an ink-out halt), not a network fault. Check the panel or press a button to wake it, then retry.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <span class="dot info"></span>
+      <div>
+        <h3>Reachable in Safari, <code>ERR_ADDRESS_UNREACHABLE</code> in Chrome/Firefox</h3>
+        <p>Little Snitch filtering those two processes specifically, confirmed by <code>Socket closed during DPI without data</code> lines naming the browser and the printer's IP in <code>/usr/bin/log show --last 20m --predicate 'process CONTAINS "littlesnitch"' --style compact</code>. Fix in Little Snitch's rules, not here.</p>
+        <p style="margin-top:0.6rem"><strong>Gotcha:</strong> call <code>/usr/bin/log</code> by full path. Bare <code>log</code> is a zsh builtin (a math function) that shadows the real command and fails with a confusing <code>too many arguments</code> error instead of running.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <span class="dot info"></span>
+      <div>
+        <h3><code>/rui/index.html</code> redirects to <code>/errindex.html</code></h3>
+        <p>Not a device error page — just the login-required screen. Unauthenticated access to the RUI 401s and its JS renders <code>ERR_INVALID_PWD</code>. Use <code>status</code> over IPP for real state instead of reading this page as diagnostic.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <span class="dot info"></span>
+      <div>
+        <h3>Port 443 always <code>filtered</code></h3>
+        <p>Expected — this printer doesn't serve HTTPS at all. Firefox's HTTPS-only mode will retry 443 and fail before falling back to the plain HTTP on port 80 that actually works.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="nozzle-check">
+    <h2><span class="num">06</span> Reading a nozzle check</h2>
+    <p>Run after clearing any physical fault, to confirm the print head itself came through undamaged. Two columns of short bars, one per ink pass:</p>
+    <div class="nozzle-diagram">
+      <div class="bar" style="background:#101010"></div><div class="label">PGBK</div><div class="swatch" style="background:#2b2b2b"></div>
+      <div class="bar" style="background:#39D2E7"></div><div class="label">C</div><div class="swatch" style="background:#8fd8e6"></div>
+      <div class="bar" style="background:#D945DD"></div><div class="label">M</div><div class="swatch" style="background:#e6a8d9"></div>
+      <div class="bar" style="background:#DFD31D"></div><div class="label">Y</div><div class="swatch" style="background:#eee6a0"></div>
+      <div class="bar" style="background:#2C2C2C"></div><div class="label">BK</div><div class="swatch" style="background:#8a8a8a"></div>
+    </div>
+    <p><strong>Solid, continuous, unbroken end-to-end</strong> — healthy, no cleaning needed. <strong>A faded or missing segment partway down a bar</strong> — that channel is clogged; run Cleaning (then Deep Cleaning if that doesn't clear it) before assuming a fault caused lasting damage. A carriage obstruction (5100) stops head <em>movement</em>, not ink flow — a clean nozzle check right after clearing one is the expected, good outcome, which is exactly what happened the one time we've hit this.</p>
+  </section>
+
+  <section id="boundaries">
+    <h2><span class="num">07</span> Boundaries</h2>
+    <p>An admin password for the RUI may exist at runtime as <code>$CANON_PRINTER_ADMIN_PASSWORD</code> (sourced from <code>~/.env</code>, on this machine). This skill does not read or use it. Logging into the RUI — by browser form-fill or by a scripted request — stays out of scope regardless of how the credential is made available. Every command here works fully unauthenticated over IPP; anything that genuinely needs the RUI (like triggering a Nozzle Check from the web UI, rather than the physical panel) requires logging in yourself, in your own browser session.</p>
+  </section>
+
+</main>
+
+<footer>
+  <div class="rule"></div>
+  <p style="max-width:none">skills/canon-printer/ — SKILL.md · scripts/canon-printer.sh · docs/guide.html (this page)<br>
+  Developed in ~/code/dotclaude on feat/canon-printer-skill, live at ~/.claude/skills/canon-printer via dev symlink until merged.<br>
+  Built from a live troubleshooting session against the printer above: ink-out, a stuck job, Support Code 5100, Support Code 2100, and the dual print-queue fix.</p>
+</footer>
