@@ -1,6 +1,6 @@
 ---
 name: canon-printer
-description: Check status, ink levels, job queue, cancel stuck jobs, print, and troubleshoot reachability for the home Canon PIXMA iX6800 printer. Manually invoked only — use `/canon-printer` (optionally `status`, `jobs`, `cancel-job`, `print`, `discover`, `troubleshoot`).
+description: Check status, ink levels, job queue, cancel stuck jobs, print files and rendered documents, track loaded paper, and troubleshoot reachability for the home Canon PIXMA iX6800 printer. Manually invoked only — use `/canon-printer` (optionally `status`, `jobs`, `cancel-job`, `print`, `print-doc`, `paper`, `ink-history`, `discover`, `troubleshoot`).
 disable-model-invocation: true
 ---
 
@@ -19,21 +19,26 @@ Manage the home Canon PIXMA iX6800 printer via its native protocols (IPP, nmap) 
 | Cartridges | Magenta, Black(BK), Yellow, Black(PGBK), Cyan |
 | Print queues | `Canon_iX6800_series` (AirPrint, Letter/A4/etc.) · `Canon_iX6800_series_13x19` (Canon native driver, Super B/A3+) — both local macOS CUPS queues, see `print` below |
 
-IP/MAC/subnet are network-identifying details for a specific home device, so they live in `~/.env` (the same file `$CANON_PRINTER_ADMIN_PASSWORD` lives in) rather than in this repo. If `~/.env` doesn't have them yet: run `discover` with `CANON_PRINTER_SUBNET` set to your LAN's `/24` to ping-sweep it, note the printer's IP from the results (its hostname usually announces the model over mDNS), then `arp -a` to get its MAC. Every subcommand fails with a clear message naming the missing env var if these aren't set.
+IP/MAC/subnet are network-identifying details for a specific home device, so they live in `~/.env` (the same file `$CANON_PRINTER_ADMIN_PASSWORD` lives in) rather than in this repo. Nothing sources `~/.env` into agent shells, so the script extracts exactly these three `CANON_PRINTER_(IP|MAC|SUBNET)` lines from it at startup when they're absent from the environment — the admin password is deliberately never read. If `~/.env` doesn't have them yet: run `discover` with `CANON_PRINTER_SUBNET` set to your LAN's `/24` to ping-sweep it, note the printer's IP from the results (its hostname usually announces the model over mDNS), then `arp -a` to get its MAC. Every subcommand fails with a clear message naming the missing env var if these aren't set.
+
+Runtime state (loaded-paper record, ink-level history) lives outside the repo at `~/.local/state/canon-printer/`.
 
 ## Usage
 
 ```
-/canon-printer                  # full check: reachability + state + jobs
-/canon-printer status           # ink levels + printer-state + error reasons
+/canon-printer                  # full check: reachability + state + jobs + queue health
+/canon-printer status           # ink levels + printer-state + error reasons (appends to ink history)
 /canon-printer jobs             # CUPS job queue (not-completed)
 /canon-printer cancel-job <id>  # cancel a stuck job by job-id (from `jobs` output)
-/canon-printer print <file> [size]  # print, auto-picking the right local queue
+/canon-printer print <file> [size]      # print, auto-picking the right local queue
+/canon-printer print-doc <file> [size]  # HTML/PDF documents: render via headless Chrome, then print
+/canon-printer paper [size]     # show or record what paper is physically loaded
+/canon-printer ink-history      # marker-level log, one row per `status` run
 /canon-printer discover         # re-find the IP if it changed
 /canon-printer troubleshoot     # unreachable / browser-specific errors
 ```
 
-All read-only checks run via `scripts/canon-printer.sh {discover|reach|status|jobs|all} [ip]`.
+All read-only checks run via `scripts/canon-printer.sh {discover|reach|status|jobs|queues|all} [ip]`. Bare invocation defaults to `all`.
 
 ## Default / `status` / `jobs` / `discover` / `all`
 
@@ -75,7 +80,11 @@ Sends `<file>` to whichever local macOS CUPS queue actually works for the reques
 |---|---|---|
 | `letter` (default), or omitted | `Canon_iX6800_series` | `Letter` |
 | `13x19`, `superb`, `super-b`, `a3+`, `329x483mm` | `Canon_iX6800_series_13x19` | `329x483mm` |
+| `borderless`, `13x19-borderless` | `Canon_iX6800_series_13x19` | `329x483mm.FullBleed` (edge-to-edge poster/photo) |
+| `letter-borderless`, `a4-borderless`, `a3-borderless`, `tabloid-borderless`, `4x6-borderless`, `5x7-borderless` | `Canon_iX6800_series_13x19` | `<Size>.FullBleed` from the native PPD |
 | anything else (`a4`, `legal`, `tabloid`, `4x6`, `8x10`, ...) | `Canon_iX6800_series` | passed through as-is |
+
+Before submitting, `print` (a) checks the loaded-paper record (see `paper` below) and refuses on a physical-size mismatch — the exact condition that halts the printer with Support Code 2100 — overridable with `CANON_PRINTER_FORCE=1` if the record is stale; and (b) auto-heals a CUPS-disabled queue with `cupsenable` (CUPS has silently paused a queue mid-session before and sat on jobs forever, invisible from the printer's side).
 
 Why two queues instead of one: `Canon_iX6800_series` is an auto-generated AirPrint queue (confirmed via `printer-make-and-model='Canon iX6800 series-AirPrint'` in `lpstat -v`, and `*APAirPrint: True` in its PPD) that never advertises a real Super B preset and doesn't correctly negotiate a hand-typed 13×19 custom size with this printer's firmware — jobs sent that way stop with Support Code **2100** (paper size mismatch) even when the numbers are right. Canon's actual driver was separately installed on this Mac (the BJPrinter package) but unused by the default queue; its PPD at `/Library/Printers/PPDs/Contents/Resources/CanonIJiX6800series.ppd.gz` has a proper `329x483mm/A3+ 13"x19" 33x48cm` preset (plus a `.FullBleed` borderless variant) that this printer's firmware accepts correctly. `Canon_iX6800_series_13x19` was created once with:
 
@@ -88,13 +97,45 @@ lpadmin -p Canon_iX6800_series_13x19 -E \
 
 That pulls the existing AirPrint queue's own device URI (a per-device `dnssd://` address with a Bonjour UUID) rather than hardcoding it, so the same command works unchanged on a different Mac. Both queue names are **local CUPS config on this specific Mac**, not portable via git — if this skill runs on a different machine, recreate `Canon_iX6800_series_13x19` with the command above before `size=13x19` will work there.
 
-**`size` has to match the paper physically loaded, not just the job.** Neither queue knows what's in the rear tray. Requesting `letter` while 13×19 stock is loaded (or vice versa) halts the printer with the same `other-error` / `processing-stopped` signature as every other stuck-job case — this isn't a script bug, it's the printer's own size-mismatch safety check. If a print sent this way gets stuck, `jobs` will show it as `processing-stopped`; `cancel-job` clears it once the loaded paper and `size` argument actually agree. 13×19 stock also must feed from the **rear tray**, not the front cassette.
+**`size` has to match the paper physically loaded, not just the job.** Neither queue knows what's in the rear tray — that's why the `paper` record exists. Requesting `letter` while 13×19 stock is loaded (or vice versa) halts the printer with the same `other-error` / `processing-stopped` signature as every other stuck-job case — this isn't a script bug, it's the printer's own size-mismatch safety check. If a print sent this way gets stuck, `jobs` will show it as `processing-stopped`; `cancel-job` clears it once the loaded paper and `size` argument actually agree. 13×19 stock also must feed from the **rear tray**, not the front cassette.
+
+## `paper`
+
+```bash
+scripts/canon-printer.sh paper          # show what's recorded as loaded
+scripts/canon-printer.sh paper 13x19    # record after physically swapping stock
+```
+
+Tracks the one thing no queue can see: what sheet is actually in the tray. Stored as the canonical physical size (borderless variants normalize to the same sheet) in `~/.local/state/canon-printer/paper` with the date recorded. When the user says they swapped paper, record it; when `print` warns of a mismatch, ask before forcing.
+
+## `print-doc`
+
+```bash
+scripts/canon-printer.sh print-doc <file.html|.pdf> [size]
+```
+
+The render path for documents agents produce. Division of labor: **Claude authors the HTML** (layout, typography, an `@page` CSS rule sized to the target paper — e.g. `@page { size: 8.5in 11in; margin: 0.5in }`, or `size: 13in 19in; margin: 0` for posters); the script converts it deterministically via headless Chrome to PDF and sends it through the same paper-guarded `print` path. Markdown is rejected on purpose — render it to styled HTML first rather than printing raw text.
+
+Compositions this enables (each is just "write HTML, then `print-doc`"):
+
+- **Morning agenda** — today's calendar + weather + top of the backlog, printed on a schedule (pair with the `schedule` skill). Paper as an ambient display.
+- **Posters / wall art** — `image-gen` output embedded full-bleed, `size=13x19-borderless`.
+- **N-up photo imposition** — an HTML page with photos at exact physical dimensions plus cut marks, packed onto one 13×19 sheet; big sheets are where per-page ink/paper cost bites.
+- **Notes, recipes, packing lists, kids' mazes/coloring pages** — anything printable becomes one verb.
+
+## `ink-history`
+
+Every `status` run appends a timestamped `marker-levels` row to `~/.local/state/canon-printer/ink-log.tsv` (column order: Magenta, Black(BK), Yellow, Black(PGBK), Cyan). `ink-history` prints the log. Over time this gives consumption curves per cartridge — warn the user when a level drops below ~20% and offer to draft the reorder, since ink-out is the most common cause of a halted printer and it triggers Auto Power Off on top.
+
+## `queues`
+
+Local CUPS queue health for both printer queues; re-enables any queue CUPS silently disabled. Runs automatically as part of `all` and before every `print`.
 
 ## `troubleshoot`
 
 Use when the printer seems unreachable, or reachable in one browser but not another.
 
-1. **All ports filtered + ping times out** (`nmap -Pn -p 80,443,631,9100,515,80 <ip>` shows every port `filtered`, `ping` gets no reply, `arp -a` still shows a MAC entry): this is the printer asleep or fully powered off, not a network fault — Auto Power Off kicks in especially after an ink-out halt. Ask the user to check the panel / press a button / swap the empty cartridge, then re-run `reach`.
+1. **All ports filtered + ping times out** (`nmap -Pn -p 80,443,631,9100,515 <ip>` shows every port `filtered`, `ping` gets no reply, `arp -a` still shows a MAC entry): this is the printer asleep or fully powered off, not a network fault — Auto Power Off kicks in especially after an ink-out halt. Ask the user to check the panel / press a button / swap the empty cartridge, then re-run `reach`. **Standing fix: enable Auto Power On** (one-time human setup: RUI → Settings, or the Canon IJ Printer Utility → Auto Power settings) so the printer wakes when a job arrives — this is the single biggest blocker to unattended agent printing; without it, a sleeping printer always needs a human at the button.
 
 2. **Works in Safari, fails in Chrome/Firefox** (`ERR_ADDRESS_UNREACHABLE` or similar): almost always Little Snitch filtering those processes specifically, not a real network problem. Confirm with:
    ```bash
@@ -113,8 +154,11 @@ Use when the printer seems unreachable, or reachable in one browser but not anot
 
 6. **After clearing a physical fault (5100 or similar), confirm the printhead itself is undamaged with a Nozzle Check** (RUI → Utilities → Print nozzle check pattern, or the physical button combo if the model has one). Reading the printout: two columns of short vertical bars, one per ink (PGBK, C, M, Y, and — on this printer — 3 density passes each for C/M). Solid, continuous, unbroken bars end-to-end = healthy, no cleaning needed. A faded or missing segment partway down a specific bar = that nozzle/ink channel is clogged, warranting a Cleaning cycle (then Deep Cleaning if that doesn't fix it) before assuming the fault caused lasting damage. A carriage obstruction (5100) typically doesn't clog nozzles — it stops head *movement*, not ink flow — so a clean nozzle check right after clearing 5100 is the expected, good outcome.
 
+   **Claude can read the printout directly**: ask the user to photograph the nozzle-check sheet and share the image (drag into the session, or give a file path to Read). Judge each bar against the criteria above and name the specific clogged channel (PGBK/C/M/Y/BK) and the recommended step (nothing / Cleaning / Deep Cleaning) — this closes the diagnostic loop without the user needing to interpret the pattern themselves. The same photograph-and-Read move works for verifying color-critical prints: print a small test target, photo, compare.
+
 ## Notes
 
+- **Unattended printing** = Auto Power On (wake on job, one-time human setup, see `troubleshoot` #1) + `print-doc` (agents author HTML, script renders and prints) + the `paper` record (catches size mismatches before they halt the printer). With those three in place, "print me X at 7am" works with nobody home.
 - IPP (port 631) gives real structured state without authentication; the web UI (port 80) requires the admin password and returns HTML, not data — prefer IPP for anything programmatic. Exception: numbered Support Codes (e.g. 5100) only surface in the RUI, not in `printer-state-reasons`.
 - If the known IP stops responding entirely, run `discover` first — DHCP lease changes are the most common cause of a "dead" printer before assuming a hardware fault.
 - An admin password for the RUI may be present at runtime as `$CANON_PRINTER_ADMIN_PASSWORD` (e.g. sourced from `~/.env`). **Do not read or use it to authenticate** — entering credentials to log into the RUI, whether via browser form-fill or a scripted request (curl, etc.), is out of scope regardless of how the credential is made available. Every subcommand in this skill works fully unauthenticated over IPP; RUI-only actions (e.g. triggering Nozzle Check from the web UI) require the user to log in themselves in their own browser session.

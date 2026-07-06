@@ -381,7 +381,8 @@
     <h2><span class="num">01</span> Why this exists</h2>
     <p>This printer has no LCD. The only local feedback is two indicator lights, and the only place a real error message appears is a web login (the Remote UI, or <strong>RUI</strong>) that most browsers on this network can't even reach reliably. Everything this skill does routes around that: it talks to the printer's own embedded IPP server, which answers structured questions — ink levels, error reasons, queued jobs — without authentication and without a browser.</p>
     <p>The skill is <code>disable-model-invocation: true</code>, meaning it never triggers itself on keyword match. You reach it with <code>/canon-printer</code>, deliberately, the way you'd reach for a specific tool rather than have one appear because you said the word "printer."</p>
-    <p>The printer's IP, MAC, and subnet are network-identifying details for one specific home device, so they live in <code>~/.env</code> — <code>CANON_PRINTER_IP</code>, <code>CANON_PRINTER_MAC</code>, <code>CANON_PRINTER_SUBNET</code> — not in this repo. Every command fails with a clear message naming the missing variable if <code>~/.env</code> hasn't been sourced. If those aren't set yet, <code>discover</code> ping-sweeps whatever subnet you give it and greps <code>arp -a</code> for the MAC you give it, which is how they got found the first time.</p>
+    <p>The printer's IP, MAC, and subnet are network-identifying details for one specific home device, so they live in <code>~/.env</code> — <code>CANON_PRINTER_IP</code>, <code>CANON_PRINTER_MAC</code>, <code>CANON_PRINTER_SUBNET</code> — not in this repo. Nothing sources <code>~/.env</code> into agent shells, so the script extracts exactly those three lines from it at startup; the admin password in the same file is deliberately never read. If those aren't set yet, <code>discover</code> ping-sweeps whatever subnet you give it and greps <code>arp -a</code> for the MAC you give it, which is how they got found the first time.</p>
+    <p>Runtime state the printer can't hold for itself — what paper is physically loaded, ink-level history — lives outside the repo at <code>~/.local/state/canon-printer/</code>.</p>
   </section>
 
   <section id="architecture">
@@ -413,7 +414,11 @@
           <tr><td><code>/canon-printer status</code></td><td>Ink levels per cartridge, <code>printer-state</code>, and <code>printer-state-reasons</code> over IPP.</td></tr>
           <tr><td><code>/canon-printer jobs</code></td><td>Not-completed jobs on the printer's own queue — name, state, and why it's stuck.</td></tr>
           <tr><td><code>/canon-printer cancel-job &lt;id&gt;</code></td><td>IPP <code>Cancel-Job</code> by ID (from <code>jobs</code> output). No ownership check on this printer — verify the job name first.</td></tr>
-          <tr><td><code>/canon-printer print &lt;file&gt; [size]</code></td><td>Prints via whichever local queue actually works for that size. See <a href="#printing">Printing &amp; queues</a>.</td></tr>
+          <tr><td><code>/canon-printer print &lt;file&gt; [size]</code></td><td>Prints via whichever local queue actually works for that size, after checking the loaded-paper record and reviving a CUPS-paused queue. See <a href="#printing">Printing &amp; queues</a>.</td></tr>
+          <tr><td><code>/canon-printer print-doc &lt;file&gt; [size]</code></td><td>The document path: HTML → PDF via headless Chrome → the same guarded <code>print</code>. Claude authors the HTML (with an <code>@page</code> size); the script does the deterministic rest.</td></tr>
+          <tr><td><code>/canon-printer paper [size]</code></td><td>Show or record what paper is physically in the rear tray — the one fact no queue can see, and the cause of every 2100 halt.</td></tr>
+          <tr><td><code>/canon-printer ink-history</code></td><td>Timestamped <code>marker-levels</code> log, one row appended per <code>status</code> run — consumption curves, reorder warnings.</td></tr>
+          <tr><td><code>/canon-printer queues</code></td><td>Local CUPS queue health; re-enables a silently disabled queue.</td></tr>
           <tr><td><code>/canon-printer discover</code></td><td>Ping-sweeps the subnet and checks ARP for the printer's MAC, in case its DHCP lease moved.</td></tr>
           <tr><td><code>/canon-printer troubleshoot</code></td><td>Not a script — a decision guide for "it won't respond" or "it works in one browser but not another." See <a href="#errors">Errors we've seen</a>.</td></tr>
         </tbody>
@@ -430,11 +435,16 @@
         <tbody>
           <tr><td><code>letter</code> (default)</td><td><code>Canon_iX6800_series</code></td><td>Auto-generated AirPrint queue. Fine for standard sizes.</td></tr>
           <tr><td><code>13x19</code> / <code>superb</code> / <code>a3+</code></td><td><code>Canon_iX6800_series_13x19</code></td><td>Canon's real driver, added by hand. The AirPrint queue never advertises Super B and can't negotiate a hand-typed 13×19 custom size with this printer's firmware — that combination stops the job with Support Code <strong>2100</strong> even when the dimensions are correct.</td></tr>
+          <tr><td><code>13x19-borderless</code> / <code>letter-borderless</code> / …</td><td><code>Canon_iX6800_series_13x19</code></td><td>The native PPD's <code>.FullBleed</code> presets — edge-to-edge posters and photos. Supported bases: 13x19, letter, a4, a3, tabloid, 4x6, 5x7.</td></tr>
         </tbody>
       </table>
     </div>
     <p>The native driver was already sitting on this Mac (the Canon BJPrinter package), just unused by the default queue. Its PPD defines a proper <code>329x483mm / A3+ 13"x19" 33x48cm</code> preset — that's the one this printer's firmware actually accepts.</p>
-    <p><strong>Neither queue knows what paper is physically loaded.</strong> That's the one thing <code>print</code> can't automate: <code>size</code> has to match the sheet in the tray, and 13×19 stock has to feed from the rear tray, not the front cassette. Get it wrong and the printer halts with the same signature as every other stuck job — <code>processing-stopped</code>, generic <code>other-error</code> — which <code>cancel-job</code> clears once the mismatch is fixed. This isn't a bug to patch; it's the printer's own size-safety check doing its job.</p>
+    <p><strong>Neither queue knows what paper is physically loaded.</strong> That used to be the one thing <code>print</code> couldn't automate; now it's tracked. <code>paper &lt;size&gt;</code> records what's in the rear tray, and <code>print</code> refuses a job whose physical size disagrees with the record — the exact condition that halts the printer with Support Code 2100 — with a message naming the three ways out (swap and re-record, print at the loaded size, or force past a stale record). 13×19 stock still has to feed from the rear tray, not the front cassette. If a mismatched job does reach the printer, <code>cancel-job</code> clears it once the sizes agree; that's the printer's own size-safety check doing its job.</p>
+    <p><code>print</code> also self-heals the other silent failure on this list: CUPS has paused a local queue mid-session with no visible cause and sat on submitted jobs forever, invisible from the printer's side. Every <code>print</code> (and the bare full check) now runs <code>lpstat -p</code> and <code>cupsenable</code>s a disabled queue before submitting.</p>
+    <h3>Documents, posters, and paper as an output channel</h3>
+    <p><code>print-doc</code> is the render path: Claude writes styled HTML with an <code>@page</code> CSS rule sized to the target paper, headless Chrome converts it to PDF deterministically, and the result goes through the same guarded <code>print</code>. Markdown is rejected on purpose — render it properly first. This one verb is what turns the printer into an output channel for agents: a morning agenda (calendar + weather + backlog) printed on a schedule, generated art at <code>13x19-borderless</code>, N-up photo sheets with cut marks, recipes, packing lists, mazes for kids.</p>
+    <p>The other half of unattended printing is <strong>Auto Power On</strong> — a one-time human setting (RUI or the Canon IJ Printer Utility) that wakes the printer when a job arrives. Without it, Auto Power Off means every agent print while the printer sleeps needs a human at the button first.</p>
     <p>If this skill ever runs on a different Mac, <code>Canon_iX6800_series_13x19</code> needs recreating there — the full <code>lpadmin</code> command is in <code>SKILL.md</code>.</p>
   </section>
 
@@ -482,7 +492,7 @@
       <span class="dot info"></span>
       <div>
         <h3>Unreachable — every port filtered, ARP still cached</h3>
-        <p>Printer's asleep or fully powered off (Auto Power Off, especially right after an ink-out halt), not a network fault. Check the panel or press a button to wake it, then retry.</p>
+        <p>Printer's asleep or fully powered off (Auto Power Off, especially right after an ink-out halt), not a network fault. Check the panel or press a button to wake it, then retry. The standing fix is enabling Auto Power On (see <a href="#printing">Printing &amp; queues</a>) so an arriving job wakes it instead of a human.</p>
       </div>
     </div>
 
@@ -523,6 +533,7 @@
       <div class="bar" style="background:#2C2C2C"></div><div class="label">BK</div><div class="swatch" style="background:#8a8a8a"></div>
     </div>
     <p><strong>Solid, continuous, unbroken end-to-end</strong> — healthy, no cleaning needed. <strong>A faded or missing segment partway down a bar</strong> — that channel is clogged; run Cleaning (then Deep Cleaning if that doesn't clear it) before assuming a fault caused lasting damage. A carriage obstruction (5100) stops head <em>movement</em>, not ink flow — a clean nozzle check right after clearing one is the expected, good outcome, which is exactly what happened the one time we've hit this.</p>
+    <p>You don't have to interpret the sheet yourself: photograph it and hand Claude the image. It reads the bars against these criteria and names the specific channel and the recommended step. The same move — print, photograph, compare — works as a general verification loop for color-critical output.</p>
   </section>
 
   <section id="boundaries">

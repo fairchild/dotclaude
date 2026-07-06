@@ -10,5 +10,4 @@
 
     STATUS successful-ok
     STATUS client-error-not-possible
-    STATUS client-error-not-authorized
 }
