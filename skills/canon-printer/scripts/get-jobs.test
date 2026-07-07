@@ -1,0 +1,20 @@
+{
+    OPERATION Get-Jobs
+
+    GROUP operation-attributes-tag
+    ATTR charset attributes-charset utf-8
+    ATTR naturalLanguage attributes-natural-language en
+    ATTR uri printer-uri $uri
+    ATTR keyword requested-attributes all
+    ATTR keyword which-jobs not-completed
+    ATTR integer limit 50
+
+    STATUS successful-ok
+    STATUS successful-ok-ignored-or-substituted-attributes
+    DISPLAY job-id
+    DISPLAY job-name
+    DISPLAY job-state
+    DISPLAY job-state-reasons
+    DISPLAY job-originating-user-name
+    DISPLAY job-k-octets
+}
