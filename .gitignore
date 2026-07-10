@@ -90,6 +90,7 @@ Thumbs.db
 # Local artifacts
 backups/
 mcp-needs-auth-cache.json
+.eval-runs/
 
 # Temporary files
 .venv/

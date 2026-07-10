@@ -33,3 +33,4 @@ mise tasks ls        # list all tasks
 |--------|-------------|
 | `claude-usage.py` | Check Claude usage limits (`uv run scripts/claude-usage.py --human`) |
 | `pr-status.ts` | Fetch PR status, review comments, CI checks (`bun scripts/pr-status.ts`) |
+| `skill_competition.py` | Create manual skill-vs-baseline run packs from `evals/evals.json` (`uv run --script scripts/skill_competition.py --challenger <skill>`) |
