@@ -85,7 +85,6 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 | image-gen | Generating images with AI (OpenAI, Imagen, fal.ai) |
 | backlog | Capturing explored work for later |
 | chronicle | Capturing and curating session memory |
-| clone-explore | Cloning and inspecting external git repos |
 | frontend-design | Building web UIs, components, pages |
 | webapp-testing | Playwright testing (Python and TypeScript) |
 | skill-creator | Building new skills |
@@ -151,6 +150,21 @@ npx skills check && npx skills update
 ## Development
 
 `~/.claude` is an independent git clone on `main`. A `SessionStart` hook runs `scripts/deploy.sh` to sync from `origin/main` on every session start, so merged PRs are live immediately. Development happens in `~/code/dotclaude` on feature branches. See [skills/dotclaude-config/references/development-workflow.md](skills/dotclaude-config/references/development-workflow.md) for the full architecture, sync workflow, and skill development process.
+
+### Source/runtime participant contract
+
+The development checkout is public source; `~/.claude` is the deployed runtime. The runtime remains a standalone clone on `main`—never a symlink or worktree—but it is not expected to be pristine in the ordinary sense. Tracked changes are source drift, ignored paths are allowed generated/private runtime, and unignored unknown paths require attention.
+
+```bash
+mise run bootstrap          # create or reconcile the independent runtime clone
+mise run sync               # fetch and fast-forward clean tracked source
+mise run doctor             # read-only drift, config, and skill-link validation
+mise run test:participant   # isolated clone and migration fixtures
+```
+
+Bootstrap backs up an ambiguous non-Git runtime before cloning and refuses to move a registered worktree. Sync preserves ignored local state while refusing tracked or unknown drift. Doctor reports aggregate drift counts, parses structured configuration, and validates the links declared by `dotagents.toml` without printing private values.
+
+This is dotclaude's implementation of the [fairchild/dotfiles source/runtime contract](https://github.com/fairchild/dotfiles/blob/master/docs/source-runtime-contract.md); it remains independently operable through the scripts above.
 
 Skill installation and symlinking is driven by [`dotagents.toml`](dotagents.toml) — a manifest declaring which ecosystem skills live in `~/.agents/skills/` and how they're symlinked into `~/.claude/skills/` (and the reverse direction, for dotclaude-authored skills shared with other agent harnesses). [`scripts/sync-dotagents.py`](scripts/sync-dotagents.py) is the reconciler: `audit` reports drift, `sync` reconciles, `status` is a one-liner for hooks. A SessionStart hook runs `status` each session so drift surfaces without blocking.
 

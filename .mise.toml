@@ -7,6 +7,26 @@ uv = "latest"
 [task_config]
 includes = ["scripts"]
 
+[env]
+DOTFILES_NAME = "dotclaude"
+DOTFILES_RUNTIME = "~/.claude"
+
+[tasks.bootstrap]
+run = "./scripts/dotclaude.py bootstrap"
+description = "Create or reconcile the independent ~/.claude runtime clone"
+
+[tasks.sync]
+run = "./scripts/dotclaude.py sync"
+description = "Fast-forward clean tracked runtime source on main"
+
+[tasks.doctor]
+run = "./scripts/dotclaude.py doctor"
+description = "Read-only validation of tracked source and allowed private runtime"
+
+[tasks."test:participant"]
+run = "./scripts/test-participant-contract.sh"
+description = "Exercise the independent-clone source/runtime contract"
+
 [tasks.setup]
 run = "./setup.sh"
 description = "Bootstrap Claude Code development environment"

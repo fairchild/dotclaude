@@ -11,6 +11,9 @@ bash scripts/run     # start webui
 
 # Via mise (.mise.toml)
 mise run setup       # → setup.sh
+mise run bootstrap   # reconcile independent ~/.claude clone
+mise run sync        # fast-forward tracked runtime source
+mise run doctor      # classify source/runtime drift read-only
 mise run run         # → scripts/run
 mise tasks ls        # list all tasks
 
@@ -32,4 +35,5 @@ mise tasks ls        # list all tasks
 | Script | Description |
 |--------|-------------|
 | `claude-usage.py` | Check Claude usage limits (`uv run scripts/claude-usage.py --human`) |
+| `dotclaude.py` | Bootstrap, sync, and diagnose the independent runtime clone |
 | `pr-status.ts` | Fetch PR status, review comments, CI checks (`bun scripts/pr-status.ts`) |

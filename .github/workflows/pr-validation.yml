@@ -7,10 +7,14 @@ on:
       - 'settings.json'
       - '.mcp.json'
       - '.gitignore'
+      - '.mise.toml'
       - 'dotagents.toml'
+      - 'setup.sh'
       - 'agents/*.md'
       - 'skills/**'
       - 'scripts/sync-dotagents.py'
+      - 'scripts/dotclaude.py'
+      - 'scripts/test-participant-contract.sh'
       - '.github/schemas/**'
       - '.github/scripts/validate-config.py'
 
@@ -37,6 +41,9 @@ jobs:
         id: validate
         run: python .github/scripts/validate-config.py
         continue-on-error: true
+
+      - name: Verify source/runtime participant contract
+        run: scripts/test-participant-contract.sh
 
       - name: Get changed files
         id: changed
