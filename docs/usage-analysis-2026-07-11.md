@@ -2,7 +2,7 @@
 
 This is an activity analysis of local Claude Code, Codex, and Cursor logs, built with the repaired `analyze-usage` skill. It is useful for seeing where attention goes and how the working style is changing; it is not a productivity score or a provider invoice.
 
-The database was rebuilt from source logs and refreshed through **2026-07-11 10:00 PDT**. The primary comparison window is the preceding 28 days. Claude and Codex message/session counts are comparable enough for directional analysis, while raw `interactions` are not—those rows are tool calls for Claude and Codex but prompts for Cursor.
+The database was rebuilt from source logs and refreshed through **2026-07-11 10:00 PDT**. The primary comparison window is the preceding 28 days: **2026-06-13 10:00 PDT through 2026-07-11 10:00 PDT**. This exact four-week window was chosen for recent signal and weekday alignment; it is an analytical focus, not the boundary of the retained archive. Claude and Codex message/session counts are comparable enough for directional analysis, while raw `interactions` are not—those rows are tool calls for Claude and Codex but prompts for Cursor.
 
 ## Coverage
 
@@ -13,6 +13,8 @@ The database was rebuilt from source logs and refreshed through **2026-07-11 10:
 | Cursor | 0 | 0 | 0 |
 
 Cursor's most recent indexed activity is April 12, so it is historical rather than part of the current workflow. The local archive contains 180 Claude sessions and 1,335 Codex sessions overall, but all-time comparison would be misleading because Codex history starts in September 2025 while retained Claude logs begin in April 2026.
+
+The retained message archive spans **August 3, 2025 through July 11, 2026** overall: Cursor begins August 3, Codex September 21, and Claude Code April 11/12. Priceable token history begins September 21 for Codex and April 11/12 for Claude. Older history remains queryable; it is excluded from the headline figures only to keep the report focused on the latest four comparable weeks.
 
 ## What changed recently
 
