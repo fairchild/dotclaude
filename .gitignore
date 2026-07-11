@@ -33,7 +33,17 @@ chronicle/digests/
 chronicle/insights/
 chronicle/recaps/
 chronicle/summaries/
+chronicle/archive/
+chronicle/resolved.json
 title-feedback/
+
+# Local scheduler and daemon runtime
+.last-cleanup
+.last-update-result.json
+daemon.log
+daemon/
+jobs/
+scheduled-tasks/
 
 # Debug and logs
 debug/
@@ -90,6 +100,9 @@ Thumbs.db
 # Local artifacts
 backups/
 mcp-needs-auth-cache.json
+settings.local.json
+settings.json.bak
+settings.json.*-backup-*
 
 # Temporary files
 .venv/
@@ -129,6 +142,8 @@ chrome/
 # Other external symlinks (not in dotagents.toml)
 skills/code-council
 skills/personal-writing-style
+skills/orca-cli
+skills/orchestration
 # Ecosystem skills are managed in the sync-dotagents block at the bottom of this file.
 
 # maildir-shared backend — in-flight dir lives in git-common-dir

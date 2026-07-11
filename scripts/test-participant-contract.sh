@@ -51,6 +51,18 @@ find "$fixture_home/.local/share/dotclaude/migration-backups" -name local.txt \
 mkdir -p "$runtime/sessions"
 printf '{"private": "not printed"}\n' > "$runtime/sessions/current.json"
 printf 'LOCAL_ONLY=not-printed\n' > "$runtime/.env"
+mkdir -p \
+	"$runtime/chronicle/archive" \
+	"$runtime/daemon" \
+	"$runtime/jobs" \
+	"$runtime/scheduled-tasks"
+printf 'generated\n' > "$runtime/.last-cleanup"
+printf '{"generated": true}\n' > "$runtime/.last-update-result.json"
+printf '{"generated": true}\n' > "$runtime/chronicle/resolved.json"
+printf 'generated\n' > "$runtime/daemon.log"
+printf '{"local": true}\n' > "$runtime/settings.local.json"
+printf '{"backup": true}\n' > "$runtime/settings.json.bak"
+printf '{"backup": true}\n' > "$runtime/settings.json.workspaces-backup-2026-01-01T00-00-00Z"
 
 HOME="$fixture_home" "${PYTHON[@]}" - "$runtime" <<'PY'
 import os, pathlib, tomllib, sys
@@ -74,6 +86,10 @@ for name, enabled in manifest.get("share-to-agents", {}).items():
     link = agents / name
     link.symlink_to(target)
 PY
+
+mkdir -p "$fixture_home/.agents/skills/orca-cli" "$fixture_home/.agents/skills/orchestration"
+ln -s "$fixture_home/.agents/skills/orca-cli" "$runtime/skills/orca-cli"
+ln -s "$fixture_home/.agents/skills/orchestration" "$runtime/skills/orchestration"
 
 before_doctor="$(git -C "$runtime" status --porcelain=v1 --ignored=matching)"
 doctor_output="$(run_cli doctor)"

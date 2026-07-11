@@ -166,7 +166,7 @@ Bootstrap backs up an ambiguous non-Git runtime before cloning and refuses to mo
 
 This is dotclaude's implementation of the [fairchild/dotfiles source/runtime contract](https://github.com/fairchild/dotfiles/blob/master/docs/source-runtime-contract.md); it remains independently operable through the scripts above.
 
-Skill installation and symlinking is driven by [`dotagents.toml`](dotagents.toml) — a manifest declaring which ecosystem skills live in `~/.agents/skills/` and how they're symlinked into `~/.claude/skills/` (and the reverse direction, for dotclaude-authored skills shared with other agent harnesses). [`scripts/sync-dotagents.py`](scripts/sync-dotagents.py) is the reconciler: `audit` reports drift, `sync` reconciles, `status` is a one-liner for hooks. A SessionStart hook runs `status` each session so drift surfaces without blocking.
+Skill installation and symlinking is driven by [`dotagents.toml`](dotagents.toml) — a manifest declaring which ecosystem skills live in `~/.agents/skills/` and how they're linked into `~/.claude/skills/`. Canonical first-party shared sources now live in [fairchild/dotfiles](https://github.com/fairchild/dotfiles/tree/master/agents/shared/first-party-skills), so dotclaude no longer declares reverse links into `~/.agents`. [`scripts/sync-dotagents.py`](scripts/sync-dotagents.py) remains the reconciler: `audit` reports drift, `sync` reconciles, and `status` is a one-liner for hooks. A SessionStart hook runs `status` each session so drift surfaces without blocking.
 
 ## Permissions Model
 

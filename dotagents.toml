@@ -92,21 +92,8 @@ to-prd = true
 triage = true
 zoom-out = true
 
-# Dotclaude-authored skills to share with ~/.agents/skills/
-# Makes these available to Cursor, Codex, Gemini CLI, etc.
+# Reverse sharing is currently empty. Canonical first-party shared sources live
+# in fairchild/dotfiles and are materialized into ~/.agents/skills/ there.
+# Keep this table as the explicit extension point for a future dotclaude-only
+# skill that genuinely needs to flow in the other direction.
 [share-to-agents]
-agent-inbox = true
-analyze-usage = true
-backlog = true
-brainstorm-to-brief = true
-excalidraw-diagrams = true
-frontend-design = true
-gh-apps = true
-image-gen = true
-release = true
-skill-building = true
-swiftui-expert = true
-tart-gui-automation = true
-update-dependencies = true
-vocal = true
-youtube-content = true
