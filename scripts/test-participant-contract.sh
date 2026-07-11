@@ -4,7 +4,6 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
 
 fixture_home="$tmp/home"
 seed="$tmp/seed"
@@ -20,6 +19,14 @@ else
 	echo "FAIL: Python 3.11+ or uv is required" >&2
 	exit 1
 fi
+
+cleanup() {
+	"${PYTHON[@]}" - "$tmp" <<'PY'
+import pathlib, shutil, sys
+shutil.rmtree(pathlib.Path(sys.argv[1]), ignore_errors=True)
+PY
+}
+trap cleanup EXIT
 
 while IFS= read -r -d '' path; do
 	mkdir -p "$seed/$(dirname "$path")"
