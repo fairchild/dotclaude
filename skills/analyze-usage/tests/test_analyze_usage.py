@@ -915,7 +915,7 @@ def test_codex_managed_worktree_attribution() -> None:
         assert attribution == ["dotclaude,feature/codex,true"], attribution
 
 
-@test("calendar views use the system local timezone")
+@test("calendar views use the DuckDB session timezone")
 def test_calendar_views_use_local_timezone() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp) / "home"
@@ -923,15 +923,15 @@ def test_calendar_views_use_local_timezone() -> None:
         write_fixture(home)
         db_path = Path(tmp) / "usage.duckdb"
         env = make_env(home, db_path)
-        env["TZ"] = "America/Los_Angeles"
-
         assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
         assert duckdb_query(
             db_path,
+            "SET TimeZone='America/Los_Angeles'; "
             "SELECT hour_of_day FROM peak_hours WHERE source='claude_code';",
         ) == ["17"]
         assert duckdb_query(
             db_path,
+            "SET TimeZone='America/Los_Angeles'; "
             "SELECT date FROM daily_summary WHERE claude_tools > 0;",
         ) == ["2026-04-18"]
 
