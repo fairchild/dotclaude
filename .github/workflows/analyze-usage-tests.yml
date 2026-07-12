@@ -38,6 +38,7 @@ jobs:
             --output /tmp/duckdb.zip
           echo '1f2fa724fb054b3dbe1a9cbd13de5b76997d850e7087ec762ba88db04e0180cf  /tmp/duckdb.zip' \
             | sha256sum --check
+          mkdir -p "$HOME/.local/bin"
           unzip -q /tmp/duckdb.zip -d "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
