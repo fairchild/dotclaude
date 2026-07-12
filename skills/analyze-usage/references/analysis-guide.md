@@ -15,6 +15,23 @@ FROM messages
 GROUP BY harness ORDER BY messages DESC;
 ```
 
+For a reusable report, prefer the deterministic report command over manually
+copying query results:
+
+```bash
+scripts/analyze-usage report \
+  --from 2026-06-13T17:00:00Z \
+  --to 2026-07-12T17:00:00Z \
+  --output report.json
+```
+
+The JSON shows both archive coverage and report-window coverage overall and per
+harness. This keeps an inactive focus window distinct from a missing data
+source. Boundaries are UTC and half-open
+(`startInclusive <= timestamp < endExclusive`). With no boundaries, the report
+covers the full observed archive rather than choosing an arbitrary rolling
+window.
+
 ## Activity trends
 
 Use messages or sessions for cross-harness comparisons. The `interactions` view mixes tool calls for Claude Code and Codex with prompts for Cursor, so it is appropriate for per-source trends but not direct volume rankings.
@@ -123,6 +140,19 @@ ORDER BY estimated_cache_savings_usd DESC NULLS LAST;
 
 Claude cache writes can initially cost more than ordinary input; the savings
 calculation includes that write premium before crediting later cache reads.
+In report JSON, positive `cacheImpact` means avoided API-equivalent cost and a
+negative value means the cache-write premium exceeded recorded read savings.
+
+## Report quality checks
+
+Before presenting or publishing a generated report:
+
+1. Confirm all expected harnesses appear, including zero-token Cursor activity.
+2. Confirm provider and model token totals each reconcile to `totals.tokens`.
+3. Inspect `pricingCoverage`; dollar totals are partial when `unpricedRows` is nonzero.
+4. Keep reasoning output separate because it is already included in output tokens.
+5. State that costs are API-equivalent estimates, not provider invoices.
+6. Publish only the aggregate report, never the source database or transcript tables.
 
 ## Conversation search
 

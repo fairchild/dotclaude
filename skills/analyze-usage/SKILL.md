@@ -14,6 +14,7 @@ Use `scripts/analyze-usage` to load local Claude Code, Codex, and Cursor logs in
 2. Run `scripts/analyze-usage --schema` when constructing unfamiliar queries.
 3. Choose a metric whose unit matches the question. Read `references/analysis-guide.md` for query patterns and interpretation boundaries.
 4. Report the database refresh time, time window, included harnesses, and any unknown-priced models with the result.
+5. For shareable or repeatable reporting, use `report` with explicit UTC boundaries. Verify `pricingCoverage`, reconcile the provider/model totals, and keep the generated aggregate JSON private unless the user chooses a publication surface.
 
 Do not compare raw `interactions` counts across harnesses as if they were equivalent: Claude Code and Codex rows are tool calls, while Cursor rows are prompts. Use messages, sessions, active days, or per-source trends for cross-harness comparisons.
 
@@ -23,6 +24,7 @@ Do not compare raw `interactions` counts across harnesses as if they were equiva
 scripts/analyze-usage update
 scripts/analyze-usage --schema
 scripts/analyze-usage query "SELECT * FROM tool_summary"
+scripts/analyze-usage report --from 2026-06-13T17:00:00Z --to 2026-07-12T17:00:00Z --output report.json
 scripts/analyze-usage search "memory"
 scripts/analyze-usage search "don't panic" --fts
 scripts/analyze-usage shell
@@ -30,6 +32,8 @@ scripts/analyze-usage reload
 ```
 
 `update` detects changed and deleted files with nanosecond mtime plus file size, then publishes the new database atomically. `reload` rebuilds atomically and keeps a timestamped backup of the prior database.
+
+`report` emits the versioned `analyze-usage-report/v1` aggregate contract. Its default window is the full observed archive; `--from` is inclusive and `--to` is exclusive. The report includes overall and per-harness archive coverage beside report-window activity, provider/model/repository token and cost ledgers, cache effects, and priced/unpriced coverage. Cursor activity is present even when the focus window is empty and even though its source does not expose token accounting. Report output excludes prompts, responses, reasoning, tool arguments, paths, and session identifiers.
 
 ## Analysis surfaces
 
@@ -55,4 +59,4 @@ The `agent_*` tables from `references/canonical-agent-schema.duckdb.sql` are an 
 uv run skills/analyze-usage/tests/test_analyze_usage.py
 ```
 
-The regression suite covers bootstrap, legacy migration, sparse and incremental Claude/Codex ingestion, deletion and same-second change detection, atomic failure handling, quoted paths and search, turn-level provider costs, long-context pricing, cache savings, editable pricing, repository provenance, and local calendar views.
+The regression suite covers bootstrap, legacy migration, sparse and incremental Claude/Codex ingestion, real Cursor SQLite ingestion, deletion and same-second change detection, atomic failure handling, quoted paths and search, turn-level provider costs, long-context pricing, cache savings, editable pricing, repository provenance, local calendar views, report-window boundaries, cross-harness reconciliation, deterministic output, and aggregate-only privacy.

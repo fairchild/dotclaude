@@ -14,9 +14,12 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
+import traceback
+from datetime import datetime, timedelta
 from pathlib import Path
 
 TESTS: list[tuple[str, bool, str]] = []
@@ -30,7 +33,8 @@ def test(name: str):
                 fn()
                 TESTS.append((name, True, ""))
             except Exception as exc:  # pragma: no cover - harness output only
-                TESTS.append((name, False, str(exc)))
+                detail = "".join(traceback.format_exception(exc)).strip()
+                TESTS.append((name, False, detail))
 
         return wrapper
 
@@ -265,6 +269,85 @@ def write_codex_fixture(
             + "\n"
         )
     return session_id, session_file
+
+
+def write_sparse_claude_fixture(
+    home: Path,
+    *,
+    session_id: str,
+    timestamp: str,
+    model: str,
+    prompt: str,
+    response: str,
+    input_tokens: int,
+    output_tokens: int,
+) -> Path:
+    fixture_dir = home / ".claude" / "projects" / session_id
+    fixture_dir.mkdir(parents=True, exist_ok=True)
+    fixture_path = fixture_dir / f"{session_id}.jsonl"
+    user_timestamp = timestamp
+    assistant_timestamp = (
+        datetime.fromisoformat(timestamp.replace("Z", "+00:00")) + timedelta(seconds=1)
+    ).isoformat().replace("+00:00", "Z")
+    entries = [
+        {
+            "uuid": f"{session_id}-user",
+            "parentUuid": None,
+            "sessionId": session_id,
+            "type": "user",
+            "timestamp": user_timestamp,
+            "cwd": f"/Users/example/code/{session_id}",
+            "entrypoint": "cli",
+            "isSidechain": False,
+            "message": {"content": prompt},
+        },
+        {
+            "uuid": f"{session_id}-assistant",
+            "parentUuid": f"{session_id}-user",
+            "sessionId": session_id,
+            "type": "assistant",
+            "timestamp": assistant_timestamp,
+            "cwd": f"/Users/example/code/{session_id}",
+            "entrypoint": "cli",
+            "isSidechain": False,
+            "message": {
+                "model": model,
+                "usage": {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                },
+                "content": [{"type": "text", "text": response}],
+            },
+        },
+    ]
+    fixture_path.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+    return fixture_path
+
+
+def write_cursor_fixture(home: Path) -> Path:
+    workspace_dir = home / ".cursor-user" / "workspaceStorage" / "cursor-fixture"
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+    (workspace_dir / "workspace.json").write_text(
+        json.dumps({"folder": "file:///Users/example/code/cursor-repo"})
+    )
+    db_path = workspace_dir / "state.vscdb"
+    payload = [
+        {
+            "unixMs": 1_779_753_608_000,
+            "textDescription": "CURSOR_PRIVATE_SENTINEL",
+        },
+        {
+            "unixMs": 1_779_840_000_000,
+            "textDescription": "CURSOR_END_BOUNDARY_SENTINEL",
+        },
+    ]
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value BLOB)")
+        connection.execute(
+            "INSERT INTO ItemTable (key, value) VALUES (?, ?)",
+            ("aiService.generations", json.dumps(payload).encode()),
+        )
+    return db_path
 
 
 def create_legacy_db(db_path: Path) -> None:
@@ -962,6 +1045,182 @@ def test_codex_incremental_session_scope() -> None:
         ) == [f"1,{second_id}"]
 
 
+@test("report generation reconciles multi-harness usage without leaking content")
+def test_report_generation_contract() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        claude_file = write_fixture(home)
+        claude_file.write_text(
+            claude_file.read_text().replace("hello", "CLAUDE_PRIVATE_SENTINEL")
+        )
+        write_sparse_claude_fixture(
+            home,
+            session_id="unknown-report",
+            timestamp="2026-05-26T00:00:10Z",
+            model="claude-future-unknown",
+            prompt="UNKNOWN_PRIVATE_SENTINEL",
+            response="UNKNOWN_RESPONSE_SENTINEL",
+            input_tokens=20,
+            output_tokens=10,
+        )
+        _codex_id, codex_file = write_codex_fixture(home)
+        codex_file.write_text(
+            codex_file.read_text().replace("show status", "CODEX_PRIVATE_SENTINEL")
+        )
+        write_cursor_fixture(home)
+
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+        env["UV_CACHE_DIR"] = str(Path(tmp) / "uv-cache")
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+
+        report_path = Path(tmp) / "report.json"
+        report_args = [
+            str(SCRIPT_PATH),
+            "report",
+            "--from",
+            "2026-04-19T00:00:00Z",
+            "--to",
+            "2026-05-27T00:00:00Z",
+            "--generated-at",
+            "2026-05-28T12:00:00Z",
+            "--output",
+            str(report_path),
+        ]
+        assert_ok(run(report_args, env=env))
+        first_render = report_path.read_text()
+        assert_ok(run(report_args, env=env))
+        assert report_path.read_text() == first_render
+        report = json.loads(first_render)
+
+        assert report["schemaVersion"] == "analyze-usage-report/v1"
+        assert report["generatedAt"] == "2026-05-28T12:00:00.000000Z"
+        assert report["coverage"] == {
+            "archive": {
+                "firstObservation": "2026-04-19T00:00:00.000000Z",
+                "lastObservation": "2026-05-27T00:00:00.000000Z",
+            },
+            "reportWindow": {
+                "startInclusive": "2026-04-19T00:00:00.000000Z",
+                "endExclusive": "2026-05-27T00:00:00.000000Z",
+                "durationDays": 38.0,
+            },
+        }
+
+        harnesses = {row["harness"]: row for row in report["harnesses"]}
+        assert {
+            name: (
+                row["reportWindow"]["sessionsWithMessages"],
+                row["reportWindow"]["messages"],
+                row["reportWindow"]["tokenRows"],
+            )
+            for name, row in harnesses.items()
+        } == {
+            "claude_code": (2, 4, 2),
+            "codex": (1, 2, 1),
+            "cursor": (1, 1, 0),
+        }
+        assert harnesses["cursor"]["tokenAccounting"] == "not_available"
+        assert harnesses["cursor"]["reportWindow"]["lastObservation"] == (
+            "2026-05-26T00:00:08.000000Z"
+        )
+        assert harnesses["cursor"]["archiveCoverage"] == {
+            "sessionsWithMessages": 1,
+            "messages": 2,
+            "activeDays": 2,
+            "tokenRows": 0,
+            "firstObservation": "2026-05-26T00:00:08.000000Z",
+            "lastObservation": "2026-05-27T00:00:00.000000Z",
+        }
+
+        totals = report["totals"]
+        assert totals["activity"] == {
+            "sessionsWithMessages": 4,
+            "messages": 7,
+            "activeDays": 2,
+        }
+        assert totals["tokens"] == {
+            "uncachedInput": 38,
+            "cachedInput": 2,
+            "cacheWriteInput": 0,
+            "output": 20,
+            "reasoningOutput": 1,
+            "reportedTotal": 60,
+        }, totals["tokens"]
+        assert totals["costUsd"]["apiEquivalent"] == 0.000296
+        assert totals["costUsd"]["noCacheBaseline"] == 0.000305
+        assert totals["costUsd"]["cacheImpact"] == 0.000009
+        assert totals["cache"] == {"utilizationPct": 5.0, "costReductionPct": 2.95}
+
+        pricing = report["pricingCoverage"]
+        assert {
+            key: pricing[key]
+            for key in ("usageRows", "pricedRows", "unpricedRows", "pricedTokens", "unpricedTokens")
+        } == {
+            "usageRows": 3,
+            "pricedRows": 2,
+            "unpricedRows": 1,
+            "pricedTokens": 30,
+            "unpricedTokens": 30,
+        }
+        assert pricing["unknownModels"] == [
+            {
+                "provider": "anthropic",
+                "harness": "claude_code",
+                "model": "claude-future-unknown",
+                "usageRows": 1,
+            }
+        ]
+
+        providers = {row["provider"]: row for row in report["providers"]}
+        assert {
+            provider: (
+                row["usageRows"],
+                row["pricedRows"],
+                row["unpricedRows"],
+                row["reportedTotal"],
+            )
+            for provider, row in providers.items()
+        } == {
+            "anthropic": (2, 1, 1, 45),
+            "openai": (1, 1, 0, 15),
+        }
+        models = {row["model"]: row for row in report["models"]}
+        assert {
+            model: (row["pricingStatus"], row["reportedTotal"])
+            for model, row in models.items()
+        } == {
+            "claude-future-unknown": ("unknown_model", 30),
+            "claude-sonnet-4-5-20250929": ("priced", 15),
+            "gpt-5.5": ("priced", 15),
+        }
+
+        for grouping in ("providers", "models"):
+            assert sum(row["reportedTotal"] for row in report[grouping]) == 60
+            assert round(sum(row["apiEquivalent"] for row in report[grouping]), 6) == 0.000296
+        assert sum(row["reportedTotal"] for row in report["repositories"]) == 60
+
+        for sentinel in (
+            "CLAUDE_PRIVATE_SENTINEL",
+            "CODEX_PRIVATE_SENTINEL",
+            "CURSOR_PRIVATE_SENTINEL",
+            "CURSOR_END_BOUNDARY_SENTINEL",
+            "UNKNOWN_PRIVATE_SENTINEL",
+            "UNKNOWN_RESPONSE_SENTINEL",
+            str(home),
+            "019e6296-7f0f-7090-8572-a48ddfa5d34a",
+        ):
+            assert sentinel not in first_render, sentinel
+
+        invalid_args = report_args.copy()
+        invalid_args[invalid_args.index("--from") + 1] = "2026-05-28T00:00:00Z"
+        failed_report = run(invalid_args, env=env)
+        assert failed_report.returncode != 0
+        assert "report start must be before report end" in failed_report.stderr
+        assert report_path.read_text() == first_render
+
+
 def main() -> None:
     tests = [
         test_reload_bootstraps_schema,
@@ -982,6 +1241,7 @@ def main() -> None:
         test_incremental_sparse_claude_file,
         test_repository_attribution_provenance,
         test_codex_incremental_session_scope,
+        test_report_generation_contract,
     ]
     for fn in tests:
         fn()

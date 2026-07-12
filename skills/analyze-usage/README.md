@@ -10,6 +10,7 @@ Loads local logs into a **persistent DuckDB database** for SQL-based analysis. D
 # Install
 install -d -m 755 ~/.local/bin ~/.local/share/analyze-usage
 install -m 755 skills/analyze-usage/scripts/analyze-usage ~/.local/bin/analyze-usage
+install -m 755 skills/analyze-usage/scripts/generate-report.py ~/.local/bin/generate-report.py
 install -m 644 skills/analyze-usage/references/canonical-agent-schema.duckdb.sql \
   ~/.local/share/analyze-usage/canonical-agent-schema.duckdb.sql
 
@@ -44,8 +45,40 @@ analyze-usage query "SELECT * FROM tool_summary"
 | `analyze-usage --help` | Detailed help documentation |
 | `analyze-usage --schema` | Database schema with example queries |
 | `analyze-usage query "SQL"` | Execute a SQL query |
+| `analyze-usage report [OPTIONS]` | Generate versioned, aggregate-only report JSON |
 | `analyze-usage search "query"` | Search conversation content |
 | `analyze-usage shell` | Open interactive DuckDB shell |
+
+## Reports
+
+Generate a reproducible report with explicit UTC boundaries:
+
+```bash
+analyze-usage update
+analyze-usage report \
+  --from 2026-06-13T17:00:00Z \
+  --to 2026-07-12T17:00:00Z \
+  --output report.json
+```
+
+The report distinguishes the full archive coverage from the selected report
+window, both overall and for each harness. The window is half-open: `--from` is
+included and `--to` is excluded.
+Omit both boundaries to report the full observed archive; there is no implicit
+28-day window.
+
+The `analyze-usage-report/v1` contract contains:
+
+- activity for Claude Code, Codex, and Cursor;
+- token and API-equivalent cost ledgers by provider, model, and repository;
+- cache utilization, no-cache baseline, and cache impact;
+- priced and unpriced row/token coverage; and
+- explicit interpretation and privacy semantics.
+
+Cursor activity is included, but the ingested Cursor source does not expose
+token counts or cost. Unknown models remain visible and unpriced. Prompts,
+responses, reasoning, tool arguments, paths, and session identifiers are not
+written to the report.
 
 ## For AI Agents
 
@@ -255,6 +288,9 @@ ORDER BY interactions DESC;
 4. Incrementally updates affected Claude and Codex session files; Cursor is reloaded wholesale when its small workspace store changes
 5. Full reloads create a private timestamped backup before atomically replacing the database
 6. Database persists at `~/.local/share/analyze-usage/usage.duckdb`
+
+The report writer uses a private temporary file and atomically replaces its
+destination after successful generation.
 
 Use `reload` to force a full rebuild from scratch.
 

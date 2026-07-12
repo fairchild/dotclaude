@@ -9,6 +9,7 @@
 #   analyze-usage --help       # Detailed help for agents/users
 #   analyze-usage --schema     # Show database schema with example queries
 #   analyze-usage query "SQL"  # Run a SQL query
+#   analyze-usage report        # Generate aggregate-only report JSON
 #   analyze-usage update       # Explicit incremental update
 #   analyze-usage reload       # Force reload all data
 
@@ -24,6 +25,7 @@ VERSION="2.0.0"
 SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 SKILL_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
 REFERENCE_SCHEMA_PATH="$SKILL_DIR/references/canonical-agent-schema.duckdb.sql"
+REPORT_SCRIPT_PATH="$SCRIPT_DIR/generate-report.py"
 INSTALLED_SCHEMA_PATH="${XDG_DATA_HOME:-$HOME/.local/share}/analyze-usage/canonical-agent-schema.duckdb.sql"
 
 DB_PATH="${ANALYZE_USAGE_DB:-$HOME/.local/share/analyze-usage/usage.duckdb}"
@@ -92,6 +94,7 @@ USAGE
     analyze-usage update              Explicit incremental update
     analyze-usage reload              Force reload all data from source logs
     analyze-usage query "SQL"         Execute a SQL query against the database
+    analyze-usage report [OPTIONS]     Generate aggregate-only report JSON
     analyze-usage search "query"      Search conversation content
     analyze-usage shell               Open interactive DuckDB shell
 
@@ -106,6 +109,13 @@ COMMANDS
 
     query       Execute arbitrary SQL. Results printed to stdout.
                 Use --schema to see available tables and columns.
+
+    report      Generate a deterministic aggregate report from the normalized
+                ledger. By default it covers the full observed archive.
+                Options:
+                  --from T      Inclusive ISO-8601 boundary with UTC offset
+                  --to T        Exclusive ISO-8601 boundary with UTC offset
+                  --output P    Write JSON to a file instead of stdout
 
     search      Search conversation content (messages table).
                 Flags:
@@ -160,6 +170,9 @@ EXAMPLES
 
     # Daily usage across all tools
     analyze-usage query "SELECT * FROM daily_summary ORDER BY date DESC LIMIT 14"
+
+    # Generate a fixed-window report with explicit UTC boundaries
+    analyze-usage report --from 2026-06-13T17:00:00Z --to 2026-07-12T17:00:00Z --output report.json
 
     # Search conversation content
     analyze-usage search "memory"
@@ -3718,6 +3731,7 @@ EOF
     echo "Quick start:"
     echo "  analyze-usage --schema           Show tables and example queries"
     echo "  analyze-usage query \"SQL\"        Run a SQL query"
+    echo "  analyze-usage report              Generate aggregate report JSON"
     echo "  analyze-usage search \"query\"     Search conversation content"
     echo "  analyze-usage update             Incremental update"
     echo "  analyze-usage shell              Interactive SQL shell"
@@ -3768,6 +3782,15 @@ case "${1:-}" in
             exit 1
         fi
         run_query "$2"
+        ;;
+
+    report)
+        if [ ! -x "$REPORT_SCRIPT_PATH" ]; then
+            echo "Report generator not found or not executable: $REPORT_SCRIPT_PATH" >&2
+            exit 1
+        fi
+        shift
+        "$REPORT_SCRIPT_PATH" --db "$DB_PATH" "$@"
         ;;
 
     search|s)
