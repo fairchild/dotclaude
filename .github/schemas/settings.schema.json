@@ -108,6 +108,11 @@
                 "async": {
                   "type": "boolean",
                   "description": "Run the hook asynchronously"
+                },
+                "timeout": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Maximum execution time in seconds"
                 }
               },
               "required": ["type", "command"],

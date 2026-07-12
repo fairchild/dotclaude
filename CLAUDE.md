@@ -64,6 +64,7 @@ Test behavior over implementation details
 
 - Conventional commits (`feat:`, `fix:`, `chore:`, etc.)
 - **Prefer a worktree for non-trivial changes in a new session** — recovery stays cheap when something goes sideways. Soft default: match isolation to scale of change rather than apply always or never. Suggest creating one before mutating the live tree; the `git-worktree` skill handles the mechanics.
+- **Resolve PR review comments once addressed.** After a review comment's change is committed and pushed, mark the thread resolved. Leave it open if the suggestion was declined or deferred (say why in a reply).
 
 ## Safety
 
@@ -75,4 +76,3 @@ Test behavior over implementation details
 - `~/.claude/skills/dotclaude-config/references/hook-patterns.md` - Standard hook configurations
 - `~/.claude/skills/dotclaude-config/references/project-config-checklist.md` - New project setup
 - `bun ~/.claude/skills/dotclaude-config/scripts/inventory.ts` - Scan projects for config status
-

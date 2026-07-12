@@ -48,6 +48,16 @@
             "type" : "command"
           }
         ]
+      },
+      {
+        "hooks" : [
+          {
+            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
+            "timeout" : 10,
+            "type" : "command"
+          }
+        ],
+        "matcher" : "*"
       }
     ],
     "PostToolBatch" : [
@@ -70,6 +80,16 @@
             "type" : "command"
           }
         ]
+      },
+      {
+        "hooks" : [
+          {
+            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
+            "timeout" : 10,
+            "type" : "command"
+          }
+        ],
+        "matcher" : "*"
       }
     ],
     "PostToolUseFailure" : [
@@ -81,6 +101,16 @@
             "type" : "command"
           }
         ]
+      },
+      {
+        "hooks" : [
+          {
+            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
+            "timeout" : 10,
+            "type" : "command"
+          }
+        ],
+        "matcher" : "*"
       }
     ],
     "PreToolUse" : [
@@ -92,6 +122,16 @@
             "type" : "command"
           }
         ]
+      },
+      {
+        "hooks" : [
+          {
+            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
+            "timeout" : 10,
+            "type" : "command"
+          }
+        ],
+        "matcher" : "*"
       }
     ],
     "SessionEnd" : [
@@ -180,6 +220,15 @@
             "type" : "command"
           }
         ]
+      },
+      {
+        "hooks" : [
+          {
+            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
+            "timeout" : 10,
+            "type" : "command"
+          }
+        ]
       }
     ],
     "StopFailure" : [
@@ -188,6 +237,37 @@
           {
             "async" : true,
             "command" : "~\/.local\/share\/workspaces\/hook-forwarders\/event-forwarder.sh",
+            "type" : "command"
+          }
+        ]
+      },
+      {
+        "hooks" : [
+          {
+            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
+            "timeout" : 10,
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStart" : [
+      {
+        "hooks" : [
+          {
+            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
+            "timeout" : 10,
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStop" : [
+      {
+        "hooks" : [
+          {
+            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
+            "timeout" : 10,
             "type" : "command"
           }
         ]
@@ -215,12 +295,32 @@
         ]
       }
     ],
+    "TeammateIdle" : [
+      {
+        "hooks" : [
+          {
+            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
+            "timeout" : 10,
+            "type" : "command"
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit" : [
       {
         "hooks" : [
           {
             "async" : true,
             "command" : "~\/.local\/share\/workspaces\/hook-forwarders\/event-forwarder.sh",
+            "type" : "command"
+          }
+        ]
+      },
+      {
+        "hooks" : [
+          {
+            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
+            "timeout" : 10,
             "type" : "command"
           }
         ]
@@ -305,10 +405,6 @@
       "Edit(~\/.ai-memory\/**)"
     ],
     "ask" : [
-      "Bash(git push *)",
-      "Bash(git reset *)",
-      "Bash(git rebase *)",
-      "Bash(git merge *)",
       "Bash(rm -rf *)"
     ],
     "defaultMode" : "default",
@@ -342,6 +438,7 @@
     "type" : "command"
   },
   "theme" : "light",
+  "tui" : "fullscreen",
   "verbose" : true,
   "voice" : {
     "enabled" : true,

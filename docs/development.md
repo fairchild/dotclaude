@@ -33,6 +33,8 @@ for example `~/.claude/skills/status-line-live/scripts/statusline.sh`, or
 machine-agnostic installer commands. WorkSpaces hook and status-line commands use
 the canonical unquoted `~/.local/share/workspaces/hook-forwarders/` paths from
 the WorkSpaces installer so source and runtime settings stay byte-identical.
+Optional integrations such as Orca use `$HOME` in tracked commands. An installer
+must not serialize `/Users/<name>` or `/home/<name>` into public settings.
 
 Theme is a user preference. Keep the tracked value conservative unless the user
 intends it as the global default across machines.
@@ -92,7 +94,10 @@ Until you do this, `~/.claude` shows `settings.json` as modified and the `Sessio
 
 ## Gitignore
 
-The runtime generates ~30k+ ephemeral files (session history, debug logs, chronicle blocks, caches). The `.gitignore` covers all of them. When new runtime artifacts appear, add patterns so `git -C ~/.claude status` stays clean.
+The runtime generates ~30k+ ephemeral files (session history, debug logs,
+Chronicle blocks, caches, and the server-managed `remote-settings.json` cache).
+The `.gitignore` covers all of them. When new runtime artifacts appear, add
+patterns so `git -C ~/.claude status` stays clean.
 
 ## Rollback
 
