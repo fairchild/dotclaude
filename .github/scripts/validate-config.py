@@ -37,6 +37,7 @@ WORKSPACES_EVENT_FORWARDER = "com.cloudcompute.workspaces/HookForwarders/event-f
 WORKSPACES_LEGACY_FORWARDER_SUFFIX = "/HookForwarders/event-forwarder.sh"
 WORKSPACES_CANONICAL_FORWARDER = "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh"
 CODEX_WORKTREE_PATH = "/.codex/worktrees/"
+MACHINE_HOME_PATH = re.compile(r"(?:/Users/|/home/)[^/\s\"']+")
 DOTAGENTS_GITIGNORE_BEGIN = "# BEGIN sync-dotagents (generated from dotagents.toml — do not edit)"
 DOTAGENTS_GITIGNORE_END = "# END sync-dotagents"
 
@@ -150,6 +151,12 @@ def validate_settings_semantics(data: dict, result: ValidationResult) -> None:
     if isinstance(hooks, dict):
         for event_name, groups in hooks.items():
             for command in iter_hook_commands(groups):
+                if MACHINE_HOME_PATH.search(command):
+                    result["valid"] = False
+                    result["errors"].append(
+                        f"{event_name} uses a machine-specific home path; "
+                        "use $HOME or ~ in tracked hook commands"
+                    )
                 if (
                     command != WORKSPACES_CANONICAL_FORWARDER
                     and unquote_single_quoted_command(command).endswith(WORKSPACES_LEGACY_FORWARDER_SUFFIX)
@@ -174,12 +181,19 @@ def validate_settings_semantics(data: dict, result: ValidationResult) -> None:
         return
 
     command = status_line.get("command")
-    if isinstance(command, str) and CODEX_WORKTREE_PATH in command:
-        result["valid"] = False
-        result["errors"].append(
-            "statusLine.command must not point into .codex/worktrees; "
-            "source settings need a stable command or a runtime-generated local value"
-        )
+    if isinstance(command, str):
+        if MACHINE_HOME_PATH.search(command):
+            result["valid"] = False
+            result["errors"].append(
+                "statusLine.command uses a machine-specific home path; "
+                "use $HOME or ~ in tracked commands"
+            )
+        if CODEX_WORKTREE_PATH in command:
+            result["valid"] = False
+            result["errors"].append(
+                "statusLine.command must not point into .codex/worktrees; "
+                "source settings need a stable command or a runtime-generated local value"
+            )
 
 
 def iter_hook_commands(groups: object):

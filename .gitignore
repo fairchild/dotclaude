@@ -100,6 +100,7 @@ Thumbs.db
 # Local artifacts
 backups/
 mcp-needs-auth-cache.json
+remote-settings.json
 settings.local.json
 settings.json.bak
 settings.json.*-backup-*

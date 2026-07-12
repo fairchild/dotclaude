@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/example/.orca/agent-hooks/claude-hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

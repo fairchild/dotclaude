@@ -16,6 +16,7 @@ on:
       - 'scripts/dotclaude.py'
       - 'scripts/test-participant-contract.sh'
       - '.github/schemas/**'
+      - '.github/fixtures/**'
       - '.github/scripts/validate-config.py'
 
 jobs:
@@ -41,6 +42,15 @@ jobs:
         id: validate
         run: python .github/scripts/validate-config.py
         continue-on-error: true
+
+      - name: Verify invalid settings fixtures are rejected
+        run: |
+          for fixture in .github/fixtures/*.invalid.json; do
+            if python .github/scripts/validate-config.py --settings-only "$fixture"; then
+              echo "Expected invalid fixture to fail validation: $fixture" >&2
+              exit 1
+            fi
+          done
 
       - name: Verify source/runtime participant contract
         run: scripts/test-participant-contract.sh
