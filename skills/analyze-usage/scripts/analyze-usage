@@ -715,18 +715,23 @@ sql_quote_literal() {
 emit_file_metadata() {
     local file_path="$1"
     local mtime_ns size_bytes escaped_path raw_time seconds fraction
-    if raw_time=$(stat -f %Fm "$file_path" 2>/dev/null); then
-        seconds=${raw_time%%.*}
-        fraction=${raw_time#*.}000000000
-        mtime_ns="${seconds}${fraction:0:9}"
-    else
-        seconds=$(stat -c %Y "$file_path")
-        raw_time=$(stat -c %y "$file_path")
-        fraction=${raw_time#*.}
-        fraction=${fraction%% *}000000000
-        mtime_ns="${seconds}${fraction:0:9}"
-    fi
-    size_bytes=$(stat -f %z "$file_path" 2>/dev/null || stat -c %s "$file_path" 2>/dev/null)
+    case "$(uname -s)" in
+        Darwin|*BSD)
+            raw_time=$(stat -f %Fm "$file_path")
+            seconds=${raw_time%%.*}
+            fraction=${raw_time#*.}000000000
+            mtime_ns="${seconds}${fraction:0:9}"
+            size_bytes=$(stat -f %z "$file_path")
+            ;;
+        *)
+            seconds=$(stat -c %Y "$file_path")
+            raw_time=$(stat -c %y "$file_path")
+            fraction=${raw_time#*.}
+            fraction=${fraction%% *}000000000
+            mtime_ns="${seconds}${fraction:0:9}"
+            size_bytes=$(stat -c %s "$file_path")
+            ;;
+    esac
     escaped_path=${file_path//\"/\"\"}
     printf '"%s",%s,%s\n' "$escaped_path" "$mtime_ns" "$size_bytes"
 }
