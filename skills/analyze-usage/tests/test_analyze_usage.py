@@ -14,9 +14,12 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
+import traceback
+from datetime import datetime, timedelta
 from pathlib import Path
 
 TESTS: list[tuple[str, bool, str]] = []
@@ -30,7 +33,8 @@ def test(name: str):
                 fn()
                 TESTS.append((name, True, ""))
             except Exception as exc:  # pragma: no cover - harness output only
-                TESTS.append((name, False, str(exc)))
+                detail = "".join(traceback.format_exception(exc)).strip()
+                TESTS.append((name, False, detail))
 
         return wrapper
 
@@ -61,8 +65,11 @@ def duckdb_query(db_path: Path, sql: str) -> list[str]:
 
 def make_env(home: Path, db_path: Path) -> dict[str, str]:
     env = os.environ.copy()
-    env["HOME"] = str(home)
     env["ANALYZE_USAGE_DB"] = str(db_path)
+    env["CLAUDE_PROJECTS_DIR"] = str(home / ".claude" / "projects")
+    env["CODEX_HOME"] = str(home / ".codex")
+    env["CURSOR_USER_DIR"] = str(home / ".cursor-user")
+    env["XDG_DATA_HOME"] = str(home / ".local" / "share")
     return env
 
 
@@ -81,11 +88,11 @@ def install_schema(home: Path) -> Path:
     return schema_target
 
 
-def write_fixture(home: Path) -> Path:
+def write_fixture(home: Path, *, cwd: str | None = None) -> Path:
     claude_dir = home / ".claude" / "projects" / "demo"
     claude_dir.mkdir(parents=True, exist_ok=True)
     session_file = claude_dir / "session.jsonl"
-    cwd = "/Users/fairchild/conductor/workspaces/services/demo"
+    cwd = cwd or "/Users/fairchild/conductor/workspaces/services/demo"
     entries = [
         {
             "uuid": "u1",
@@ -153,13 +160,26 @@ def write_fixture(home: Path) -> Path:
     return session_file
 
 
-def write_codex_fixture(home: Path) -> tuple[str, Path]:
-    session_id = "019e6296-7f0f-7090-8572-a48ddfa5d34a"
+def write_codex_fixture(
+    home: Path,
+    *,
+    cwd: str | None = None,
+    session_id: str = "019e6296-7f0f-7090-8572-a48ddfa5d34a",
+    model: str = "gpt-5.5",
+    token_usage: dict[str, int] | None = None,
+) -> tuple[str, Path]:
     codex_home = home / ".codex"
     session_dir = codex_home / "sessions" / "2026" / "05" / "26"
     session_dir.mkdir(parents=True, exist_ok=True)
     session_file = session_dir / f"rollout-2026-05-26T00-00-00-{session_id}.jsonl"
-    cwd = "/Users/fairchild/.worktrees/dotclaude/codex-import"
+    cwd = cwd or "/Users/fairchild/.worktrees/dotclaude/codex-import"
+    token_usage = token_usage or {
+        "input_tokens": 10,
+        "cached_input_tokens": 2,
+        "output_tokens": 5,
+        "reasoning_output_tokens": 1,
+        "total_tokens": 15,
+    }
     entries = [
         {
             "timestamp": "2026-05-26T00:00:00.000Z",
@@ -184,7 +204,7 @@ def write_codex_fixture(home: Path) -> tuple[str, Path]:
             "type": "turn_context",
             "payload": {
                 "cwd": cwd,
-                "model": "gpt-5-codex",
+                "model": model,
                 "effort": "medium",
             },
         },
@@ -230,30 +250,104 @@ def write_codex_fixture(home: Path) -> tuple[str, Path]:
             "payload": {
                 "type": "token_count",
                 "info": {
-                    "last_token_usage": {
-                        "input_tokens": 10,
-                        "cached_input_tokens": 2,
-                        "output_tokens": 5,
-                        "reasoning_output_tokens": 1,
-                        "total_tokens": 15,
-                    },
+                    "last_token_usage": token_usage,
                     "model_context_window": 258400,
                 },
             },
         },
     ]
     session_file.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
-    (codex_home / "session_index.jsonl").write_text(
-        json.dumps(
-            {
-                "id": session_id,
-                "thread_name": "fixture thread",
-                "updated_at": "2026-05-26T00:00:07.000Z",
-            }
+    with (codex_home / "session_index.jsonl").open("a") as index_file:
+        index_file.write(
+            json.dumps(
+                {
+                    "id": session_id,
+                    "thread_name": "fixture thread",
+                    "updated_at": "2026-05-26T00:00:07.000Z",
+                }
+            )
+            + "\n"
         )
-        + "\n"
-    )
     return session_id, session_file
+
+
+def write_sparse_claude_fixture(
+    home: Path,
+    *,
+    session_id: str,
+    timestamp: str,
+    model: str,
+    prompt: str,
+    response: str,
+    input_tokens: int,
+    output_tokens: int,
+) -> Path:
+    fixture_dir = home / ".claude" / "projects" / session_id
+    fixture_dir.mkdir(parents=True, exist_ok=True)
+    fixture_path = fixture_dir / f"{session_id}.jsonl"
+    user_timestamp = timestamp
+    assistant_timestamp = (
+        datetime.fromisoformat(timestamp.replace("Z", "+00:00")) + timedelta(seconds=1)
+    ).isoformat().replace("+00:00", "Z")
+    entries = [
+        {
+            "uuid": f"{session_id}-user",
+            "parentUuid": None,
+            "sessionId": session_id,
+            "type": "user",
+            "timestamp": user_timestamp,
+            "cwd": f"/Users/example/code/{session_id}",
+            "entrypoint": "cli",
+            "isSidechain": False,
+            "message": {"content": prompt},
+        },
+        {
+            "uuid": f"{session_id}-assistant",
+            "parentUuid": f"{session_id}-user",
+            "sessionId": session_id,
+            "type": "assistant",
+            "timestamp": assistant_timestamp,
+            "cwd": f"/Users/example/code/{session_id}",
+            "entrypoint": "cli",
+            "isSidechain": False,
+            "message": {
+                "model": model,
+                "usage": {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                },
+                "content": [{"type": "text", "text": response}],
+            },
+        },
+    ]
+    fixture_path.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+    return fixture_path
+
+
+def write_cursor_fixture(home: Path) -> Path:
+    workspace_dir = home / ".cursor-user" / "workspaceStorage" / "cursor-fixture"
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+    (workspace_dir / "workspace.json").write_text(
+        json.dumps({"folder": "file:///Users/example/code/cursor-repo"})
+    )
+    db_path = workspace_dir / "state.vscdb"
+    payload = [
+        {
+            "unixMs": 1_779_753_608_000,
+            "textDescription": "CURSOR_PRIVATE_SENTINEL",
+        },
+        {
+            "unixMs": 1_779_840_000_000,
+            "textDescription": "CURSOR_END_BOUNDARY_SENTINEL",
+        },
+    ]
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value BLOB)")
+        connection.execute(
+            "INSERT INTO ItemTable (key, value) VALUES (?, ?)",
+            ("aiService.generations", json.dumps(payload).encode()),
+        )
+    return db_path
 
 
 def create_legacy_db(db_path: Path) -> None:
@@ -553,6 +647,580 @@ def test_update_legacy_db_no_change_migration() -> None:
         assert interface_source == [f"conductor,{session_file}"], interface_source
 
 
+@test("incremental update removes deleted source rows")
+def test_update_removes_deleted_sources() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_file = write_fixture(home)
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        session_file.unlink()
+        result = run([str(SCRIPT_PATH), "update"], env=env)
+        assert_ok(result)
+
+        assert duckdb_query(
+            db_path,
+            "SELECT COUNT(*) FROM messages WHERE harness='claude_code';",
+        ) == ["0"]
+        assert duckdb_query(db_path, "SELECT COUNT(*) FROM _loaded_files;") == ["0"]
+
+
+@test("incremental update detects same-second same-size content changes")
+def test_update_detects_nanosecond_mtime_changes() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_file = write_fixture(home)
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        original_stat = session_file.stat()
+        session_file.write_text(session_file.read_text().replace("hello", "jello"))
+        original_second = (original_stat.st_mtime_ns // 1_000_000_000) * 1_000_000_000
+        changed_ns = original_second + ((original_stat.st_mtime_ns + 1) % 1_000_000_000)
+        os.utime(session_file, ns=(original_stat.st_atime_ns, changed_ns))
+
+        result = run([str(SCRIPT_PATH), "update"], env=env)
+        assert_ok(result)
+        content = duckdb_query(
+            db_path,
+            "SELECT content FROM messages WHERE harness='claude_code' AND role='user';",
+        )
+        assert content == ["jello"], content
+
+
+@test("paths and searches safely handle commas and apostrophes")
+def test_special_character_paths_and_search() -> None:
+    with tempfile.TemporaryDirectory(prefix="analyze,'usage-") as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_file = write_fixture(home)
+        entries = [json.loads(line) for line in session_file.read_text().splitlines()]
+        entries[0]["message"]["content"] = "don't panic"
+        duplicate_uuid = entries[0].copy()
+        duplicate_uuid["sessionId"] = "duplicate-uuid-session"
+        duplicate_uuid["timestamp"] = "2026-04-19T00:00:05Z"
+        duplicate_uuid["message"] = {"content": "don't duplicate IDs"}
+        entries.append(duplicate_uuid)
+        session_file.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+
+        literal = run([str(SCRIPT_PATH), "search", "don't"], env=env)
+        assert_ok(literal)
+        assert "don't panic" in literal.stdout, literal.stdout
+
+        fts = run([str(SCRIPT_PATH), "search", "don't", "--fts"], env=env)
+        assert_ok(fts)
+        assert "don't panic" in fts.stdout, fts.stdout
+
+
+@test("incremental failures propagate and preserve the database")
+def test_update_failure_is_atomic() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_file = write_fixture(home)
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+
+        invalid_schema = Path(tmp) / "invalid-schema.sql"
+        invalid_schema.write_text("THIS IS NOT SQL;")
+        failed_env = env.copy()
+        failed_env["ANALYZE_USAGE_SCHEMA"] = str(invalid_schema)
+        session_file.write_text(session_file.read_text().replace("hello", "changed"))
+
+        result = run([str(SCRIPT_PATH), "update"], env=failed_env)
+        assert result.returncode != 0, result.stdout
+        assert "Incremental update complete" not in result.stdout
+        assert duckdb_query(
+            db_path,
+            "SELECT content FROM messages WHERE harness='claude_code' AND role='user';",
+        ) == ["hello"]
+
+
+@test("cost accounting charges each assistant turn once")
+def test_turn_level_cost_accounting() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_file = write_fixture(home)
+        entries = [json.loads(line) for line in session_file.read_text().splitlines()]
+        assistant = next(entry for entry in entries if entry.get("type") == "assistant")
+        assistant["message"]["content"].append(
+            {
+                "type": "tool_use",
+                "name": "Read",
+                "input": {"file_path": "/tmp/demo"},
+            }
+        )
+        duplicate_turn = json.loads(json.dumps(assistant))
+        duplicate_turn["message"]["content"] = [
+            {"type": "text", "text": "duplicate transcript copy"}
+        ]
+        entries.append(duplicate_turn)
+        session_file.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        assert duckdb_query(db_path, "SELECT COUNT(*) FROM claude_tools;") == ["2"]
+        usage = duckdb_query(
+            db_path,
+            "SELECT COUNT(*), SUM(input_tokens), SUM(output_tokens), "
+            "SUM(cost_usd) FROM usage_with_cost;",
+        )
+        assert usage == ["1,10,5,0.000105"], usage
+
+
+@test("pricing is current, unknown-safe, and editable")
+def test_model_pricing_semantics() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_file = write_fixture(home)
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        rates = duckdb_query(
+            db_path,
+            "SELECT model, CAST(input_rate AS DOUBLE), CAST(output_rate AS DOUBLE) "
+            "FROM model_pricing WHERE model IN "
+            "('claude-fable-5', 'claude-opus-4-5-20251101', "
+            "'claude-haiku-4-5-20251001') "
+            "ORDER BY model;",
+        )
+        assert rates == [
+            "claude-fable-5,10.0,50.0",
+            "claude-haiku-4-5-20251001,1.0,5.0",
+            "claude-opus-4-5-20251101,5.0,25.0",
+        ], rates
+
+        subprocess.run(
+            [
+                "duckdb",
+                str(db_path),
+                "-c",
+                "UPDATE model_pricing SET input_rate=99 "
+                "WHERE model='claude-sonnet-4-5-20250929';",
+            ],
+            check=True,
+            timeout=30,
+        )
+        session_file.write_text(session_file.read_text().replace("hello", "updated"))
+        assert_ok(run([str(SCRIPT_PATH), "update"], env=env))
+        assert duckdb_query(
+            db_path,
+            "SELECT CAST(input_rate AS DOUBLE) FROM model_pricing "
+            "WHERE model='claude-sonnet-4-5-20250929';",
+        ) == ["99.0"]
+
+        entries = [json.loads(line) for line in session_file.read_text().splitlines()]
+        assistant = next(entry for entry in entries if entry.get("type") == "assistant")
+        assistant["message"]["model"] = "claude-future-unknown"
+        session_file.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+        assert_ok(run([str(SCRIPT_PATH), "update"], env=env))
+        unknown = duckdb_query(
+            db_path,
+            "SELECT pricing_status, cost_usd IS NULL FROM usage_with_cost;",
+        )
+        assert unknown == ["unknown_model,true"], unknown
+
+
+@test("provider cost views price tokens and quantify cache savings")
+def test_provider_cost_and_cache_semantics() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        write_fixture(home)
+        write_codex_fixture(home)
+        write_codex_fixture(
+            home,
+            session_id="019e6296-7f0f-7090-8572-a48ddfa5d34b",
+            model="gpt-5.6-sol",
+            token_usage={
+                "input_tokens": 300_000,
+                "cached_input_tokens": 200_000,
+                "output_tokens": 1_000,
+                "reasoning_output_tokens": 400,
+                "total_tokens": 301_000,
+            },
+        )
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+
+        codex_costs = duckdb_query(
+            db_path,
+            "SELECT model, uncached_input_tokens, cached_input_tokens, "
+            "output_tokens, is_long_context, cost_usd, "
+            "cost_without_cache_usd, cache_savings_usd "
+            "FROM codex_usage_with_cost ORDER BY model;",
+        )
+        assert codex_costs == [
+            "gpt-5.5,8,2,5,false,0.000191,0.0002,9e-06",
+            "gpt-5.6-sol,100000,200000,1000,true,1.245,3.045,1.8",
+        ], codex_costs
+
+        provider_rows = duckdb_query(
+            db_path,
+            "SELECT provider, harness, model, pricing_status, cost_usd "
+            "FROM provider_usage_with_cost ORDER BY provider, model;",
+        )
+        assert provider_rows == [
+            "anthropic,claude_code,claude-sonnet-4-5-20250929,priced,0.000105",
+            "openai,codex,gpt-5.5,priced,0.000191",
+            "openai,codex,gpt-5.6-sol,priced,1.245",
+        ], provider_rows
+
+        cache_rows = duckdb_query(
+            db_path,
+            "SELECT provider, model, cache_utilization_pct, "
+            "cost_reduction_pct FROM cache_efficiency_summary "
+            "ORDER BY provider, model;",
+        )
+        assert cache_rows == [
+            "anthropic,claude-sonnet-4-5-20250929,0.0,0.0",
+            "openai,gpt-5.5,20.0,4.5",
+            "openai,gpt-5.6-sol,66.67,59.11",
+        ], cache_rows
+
+
+@test("Codex-managed worktrees use repository and branch metadata")
+def test_codex_managed_worktree_attribution() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        write_codex_fixture(
+            home,
+            cwd="/Users/fairchild/.codex/worktrees/abc123/dotclaude",
+        )
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        attribution = duckdb_query(
+            db_path,
+            "SELECT repo_name, worktree_branch, is_worktree FROM codex_tools;",
+        )
+        assert attribution == ["dotclaude,feature/codex,true"], attribution
+
+
+@test("calendar views use the DuckDB session timezone")
+def test_calendar_views_use_local_timezone() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        write_fixture(home)
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        assert duckdb_query(
+            db_path,
+            "SET TimeZone='America/Los_Angeles'; "
+            "SELECT hour_of_day FROM peak_hours WHERE source='claude_code';",
+        ) == ["17"]
+        assert duckdb_query(
+            db_path,
+            "SET TimeZone='America/Los_Angeles'; "
+            "SELECT date FROM daily_summary WHERE claude_tools > 0;",
+        ) == ["2026-04-18"]
+
+
+@test("incremental update accepts sparse Claude files")
+def test_incremental_sparse_claude_file() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        write_fixture(home)
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+
+        sparse_dir = home / ".claude" / "projects" / "sparse"
+        sparse_dir.mkdir()
+        sparse_file = sparse_dir / "sparse.jsonl"
+        sparse_entries = [
+            {
+                "uuid": "sparse-user",
+                "parentUuid": None,
+                "sessionId": "sparse-session",
+                "type": "user",
+                "timestamp": "2026-07-11T12:00:00Z",
+                "cwd": "/Users/fairchild/code/sparse",
+                "entrypoint": "cli",
+                "isSidechain": False,
+                "message": {"content": "sparse input"},
+            },
+            {
+                "uuid": "sparse-assistant",
+                "parentUuid": "sparse-user",
+                "sessionId": "sparse-session",
+                "type": "assistant",
+                "timestamp": "2026-07-11T12:00:01Z",
+                "cwd": "/Users/fairchild/code/sparse",
+                "entrypoint": "cli",
+                "isSidechain": False,
+                "message": {
+                    "model": "claude-sonnet-5",
+                    "usage": {"input_tokens": 2, "output_tokens": 1},
+                    "content": [{"type": "text", "text": "done"}],
+                },
+            },
+        ]
+        sparse_file.write_text(
+            "".join(json.dumps(entry) + "\n" for entry in sparse_entries)
+        )
+
+        result = run([str(SCRIPT_PATH), "update"], env=env)
+        assert_ok(result)
+        assert duckdb_query(
+            db_path,
+            "SELECT COUNT(*) FROM messages WHERE session_id='sparse-session';",
+        ) == ["2"]
+        assert duckdb_query(db_path, "SELECT COUNT(*) FROM pr_links;") == ["1"]
+
+
+@test("repository attribution rejects arbitrary directory names")
+def test_repository_attribution_provenance() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        write_fixture(home, cwd="/private/tmp/files-mentioned/627")
+        write_codex_fixture(home, cwd="/private/tmp/files-mentioned/627")
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        assert duckdb_query(
+            db_path,
+            "SELECT BOOL_AND(repo_name IS NULL) FROM messages "
+            "WHERE harness='claude_code';",
+        ) == ["true"]
+        assert duckdb_query(
+            db_path,
+            "SELECT DISTINCT repo_name FROM messages WHERE harness='codex';",
+        ) == ["dotclaude"]
+
+
+@test("Codex incremental updates preserve unaffected sessions")
+def test_codex_incremental_session_scope() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        first_id = "019e6296-7f0f-7090-8572-a48ddfa5d34a"
+        second_id = "019e6296-7f0f-7090-8572-a48ddfa5d34b"
+        _, first_file = write_codex_fixture(home, session_id=first_id)
+        write_codex_fixture(home, session_id=second_id)
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        assert duckdb_query(db_path, "SELECT COUNT(*) FROM codex_tools;") == ["2"]
+
+        first_file.write_text(first_file.read_text().replace("pwd", "git status"))
+        assert_ok(run([str(SCRIPT_PATH), "update"], env=env))
+        assert duckdb_query(
+            db_path,
+            "SELECT COUNT(*), COUNT(DISTINCT session_id) FROM codex_tools;",
+        ) == ["2,2"]
+        assert duckdb_query(
+            db_path,
+            f"SELECT context FROM codex_tools WHERE session_id='{first_id}';",
+        ) == ["git status"]
+
+        first_file.unlink()
+        assert_ok(run([str(SCRIPT_PATH), "update"], env=env))
+        assert duckdb_query(
+            db_path,
+            "SELECT COUNT(*), MIN(session_id) FROM codex_tools;",
+        ) == [f"1,{second_id}"]
+
+
+@test("report generation reconciles multi-harness usage without leaking content")
+def test_report_generation_contract() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        claude_file = write_fixture(home)
+        claude_file.write_text(
+            claude_file.read_text().replace("hello", "CLAUDE_PRIVATE_SENTINEL")
+        )
+        write_sparse_claude_fixture(
+            home,
+            session_id="unknown-report",
+            timestamp="2026-05-26T00:00:10Z",
+            model="claude-future-unknown",
+            prompt="UNKNOWN_PRIVATE_SENTINEL",
+            response="UNKNOWN_RESPONSE_SENTINEL",
+            input_tokens=20,
+            output_tokens=10,
+        )
+        _codex_id, codex_file = write_codex_fixture(home)
+        codex_file.write_text(
+            codex_file.read_text().replace("show status", "CODEX_PRIVATE_SENTINEL")
+        )
+        write_cursor_fixture(home)
+
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+        env["UV_CACHE_DIR"] = str(Path(tmp) / "uv-cache")
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+
+        report_path = Path(tmp) / "report.json"
+        report_args = [
+            str(SCRIPT_PATH),
+            "report",
+            "--from",
+            "2026-04-19T00:00:00Z",
+            "--to",
+            "2026-05-27T00:00:00Z",
+            "--generated-at",
+            "2026-05-28T12:00:00Z",
+            "--output",
+            str(report_path),
+        ]
+        assert_ok(run(report_args, env=env))
+        first_render = report_path.read_text()
+        assert_ok(run(report_args, env=env))
+        assert report_path.read_text() == first_render
+        report = json.loads(first_render)
+
+        assert report["schemaVersion"] == "analyze-usage-report/v1"
+        assert report["generatedAt"] == "2026-05-28T12:00:00.000000Z"
+        assert report["coverage"] == {
+            "archive": {
+                "firstObservation": "2026-04-19T00:00:00.000000Z",
+                "lastObservation": "2026-05-27T00:00:00.000000Z",
+            },
+            "reportWindow": {
+                "startInclusive": "2026-04-19T00:00:00.000000Z",
+                "endExclusive": "2026-05-27T00:00:00.000000Z",
+                "durationDays": 38.0,
+            },
+        }
+
+        harnesses = {row["harness"]: row for row in report["harnesses"]}
+        assert {
+            name: (
+                row["reportWindow"]["sessionsWithMessages"],
+                row["reportWindow"]["messages"],
+                row["reportWindow"]["tokenRows"],
+            )
+            for name, row in harnesses.items()
+        } == {
+            "claude_code": (2, 4, 2),
+            "codex": (1, 2, 1),
+            "cursor": (1, 1, 0),
+        }
+        assert harnesses["cursor"]["tokenAccounting"] == "not_available"
+        assert harnesses["cursor"]["reportWindow"]["lastObservation"] == (
+            "2026-05-26T00:00:08.000000Z"
+        )
+        assert harnesses["cursor"]["archiveCoverage"] == {
+            "sessionsWithMessages": 1,
+            "messages": 2,
+            "activeDays": 2,
+            "tokenRows": 0,
+            "firstObservation": "2026-05-26T00:00:08.000000Z",
+            "lastObservation": "2026-05-27T00:00:00.000000Z",
+        }
+
+        totals = report["totals"]
+        assert totals["activity"] == {
+            "sessionsWithMessages": 4,
+            "messages": 7,
+            "activeDays": 2,
+        }
+        assert totals["tokens"] == {
+            "uncachedInput": 38,
+            "cachedInput": 2,
+            "cacheWriteInput": 0,
+            "output": 20,
+            "reasoningOutput": 1,
+            "reportedTotal": 60,
+        }, totals["tokens"]
+        assert totals["costUsd"]["apiEquivalent"] == 0.000296
+        assert totals["costUsd"]["noCacheBaseline"] == 0.000305
+        assert totals["costUsd"]["cacheImpact"] == 0.000009
+        assert totals["cache"] == {"utilizationPct": 5.0, "costReductionPct": 2.95}
+
+        pricing = report["pricingCoverage"]
+        assert {
+            key: pricing[key]
+            for key in ("usageRows", "pricedRows", "unpricedRows", "pricedTokens", "unpricedTokens")
+        } == {
+            "usageRows": 3,
+            "pricedRows": 2,
+            "unpricedRows": 1,
+            "pricedTokens": 30,
+            "unpricedTokens": 30,
+        }
+        assert pricing["unknownModels"] == [
+            {
+                "provider": "anthropic",
+                "harness": "claude_code",
+                "model": "claude-future-unknown",
+                "usageRows": 1,
+            }
+        ]
+
+        providers = {row["provider"]: row for row in report["providers"]}
+        assert {
+            provider: (
+                row["usageRows"],
+                row["pricedRows"],
+                row["unpricedRows"],
+                row["reportedTotal"],
+            )
+            for provider, row in providers.items()
+        } == {
+            "anthropic": (2, 1, 1, 45),
+            "openai": (1, 1, 0, 15),
+        }
+        models = {row["model"]: row for row in report["models"]}
+        assert {
+            model: (row["pricingStatus"], row["reportedTotal"])
+            for model, row in models.items()
+        } == {
+            "claude-future-unknown": ("unknown_model", 30),
+            "claude-sonnet-4-5-20250929": ("priced", 15),
+            "gpt-5.5": ("priced", 15),
+        }
+
+        for grouping in ("providers", "models"):
+            assert sum(row["reportedTotal"] for row in report[grouping]) == 60
+            assert round(sum(row["apiEquivalent"] for row in report[grouping]), 6) == 0.000296
+        assert sum(row["reportedTotal"] for row in report["repositories"]) == 60
+
+        for sentinel in (
+            "CLAUDE_PRIVATE_SENTINEL",
+            "CODEX_PRIVATE_SENTINEL",
+            "CURSOR_PRIVATE_SENTINEL",
+            "CURSOR_END_BOUNDARY_SENTINEL",
+            "UNKNOWN_PRIVATE_SENTINEL",
+            "UNKNOWN_RESPONSE_SENTINEL",
+            str(home),
+            "019e6296-7f0f-7090-8572-a48ddfa5d34a",
+        ):
+            assert sentinel not in first_render, sentinel
+
+        invalid_args = report_args.copy()
+        invalid_args[invalid_args.index("--from") + 1] = "2026-05-28T00:00:00Z"
+        failed_report = run(invalid_args, env=env)
+        assert failed_report.returncode != 0
+        assert "report start must be before report end" in failed_report.stderr
+        assert report_path.read_text() == first_render
+
+
 def main() -> None:
     tests = [
         test_reload_bootstraps_schema,
@@ -561,6 +1229,19 @@ def main() -> None:
         test_update_imports_codex_without_claude_logs,
         test_update_legacy_db_upgrade,
         test_update_legacy_db_no_change_migration,
+        test_update_removes_deleted_sources,
+        test_update_detects_nanosecond_mtime_changes,
+        test_special_character_paths_and_search,
+        test_update_failure_is_atomic,
+        test_turn_level_cost_accounting,
+        test_model_pricing_semantics,
+        test_provider_cost_and_cache_semantics,
+        test_codex_managed_worktree_attribution,
+        test_calendar_views_use_local_timezone,
+        test_incremental_sparse_claude_file,
+        test_repository_attribution_provenance,
+        test_codex_incremental_session_scope,
+        test_report_generation_contract,
     ]
     for fn in tests:
         fn()

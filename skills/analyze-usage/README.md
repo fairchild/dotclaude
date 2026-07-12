@@ -2,14 +2,16 @@
 
 Unified usage analyzer for AI coding assistants (Claude Code, Codex, and Cursor).
 
-Loads local logs into a **persistent DuckDB database** for SQL-based analysis. Designed to be agent-friendly with comprehensive `--help` and `--schema` documentation.
+Loads local logs into a **persistent DuckDB database** for SQL-based analysis. Designed to be agent-friendly with detailed `--help` and `--schema` documentation.
 
 ## Quick Start
 
 ```bash
 # Install
-install -Dm755 skills/analyze-usage/scripts/analyze-usage ~/.local/bin/analyze-usage
-install -Dm644 skills/analyze-usage/references/canonical-agent-schema.duckdb.sql \
+install -d -m 755 ~/.local/bin ~/.local/share/analyze-usage
+install -m 755 skills/analyze-usage/scripts/analyze-usage ~/.local/bin/analyze-usage
+install -m 755 skills/analyze-usage/scripts/generate-report.py ~/.local/bin/generate-report.py
+install -m 644 skills/analyze-usage/references/canonical-agent-schema.duckdb.sql \
   ~/.local/share/analyze-usage/canonical-agent-schema.duckdb.sql
 
 # First run - loads data and shows summary
@@ -25,11 +27,12 @@ analyze-usage query "SELECT * FROM tool_summary"
 ## Features
 
 - **Unified**: Loads Claude Code, Codex, and Cursor data into one database
-- **Incremental**: Auto-detects new/changed files and updates only what's needed
+- **Incremental**: Detects new, changed, and deleted files with nanosecond mtime plus file size
 - **Persistent**: DuckDB database persists between runs (`~/.local/share/analyze-usage/usage.duckdb`)
-- **Safe**: Timestamped backup before every load/reload
+- **Fail-closed**: Builds updates against a temporary copy and publishes only after success
+- **Recoverable reloads**: Rebuilds atomically and keeps a timestamped backup of the prior database
 - **Agent-friendly**: `--help` and `--schema` provide complete documentation for AI agents
-- **Canonical schema**: Installs and bootstraps the cross-harness reference schema
+- **Canonical reference**: Installs an empty normalized schema for future loaders
 - **Fast**: DuckDB is extremely fast for analytical queries
 
 ## Commands
@@ -42,8 +45,40 @@ analyze-usage query "SELECT * FROM tool_summary"
 | `analyze-usage --help` | Detailed help documentation |
 | `analyze-usage --schema` | Database schema with example queries |
 | `analyze-usage query "SQL"` | Execute a SQL query |
+| `analyze-usage report [OPTIONS]` | Generate versioned, aggregate-only report JSON |
 | `analyze-usage search "query"` | Search conversation content |
 | `analyze-usage shell` | Open interactive DuckDB shell |
+
+## Reports
+
+Generate a reproducible report with explicit UTC boundaries:
+
+```bash
+analyze-usage update
+analyze-usage report \
+  --from 2026-06-13T17:00:00Z \
+  --to 2026-07-12T17:00:00Z \
+  --output report.json
+```
+
+The report distinguishes the full archive coverage from the selected report
+window, both overall and for each harness. The window is half-open: `--from` is
+included and `--to` is excluded.
+Omit both boundaries to report the full observed archive; there is no implicit
+28-day window.
+
+The `analyze-usage-report/v1` contract contains:
+
+- activity for Claude Code, Codex, and Cursor;
+- token and API-equivalent cost ledgers by provider, model, and repository;
+- cache utilization, no-cache baseline, and cache impact;
+- priced and unpriced row/token coverage; and
+- explicit interpretation and privacy semantics.
+
+Cursor activity is included, but the ingested Cursor source does not expose
+token counts or cost. Unknown models remain visible and unpriced. Prompts,
+responses, reasoning, tool arguments, paths, and session identifiers are not
+written to the report.
 
 ## For AI Agents
 
@@ -118,14 +153,14 @@ analyze-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
 
 | View | Description |
 |------|-------------|
-| `interactions` | **Primary unified view** - all interactions normalized to one schema |
+| `interactions` | Per-source activity events: tool calls for Claude/Codex, prompts for Cursor |
 | `daily_by_source` | Daily counts separated by tool |
 | `weekly_summary` | Weekly aggregation by source |
 | `project_activity` | Project-level summary across both tools |
 | `repo_activity` | Repository-level (aggregates worktrees) |
 | `category_breakdown` | Usage by category (tool names / prompts) |
 | `session_summary` | Unified session metrics |
-| `peak_hours` | Find your most productive hours |
+| `peak_hours` | Find hours with the most recorded activity |
 | `hourly_activity` | Time-series at hourly granularity |
 | `recent_interactions` | Last 100 interactions for quick review |
 
@@ -143,9 +178,14 @@ analyze-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
 
 | View | Description |
 |------|-------------|
-| `model_pricing` | API rates per million tokens (editable) |
-| `usage_with_cost` | Tool invocations with pre-calculated `cost_usd` |
-| `cost_summary` | Pre-aggregated costs by repo/model |
+| `model_pricing` | Known Claude API rates per million tokens (editable) |
+| `codex_model_pricing` | Known OpenAI Standard API-equivalent token rates and long-context rules (editable) |
+| `usage_with_cost` | One Claude assistant turn per row with `pricing_status` and API-equivalent `cost_usd` |
+| `codex_usage_with_cost` | One Codex token snapshot with token components, long-context handling, and API-equivalent cost |
+| `provider_usage_with_cost` | Unified provider/harness/model tokens, cost components, no-cache baseline, and cache savings |
+| `provider_cost_summary` | Provider/harness/model token and cost aggregates |
+| `cache_efficiency_summary` | Cache utilization, no-cache baseline, and estimated cost reduction |
+| `cost_summary` | Backward-compatible Claude repo/model aggregate |
 
 Run `analyze-usage --schema` for complete documentation.
 
@@ -159,9 +199,9 @@ The skill now ships a normalized cross-harness reference schema at
 - provider-native identifiers use `external_*`
 - every table includes `created_at` and `updated_at`
 
-The analyzer loads this SQL file idempotently during database bootstrap, so new
-and upgraded databases have the canonical tables available before the harness-
-specific tables and views are populated.
+The analyzer loads this SQL file idempotently during database bootstrap. The
+tables are a reference schema only; current loaders populate the harness-specific
+tables and views.
 When the script is installed standalone into `~/.local/bin`, it reads the same
 checked-in schema file from `~/.local/share/analyze-usage/`.
 
@@ -233,6 +273,7 @@ ORDER BY interactions DESC;
 | `ANALYZE_USAGE_DB` | `~/.local/share/analyze-usage/usage.duckdb` | Database path |
 | `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Claude Code logs path |
 | `CODEX_HOME` | `~/.codex` | Codex logs path |
+| `CURSOR_USER_DIR` | Platform Cursor user directory | Cursor `User` directory override |
 
 ## Requirements
 
@@ -242,10 +283,14 @@ ORDER BY interactions DESC;
 ## How It Works
 
 1. On first run, scans source directories and loads all log files
-2. On subsequent runs, auto-detects new/changed files via mtime comparison
-3. Incrementally updates changed Claude files by `source_file`; Cursor and Codex are reloaded wholesale when their tracked files change
-4. Creates timestamped backup before every load/reload
-5. Database persists at `~/.local/share/analyze-usage/usage.duckdb`
+2. On subsequent runs, detects new, changed, and deleted files using nanosecond mtime plus file size
+3. Applies updates to a temporary database copy; the existing database remains intact if any required step fails
+4. Incrementally updates affected Claude and Codex session files; Cursor is reloaded wholesale when its small workspace store changes
+5. Full reloads create a private timestamped backup before atomically replacing the database
+6. Database persists at `~/.local/share/analyze-usage/usage.duckdb`
+
+The report writer uses a private temporary file and atomically replaces its
+destination after successful generation.
 
 Use `reload` to force a full rebuild from scratch.
 
@@ -257,5 +302,24 @@ Run the regression test harness with:
 uv run skills/analyze-usage/tests/test_analyze_usage.py
 ```
 
-The test covers fresh bootstrap, canonical schema discovery, and legacy upgrade
-behavior for the `update` path.
+The suite covers bootstrap and legacy migration plus deletion/same-second detection,
+atomic failures, quoted paths and search, provider-level token costs, long-context
+pricing, cache savings, editable pricing, Codex ingestion, and Codex-managed worktrees.
+
+## Interpretation and privacy
+
+`interactions` is a common shape, not a common unit: Claude Code and Codex rows
+represent tool calls, while Cursor rows represent prompts. Use messages,
+sessions, active days, or per-source trends for cross-harness comparisons.
+Source timestamps remain UTC; calendar views group through a derived local
+timestamp using DuckDB's system timezone.
+
+Cost views are API-equivalent estimates. Known Codex models apply verified
+OpenAI Standard API rates and long-context multipliers; this still does not
+represent ChatGPT/Codex subscription or purchased-credit spend. Unknown models
+remain unpriced instead of receiving a guessed fallback rate. Provider discounts,
+batch/priority processing, regional pricing, and unrecorded traffic can differ.
+
+The database and its backups contain prompts, assistant text, reasoning traces,
+developer instructions, tool arguments, paths, and PR metadata. Files are
+created privately, but they still deserve the same handling as source logs.

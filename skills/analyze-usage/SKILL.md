@@ -1,178 +1,62 @@
 ---
 name: analyze-usage
-description: Analyze AI coding assistant usage patterns across Claude Code, Codex, and Cursor. Use when user asks about their coding usage, tool statistics, productivity patterns, skill popularity, session history, or wants to query their AI coding logs. Triggers include "usage", "how much have I used", "most used tools", "skill popularity", "coding stats", "productivity patterns".
+description: Analyze local AI coding-assistant activity across Claude Code, Codex, and Cursor. Use when the user asks about coding usage, tool or skill statistics, activity patterns, repositories, sessions, token costs, conversation history, or wants to query their AI coding logs. Triggers include "usage", "how much have I used", "most used tools", "skill popularity", "coding stats", "activity patterns", and "session history".
 license: Apache-2.0
 ---
 
 # AI Coding Usage
 
-Unified usage analyzer for Claude Code, Codex, and Cursor. Loads logs into DuckDB for SQL analysis.
-The skill also provisions a canonical cross-harness reference schema from
-`references/canonical-agent-schema.duckdb.sql` during database bootstrap.
+Use `scripts/analyze-usage` to load local Claude Code, Codex, and Cursor logs into DuckDB, then answer usage questions with explicit scope and freshness. Treat the database as an activity ledger—not a productivity score or authoritative provider bill.
 
-## Quick Start
+## Required workflow
 
-```bash
-# Run the script (loads data on first run, incremental updates after)
-scripts/analyze-usage
+1. Run `scripts/analyze-usage update` before current-state analysis. Stop if it fails; updates are atomic, so a failure leaves the prior database intact.
+2. Run `scripts/analyze-usage --schema` when constructing unfamiliar queries.
+3. Choose a metric whose unit matches the question. Read `references/analysis-guide.md` for query patterns and interpretation boundaries.
+4. Report the database refresh time, time window, included harnesses, and any unknown-priced models with the result.
+5. For shareable or repeatable reporting, use `report` with explicit UTC boundaries. Verify `pricingCoverage`, reconcile the provider/model totals, and keep the generated aggregate JSON private unless the user chooses a publication surface.
 
-# Show database schema and example queries
-scripts/analyze-usage --schema
-
-# Query your data
-scripts/analyze-usage query "SELECT * FROM tool_summary"
-```
+Do not compare raw `interactions` counts across harnesses as if they were equivalent: Claude Code and Codex rows are tool calls, while Cursor rows are prompts. Use messages, sessions, active days, or per-source trends for cross-harness comparisons.
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| (default) | Auto-detect changes, incremental update, show summary |
-| `update` | Explicit incremental update |
-| `reload` | Force reload all data (with backup) |
-| `query "SQL"` | Execute SQL query |
-| `search "query"` | Search conversation content |
-| `shell` | Interactive DuckDB shell |
-| `--schema` | Database schema with example queries |
-| `--help` | Full help documentation |
-
-## Search
-
 ```bash
-# ILIKE search on conversation content (default)
+scripts/analyze-usage update
+scripts/analyze-usage --schema
+scripts/analyze-usage query "SELECT * FROM tool_summary"
+scripts/analyze-usage report --from 2026-06-13T17:00:00Z --to 2026-07-12T17:00:00Z --output report.json
 scripts/analyze-usage search "memory"
-
-# BM25 full-text search (covers content + thinking)
-scripts/analyze-usage search "memory" --fts
-
-# Search reasoning traces
-scripts/analyze-usage search "memory" --thinking
-
-# Search both content and thinking
-scripts/analyze-usage search "memory" --all
-
-# Filter by role, repo, time
-scripts/analyze-usage search "refactor" --user --repo bertram-chat --since 7d
-
-# Limit results
-scripts/analyze-usage search "deploy" -n 20
+scripts/analyze-usage search "don't panic" --fts
+scripts/analyze-usage shell
+scripts/analyze-usage reload
 ```
 
-## Common Queries
+`update` detects changed and deleted files with nanosecond mtime plus file size, then publishes the new database atomically. `reload` rebuilds atomically and keeps a timestamped backup of the prior database.
 
-```sql
--- Most used tools
-SELECT * FROM tool_summary;
+`report` emits the versioned `analyze-usage-report/v1` aggregate contract. Its default window is the full observed archive; `--from` is inclusive and `--to` is exclusive. The report includes overall and per-harness archive coverage beside report-window activity, provider/model/repository token and cost ledgers, cache effects, and priced/unpriced coverage. Cursor activity is present even when the focus window is empty and even though its source does not expose token accounting. Report output excludes prompts, responses, reasoning, tool arguments, paths, and session identifiers.
 
--- Daily usage (last 2 weeks)
-SELECT * FROM daily_summary ORDER BY date DESC LIMIT 14;
+## Analysis surfaces
 
--- Compare harness usage
-SELECT source, COUNT(*) AS interactions
-FROM interactions
-GROUP BY source ORDER BY interactions DESC;
+- `messages`, `session_messages`, `session_overview`, and `message_stats` support conversation and session analysis across harnesses.
+- `claude_tools`, `codex_tools`, and `tool_summary` support tool-call analysis.
+- `interactions`, `repo_activity`, `project_activity`, and time views support activity trends; preserve their per-source measurement units. `interactions.timestamp` is UTC and `local_timestamp` drives calendar views in DuckDB's system timezone.
+- `codex_token_counts` stores Codex token snapshots.
+- `usage_with_cost` calculates Claude API-equivalent cost once per assistant turn; `codex_usage_with_cost` applies verified OpenAI Standard API rates and long-context rules to Codex token snapshots.
+- `provider_usage_with_cost` normalizes Claude and Codex tokens, cost components, no-cache baselines, and cache savings. Aggregate with `provider_cost_summary` or `cache_efficiency_summary`.
+- `conversation_search` and `search` cover user text, assistant text, and optional reasoning traces.
 
--- Skill popularity
-SELECT regexp_extract(context, '"skill":"([^"]+)"', 1) as skill, COUNT(*) as uses
-FROM claude_tools WHERE tool_name = 'Skill'
-GROUP BY skill ORDER BY uses DESC;
+Unknown models have `pricing_status = 'unknown_model'` and `cost_usd = NULL`; never substitute a guessed rate. `model_pricing` and `codex_model_pricing` are user-editable and built-in defaults are only inserted when missing. Cross-provider dollar values are API-equivalent workload estimates, not subscription invoices or observed purchased-credit spend.
 
--- Peak coding hours
-SELECT hour_of_day, SUM(interactions) as total
-FROM peak_hours GROUP BY hour_of_day ORDER BY total DESC LIMIT 5;
+## Data boundaries
 
--- Activity by repository (aggregates worktrees)
-SELECT repo_name, SUM(interactions) as total, SUM(worktrees) as branches
-FROM repo_activity GROUP BY repo_name ORDER BY total DESC LIMIT 10;
+The database contains sensitive local material: prompts, assistant text, reasoning traces, developer instructions, tool arguments, paths, and PR metadata. Keep the database and backups private and avoid returning raw conversation content unless the user asks for it.
 
--- Turn durations
-SELECT * FROM turn_durations ORDER BY duration_ms DESC LIMIT 10;
+The `agent_*` tables from `references/canonical-agent-schema.duckdb.sql` are an empty reference schema. Current loaders populate the harness-specific tables and views, not the canonical tables.
 
--- Session overview with summaries
-SELECT session_id, repo_name, summary FROM session_overview
-WHERE summary IS NOT NULL ORDER BY started_at DESC LIMIT 10;
-
--- API errors
-SELECT * FROM api_errors ORDER BY timestamp DESC LIMIT 10;
-
--- PR links
-SELECT * FROM pr_links;
-
--- Cost by repo
-SELECT repo_name, ROUND(SUM(cost_usd), 2) as cost
-FROM usage_with_cost
-WHERE CAST(timestamp AS TIMESTAMP) >= CURRENT_DATE - INTERVAL 7 DAY
-GROUP BY repo_name ORDER BY cost DESC;
-
--- Full cost summary by repo and model
-SELECT * FROM cost_summary ORDER BY cost_usd DESC;
-```
-
-## Cost Calculation
-
-The script tracks tokens and calculates API costs automatically:
-
-**Token columns** in `claude_tools`:
-- `input_tokens`, `output_tokens` - Direct tokens
-- `cache_write_tokens`, `cache_read_tokens` - Prompt caching tokens
-- `model` - Model used (opus/sonnet/haiku)
-
-**Cost views**:
-- `model_pricing` - API rates per million tokens (update when prices change)
-- `usage_with_cost` - Each row has pre-calculated `cost_usd`
-- `cost_summary` - Pre-aggregated by repo/model
-
-## Key Tables/Views
-
-### Core Tables
-- `claude_tools` - Tool invocations (with model, tokens, repo/branch, source_file)
-- `claude_sessions` - Session metadata
-- `codex_tools` - Codex tool invocations
-- `codex_sessions` - Codex session metadata
-- `codex_token_counts` - Codex per-turn token snapshots
-- `codex_developer_messages` - Codex developer-role instruction payloads
-- `messages` - Conversation content (user text, assistant text + thinking)
-- `system_events` - System records (turn_duration, api_error, stop_hook_summary)
-- `queue_operations` - User inputs queued during assistant response
-- `pr_links` - Session-to-PR mappings
-- `_sessions_index` - Session metadata from sessions-index.json (summary, first_prompt)
-- `_loaded_files` - File mtime tracking for incremental loading
-
-### Canonical Reference Tables
-- `agent_sessions` - Canonical sessions with `id` primary key and `external_session_id`
-- `agent_raw_events` - Raw imported events keyed by `agent_session_id`
-- `agent_contexts` - Context changes keyed by `agent_session_id` / `agent_raw_event_id`
-- `agent_events` - Normalized events keyed by `agent_session_id`, `agent_context_id`, `agent_raw_event_id`
-- `agent_parts` - Structured event parts keyed by `agent_event_id`
-- `agent_tool_calls` - Tool invocations keyed by `agent_event_id`
-- `agent_tool_results` - Tool outputs keyed by `agent_event_id` / `agent_tool_call_id`
-- `agent_tokens` - Token and cost summaries keyed by `agent_event_id`
-
-### Views
-- `turn_durations` - Response timing from system events
-- `api_errors` - API error events
-- `session_overview` - Sessions joined with index metadata
-- `interactions` - Unified view (Claude + Codex + Cursor)
-- `conversation_search` - Messages with content/thinking previews
-- `session_messages` - Per-session aggregation with topic
-- `recent_conversations` - Last 50 sessions
-- `conversation_pairs` - User/assistant turns joined on parent_uuid
-- `message_stats` - Daily message volume by harness/role
-- `repo_activity` - Repository-level summary (aggregates worktrees)
-- `project_activity` - Project-level with worktree info
-- `usage_with_cost` - Tool invocations with pre-calculated `cost_usd`
-- `cost_summary` - Pre-aggregated costs by repo/model
-- `model_pricing` - API rates (editable)
-
-Run `--schema` for complete documentation.
-When the script is installed standalone, copy the same canonical schema file to
-`~/.local/share/analyze-usage/` so bootstrap still uses the checked-in DDL.
-
-## Testing
+## Verification
 
 ```bash
 uv run skills/analyze-usage/tests/test_analyze_usage.py
 ```
 
-This regression harness covers fresh bootstrap, canonical schema discovery, and
-legacy upgrade behavior for `update`.
+The regression suite covers bootstrap, legacy migration, sparse and incremental Claude/Codex ingestion, real Cursor SQLite ingestion, deletion and same-second change detection, atomic failure handling, quoted paths and search, turn-level provider costs, long-context pricing, cache savings, editable pricing, repository provenance, local calendar views, report-window boundaries, cross-harness reconciliation, deterministic output, and aggregate-only privacy.
