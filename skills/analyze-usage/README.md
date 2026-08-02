@@ -1,6 +1,6 @@
 # analyze-usage
 
-Unified usage analyzer for AI coding assistants (Claude Code, Codex, and Cursor).
+Unified usage analyzer for AI coding assistants (Claude Code, Codex, Cursor, and Pi).
 
 Loads local logs into a **persistent DuckDB database** for SQL-based analysis. Designed to be agent-friendly with detailed `--help` and `--schema` documentation.
 
@@ -26,7 +26,7 @@ analyze-usage query "SELECT * FROM tool_summary"
 
 ## Features
 
-- **Unified**: Loads Claude Code, Codex, and Cursor data into one database
+- **Unified**: Loads Claude Code, Codex, Cursor, and Pi data into one database
 - **Incremental**: Detects new, changed, and deleted files with nanosecond mtime plus file size
 - **Persistent**: DuckDB database persists between runs (`~/.local/share/analyze-usage/usage.duckdb`)
 - **Fail-closed**: Builds updates against a temporary copy and publishes only after success
@@ -69,8 +69,9 @@ Omit both boundaries to report the full observed archive; there is no implicit
 
 The `analyze-usage-report/v1` contract contains:
 
-- activity for Claude Code, Codex, and Cursor;
-- token and API-equivalent cost ledgers by provider, model, and repository;
+- activity for Claude Code, Codex, Cursor, and Pi;
+- token and cost ledgers by provider, model, and repository (API-equivalent
+  estimates for Claude/Codex, harness-recorded dollars for Pi);
 - cache utilization, no-cache baseline, and cache impact;
 - priced and unpriced row/token coverage; and
 - explicit interpretation and privacy semantics.
@@ -133,6 +134,9 @@ analyze-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
 | `codex_sessions` | Codex session metadata |
 | `codex_token_counts` | Codex per-turn token snapshots |
 | `codex_developer_messages` | Codex developer-role instruction payloads |
+| `pi_tools` | Pi tool invocations |
+| `pi_sessions` | Pi session metadata (title, worktree attribution) |
+| `pi_usage` | Pi per-assistant-message tokens and harness-recorded cost |
 | `cursor_prompts` | Cursor user prompts |
 | `cursor_workspaces` | Cursor workspace metadata |
 | `system_events` | System records: turn_duration, api_error, stop_hook_summary |
@@ -153,7 +157,7 @@ analyze-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
 
 | View | Description |
 |------|-------------|
-| `interactions` | Per-source activity events: tool calls for Claude/Codex, prompts for Cursor |
+| `interactions` | Per-source activity events: tool calls for Claude/Codex/Pi, prompts for Cursor |
 | `daily_by_source` | Daily counts separated by tool |
 | `weekly_summary` | Weekly aggregation by source |
 | `project_activity` | Project-level summary across both tools |
@@ -182,6 +186,7 @@ analyze-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
 | `codex_model_pricing` | Known OpenAI Standard API-equivalent token rates and long-context rules (editable) |
 | `usage_with_cost` | One Claude assistant turn per row with `pricing_status` and API-equivalent `cost_usd` |
 | `codex_usage_with_cost` | One Codex token snapshot with token components, long-context handling, and API-equivalent cost |
+| `pi_usage_with_cost` | One Pi assistant message per row with harness-recorded (`native`) dollars |
 | `provider_usage_with_cost` | Unified provider/harness/model tokens, cost components, no-cache baseline, and cache savings |
 | `provider_cost_summary` | Provider/harness/model token and cost aggregates |
 | `cache_efficiency_summary` | Cache utilization, no-cache baseline, and estimated cost reduction |
@@ -266,6 +271,11 @@ ORDER BY interactions DESC;
 - **Contents**: User prompts and chat history
 - **Note**: Cursor does not log tool-level detail like Claude Code
 
+### Pi
+- **Location**: `~/.pi/agent/sessions/*/*.jsonl`
+- **Contents**: session metadata and titles, user/assistant messages, tool calls, per-message token usage with harness-recorded dollar cost across providers (Anthropic, OpenAI, xAI, ...)
+- **Note**: the only ingested harness that logs dollars itself; its cost rows carry `pricing_status = 'native'`
+
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -274,6 +284,7 @@ ORDER BY interactions DESC;
 | `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Claude Code logs path |
 | `CODEX_HOME` | `~/.codex` | Codex logs path |
 | `CURSOR_USER_DIR` | Platform Cursor user directory | Cursor `User` directory override |
+| `PI_AGENT_DIR` | `~/.pi/agent` | Pi agent directory override |
 
 ## Requirements
 
@@ -285,7 +296,7 @@ ORDER BY interactions DESC;
 1. On first run, scans source directories and loads all log files
 2. On subsequent runs, detects new, changed, and deleted files using nanosecond mtime plus file size
 3. Applies updates to a temporary database copy; the existing database remains intact if any required step fails
-4. Incrementally updates affected Claude and Codex session files; Cursor is reloaded wholesale when its small workspace store changes
+4. Incrementally updates affected Claude, Codex, and Pi session files; Cursor is reloaded wholesale when its small workspace store changes
 5. Full reloads create a private timestamped backup before atomically replacing the database
 6. Database persists at `~/.local/share/analyze-usage/usage.duckdb`
 
@@ -304,20 +315,24 @@ uv run skills/analyze-usage/tests/test_analyze_usage.py
 
 The suite covers bootstrap and legacy migration plus deletion/same-second detection,
 atomic failures, quoted paths and search, provider-level token costs, long-context
-pricing, cache savings, editable pricing, Codex ingestion, and Codex-managed worktrees.
+pricing, cache savings, editable pricing, Codex ingestion, Codex-managed worktrees,
+and Pi ingestion with native cost.
 
 ## Interpretation and privacy
 
-`interactions` is a common shape, not a common unit: Claude Code and Codex rows
-represent tool calls, while Cursor rows represent prompts. Use messages,
+`interactions` is a common shape, not a common unit: Claude Code, Codex, and Pi
+rows represent tool calls, while Cursor rows represent prompts. Use messages,
 sessions, active days, or per-source trends for cross-harness comparisons.
 Source timestamps remain UTC; calendar views group through a derived local
 timestamp using DuckDB's system timezone.
 
-Cost views are API-equivalent estimates. Known Codex models apply verified
-OpenAI Standard API rates and long-context multipliers; this still does not
-represent ChatGPT/Codex subscription or purchased-credit spend. Unknown models
-remain unpriced instead of receiving a guessed fallback rate. Provider discounts,
+Claude and Codex cost views are API-equivalent estimates. Known Codex models
+apply verified OpenAI Standard API rates and long-context multipliers; this
+still does not represent ChatGPT/Codex subscription or purchased-credit spend.
+Pi rows are the exception: Pi logs dollars per assistant message at request
+time, so its `cost_usd` is a recorded value (`pricing_status = 'native'`), not
+an estimate. Unknown models remain unpriced instead of receiving a guessed
+fallback rate. Provider discounts,
 batch/priority processing, regional pricing, and unrecorded traffic can differ.
 
 The database and its backups contain prompts, assistant text, reasoning traces,

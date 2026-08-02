@@ -69,6 +69,7 @@ def make_env(home: Path, db_path: Path) -> dict[str, str]:
     env["CLAUDE_PROJECTS_DIR"] = str(home / ".claude" / "projects")
     env["CODEX_HOME"] = str(home / ".codex")
     env["CURSOR_USER_DIR"] = str(home / ".cursor-user")
+    env["PI_AGENT_DIR"] = str(home / ".pi" / "agent")
     env["XDG_DATA_HOME"] = str(home / ".local" / "share")
     return env
 
@@ -154,6 +155,53 @@ def write_fixture(home: Path, *, cwd: str | None = None) -> Path:
             "prNumber": 42,
             "prUrl": "https://example.com/pr/42",
             "prRepository": "fairchild/demo",
+        },
+    ]
+    session_file.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+    return session_file
+
+
+def write_claude_subagent_fixture(home: Path, *, cwd: str | None = None) -> Path:
+    subagent_dir = home / ".claude" / "projects" / "demo" / "s1" / "subagents"
+    subagent_dir.mkdir(parents=True, exist_ok=True)
+    session_file = subagent_dir / "agent-nested1.jsonl"
+    cwd = cwd or "/Users/fairchild/conductor/workspaces/services/demo"
+    entries = [
+        {
+            "uuid": "sub-u1",
+            "parentUuid": None,
+            "sessionId": "s1-subagent",
+            "agentId": "agent-nested1",
+            "type": "user",
+            "timestamp": "2026-04-19T01:00:00Z",
+            "cwd": cwd,
+            "entrypoint": "cli",
+            "isSidechain": True,
+            "message": {"content": "explore the tree"},
+        },
+        {
+            "uuid": "sub-a1",
+            "parentUuid": "sub-u1",
+            "sessionId": "s1-subagent",
+            "agentId": "agent-nested1",
+            "type": "assistant",
+            "timestamp": "2026-04-19T01:00:01Z",
+            "cwd": cwd,
+            "entrypoint": "cli",
+            "isSidechain": True,
+            "message": {
+                "model": "claude-sonnet-4-5-20250929",
+                "usage": {
+                    "input_tokens": 4,
+                    "output_tokens": 2,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                },
+                "content": [
+                    {"type": "text", "text": "found it"},
+                    {"type": "tool_use", "name": "Grep", "input": {"pattern": "needle"}},
+                ],
+            },
         },
     ]
     session_file.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
@@ -268,6 +316,119 @@ def write_codex_fixture(
             )
             + "\n"
         )
+    return session_id, session_file
+
+
+def write_pi_fixture(
+    home: Path,
+    *,
+    cwd: str | None = None,
+    session_id: str = "019f0000-0000-7000-8000-000000000abc",
+    model: str = "claude-opus-4-8",
+    provider: str = "anthropic",
+    cost_total: float = 0.123456,
+) -> tuple[str, Path]:
+    cwd = cwd or "/Users/fairchild/.worktrees/dotclaude/pi-import"
+    session_dir = home / ".pi" / "agent" / "sessions" / "--fixture-dir--"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    session_file = session_dir / f"2026-05-26T00-00-00-000Z_{session_id}.jsonl"
+    usage = {
+        "input": 11,
+        "output": 7,
+        "cacheRead": 100,
+        "cacheWrite": 25,
+        "reasoning": 3,
+        "totalTokens": 143,
+        "cost": {
+            "input": 0.05,
+            "output": 0.02,
+            "cacheRead": 0.003456,
+            "cacheWrite": 0.05,
+            "total": cost_total,
+        },
+    }
+    entries = [
+        {
+            "type": "session",
+            "version": 3,
+            "id": session_id,
+            "timestamp": "2026-05-26T00:00:00.000Z",
+            "cwd": cwd,
+        },
+        {
+            "type": "session_info",
+            "id": "aa000001",
+            "parentId": None,
+            "timestamp": "2026-05-26T00:00:00.500Z",
+            "name": "pi fixture session",
+        },
+        {
+            "type": "model_change",
+            "id": "aa000002",
+            "parentId": None,
+            "timestamp": "2026-05-26T00:00:01.000Z",
+            "provider": provider,
+            "modelId": model,
+        },
+        {
+            "type": "thinking_level_change",
+            "id": "aa000003",
+            "parentId": "aa000002",
+            "timestamp": "2026-05-26T00:00:01.100Z",
+            "thinkingLevel": "high",
+        },
+        {
+            "type": "message",
+            "id": "aa000004",
+            "parentId": "aa000003",
+            "timestamp": "2026-05-26T00:00:02.000Z",
+            "message": {
+                "role": "user",
+                "content": [{"type": "text", "text": "list the files"}],
+                "timestamp": 1774483202000,
+            },
+        },
+        {
+            "type": "message",
+            "id": "aa000005",
+            "parentId": "aa000004",
+            "timestamp": "2026-05-26T00:00:03.000Z",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "check the tree"},
+                    {"type": "text", "text": "listing now"},
+                    {
+                        "type": "toolCall",
+                        "id": "call_fixture_1",
+                        "name": "bash",
+                        "arguments": {"command": "ls -la"},
+                    },
+                ],
+                "api": "anthropic-messages",
+                "provider": provider,
+                "model": model,
+                "usage": usage,
+                "stopReason": "toolUse",
+                "timestamp": 1774483203000,
+            },
+        },
+        {
+            "type": "message",
+            "id": "aa000006",
+            "parentId": "aa000005",
+            "timestamp": "2026-05-26T00:00:04.000Z",
+            "message": {
+                "role": "toolResult",
+                "content": [{"type": "text", "text": "total 0"}],
+                "toolCallId": "call_fixture_1",
+                "toolName": "bash",
+                "isError": False,
+                "timestamp": 1774483204000,
+            },
+        },
+    ]
+    session_file.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
     return session_id, session_file
 
 
@@ -565,6 +726,227 @@ def test_update_imports_codex_without_claude_logs() -> None:
             "SELECT COUNT(*) FROM _loaded_files WHERE file_path LIKE '%.codex/%';",
         )
         assert loaded_files == ["2"], loaded_files
+
+
+@test("reload ingests nested subagent transcripts like update does")
+def test_reload_ingests_nested_subagent_transcripts() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        write_fixture(home)
+        write_claude_subagent_fixture(home)
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+
+        sidechain = duckdb_query(
+            db_path,
+            "SELECT role, is_sidechain, tool_use_count FROM messages "
+            "WHERE session_id='s1-subagent' ORDER BY role;",
+        )
+        assert sidechain == ["assistant,true,1", "user,true,0"], sidechain
+
+        subagent_tools = duckdb_query(
+            db_path,
+            "SELECT tool_name, context FROM claude_tools WHERE session_id='s1-subagent';",
+        )
+        assert subagent_tools == ["Grep,needle"], subagent_tools
+
+        tracked = duckdb_query(
+            db_path,
+            "SELECT COUNT(*) FROM _loaded_files WHERE source_kind='claude';",
+        )
+        assert tracked == ["2"], tracked
+
+        loaded = duckdb_query(
+            db_path,
+            "SELECT COUNT(DISTINCT source_file) FROM messages WHERE harness='claude_code';",
+        )
+        assert loaded == ["2"], loaded
+
+
+@test("reload imports Pi transcripts with native cost")
+def test_reload_imports_pi_transcripts() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_id, _ = write_pi_fixture(home)
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+
+        pi_tools = duckdb_query(
+            db_path,
+            "SELECT tool_name, context, repo_name, worktree_branch FROM pi_tools;",
+        )
+        assert pi_tools == ["bash,ls -la,dotclaude,pi-import"], pi_tools
+
+        pi_messages = duckdb_query(
+            db_path,
+            "SELECT role, harness, model, input_tokens, output_tokens, "
+            "cache_write_tokens, cache_read_tokens, tool_use_count "
+            "FROM messages WHERE harness='pi' ORDER BY role;",
+        )
+        assert pi_messages == [
+            "assistant,pi,claude-opus-4-8,11,7,25,100,1",
+            "user,pi,NULL,NULL,NULL,NULL,NULL,0",
+        ], pi_messages
+
+        usage = duckdb_query(
+            db_path,
+            "SELECT provider, model, thinking_level, input_tokens, cached_input_tokens, "
+            "cache_write_tokens, output_tokens, reasoning_tokens, total_tokens, "
+            "cost_usd, stop_reason FROM pi_usage;",
+        )
+        assert usage == [
+            "anthropic,claude-opus-4-8,high,11,100,25,7,3,143,0.123456,toolUse"
+        ], usage
+
+        sessions = duckdb_query(
+            db_path,
+            "SELECT title, tool_count, repo_name FROM pi_sessions;",
+        )
+        assert sessions == ["pi fixture session,1,dotclaude"], sessions
+
+        overview = duckdb_query(
+            db_path,
+            f"SELECT summary FROM session_overview WHERE session_id='{session_id}';",
+        )
+        assert overview == ["pi fixture session"], overview
+
+        provider_rows = duckdb_query(
+            db_path,
+            "SELECT provider, model, pricing_status, cost_usd, "
+            "uncached_input_tokens, cached_input_tokens, cache_write_tokens, output_tokens "
+            "FROM provider_usage_with_cost WHERE harness='pi';",
+        )
+        assert provider_rows == [
+            "anthropic,claude-opus-4-8,native,0.123456,11,100,25,7"
+        ], provider_rows
+
+        interactions = duckdb_query(
+            db_path,
+            "SELECT COUNT(*) FROM interactions WHERE source='pi';",
+        )
+        assert interactions == ["1"], interactions
+
+        pairs = duckdb_query(
+            db_path,
+            "SELECT COUNT(*) FROM conversation_pairs WHERE session_id='" + session_id + "';",
+        )
+        assert pairs == ["1"], pairs
+
+
+@test("update imports Pi transcripts without other harness logs")
+def test_update_imports_pi_without_other_logs() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        write_pi_fixture(home)
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        result = run([str(SCRIPT_PATH), "update"], env=env)
+        assert_ok(result)
+        assert "Binder Error" not in result.stderr, result.stderr
+
+        counts = duckdb_query(
+            db_path,
+            "SELECT COUNT(*), COUNT(DISTINCT session_id) FROM pi_usage;",
+        )
+        assert counts == ["1,1"], counts
+
+        loaded_files = duckdb_query(
+            db_path,
+            "SELECT source_kind, COUNT(*) FROM _loaded_files GROUP BY source_kind;",
+        )
+        assert loaded_files == ["pi,1"], loaded_files
+
+
+@test("Pi incremental update rescopes only changed sessions")
+def test_pi_incremental_session_scope() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        stable_id, _ = write_pi_fixture(home)
+        changed_id, changed_file = write_pi_fixture(
+            home,
+            session_id="019f0000-0000-7000-8000-000000000def",
+            cost_total=0.5,
+        )
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+        assert_ok(run([str(SCRIPT_PATH), "update"], env=env))
+
+        appended = {
+            "type": "message",
+            "id": "aa000007",
+            "parentId": "aa000006",
+            "timestamp": "2026-05-26T00:00:05.000Z",
+            "message": {
+                "role": "user",
+                "content": [{"type": "text", "text": "and disk usage"}],
+                "timestamp": 1774483205000,
+            },
+        }
+        with changed_file.open("a") as handle:
+            handle.write(json.dumps(appended) + "\n")
+        os.utime(changed_file, ns=(os.stat(changed_file).st_atime_ns, os.stat(changed_file).st_mtime_ns + 2_000_000_000))
+
+        assert_ok(run([str(SCRIPT_PATH), "update"], env=env))
+
+        per_session = duckdb_query(
+            db_path,
+            "SELECT session_id, COUNT(*) FROM messages WHERE harness='pi' "
+            "GROUP BY session_id ORDER BY session_id;",
+        )
+        assert per_session == [f"{stable_id},2", f"{changed_id},3"], per_session
+
+        changed_file.unlink()
+        assert_ok(run([str(SCRIPT_PATH), "update"], env=env))
+
+        remaining = duckdb_query(
+            db_path,
+            "SELECT DISTINCT session_id FROM pi_usage ORDER BY session_id;",
+        )
+        assert remaining == [stable_id], remaining
+
+
+@test("report covers Pi with native pricing status")
+def test_report_covers_pi_native_cost() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        write_pi_fixture(home)
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+
+        report_path = Path(tmp) / "report.json"
+        assert_ok(run([str(SCRIPT_PATH), "report", "--output", str(report_path)], env=env))
+        report = json.loads(report_path.read_text())
+
+        pi_harness = next(row for row in report["harnesses"] if row["harness"] == "pi")
+        assert pi_harness["tokenAccounting"] == "recorded", pi_harness
+        assert pi_harness["archiveCoverage"]["messages"] == 2, pi_harness
+        assert pi_harness["archiveCoverage"]["tokenRows"] == 1, pi_harness
+
+        provider_row = next(
+            row for row in report["providers"] if row["harness"] == "pi"
+        )
+        assert provider_row["provider"] == "anthropic", provider_row
+        assert provider_row["pricedRows"] == 1, provider_row
+        assert provider_row["apiEquivalent"] == 0.123456, provider_row
+
+        model_row = next(row for row in report["models"] if row["harness"] == "pi")
+        assert model_row["pricingStatus"] == "native", model_row
+
+        coverage = report["pricingCoverage"]
+        assert coverage["pricedRows"] == 1, coverage
+        assert coverage["unpricedRows"] == 0, coverage
+        assert coverage["unknownModels"] == [], coverage
 
 
 @test("update upgrades legacy table order safely")
@@ -1069,6 +1451,10 @@ def test_report_generation_contract() -> None:
             codex_file.read_text().replace("show status", "CODEX_PRIVATE_SENTINEL")
         )
         write_cursor_fixture(home)
+        pi_id, pi_file = write_pi_fixture(home)
+        pi_file.write_text(
+            pi_file.read_text().replace("list the files", "PI_PRIVATE_SENTINEL")
+        )
 
         db_path = Path(tmp) / "usage.duckdb"
         env = make_env(home, db_path)
@@ -1120,7 +1506,9 @@ def test_report_generation_contract() -> None:
             "claude_code": (2, 4, 2),
             "codex": (1, 2, 1),
             "cursor": (1, 1, 0),
+            "pi": (1, 2, 1),
         }
+        assert harnesses["pi"]["tokenAccounting"] == "recorded"
         assert harnesses["cursor"]["tokenAccounting"] == "not_available"
         assert harnesses["cursor"]["reportWindow"]["lastObservation"] == (
             "2026-05-26T00:00:08.000000Z"
@@ -1136,32 +1524,32 @@ def test_report_generation_contract() -> None:
 
         totals = report["totals"]
         assert totals["activity"] == {
-            "sessionsWithMessages": 4,
-            "messages": 7,
+            "sessionsWithMessages": 5,
+            "messages": 9,
             "activeDays": 2,
         }
         assert totals["tokens"] == {
-            "uncachedInput": 38,
-            "cachedInput": 2,
-            "cacheWriteInput": 0,
-            "output": 20,
-            "reasoningOutput": 1,
-            "reportedTotal": 60,
+            "uncachedInput": 49,
+            "cachedInput": 102,
+            "cacheWriteInput": 25,
+            "output": 27,
+            "reasoningOutput": 4,
+            "reportedTotal": 203,
         }, totals["tokens"]
-        assert totals["costUsd"]["apiEquivalent"] == 0.000296
+        assert totals["costUsd"]["apiEquivalent"] == 0.123752
         assert totals["costUsd"]["noCacheBaseline"] == 0.000305
         assert totals["costUsd"]["cacheImpact"] == 0.000009
-        assert totals["cache"] == {"utilizationPct": 5.0, "costReductionPct": 2.95}
+        assert totals["cache"] == {"utilizationPct": 57.95, "costReductionPct": 2.95}
 
         pricing = report["pricingCoverage"]
         assert {
             key: pricing[key]
             for key in ("usageRows", "pricedRows", "unpricedRows", "pricedTokens", "unpricedTokens")
         } == {
-            "usageRows": 3,
-            "pricedRows": 2,
+            "usageRows": 4,
+            "pricedRows": 3,
             "unpricedRows": 1,
-            "pricedTokens": 30,
+            "pricedTokens": 173,
             "unpricedTokens": 30,
         }
         assert pricing["unknownModels"] == [
@@ -1173,18 +1561,19 @@ def test_report_generation_contract() -> None:
             }
         ]
 
-        providers = {row["provider"]: row for row in report["providers"]}
+        providers = {(row["provider"], row["harness"]): row for row in report["providers"]}
         assert {
-            provider: (
+            key: (
                 row["usageRows"],
                 row["pricedRows"],
                 row["unpricedRows"],
                 row["reportedTotal"],
             )
-            for provider, row in providers.items()
+            for key, row in providers.items()
         } == {
-            "anthropic": (2, 1, 1, 45),
-            "openai": (1, 1, 0, 15),
+            ("anthropic", "claude_code"): (2, 1, 1, 45),
+            ("anthropic", "pi"): (1, 1, 0, 143),
+            ("openai", "codex"): (1, 1, 0, 15),
         }
         models = {row["model"]: row for row in report["models"]}
         assert {
@@ -1193,13 +1582,14 @@ def test_report_generation_contract() -> None:
         } == {
             "claude-future-unknown": ("unknown_model", 30),
             "claude-sonnet-4-5-20250929": ("priced", 15),
+            "claude-opus-4-8": ("native", 143),
             "gpt-5.5": ("priced", 15),
         }
 
         for grouping in ("providers", "models"):
-            assert sum(row["reportedTotal"] for row in report[grouping]) == 60
-            assert round(sum(row["apiEquivalent"] for row in report[grouping]), 6) == 0.000296
-        assert sum(row["reportedTotal"] for row in report["repositories"]) == 60
+            assert sum(row["reportedTotal"] for row in report[grouping]) == 203
+            assert round(sum(row["apiEquivalent"] for row in report[grouping]), 6) == 0.123752
+        assert sum(row["reportedTotal"] for row in report["repositories"]) == 203
 
         for sentinel in (
             "CLAUDE_PRIVATE_SENTINEL",
@@ -1208,8 +1598,10 @@ def test_report_generation_contract() -> None:
             "CURSOR_END_BOUNDARY_SENTINEL",
             "UNKNOWN_PRIVATE_SENTINEL",
             "UNKNOWN_RESPONSE_SENTINEL",
+            "PI_PRIVATE_SENTINEL",
             str(home),
             "019e6296-7f0f-7090-8572-a48ddfa5d34a",
+            pi_id,
         ):
             assert sentinel not in first_render, sentinel
 
@@ -1241,6 +1633,11 @@ def main() -> None:
         test_incremental_sparse_claude_file,
         test_repository_attribution_provenance,
         test_codex_incremental_session_scope,
+        test_reload_ingests_nested_subagent_transcripts,
+        test_reload_imports_pi_transcripts,
+        test_update_imports_pi_without_other_logs,
+        test_pi_incremental_session_scope,
+        test_report_covers_pi_native_cost,
         test_report_generation_contract,
     ]
     for fn in tests:
