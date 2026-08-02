@@ -1,7 +1,8 @@
 ---
 name: tidyup
-description: Audit and sweep a repo's accumulated worktrees, stale local branches, and in-flight PRs when open threads have sprawled. Use when the user says "tidy up", "too many open threads", "clean up worktrees", "clean up branches", or asks what's still in flight across old sessions. Proof-based classification (squash-merge aware) before anything is deleted.
+description: Proof-based sweep of a repo's accumulated worktrees, stale local branches, and in-flight PRs — reduces open threads to what's actually alive. Explicit invocation only (/tidyup); classification is squash-merge aware and nothing is deleted without proof or approval.
 license: Apache-2.0
+disable-model-invocation: true
 ---
 
 # Tidyup
