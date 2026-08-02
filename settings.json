@@ -1,334 +1,11 @@
 {
-  "alwaysThinkingEnabled" : true,
-  "effortLevel" : "xhigh",
-  "enableAllProjectMcpServers" : true,
-  "enabledPlugins" : {
-    "code-simplifier@claude-plugins-official" : true,
-    "frontend-design@claude-plugins-official" : true,
-    "swift-lsp@claude-plugins-official" : true,
-    "warp@claude-code-warp" : true
+  "env": {
+    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "NODE_ENV": "development"
   },
-  "env" : {
-    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY" : "1",
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" : "1",
-    "NODE_ENV" : "development"
-  },
-  "extraKnownMarketplaces" : {
-    "claude-code-warp" : {
-      "source" : {
-        "repo" : "warpdotdev\/claude-code-warp",
-        "source" : "github"
-      }
-    },
-    "claude-plugins-official" : {
-      "source" : {
-        "repo" : "anthropics\/claude-plugins-official",
-        "source" : "github"
-      }
-    }
-  },
-  "hooks" : {
-    "Notification" : [
-      {
-        "hooks" : [
-          {
-            "async" : true,
-            "command" : "~\/.local\/share\/workspaces\/hook-forwarders\/event-forwarder.sh",
-            "type" : "command"
-          }
-        ]
-      }
-    ],
-    "PermissionRequest" : [
-      {
-        "hooks" : [
-          {
-            "async" : true,
-            "command" : "~\/.local\/share\/workspaces\/hook-forwarders\/event-forwarder.sh",
-            "type" : "command"
-          }
-        ]
-      },
-      {
-        "hooks" : [
-          {
-            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
-            "timeout" : 10,
-            "type" : "command"
-          }
-        ],
-        "matcher" : "*"
-      }
-    ],
-    "PostToolBatch" : [
-      {
-        "hooks" : [
-          {
-            "async" : true,
-            "command" : "~\/.local\/share\/workspaces\/hook-forwarders\/event-forwarder.sh",
-            "type" : "command"
-          }
-        ]
-      }
-    ],
-    "PostToolUse" : [
-      {
-        "hooks" : [
-          {
-            "async" : true,
-            "command" : "~\/.local\/share\/workspaces\/hook-forwarders\/event-forwarder.sh",
-            "type" : "command"
-          }
-        ]
-      },
-      {
-        "hooks" : [
-          {
-            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
-            "timeout" : 10,
-            "type" : "command"
-          }
-        ],
-        "matcher" : "*"
-      }
-    ],
-    "PostToolUseFailure" : [
-      {
-        "hooks" : [
-          {
-            "async" : true,
-            "command" : "~\/.local\/share\/workspaces\/hook-forwarders\/event-forwarder.sh",
-            "type" : "command"
-          }
-        ]
-      },
-      {
-        "hooks" : [
-          {
-            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
-            "timeout" : 10,
-            "type" : "command"
-          }
-        ],
-        "matcher" : "*"
-      }
-    ],
-    "PreToolUse" : [
-      {
-        "hooks" : [
-          {
-            "async" : true,
-            "command" : "~\/.local\/share\/workspaces\/hook-forwarders\/event-forwarder.sh",
-            "type" : "command"
-          }
-        ]
-      },
-      {
-        "hooks" : [
-          {
-            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
-            "timeout" : 10,
-            "type" : "command"
-          }
-        ],
-        "matcher" : "*"
-      }
-    ],
-    "SessionEnd" : [
-      {
-        "hooks" : [
-          {
-            "command" : "~\/.claude\/hooks\/session-end.sh",
-            "type" : "command"
-          }
-        ]
-      },
-      {
-        "hooks" : [
-          {
-            "command" : "~\/.claude\/skills\/team-memory\/scripts\/session-end.sh",
-            "type" : "command"
-          }
-        ]
-      }
-    ],
-    "SessionStart" : [
-      {
-        "hooks" : [
-          {
-            "command" : "~\/.claude\/hooks\/dotclaude-deploy.sh",
-            "type" : "command"
-          }
-        ]
-      },
-      {
-        "hooks" : [
-          {
-            "command" : "bun ~\/.claude\/skills\/chronicle\/scripts\/session-start.ts",
-            "type" : "command"
-          }
-        ]
-      },
-      {
-        "hooks" : [
-          {
-            "command" : "\/opt\/homebrew\/bin\/timeout 5 \"$HOME\/.claude\/skills\/signoz-log\/scripts\/signoz-log.sh\" INFO 'session started' 2>\/dev\/null || echo 'signoz-log: start hook timed out'",
-            "type" : "command"
-          }
-        ]
-      },
-      {
-        "hooks" : [
-          {
-            "command" : "\/opt\/homebrew\/bin\/timeout 5 ~\/.claude\/scripts\/sync-dotagents.py status 2>\/dev\/null || echo 'dotagents: status check skipped'",
-            "type" : "command"
-          }
-        ]
-      },
-      {
-        "hooks" : [
-          {
-            "async" : true,
-            "command" : "~\/.local\/share\/workspaces\/hook-forwarders\/event-forwarder.sh",
-            "type" : "command"
-          }
-        ]
-      }
-    ],
-    "Stop" : [
-      {
-        "hooks" : [
-          {
-            "command" : "~\/.claude\/hooks\/stop.sh",
-            "type" : "command"
-          }
-        ]
-      },
-      {
-        "hooks" : [
-          {
-            "command" : "\/opt\/homebrew\/bin\/timeout 5 \"$HOME\/.claude\/skills\/signoz-log\/scripts\/signoz-log.sh\" INFO 'session stopped' 2>\/dev\/null || echo 'signoz-log: stop hook timed out'",
-            "type" : "command"
-          }
-        ]
-      },
-      {
-        "hooks" : [
-          {
-            "async" : true,
-            "command" : "~\/.local\/share\/workspaces\/hook-forwarders\/event-forwarder.sh",
-            "type" : "command"
-          }
-        ]
-      },
-      {
-        "hooks" : [
-          {
-            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
-            "timeout" : 10,
-            "type" : "command"
-          }
-        ]
-      }
-    ],
-    "StopFailure" : [
-      {
-        "hooks" : [
-          {
-            "async" : true,
-            "command" : "~\/.local\/share\/workspaces\/hook-forwarders\/event-forwarder.sh",
-            "type" : "command"
-          }
-        ]
-      },
-      {
-        "hooks" : [
-          {
-            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
-            "timeout" : 10,
-            "type" : "command"
-          }
-        ]
-      }
-    ],
-    "SubagentStart" : [
-      {
-        "hooks" : [
-          {
-            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
-            "timeout" : 10,
-            "type" : "command"
-          }
-        ]
-      }
-    ],
-    "SubagentStop" : [
-      {
-        "hooks" : [
-          {
-            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
-            "timeout" : 10,
-            "type" : "command"
-          }
-        ]
-      }
-    ],
-    "TaskCompleted" : [
-      {
-        "hooks" : [
-          {
-            "async" : true,
-            "command" : "~\/.local\/share\/workspaces\/hook-forwarders\/event-forwarder.sh",
-            "type" : "command"
-          }
-        ]
-      }
-    ],
-    "TaskCreated" : [
-      {
-        "hooks" : [
-          {
-            "async" : true,
-            "command" : "~\/.local\/share\/workspaces\/hook-forwarders\/event-forwarder.sh",
-            "type" : "command"
-          }
-        ]
-      }
-    ],
-    "TeammateIdle" : [
-      {
-        "hooks" : [
-          {
-            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
-            "timeout" : 10,
-            "type" : "command"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit" : [
-      {
-        "hooks" : [
-          {
-            "async" : true,
-            "command" : "~\/.local\/share\/workspaces\/hook-forwarders\/event-forwarder.sh",
-            "type" : "command"
-          }
-        ]
-      },
-      {
-        "hooks" : [
-          {
-            "command" : "if [ -x \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\" ]; then \/bin\/sh \"$HOME\/.orca\/agent-hooks\/claude-hook.sh\"; fi",
-            "timeout" : 10,
-            "type" : "command"
-          }
-        ]
-      }
-    ]
-  },
-  "permissions" : {
-    "allow" : [
+  "permissions": {
+    "allow": [
       "mcp__container-use__environment_checkpoint",
       "mcp__container-use__environment_create",
       "mcp__container-use__environment_add_service",
@@ -390,8 +67,8 @@
       "Bash(cp *)",
       "Bash(tsc *)",
       "Bash(bd *)",
-      "Bash(~\/.claude\/skills\/gh-apps\/scripts\/gh-apps.py *)",
-      "Bash(uv run ~\/.claude\/skills\/cmux-orchestrator\/scripts\/pr-fetch-context.py *)",
+      "Bash(~/.claude/skills/gh-apps/scripts/gh-apps.py *)",
+      "Bash(uv run ~/.claude/skills/cmux-orchestrator/scripts/pr-fetch-context.py *)",
       "Bash(gh run view *)",
       "Bash(gh run list *)",
       "Bash(gh pr checks *)",
@@ -400,49 +77,375 @@
       "Bash(gh release view *)",
       "Bash(wt *)",
       "Bash(cmux *)",
-      "Read(~\/.ai-memory\/**)",
-      "Write(~\/.ai-memory\/**)",
-      "Edit(~\/.ai-memory\/**)"
+      "Read(~/.ai-memory/**)",
+      "Write(~/.ai-memory/**)",
+      "Edit(~/.ai-memory/**)"
     ],
-    "ask" : [
-      "Bash(rm -rf *)"
-    ],
-    "defaultMode" : "default",
-    "deny" : [
+    "deny": [
       "Read(.env)",
       "Read(.env.*)",
-      "Read(**\/.env)",
-      "Read(**\/.env.*)",
-      "Read(secrets\/**)",
-      "Read(**\/*secret*)",
-      "Read(**\/*credential*)",
-      "Read(**\/*.pem)",
-      "Read(**\/*.key)",
-      "Read(~\/.ssh\/**)",
-      "Read(~\/.aws\/**)",
-      "Read(~\/.config\/**\/credentials*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(secrets/**)",
+      "Read(**/*secret*)",
+      "Read(**/*credential*)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.config/**/credentials*)",
       "Write(.env*)",
-      "Write(secrets\/**)",
-      "Write(**\/*.pem)",
-      "Write(**\/*.key)",
-      "Write(~\/.ssh\/**)",
-      "Write(~\/.aws\/**)",
-      "Write(~\/.config\/**\/credentials*)"
+      "Write(secrets/**)",
+      "Write(**/*.pem)",
+      "Write(**/*.key)",
+      "Write(~/.ssh/**)",
+      "Write(~/.aws/**)",
+      "Write(~/.config/**/credentials*)"
+    ],
+    "ask": [
+      "Bash(rm -rf *)"
+    ],
+    "defaultMode": "default"
+  },
+  "model": "claude-fable-5[1m]",
+  "enableAllProjectMcpServers": true,
+  "hooks": {
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
+            "async": true
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/fairchild/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolBatch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
+            "async": true
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/fairchild/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
+            "async": true
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/fairchild/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
+            "async": true
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/fairchild/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/session-end.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/skills/team-memory/scripts/session-end.sh"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/dotclaude-deploy.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun ~/.claude/skills/chronicle/scripts/session-start.ts"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/homebrew/bin/timeout 5 \"$HOME/.claude/skills/signoz-log/scripts/signoz-log.sh\" INFO 'session started' 2>/dev/null || echo 'signoz-log: start hook timed out'"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/homebrew/bin/timeout 5 ~/.claude/scripts/sync-dotagents.py status 2>/dev/null || echo 'dotagents: status check skipped'"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/stop.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/homebrew/bin/timeout 5 \"$HOME/.claude/skills/signoz-log/scripts/signoz-log.sh\" INFO 'session stopped' 2>/dev/null || echo 'signoz-log: stop hook timed out'"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
+            "async": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/fairchild/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
+            "async": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/fairchild/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "TaskCreated": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
+            "async": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/fairchild/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/fairchild/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/fairchild/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/fairchild/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/fairchild/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   },
-  "preferredNotifChannel" : "iterm2",
-  "skipDangerousModePermissionPrompt" : true,
-  "statusLine" : {
-    "command" : "~\/.local\/share\/workspaces\/hook-forwarders\/statusline.sh",
-    "refreshInterval" : 5000,
-    "type" : "command"
+  "statusLine": {
+    "type": "command",
+    "command": "~/.local/share/workspaces/hook-forwarders/statusline.sh",
+    "refreshInterval": 5000
   },
-  "theme" : "light",
-  "tui" : "fullscreen",
-  "verbose" : true,
-  "voice" : {
-    "enabled" : true,
-    "mode" : "hold"
+  "enabledPlugins": {
+    "code-simplifier@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "swift-lsp@claude-plugins-official": true,
+    "warp@claude-code-warp": true
   },
-  "voiceEnabled" : true
+  "extraKnownMarketplaces": {
+    "claude-code-warp": {
+      "source": {
+        "source": "github",
+        "repo": "warpdotdev/claude-code-warp"
+      }
+    },
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    }
+  },
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "xhigh",
+  "autoUpdatesChannel": "latest",
+  "tui": "fullscreen",
+  "voice": {
+    "enabled": true,
+    "mode": "hold"
+  },
+  "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
+  "theme": "light",
+  "verbose": true,
+  "preferredNotifChannel": "iterm2",
+  "voiceEnabled": true
 }

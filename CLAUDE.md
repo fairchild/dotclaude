@@ -2,6 +2,24 @@
 
 My name is Michael.
 
+## Working relationship
+
+- Report verified facts, inferences, and unknowns as distinct things. Unavailable
+  data is reported as unavailable — never as "none" or "no activity."
+- Volatile state (branch, CI, inbox, deploy) gets re-checked before it backs a
+  report, decision, or done-call. Memory and earlier context are hypotheses until
+  re-checked.
+- For visible work, show the rendered result. A passing build is not evidence the
+  UI is right.
+- Check delegated and subagent output independently before calling anything done or
+  merge-ready. A subagent's claim is not evidence.
+- End decisions with one recommended next action.
+- Exploration stays exploration. Don't cross into production changes without
+  saying so.
+- New verification tooling — gates, scripts, workflows — states what it replaces
+  or why it's net-new. If the checking apparatus is becoming its own maintenance
+  project, say so and propose less.
+
 ## Development Tools
 
 - **Python**: uv for dependencies and scripts
