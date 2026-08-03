@@ -41,6 +41,12 @@ def sql_timestamp(value: datetime) -> str:
     return value.astimezone(UTC).replace(tzinfo=None).isoformat(sep=" ", timespec="microseconds")
 
 
+# 'priced' rows are API-equivalent estimates from local pricing tables;
+# 'native' rows carry dollars the harness itself recorded (Pi). Both have
+# real dollar values, so both count as priced for coverage accounting.
+PRICED_STATUSES = "('priced', 'native')"
+
+
 class Ledger:
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
@@ -123,8 +129,8 @@ def grouped_ledger(
         SELECT
             {dimensions},
             COUNT(*)::BIGINT AS usageRows,
-            COUNT(*) FILTER (WHERE pricing_status = 'priced')::BIGINT AS pricedRows,
-            COUNT(*) FILTER (WHERE pricing_status <> 'priced')::BIGINT AS unpricedRows,
+            COUNT(*) FILTER (WHERE pricing_status IN {PRICED_STATUSES})::BIGINT AS pricedRows,
+            COUNT(*) FILTER (WHERE pricing_status NOT IN {PRICED_STATUSES})::BIGINT AS unpricedRows,
             COUNT(DISTINCT session_id)::BIGINT AS sessions,
             {TOKEN_SUMS},
             {COST_SUMS}
@@ -158,7 +164,8 @@ def generate_report(
             VALUES
                 ('claude_code', 'recorded'),
                 ('codex', 'recorded'),
-                ('cursor', 'not_available')
+                ('cursor', 'not_available'),
+                ('pi', 'recorded')
         ), archive_activity AS (
             SELECT
                 harness,
@@ -255,14 +262,14 @@ def generate_report(
             {TOKEN_SUMS},
             {COST_SUMS},
             COUNT(*)::BIGINT AS usageRows,
-            COUNT(*) FILTER (WHERE pricing_status = 'priced')::BIGINT AS pricedRows,
-            COUNT(*) FILTER (WHERE pricing_status <> 'priced')::BIGINT AS unpricedRows,
+            COUNT(*) FILTER (WHERE pricing_status IN {PRICED_STATUSES})::BIGINT AS pricedRows,
+            COUNT(*) FILTER (WHERE pricing_status NOT IN {PRICED_STATUSES})::BIGINT AS unpricedRows,
             COALESCE(SUM(
                 uncached_input_tokens + cached_input_tokens + cache_write_tokens + output_tokens
-            ) FILTER (WHERE pricing_status = 'priced'), 0)::BIGINT AS pricedTokens,
+            ) FILTER (WHERE pricing_status IN {PRICED_STATUSES}), 0)::BIGINT AS pricedTokens,
             COALESCE(SUM(
                 uncached_input_tokens + cached_input_tokens + cache_write_tokens + output_tokens
-            ) FILTER (WHERE pricing_status <> 'priced'), 0)::BIGINT AS unpricedTokens
+            ) FILTER (WHERE pricing_status NOT IN {PRICED_STATUSES}), 0)::BIGINT AS unpricedTokens
         FROM provider_usage_with_cost
         WHERE {usage_where};
         """
@@ -272,7 +279,7 @@ def generate_report(
         f"""
         SELECT provider, harness, model, COUNT(*)::BIGINT AS usageRows
         FROM provider_usage_with_cost
-        WHERE {usage_where} AND pricing_status <> 'priced'
+        WHERE {usage_where} AND pricing_status NOT IN {PRICED_STATUSES}
         GROUP BY provider, harness, model
         ORDER BY provider, harness, model;
         """
@@ -353,12 +360,19 @@ def generate_report(
                 "paths, and session identifiers are excluded."
             ),
             "cost": (
-                "API-equivalent estimate from recorded token fields and the ledger pricing "
-                "tables; not an invoice or subscription spend."
+                "Claude/Codex dollars are API-equivalent estimates from recorded token "
+                "fields and the ledger pricing tables; Pi dollars are recorded by the "
+                "harness at request time ('native' pricing status). Neither is an "
+                "invoice or subscription spend."
             ),
             "pricingCoverage": (
-                "Dollar totals include priced rows only. Inspect pricingCoverage before "
+                "Dollar totals include rows with 'priced' (estimated) or 'native' "
+                "(harness-recorded) status only. Inspect pricingCoverage before "
                 "describing them as comprehensive."
+            ),
+            "nativeCost": (
+                "Pi rows have no local pricing rates, so noCacheBaseline and cacheImpact "
+                "exclude them; Pi cache economics are already inside its recorded cost."
             ),
             "reasoningTokens": (
                 "reasoningOutput is a subset of output and is never added to reportedTotal."

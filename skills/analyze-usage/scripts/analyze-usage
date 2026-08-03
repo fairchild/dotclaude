@@ -1,8 +1,8 @@
 #!/bin/bash
 # analyze-usage - Unified usage analyzer for AI coding assistants
 #
-# Loads Claude Code, Codex, and Cursor logs into a persistent DuckDB database
-# for analysis via SQL queries.
+# Loads Claude Code, Codex, Cursor, and Pi logs into a persistent DuckDB
+# database for analysis via SQL queries.
 #
 # Usage:
 #   analyze-usage              # Auto-detect changes, incremental update, show summary
@@ -57,6 +57,9 @@ CODEX_SESSIONS_DIR="$CODEX_HOME_DIR/sessions"
 CODEX_ARCHIVED_DIR="$CODEX_HOME_DIR/archived_sessions"
 CODEX_SESSION_INDEX_FILE="$CODEX_HOME_DIR/session_index.jsonl"
 
+PI_AGENT_HOME="${PI_AGENT_DIR:-$HOME/.pi/agent}"
+PI_SESSIONS_DIR="$PI_AGENT_HOME/sessions"
+
 # ============================================================================
 # Prerequisite checks
 # ============================================================================
@@ -82,9 +85,9 @@ show_help() {
 analyze-usage - Unified usage analyzer for AI coding assistants
 
 DESCRIPTION
-    Loads conversation and tool usage logs from Claude Code, Codex, and Cursor into a
-    persistent DuckDB database. Enables SQL-based analysis of AI coding patterns
-    across all three tools.
+    Loads conversation and tool usage logs from Claude Code, Codex, Cursor, and
+    Pi into a persistent DuckDB database. Enables SQL-based analysis of AI
+    coding patterns across all four tools.
 
 USAGE
     analyze-usage                     Auto-detect changes, update, show summary
@@ -144,6 +147,9 @@ ENVIRONMENT VARIABLES
     CURSOR_USER_DIR         Cursor User directory override
                             Default: platform-specific Cursor/User path
 
+    PI_AGENT_DIR            Path to Pi agent directory
+                            Default: ~/.pi/agent
+
 DATA SOURCES
     Claude Code     ~/.claude/projects/*/*.jsonl
                     Contains: tool invocations, messages, token usage,
@@ -157,6 +163,11 @@ DATA SOURCES
 
     Cursor          ~/Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb
                     Contains: prompts, chat history, composer sessions
+
+    Pi              ~/.pi/agent/sessions/*/*.jsonl
+                    Contains: user/assistant messages, tool calls, per-message
+                    token usage with harness-recorded dollar cost, session
+                    titles, model/provider changes
 
 EXAMPLES
     # First run - loads data and shows summary
@@ -324,15 +335,16 @@ COLUMNS:
 ================================================================================
 TABLE: messages
 ================================================================================
-Conversation content from Claude Code, Codex, and Cursor. Each row represents one
-message turn (user or assistant) with extracted text and thinking content.
+Conversation content from Claude Code, Codex, Cursor, and Pi. Each row
+represents one message turn (user or assistant) with extracted text and
+thinking content.
 
 COLUMNS:
     uuid            VARCHAR     Message UUID (from JSONL or generated)
     parent_uuid     VARCHAR     For conversation threading
     session_id      VARCHAR     Session identifier
     role            VARCHAR     'user' or 'assistant'
-    harness         VARCHAR     'claude_code', 'codex', or 'cursor'
+    harness         VARCHAR     'claude_code', 'codex', 'cursor', or 'pi'
     interface       VARCHAR     Wrapper/interface when detectable
     model           VARCHAR     Model used (NULL for user messages)
     content         VARCHAR     User-facing text (concatenated text blocks)
@@ -570,6 +582,68 @@ COLUMNS:
     source_file     VARCHAR     Source transcript path
 
 ================================================================================
+TABLE: pi_session_meta
+================================================================================
+Session-level metadata from Pi session records.
+
+COLUMNS:
+    session_id      VARCHAR     Pi session identifier
+    started_at      TIMESTAMP   Session start timestamp
+    project_dir     VARCHAR     Working directory (session cwd)
+    title           VARCHAR     Session name from session_info events
+    version         INTEGER     Pi session log format version
+    repo_name       VARCHAR     Repository name
+    worktree_branch VARCHAR     Branch name if worktree
+    is_worktree     BOOLEAN     TRUE if worktree path
+    source_file     VARCHAR     Source transcript path
+
+================================================================================
+TABLE: pi_tools
+================================================================================
+Tool invocations extracted from Pi assistant message toolCall blocks.
+
+COLUMNS:
+    timestamp       TIMESTAMP   When the tool was invoked
+    session_id      VARCHAR     Pi session identifier
+    project_dir     VARCHAR     Working directory
+    model           VARCHAR     Model recorded on the assistant message
+    tool_name       VARCHAR     Tool name (read, bash, edit, etc.)
+    context         VARCHAR     Parsed command / path / raw argument preview
+    repo_name       VARCHAR     Repository name
+    worktree_branch VARCHAR     Branch name if worktree
+    is_worktree     BOOLEAN     TRUE if worktree path
+    source_file     VARCHAR     Source transcript path
+
+================================================================================
+TABLE: pi_usage
+================================================================================
+Per-assistant-message token usage and harness-recorded dollar cost. Pi logs
+both token counts and the dollars the harness computed at request time, so
+cost columns here are recorded values, not API-equivalent estimates.
+
+COLUMNS:
+    usage_id                VARCHAR     Stable per-message identifier
+    timestamp               TIMESTAMP   Assistant message timestamp
+    session_id              VARCHAR     Pi session identifier
+    project_dir             VARCHAR     Working directory
+    provider                VARCHAR     Provider id ('anthropic', 'openai-codex', ...)
+    model                   VARCHAR     Model identifier
+    thinking_level          VARCHAR     Latest thinking level seen for the session
+    input_tokens            BIGINT      Uncached input tokens
+    cached_input_tokens     BIGINT      Cache-read input tokens
+    cache_write_tokens      BIGINT      Cache-write input tokens
+    output_tokens           BIGINT      Output tokens
+    reasoning_tokens        BIGINT      Reasoning subset of output tokens
+    total_tokens            BIGINT      Total as recorded by Pi
+    input_cost_usd          DOUBLE      Recorded input dollars
+    cached_input_cost_usd   DOUBLE      Recorded cache-read dollars
+    cache_write_cost_usd    DOUBLE      Recorded cache-write dollars
+    output_cost_usd         DOUBLE      Recorded output dollars
+    cost_usd                DOUBLE      Recorded total dollars
+    stop_reason             VARCHAR     stop / toolUse / error / aborted
+    source_file             VARCHAR     Source transcript path
+
+================================================================================
 VIEW: daily_summary
 ================================================================================
 Aggregated daily usage across all imported harnesses.
@@ -579,6 +653,7 @@ COLUMNS:
     claude_tools    INTEGER     Number of Claude Code tool invocations
     codex_tools     INTEGER     Number of Codex tool invocations
     cursor_prompts  INTEGER     Number of Cursor prompts
+    pi_tools        INTEGER     Number of Pi tool invocations
     total           INTEGER     Combined total
 
 ================================================================================
@@ -587,7 +662,7 @@ VIEW: tool_summary
 Aggregated tool usage statistics for harnesses with tool-level detail.
 
 COLUMNS:
-    source          VARCHAR     Harness name ('claude_code' or 'codex')
+    source          VARCHAR     Harness name ('claude_code', 'codex', or 'pi')
     tool_name       VARCHAR     Name of the tool
     uses            INTEGER     Total invocations
     pct_of_source   DECIMAL     Percentage within that harness
@@ -600,7 +675,7 @@ COLUMNS:
 ================================================================================
 ================================================================================
 
-VIEW: interactions          Tool calls for Claude/Codex and prompts for Cursor
+VIEW: interactions          Tool calls for Claude/Codex/Pi and prompts for Cursor
 VIEW: daily_by_source       Daily counts separated by tool
 VIEW: weekly_summary        Weekly aggregation by source
 VIEW: project_activity      Project-level summary across all harnesses
@@ -629,7 +704,8 @@ TABLE: model_pricing        Editable known-model Claude API rates
 TABLE: codex_model_pricing  Editable known-model OpenAI API-equivalent rates
 VIEW: usage_with_cost       One Claude assistant turn per row with pricing status
 VIEW: codex_usage_with_cost One Codex token snapshot per row with pricing status
-VIEW: provider_usage_with_cost Unified Claude/Codex token, cost, and cache rows
+VIEW: pi_usage_with_cost    One Pi assistant message per row, recorded dollars
+VIEW: provider_usage_with_cost Unified Claude/Codex/Pi token, cost, cache rows
 VIEW: provider_cost_summary Provider/harness/model token and cost totals
 VIEW: cache_efficiency_summary Cache utilization and estimated savings
 VIEW: cost_summary          Backward-compatible Claude repo/model totals
@@ -637,14 +713,17 @@ VIEW: cost_summary          Backward-compatible Claude repo/model totals
 provider_usage_with_cost normalizes these token columns:
     uncached_input_tokens   Input charged at the ordinary input rate
     cached_input_tokens     Input served from prompt cache
-    cache_write_tokens      Claude cache population tokens (zero for Codex)
+    cache_write_tokens      Cache population tokens (zero for Codex)
     output_tokens           Output tokens; Codex includes reasoning output
-    reasoning_output_tokens Codex reasoning subset (do not add to output again)
+    reasoning_output_tokens Reasoning subset (do not add to output again)
 
 Cost columns separate input/cache-write/cache-read/output components, the
-API-equivalent cost_usd, a cost_without_cache_usd baseline, and
-cache_savings_usd. Codex subscription and credit purchases are not in local
-logs. Unknown/internal models remain NULL-cost with unknown_model status.
+cost_usd total, a cost_without_cache_usd baseline, and cache_savings_usd.
+pricing_status distinguishes how dollars were derived: 'priced' rows are
+API-equivalent estimates from the editable pricing tables (Claude, Codex);
+'native' rows carry dollars recorded by the harness itself (Pi). Codex
+subscription and credit purchases are not in local logs. Unknown/internal
+models remain NULL-cost with unknown_model status.
 
 ================================================================================
 USEFUL SQL PATTERNS
@@ -873,6 +952,9 @@ CREATE TABLE IF NOT EXISTS codex_session_meta (session_id VARCHAR PRIMARY KEY, s
 CREATE TABLE IF NOT EXISTS codex_tools (timestamp TIMESTAMP, session_id VARCHAR, project_dir VARCHAR, model VARCHAR, tool_name VARCHAR, context VARCHAR, repo_name VARCHAR, worktree_branch VARCHAR, is_worktree BOOLEAN, source_file VARCHAR);
 CREATE TABLE IF NOT EXISTS codex_token_counts (timestamp TIMESTAMP, session_id VARCHAR, project_dir VARCHAR, model VARCHAR, reasoning_effort VARCHAR, input_tokens BIGINT, cached_input_tokens BIGINT, output_tokens BIGINT, reasoning_output_tokens BIGINT, total_tokens BIGINT, model_context_window BIGINT, source_file VARCHAR);
 CREATE TABLE IF NOT EXISTS codex_developer_messages (session_id VARCHAR, timestamp TIMESTAMP, project_dir VARCHAR, model VARCHAR, content VARCHAR, source_file VARCHAR);
+CREATE TABLE IF NOT EXISTS pi_session_meta (session_id VARCHAR PRIMARY KEY, started_at TIMESTAMP, project_dir VARCHAR, title VARCHAR, version INTEGER, repo_name VARCHAR, worktree_branch VARCHAR, is_worktree BOOLEAN, source_file VARCHAR);
+CREATE TABLE IF NOT EXISTS pi_tools (timestamp TIMESTAMP, session_id VARCHAR, project_dir VARCHAR, model VARCHAR, tool_name VARCHAR, context VARCHAR, repo_name VARCHAR, worktree_branch VARCHAR, is_worktree BOOLEAN, source_file VARCHAR);
+CREATE TABLE IF NOT EXISTS pi_usage (usage_id VARCHAR PRIMARY KEY, timestamp TIMESTAMP, session_id VARCHAR, project_dir VARCHAR, provider VARCHAR, model VARCHAR, thinking_level VARCHAR, input_tokens BIGINT, cached_input_tokens BIGINT, cache_write_tokens BIGINT, output_tokens BIGINT, reasoning_tokens BIGINT, total_tokens BIGINT, input_cost_usd DOUBLE, cached_input_cost_usd DOUBLE, cache_write_cost_usd DOUBLE, output_cost_usd DOUBLE, cost_usd DOUBLE, stop_reason VARCHAR, source_file VARCHAR);
 
 -- Add columns to tables that may predate the current schema.
 ALTER TABLE claude_tools ADD COLUMN IF NOT EXISTS source_file VARCHAR;
@@ -977,6 +1059,12 @@ emit_tracked_files() {
     if [ -f "$CODEX_SESSION_INDEX_FILE" ]; then
         emit_file_metadata "$CODEX_SESSION_INDEX_FILE"
     fi
+
+    if [ -d "$PI_SESSIONS_DIR" ]; then
+        find "$PI_SESSIONS_DIR" -name "*.jsonl" -print0 2>/dev/null | while IFS= read -r -d '' f; do
+            emit_file_metadata "$f"
+        done
+    fi
 }
 
 emit_codex_session_files() {
@@ -1026,7 +1114,7 @@ stage_current_files() {
     current_csv=$(mktemp)
     emit_tracked_files > "$current_csv"
 
-    local current_csv_sql claude_prefix cursor_condition codex_sessions_prefix codex_archived_prefix codex_index
+    local current_csv_sql claude_prefix cursor_condition codex_sessions_prefix codex_archived_prefix codex_index pi_prefix
     current_csv_sql=$(sql_quote_literal "$current_csv")
     claude_prefix=$(sql_quote_literal "${CLAUDE_PROJECTS%/}/")
     cursor_condition="FALSE"
@@ -1036,6 +1124,7 @@ stage_current_files() {
     codex_sessions_prefix=$(sql_quote_literal "${CODEX_SESSIONS_DIR%/}/")
     codex_archived_prefix=$(sql_quote_literal "${CODEX_ARCHIVED_DIR%/}/")
     codex_index=$(sql_quote_literal "$CODEX_SESSION_INDEX_FILE")
+    pi_prefix=$(sql_quote_literal "${PI_SESSIONS_DIR%/}/")
 
     duckdb "$DB_PATH" << EOF
 CREATE OR REPLACE TABLE _current_files (
@@ -1059,6 +1148,7 @@ SELECT
         WHEN starts_with(file_path, ${codex_sessions_prefix})
           OR starts_with(file_path, ${codex_archived_prefix})
           OR file_path = ${codex_index} THEN 'codex'
+        WHEN starts_with(file_path, ${pi_prefix}) THEN 'pi'
         ELSE 'unknown'
     END AS source_kind
 FROM read_csv(${current_csv_sql}, header=false, auto_detect=false,
@@ -1086,6 +1176,7 @@ SELECT
             WHEN l.file_path LIKE '%/.claude/projects/%' THEN 'claude'
             WHEN l.file_path LIKE '%/Cursor/User/workspaceStorage/%' THEN 'cursor'
             WHEN l.file_path LIKE '%/.codex/%' THEN 'codex'
+            WHEN l.file_path LIKE '%/.pi/agent/sessions/%' THEN 'pi'
             ELSE 'unknown'
         END
     ) AS source_kind,
@@ -1146,7 +1237,7 @@ sql_file_arg() {
 # Load tool invocations from JSONL files
 # Args: glob pattern for files (default: all)
 load_claude_data() {
-    local file_pattern="${1:-$CLAUDE_PROJECTS/*/*.jsonl}"
+    local file_pattern="${1:-$CLAUDE_PROJECTS/**/*.jsonl}"
     local pattern_sql; pattern_sql=$(sql_file_arg "$file_pattern")
 
     if [ ! -d "$CLAUDE_PROJECTS" ]; then
@@ -1247,7 +1338,7 @@ EOF
 
 # Load conversation messages
 load_claude_messages() {
-    local file_pattern="${1:-$CLAUDE_PROJECTS/*/*.jsonl}"
+    local file_pattern="${1:-$CLAUDE_PROJECTS/**/*.jsonl}"
     local pattern_sql; pattern_sql=$(sql_file_arg "$file_pattern")
 
     if [ ! -d "$CLAUDE_PROJECTS" ]; then
@@ -1454,7 +1545,7 @@ EOF
 
 # Load system events (turn_duration, api_error, stop_hook_summary, etc.)
 load_system_events() {
-    local file_pattern="${1:-$CLAUDE_PROJECTS/*/*.jsonl}"
+    local file_pattern="${1:-$CLAUDE_PROJECTS/**/*.jsonl}"
     local pattern_sql; pattern_sql=$(sql_file_arg "$file_pattern")
 
     if [ ! -d "$CLAUDE_PROJECTS" ]; then
@@ -1512,7 +1603,7 @@ EOF
 
 # Load queue operations (user inputs typed during assistant response)
 load_queue_operations() {
-    local file_pattern="${1:-$CLAUDE_PROJECTS/*/*.jsonl}"
+    local file_pattern="${1:-$CLAUDE_PROJECTS/**/*.jsonl}"
     local pattern_sql; pattern_sql=$(sql_file_arg "$file_pattern")
 
     if [ ! -d "$CLAUDE_PROJECTS" ]; then
@@ -1557,7 +1648,7 @@ EOF
 
 # Load PR link records
 load_pr_links() {
-    local file_pattern="${1:-$CLAUDE_PROJECTS/*/*.jsonl}"
+    local file_pattern="${1:-$CLAUDE_PROJECTS/**/*.jsonl}"
     local pattern_sql; pattern_sql=$(sql_file_arg "$file_pattern")
 
     if [ ! -d "$CLAUDE_PROJECTS" ]; then
@@ -2342,6 +2433,316 @@ EOF
 }
 
 # ============================================================================
+# Pi Data Loading
+# ============================================================================
+
+emit_pi_session_files() {
+    if [ -d "$PI_SESSIONS_DIR" ]; then
+        find "$PI_SESSIONS_DIR" -name "*.jsonl" 2>/dev/null | sort
+    fi
+}
+
+pi_file_list_arg() {
+    # Resolves the optional SQL file-list argument shared by the Pi loaders.
+    # Sets PI_FILE_COUNT and PI_FILE_LIST_SQL.
+    if [ "$#" -gt 0 ]; then
+        PI_FILE_LIST_SQL="$1"
+        PI_FILE_COUNT=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT LEN(${PI_FILE_LIST_SQL});")
+    else
+        local pi_files
+        pi_files=$(mktemp)
+        emit_pi_session_files > "$pi_files"
+        PI_FILE_COUNT=$(wc -l < "$pi_files" | tr -d ' ')
+        PI_FILE_LIST_SQL="[$(sql_list_from_paths_file "$pi_files")]"
+        rm -f "$pi_files"
+    fi
+}
+
+load_pi_data() {
+    duckdb "$DB_PATH" << 'EOF'
+CREATE TABLE IF NOT EXISTS pi_session_meta (session_id VARCHAR PRIMARY KEY, started_at TIMESTAMP, project_dir VARCHAR, title VARCHAR, version INTEGER, repo_name VARCHAR, worktree_branch VARCHAR, is_worktree BOOLEAN, source_file VARCHAR);
+CREATE TABLE IF NOT EXISTS pi_tools (timestamp TIMESTAMP, session_id VARCHAR, project_dir VARCHAR, model VARCHAR, tool_name VARCHAR, context VARCHAR, repo_name VARCHAR, worktree_branch VARCHAR, is_worktree BOOLEAN, source_file VARCHAR);
+CREATE TABLE IF NOT EXISTS pi_usage (usage_id VARCHAR PRIMARY KEY, timestamp TIMESTAMP, session_id VARCHAR, project_dir VARCHAR, provider VARCHAR, model VARCHAR, thinking_level VARCHAR, input_tokens BIGINT, cached_input_tokens BIGINT, cache_write_tokens BIGINT, output_tokens BIGINT, reasoning_tokens BIGINT, total_tokens BIGINT, input_cost_usd DOUBLE, cached_input_cost_usd DOUBLE, cache_write_cost_usd DOUBLE, output_cost_usd DOUBLE, cost_usd DOUBLE, stop_reason VARCHAR, source_file VARCHAR);
+EOF
+
+    local PI_FILE_COUNT PI_FILE_LIST_SQL
+    pi_file_list_arg "$@"
+
+    if [ "$PI_FILE_COUNT" -eq 0 ]; then
+        echo "  Pi: No session files to load"
+        return
+    fi
+
+    echo "  Pi: Loading from $PI_FILE_COUNT session files..."
+
+    duckdb "$DB_PATH" << EOF
+CREATE OR REPLACE TEMP VIEW pi_raw AS
+SELECT
+    TRY_CAST(json_extract_string(json, '\$.timestamp') AS TIMESTAMP) as event_timestamp,
+    json,
+    filename as source_file,
+    MD5(filename || '|' || COALESCE(json_extract_string(json, '\$.id'), CAST(json AS VARCHAR))) as raw_event_id,
+    json_extract_string(json, '\$.type') as event_type
+FROM read_ndjson_objects(${PI_FILE_LIST_SQL}, filename=true);
+
+CREATE OR REPLACE TEMP TABLE pi_file_sessions AS
+SELECT
+    source_file,
+    FIRST(json_extract_string(json, '\$.id') ORDER BY event_timestamp) as session_id,
+    FIRST(json_extract_string(json, '\$.cwd') ORDER BY event_timestamp) as project_dir,
+    FIRST(TRY_CAST(json_extract_string(json, '\$.version') AS INTEGER) ORDER BY event_timestamp) as version,
+    MIN(event_timestamp) as started_at
+FROM pi_raw
+WHERE event_type = 'session'
+GROUP BY source_file;
+
+CREATE OR REPLACE TEMP VIEW pi_thinking AS
+SELECT
+    source_file,
+    event_timestamp as timestamp,
+    json_extract_string(json, '\$.thinkingLevel') as thinking_level
+FROM pi_raw
+WHERE event_type = 'thinking_level_change';
+
+CREATE OR REPLACE TEMP TABLE pi_event_thinking AS
+SELECT
+    raw.raw_event_id,
+    t.thinking_level
+FROM pi_raw raw
+ASOF LEFT JOIN pi_thinking t
+    ON raw.source_file = t.source_file
+    AND raw.event_timestamp >= t.timestamp;
+
+INSERT OR REPLACE INTO pi_session_meta
+WITH titled AS (
+    SELECT
+        source_file,
+        LAST(json_extract_string(json, '\$.name') ORDER BY event_timestamp) as title
+    FROM pi_raw
+    WHERE event_type = 'session_info'
+    GROUP BY source_file
+)
+SELECT
+    fs.session_id,
+    fs.started_at,
+    fs.project_dir,
+    t.title,
+    fs.version,
+    $(worktree_repo_sql fs.project_dir) as repo_name,
+    $(worktree_branch_sql fs.project_dir) as worktree_branch,
+    $(worktree_is_sql fs.project_dir) as is_worktree,
+    fs.source_file
+FROM pi_file_sessions fs
+LEFT JOIN titled t USING (source_file)
+WHERE fs.session_id IS NOT NULL;
+
+INSERT INTO pi_tools
+WITH tool_rows AS (
+    SELECT
+        raw.event_timestamp as timestamp,
+        fs.session_id,
+        fs.project_dir,
+        json_extract_string(raw.json, '\$.message.model') as model,
+        json_extract_string(block.value, '\$.name') as tool_name,
+        COALESCE(
+            json_extract_string(block.value, '\$.arguments.command'),
+            json_extract_string(block.value, '\$.arguments.cmd'),
+            json_extract_string(block.value, '\$.arguments.path'),
+            json_extract_string(block.value, '\$.arguments.file_path'),
+            json_extract_string(block.value, '\$.arguments.query'),
+            json_extract_string(block.value, '\$.arguments.url'),
+            LEFT(json_extract(block.value, '\$.arguments')::VARCHAR, 200)
+        ) as context,
+        raw.source_file
+    FROM pi_raw raw
+    JOIN pi_file_sessions fs USING (source_file),
+    LATERAL UNNEST(
+        from_json(COALESCE(json_extract(raw.json, '\$.message.content')::VARCHAR, '[]'), '["JSON"]')
+    ) as block(value)
+    WHERE raw.event_type = 'message'
+    AND json_extract_string(raw.json, '\$.message.role') = 'assistant'
+    AND json_extract_string(block.value, '\$.type') = 'toolCall'
+)
+SELECT
+    timestamp,
+    session_id,
+    project_dir,
+    model,
+    tool_name,
+    context,
+    $(worktree_repo_sql project_dir) as repo_name,
+    $(worktree_branch_sql project_dir) as worktree_branch,
+    $(worktree_is_sql project_dir) as is_worktree,
+    source_file
+FROM tool_rows
+WHERE tool_name IS NOT NULL
+AND timestamp IS NOT NULL;
+
+INSERT OR REPLACE INTO pi_usage
+SELECT
+    raw.raw_event_id as usage_id,
+    raw.event_timestamp as timestamp,
+    fs.session_id,
+    fs.project_dir,
+    json_extract_string(raw.json, '\$.message.provider') as provider,
+    json_extract_string(raw.json, '\$.message.model') as model,
+    et.thinking_level,
+    TRY_CAST(json_extract_string(raw.json, '\$.message.usage.input') AS BIGINT) as input_tokens,
+    TRY_CAST(json_extract_string(raw.json, '\$.message.usage.cacheRead') AS BIGINT) as cached_input_tokens,
+    TRY_CAST(json_extract_string(raw.json, '\$.message.usage.cacheWrite') AS BIGINT) as cache_write_tokens,
+    TRY_CAST(json_extract_string(raw.json, '\$.message.usage.output') AS BIGINT) as output_tokens,
+    TRY_CAST(json_extract_string(raw.json, '\$.message.usage.reasoning') AS BIGINT) as reasoning_tokens,
+    TRY_CAST(json_extract_string(raw.json, '\$.message.usage.totalTokens') AS BIGINT) as total_tokens,
+    TRY_CAST(json_extract_string(raw.json, '\$.message.usage.cost.input') AS DOUBLE) as input_cost_usd,
+    TRY_CAST(json_extract_string(raw.json, '\$.message.usage.cost.cacheRead') AS DOUBLE) as cached_input_cost_usd,
+    TRY_CAST(json_extract_string(raw.json, '\$.message.usage.cost.cacheWrite') AS DOUBLE) as cache_write_cost_usd,
+    TRY_CAST(json_extract_string(raw.json, '\$.message.usage.cost.output') AS DOUBLE) as output_cost_usd,
+    TRY_CAST(json_extract_string(raw.json, '\$.message.usage.cost.total') AS DOUBLE) as cost_usd,
+    json_extract_string(raw.json, '\$.message.stopReason') as stop_reason,
+    raw.source_file
+FROM pi_raw raw
+JOIN pi_file_sessions fs USING (source_file)
+LEFT JOIN pi_event_thinking et ON raw.raw_event_id = et.raw_event_id
+WHERE raw.event_type = 'message'
+AND json_extract_string(raw.json, '\$.message.role') = 'assistant'
+AND json_extract(raw.json, '\$.message.usage') IS NOT NULL
+AND raw.event_timestamp IS NOT NULL;
+
+DROP TABLE pi_event_thinking;
+DROP VIEW pi_thinking;
+EOF
+
+    local pi_tool_count pi_usage_count
+    pi_tool_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM pi_tools;" 2>/dev/null || echo "0")
+    pi_usage_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM pi_usage;" 2>/dev/null || echo "0")
+    echo "  Pi: $pi_tool_count tool calls, $pi_usage_count usage rows"
+}
+
+load_pi_messages() {
+    local PI_FILE_COUNT PI_FILE_LIST_SQL
+    pi_file_list_arg "$@"
+
+    if [ "$PI_FILE_COUNT" -eq 0 ]; then
+        return
+    fi
+
+    echo "  Pi: Bridging user and assistant messages..."
+
+    duckdb "$DB_PATH" << EOF
+CREATE OR REPLACE TEMP VIEW pi_raw AS
+SELECT
+    TRY_CAST(json_extract_string(json, '\$.timestamp') AS TIMESTAMP) as event_timestamp,
+    json,
+    filename as source_file,
+    MD5(filename || '|' || COALESCE(json_extract_string(json, '\$.id'), CAST(json AS VARCHAR))) as raw_event_id,
+    json_extract_string(json, '\$.type') as event_type
+FROM read_ndjson_objects(${PI_FILE_LIST_SQL}, filename=true);
+
+CREATE OR REPLACE TEMP TABLE pi_file_sessions AS
+SELECT
+    source_file,
+    FIRST(json_extract_string(json, '\$.id') ORDER BY event_timestamp) as session_id,
+    FIRST(json_extract_string(json, '\$.cwd') ORDER BY event_timestamp) as project_dir
+FROM pi_raw
+WHERE event_type = 'session'
+GROUP BY source_file;
+
+INSERT INTO messages (
+    uuid, parent_uuid, session_id, role, harness, interface, model,
+    content, thinking, timestamp, project_dir, git_branch, repo_name,
+    worktree_branch, is_worktree, is_sidechain, input_tokens, output_tokens,
+    cache_write_tokens, cache_read_tokens, tool_use_count, source_file
+)
+WITH pi_message_rows AS (
+    SELECT
+        raw.raw_event_id,
+        CASE
+            WHEN json_extract_string(raw.json, '\$.parentId') IS NULL THEN NULL
+            ELSE MD5(raw.source_file || '|' || json_extract_string(raw.json, '\$.parentId'))
+        END as parent_uuid,
+        fs.session_id,
+        json_extract_string(raw.json, '\$.message.role') as role,
+        raw.event_timestamp as timestamp,
+        fs.project_dir,
+        json_extract_string(raw.json, '\$.message.model') as model,
+        STRING_AGG(
+            CASE WHEN json_extract_string(block.value, '\$.type') = 'text'
+                 THEN json_extract_string(block.value, '\$.text')
+            END, E'\n'
+        ) as content,
+        STRING_AGG(
+            CASE WHEN json_extract_string(block.value, '\$.type') = 'thinking'
+                 THEN json_extract_string(block.value, '\$.thinking')
+            END, E'\n'
+        ) as thinking,
+        COUNT(CASE WHEN json_extract_string(block.value, '\$.type') = 'toolCall' THEN 1 END) as tool_use_count,
+        TRY_CAST(json_extract_string(raw.json, '\$.message.usage.input') AS INTEGER) as input_tokens,
+        TRY_CAST(json_extract_string(raw.json, '\$.message.usage.output') AS INTEGER) as output_tokens,
+        TRY_CAST(json_extract_string(raw.json, '\$.message.usage.cacheWrite') AS INTEGER) as cache_write_tokens,
+        TRY_CAST(json_extract_string(raw.json, '\$.message.usage.cacheRead') AS INTEGER) as cache_read_tokens,
+        raw.source_file
+    FROM pi_raw raw
+    JOIN pi_file_sessions fs USING (source_file),
+    LATERAL UNNEST(
+        CASE
+            WHEN json_array_length(json_extract(raw.json, '\$.message.content')) > 0
+            THEN from_json(json_extract(raw.json, '\$.message.content')::VARCHAR, '["JSON"]')
+            ELSE ['{}']::JSON[]
+        END
+    ) as block(value)
+    WHERE raw.event_type = 'message'
+    AND json_extract_string(raw.json, '\$.message.role') IN ('user', 'assistant')
+    GROUP BY
+        raw.raw_event_id,
+        parent_uuid,
+        raw.source_file,
+        fs.session_id,
+        role,
+        raw.event_timestamp,
+        fs.project_dir,
+        model,
+        input_tokens,
+        output_tokens,
+        cache_write_tokens,
+        cache_read_tokens
+)
+SELECT
+    raw_event_id as uuid,
+    parent_uuid,
+    session_id,
+    role,
+    'pi' as harness,
+    NULL as interface,
+    model,
+    content,
+    thinking,
+    timestamp,
+    project_dir,
+    NULL as git_branch,
+    $(worktree_repo_sql project_dir) as repo_name,
+    $(worktree_branch_sql project_dir) as worktree_branch,
+    $(worktree_is_sql project_dir) as is_worktree,
+    FALSE as is_sidechain,
+    input_tokens,
+    output_tokens,
+    cache_write_tokens,
+    cache_read_tokens,
+    tool_use_count,
+    source_file
+FROM pi_message_rows
+WHERE timestamp IS NOT NULL
+AND (role = 'assistant' OR content IS NOT NULL);
+
+DROP TABLE pi_file_sessions;
+DROP VIEW pi_raw;
+EOF
+
+    local pi_msg_count
+    pi_msg_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM messages WHERE harness='pi';" 2>/dev/null || echo "0")
+    echo "  Pi: $pi_msg_count searchable messages"
+}
+
+# ============================================================================
 # Views
 # ============================================================================
 
@@ -2441,6 +2842,50 @@ LEFT JOIN tool_stats
     ON COALESCE(sm.session_id, activity.session_id, idx.session_id) = tool_stats.session_id;
 
 -- ============================================================================
+-- PI SESSIONS (derived from session metadata + activity)
+-- ============================================================================
+CREATE OR REPLACE TABLE pi_sessions AS
+WITH activity AS (
+    SELECT
+        session_id,
+        MIN(timestamp) as started_at,
+        MAX(timestamp) as ended_at
+    FROM (
+        SELECT session_id, timestamp FROM pi_tools
+        UNION ALL
+        SELECT session_id, timestamp FROM messages WHERE harness = 'pi'
+        UNION ALL
+        SELECT session_id, timestamp FROM pi_usage
+    )
+    WHERE session_id IS NOT NULL
+    GROUP BY session_id
+),
+tool_stats AS (
+    SELECT
+        session_id,
+        COUNT(*) as tool_count,
+        COUNT(DISTINCT tool_name) as unique_tools
+    FROM pi_tools
+    GROUP BY session_id
+)
+SELECT
+    COALESCE(sm.session_id, activity.session_id) as session_id,
+    sm.project_dir,
+    sm.repo_name,
+    sm.worktree_branch,
+    sm.is_worktree,
+    sm.title,
+    sm.version,
+    COALESCE(activity.started_at, sm.started_at) as started_at,
+    activity.ended_at,
+    COALESCE(tool_stats.tool_count, 0) as tool_count,
+    COALESCE(tool_stats.unique_tools, 0) as unique_tools
+FROM pi_session_meta sm
+FULL OUTER JOIN activity ON sm.session_id = activity.session_id
+LEFT JOIN tool_stats
+    ON COALESCE(sm.session_id, activity.session_id) = tool_stats.session_id;
+
+-- ============================================================================
 -- TURN DURATIONS VIEW
 -- ============================================================================
 CREATE OR REPLACE VIEW turn_durations AS
@@ -2531,6 +2976,34 @@ SELECT
     NULL as cache_read_tokens,
     NULL as total_tokens
 FROM cursor_prompts
+WHERE timestamp IS NOT NULL
+
+UNION ALL
+
+-- Pi tool rows carry no token columns: message-level usage lives in pi_usage
+-- and would double-count if repeated on each toolCall block.
+SELECT
+    TRY_CAST(timestamp AS TIMESTAMP) as timestamp,
+    TRY_CAST(timestamp AS TIMESTAMP) AT TIME ZONE 'UTC'
+        AT TIME ZONE current_setting('TimeZone') as local_timestamp,
+    'pi' as source,
+    NULL as interface,
+    session_id as session_id,
+    project_dir as project,
+    REGEXP_EXTRACT(project_dir, '[^/]+$') as project_name,
+    repo_name,
+    worktree_branch,
+    is_worktree,
+    model,
+    'tool_use' as interaction_type,
+    tool_name as category,
+    context as detail,
+    NULL as input_tokens,
+    NULL as output_tokens,
+    NULL as cache_write_tokens,
+    NULL as cache_read_tokens,
+    NULL as total_tokens
+FROM pi_tools
 WHERE timestamp IS NOT NULL;
 
 -- ============================================================================
@@ -2692,6 +3165,7 @@ SELECT
     COUNT(*) FILTER (WHERE source='claude_code') as claude_tools,
     COUNT(*) FILTER (WHERE source='codex') as codex_tools,
     COUNT(*) FILTER (WHERE source='cursor') as cursor_prompts,
+    COUNT(*) FILTER (WHERE source='pi') as pi_tools,
     COUNT(*) as total
 FROM interactions
 GROUP BY date;
@@ -2711,6 +3185,8 @@ FROM (
     SELECT 'claude_code' as source, tool_name, timestamp FROM claude_tools
     UNION ALL
     SELECT 'codex' as source, tool_name, timestamp FROM codex_tools
+    UNION ALL
+    SELECT 'pi' as source, tool_name, timestamp FROM pi_tools
 ) combined_tools
 GROUP BY source, tool_name
 ORDER BY source, uses DESC;
@@ -2917,6 +3393,38 @@ SELECT
 FROM rated;
 
 -- ============================================================================
+-- PI USAGE WITH HARNESS-RECORDED COST VIEW
+-- ============================================================================
+-- Pi logs dollars per assistant message at request time, so this view exposes
+-- recorded values ('native' pricing_status) rather than API-equivalent
+-- estimates from a local pricing table.
+CREATE OR REPLACE VIEW pi_usage_with_cost AS
+SELECT
+    u.usage_id,
+    u.timestamp,
+    u.session_id,
+    u.project_dir,
+    s.repo_name,
+    u.provider,
+    u.model,
+    u.thinking_level,
+    COALESCE(u.input_tokens, 0) AS uncached_input_tokens,
+    COALESCE(u.cached_input_tokens, 0) AS cached_input_tokens,
+    COALESCE(u.cache_write_tokens, 0) AS cache_write_tokens,
+    COALESCE(u.output_tokens, 0) AS output_tokens,
+    u.reasoning_tokens,
+    u.total_tokens,
+    u.stop_reason,
+    CASE WHEN u.cost_usd IS NULL THEN 'unknown_model' ELSE 'native' END AS pricing_status,
+    u.input_cost_usd,
+    u.cached_input_cost_usd,
+    u.cache_write_cost_usd,
+    u.output_cost_usd,
+    u.cost_usd
+FROM pi_usage u
+LEFT JOIN pi_sessions s USING (session_id);
+
+-- ============================================================================
 -- UNIFIED PROVIDER COST AND CACHE VIEWS
 -- ============================================================================
 CREATE OR REPLACE VIEW provider_usage_with_cost AS
@@ -2991,7 +3499,36 @@ SELECT
     cost_usd,
     cost_without_cache_usd,
     cache_savings_usd
-FROM codex_usage_with_cost;
+FROM codex_usage_with_cost
+UNION ALL
+SELECT
+    usage_id,
+    timestamp,
+    session_id,
+    provider,
+    'pi' AS harness,
+    project_dir,
+    repo_name,
+    model,
+    uncached_input_tokens,
+    cached_input_tokens,
+    cache_write_tokens,
+    output_tokens,
+    reasoning_tokens AS reasoning_output_tokens,
+    NULL::DECIMAL(10,4) AS input_rate,
+    NULL::DECIMAL(10,4) AS cached_input_rate,
+    NULL::DECIMAL(10,4) AS cache_write_rate,
+    NULL::DECIMAL(10,4) AS output_rate,
+    FALSE AS is_long_context,
+    pricing_status,
+    input_cost_usd,
+    cached_input_cost_usd,
+    cache_write_cost_usd,
+    output_cost_usd,
+    cost_usd,
+    NULL::DOUBLE AS cost_without_cache_usd,
+    NULL::DOUBLE AS cache_savings_usd
+FROM pi_usage_with_cost;
 
 CREATE OR REPLACE VIEW provider_cost_summary AS
 SELECT
@@ -3103,7 +3640,7 @@ CREATE OR REPLACE VIEW session_overview AS
 SELECT
     sm.session_id, sm.repo_name, sm.interface, sm.started_at, sm.ended_at,
     sm.message_count, sm.user_messages, sm.assistant_messages,
-    COALESCE(si.summary, csi.thread_name) as summary,
+    COALESCE(si.summary, csi.thread_name, ps.title) as summary,
     si.first_prompt,
     COALESCE(si.git_branch, cs.git_branch) as git_branch,
     sm.total_input_tokens, sm.total_output_tokens
@@ -3116,7 +3653,10 @@ LEFT JOIN codex_session_index csi
     AND sm.session_id = csi.session_id
 LEFT JOIN codex_sessions cs
     ON sm.harness = 'codex'
-    AND sm.session_id = cs.session_id;
+    AND sm.session_id = cs.session_id
+LEFT JOIN pi_sessions ps
+    ON sm.harness = 'pi'
+    AND sm.session_id = ps.session_id;
 
 -- ============================================================================
 -- RECENT CONVERSATIONS VIEW
@@ -3246,6 +3786,8 @@ build_all_data() {
     load_codex_session_index
     load_codex_data
     load_codex_messages
+    load_pi_data
+    load_pi_messages
     create_views
     create_fts_index
     populate_loaded_files
@@ -3393,6 +3935,33 @@ EOF
             codex_file_list_sql=$(pending_file_list_sql codex changed)
             load_codex_data "$codex_file_list_sql"
             load_codex_messages "$codex_file_list_sql"
+        fi
+    fi
+
+    local pi_affected_count pi_changed_count
+    pi_affected_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM _pending_file_changes WHERE source_kind='pi';")
+    pi_changed_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM _pending_file_changes WHERE source_kind='pi' AND change_kind='changed';")
+
+    if [ "$pi_affected_count" -gt 0 ]; then
+        duckdb "$DB_PATH" << 'EOF'
+DELETE FROM pi_session_meta WHERE source_file IN (
+    SELECT file_path FROM _pending_file_changes WHERE source_kind='pi'
+);
+DELETE FROM pi_tools WHERE source_file IN (
+    SELECT file_path FROM _pending_file_changes WHERE source_kind='pi'
+);
+DELETE FROM pi_usage WHERE source_file IN (
+    SELECT file_path FROM _pending_file_changes WHERE source_kind='pi'
+);
+DELETE FROM messages WHERE harness='pi' AND source_file IN (
+    SELECT file_path FROM _pending_file_changes WHERE source_kind='pi'
+);
+EOF
+        if [ "$pi_changed_count" -gt 0 ]; then
+            local pi_file_list_sql
+            pi_file_list_sql=$(pending_file_list_sql pi changed)
+            load_pi_data "$pi_file_list_sql"
+            load_pi_messages "$pi_file_list_sql"
         fi
     fi
 
@@ -3719,6 +4288,21 @@ EOF
     echo "  Prompts: $cursor_prompts"
     echo "  Active workspaces: $cursor_workspaces"
     echo "  Searchable messages: $cursor_messages"
+    echo ""
+
+    local pi_tools_count pi_sessions_count pi_messages_count pi_usage_rows pi_cost_total
+    pi_tools_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM pi_tools;" 2>/dev/null || echo "0")
+    pi_sessions_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM pi_sessions;" 2>/dev/null || echo "0")
+    pi_messages_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM messages WHERE harness='pi' AND (content IS NOT NULL OR thinking IS NOT NULL);" 2>/dev/null || echo "0")
+    pi_usage_rows=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM pi_usage;" 2>/dev/null || echo "0")
+    pi_cost_total=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COALESCE(ROUND(SUM(cost_usd), 2), 0) FROM pi_usage;" 2>/dev/null || echo "0")
+
+    echo "Pi"
+    echo "  Tool invocations: $pi_tools_count"
+    echo "  Sessions: $pi_sessions_count"
+    echo "  Searchable messages: $pi_messages_count"
+    echo "  Usage rows: $pi_usage_rows"
+    echo "  Recorded cost (USD): $pi_cost_total"
     echo ""
 
     local file_count

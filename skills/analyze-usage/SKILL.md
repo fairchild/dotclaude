@@ -1,12 +1,12 @@
 ---
 name: analyze-usage
-description: Analyze local AI coding-assistant activity across Claude Code, Codex, and Cursor. Use when the user asks about coding usage, tool or skill statistics, activity patterns, repositories, sessions, token costs, conversation history, or wants to query their AI coding logs. Triggers include "usage", "how much have I used", "most used tools", "skill popularity", "coding stats", "activity patterns", and "session history".
+description: Analyze local AI coding-assistant activity across Claude Code, Codex, Cursor, and Pi. Use when the user asks about coding usage, tool or skill statistics, activity patterns, repositories, sessions, token costs, conversation history, or wants to query their AI coding logs. Triggers include "usage", "how much have I used", "most used tools", "skill popularity", "coding stats", "activity patterns", and "session history".
 license: Apache-2.0
 ---
 
 # AI Coding Usage
 
-Use `scripts/analyze-usage` to load local Claude Code, Codex, and Cursor logs into DuckDB, then answer usage questions with explicit scope and freshness. Treat the database as an activity ledger—not a productivity score or authoritative provider bill.
+Use `scripts/analyze-usage` to load local Claude Code, Codex, Cursor, and Pi logs into DuckDB, then answer usage questions with explicit scope and freshness. Treat the database as an activity ledger—not a productivity score or authoritative provider bill.
 
 ## Required workflow
 
@@ -16,7 +16,7 @@ Use `scripts/analyze-usage` to load local Claude Code, Codex, and Cursor logs in
 4. Report the database refresh time, time window, included harnesses, and any unknown-priced models with the result.
 5. For shareable or repeatable reporting, use `report` with explicit UTC boundaries. Verify `pricingCoverage`, reconcile the provider/model totals, and keep the generated aggregate JSON private unless the user chooses a publication surface.
 
-Do not compare raw `interactions` counts across harnesses as if they were equivalent: Claude Code and Codex rows are tool calls, while Cursor rows are prompts. Use messages, sessions, active days, or per-source trends for cross-harness comparisons.
+Do not compare raw `interactions` counts across harnesses as if they were equivalent: Claude Code, Codex, and Pi rows are tool calls, while Cursor rows are prompts. Use messages, sessions, active days, or per-source trends for cross-harness comparisons.
 
 ## Commands
 
@@ -38,14 +38,14 @@ scripts/analyze-usage reload
 ## Analysis surfaces
 
 - `messages`, `session_messages`, `session_overview`, and `message_stats` support conversation and session analysis across harnesses.
-- `claude_tools`, `codex_tools`, and `tool_summary` support tool-call analysis.
+- `claude_tools`, `codex_tools`, `pi_tools`, and `tool_summary` support tool-call analysis.
 - `interactions`, `repo_activity`, `project_activity`, and time views support activity trends; preserve their per-source measurement units. `interactions.timestamp` is UTC and `local_timestamp` drives calendar views in DuckDB's system timezone.
-- `codex_token_counts` stores Codex token snapshots.
-- `usage_with_cost` calculates Claude API-equivalent cost once per assistant turn; `codex_usage_with_cost` applies verified OpenAI Standard API rates and long-context rules to Codex token snapshots.
-- `provider_usage_with_cost` normalizes Claude and Codex tokens, cost components, no-cache baselines, and cache savings. Aggregate with `provider_cost_summary` or `cache_efficiency_summary`.
+- `codex_token_counts` stores Codex token snapshots; `pi_usage` stores Pi per-message tokens with harness-recorded dollars.
+- `usage_with_cost` calculates Claude API-equivalent cost once per assistant turn; `codex_usage_with_cost` applies verified OpenAI Standard API rates and long-context rules to Codex token snapshots; `pi_usage_with_cost` exposes Pi's harness-recorded dollars (`pricing_status = 'native'`, not an estimate).
+- `provider_usage_with_cost` normalizes Claude, Codex, and Pi tokens and cost components (plus Claude/Codex no-cache baselines and cache savings; Pi has no local rates, so its baseline columns are NULL). Aggregate with `provider_cost_summary` or `cache_efficiency_summary`.
 - `conversation_search` and `search` cover user text, assistant text, and optional reasoning traces.
 
-Unknown models have `pricing_status = 'unknown_model'` and `cost_usd = NULL`; never substitute a guessed rate. `model_pricing` and `codex_model_pricing` are user-editable and built-in defaults are only inserted when missing. Cross-provider dollar values are API-equivalent workload estimates, not subscription invoices or observed purchased-credit spend.
+Unknown models have `pricing_status = 'unknown_model'` and `cost_usd = NULL`; never substitute a guessed rate. `model_pricing` and `codex_model_pricing` are user-editable and built-in defaults are only inserted when missing. Claude/Codex dollar values are API-equivalent workload estimates and Pi dollar values are harness-recorded, but none are subscription invoices or observed purchased-credit spend.
 
 ## Data boundaries
 

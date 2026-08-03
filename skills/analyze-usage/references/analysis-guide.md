@@ -120,6 +120,11 @@ long-context multipliers. This is not the same as ChatGPT/Codex subscription or
 purchased-credit spend. Internal models such as `codex-auto-review` remain
 unknown-priced.
 
+Pi rows are different in kind: `pricing_status = 'native'` marks dollars the
+harness recorded at request time, per provider and model, so they need no local
+pricing table. When mixing Pi with Claude/Codex in one total, say which portion
+is recorded and which is estimated.
+
 ## Cache utilization
 
 Compare observed cost with the same recorded input treated as uncached:
@@ -140,6 +145,8 @@ ORDER BY estimated_cache_savings_usd DESC NULLS LAST;
 
 Claude cache writes can initially cost more than ordinary input; the savings
 calculation includes that write premium before crediting later cache reads.
+Pi rows have NULL `cost_without_cache_usd` and `cache_savings_usd` (no local
+rates), so cache-economics aggregates cover Claude and Codex only.
 In report JSON, positive `cacheImpact` means avoided API-equivalent cost and a
 negative value means the cache-write premium exceeded recorded read savings.
 
@@ -151,7 +158,7 @@ Before presenting or publishing a generated report:
 2. Confirm provider and model token totals each reconcile to `totals.tokens`.
 3. Inspect `pricingCoverage`; dollar totals are partial when `unpricedRows` is nonzero.
 4. Keep reasoning output separate because it is already included in output tokens.
-5. State that costs are API-equivalent estimates, not provider invoices.
+5. State that Claude/Codex costs are API-equivalent estimates and Pi costs are harness-recorded, and that neither is a provider invoice.
 6. Publish only the aggregate report, never the source database or transcript tables.
 
 ## Conversation search
