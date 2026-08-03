@@ -77,8 +77,8 @@
     },
     "model": {
       "type": "string",
-      "description": "Default model to use",
-      "enum": ["opus", "sonnet", "haiku"]
+      "description": "Default model: alias (opus, sonnet, haiku) or full model ID, optionally with a [1m] context suffix",
+      "pattern": "^(opus|sonnet|haiku|claude-[a-z0-9.-]+)(\\[1m\\])?$"
     }
   },
   "definitions": {
