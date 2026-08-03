@@ -147,6 +147,9 @@ skills/orca-cli
 skills/orchestration
 # Ecosystem skills are managed in the sync-dotagents block at the bottom of this file.
 
+# Local-only skills (kept off the public repo by choice)
+skills/x-ai-feed
+
 # maildir-shared backend — in-flight dir lives in git-common-dir
 backlog/doing
 
