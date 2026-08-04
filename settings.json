@@ -79,7 +79,6 @@
       "Bash(wt *)",
       "Bash(cmux *)",
       "Read(~/.ai-memory/**)",
-      "Write(~/.ai-memory/**)",
       "Edit(~/.ai-memory/**)"
     ],
     "deny": [
@@ -95,20 +94,20 @@
       "Read(~/.ssh/**)",
       "Read(~/.aws/**)",
       "Read(~/.config/**/credentials*)",
-      "Write(.env*)",
-      "Write(secrets/**)",
-      "Write(**/*.pem)",
-      "Write(**/*.key)",
-      "Write(~/.ssh/**)",
-      "Write(~/.aws/**)",
-      "Write(~/.config/**/credentials*)"
+      "Edit(.env*)",
+      "Edit(secrets/**)",
+      "Edit(**/*.pem)",
+      "Edit(**/*.key)",
+      "Edit(~/.ssh/**)",
+      "Edit(~/.aws/**)",
+      "Edit(~/.config/**/credentials*)"
     ],
     "ask": [
       "Bash(rm -rf *)"
     ],
     "defaultMode": "default"
   },
-  "model": "claude-fable-5[1m]",
+  "model": "opus[1m]",
   "enableAllProjectMcpServers": true,
   "hooks": {
     "Notification": [
