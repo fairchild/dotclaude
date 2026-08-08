@@ -95,7 +95,7 @@ Display project-specific metrics.
 {
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/skills/status-line-live/scripts/statusline.sh"
+    "command": "~/.claude/scripts/statusline.sh"
   }
 }
 ```

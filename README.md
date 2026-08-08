@@ -40,7 +40,7 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 ├── CLAUDE.md          # Personal context (name, preferences, tool choices)
 ├── settings.json      # Permissions, hooks, model selection
 ├── .mcp.json          # MCP server configs
-├── commands/          # Slash commands (/bootstrap, /status_line)
+├── commands/          # Slash commands (/bootstrap, /code-review)
 ├── skills/            # Extended capabilities with references
 ├── agents/            # Specialized autonomous agents
 ├── hooks/             # Session lifecycle scripts
@@ -70,7 +70,6 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 | `/retro` | Review session trajectory and update todos |
 | `/chronicle wrapup` | Deliberate session close-out — curator + conditional backlog update |
 | `/chronicle recap` | Multi-session narrative recap for a project |
-| `/status_line` | Explain current session metrics |
 | `/update-dependencies` | Intelligent dependency updates with batching |
 | `/code-review` | Review recent work against plan and standards |
 | `/codex-review` | Code review via non-Claude models |
