@@ -27,7 +27,7 @@ This config is personal — `CLAUDE.md` has my name, hooks call my Chronicle scr
 
 **Prerequisites for the full config:**
 - `bun` — hooks and scripts are TypeScript
-- `jq`, `bc` — statusline calculations
+- `jq` — statusline payload parsing
 - `git` — core operations
 - Optional: `uv` (Python), `mise` (runtimes), Perplexity API key
 
@@ -179,33 +179,49 @@ Defined in `settings.json`:
 
 ## Status Line
 
-`settings.json` points `statusLine.command` at the WorkSpaces forwarder, which
-picks a renderer based on whether a host socket is live:
+`statusLine.command` points at the WorkSpaces forwarder, which chooses a
+renderer based on whether a host socket is live. `env` in `settings.json`
+redirects its fallback to `scripts/statusline.sh`:
 
 ```
 statusLine.command → ~/.local/share/workspaces/hook-forwarders/statusline.sh
                        ├── socket live  → POST to the host; the app draws the footer
-                       └── socket unset → the forwarder's built-in renderer
+                       └── socket unset → $WORKSPACES_STATUSLINE_FALLBACK
+                                            → ~/.claude/scripts/statusline.sh
 ```
 
-The built-in renderer is bash + sed + git — no `jq`, no `bc`, no cache, no
-background jobs:
-
 ```
-Opus 5 (1M context) · fairchild/statline · statline · $0.42
-│                     │                    │          │
-│                     │                    │          └── Session cost
-│                     │                    └── Directory
-│                     └── Git branch
-└── Model
+statline (2) Opus 5 $7.24 18%
+│        │   │      │     └── context window used — yellow at 60, red at 80
+│        │   │      └── session cost
+│        │   └── model
+│        └── uncommitted files
+└── worktree — plus the branch, when the worktree name doesn't imply it
 ```
 
-This replaced a custom 224-line renderer (`skills/status-line-live/`) that added
-a token-breakdown formula, a background token cache, and a session-title lookup.
-It forked a subshell every five seconds to `jq -s` the whole session JSONL, and
-inside the WorkSpaces app its output was discarded anyway. It was also the only
-writer of `~/.claude/session-titles/<project>/<id>.tokens`, so that file is no
-longer produced — session titles themselves still come from the `Stop` hook.
+Everything but the branch and the dirty count arrives on stdin: the payload
+carries `context_window.used_percentage`, `workspace.git_worktree`, and `cost`
+directly. One `jq` call, at most two `git` calls, no cache, no background job,
+and no read of the session transcript.
+
+The branch stays hidden while it agrees with the worktree name, so a surprising
+checkout is the thing that shows up:
+
+```
+statline (2) Opus 5 $7.24 18%                 on fairchild/statline
+dotclaude fairchild/statline (2) Opus 5 ...   same branch, different worktree
+```
+
+This replaced a 224-line renderer (`skills/status-line-live/`) whose token
+formula, background cache, and session-title lookup were reimplementing fields
+the harness now supplies — and which forked a subshell every five seconds to
+`jq -s` the whole session JSONL. It was also the only writer of
+`~/.claude/session-titles/<project>/<id>.tokens`, so that file is no longer
+produced; session titles themselves still come from the `Stop` hook.
+
+The payload carries more than this line uses — `rate_limits.five_hour` and
+`.seven_day` percentages, `session_name`, `effort.level`, `exceeds_200k_tokens`.
+Capture one with a probe at the fallback path to see the current shape.
 
 ---
 
