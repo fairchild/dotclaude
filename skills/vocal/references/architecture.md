@@ -79,7 +79,9 @@ Main Session                     Voice Listener Agent (background)
 
 ## Tier 3: Voice Bridge (standalone process)
 
-Wraps Claude CLI in `--print --input-format stream-json --output-format stream-json` mode for continuous voice conversation. See `backlog/voice-bridge-plan.md` for full design.
+Wraps Claude CLI in `--print --input-format stream-json --output-format stream-json` mode for continuous voice conversation. The referenced `backlog/voice-bridge-plan.md` was never written.
+
+**Superseded.** [duplex-milestone.md](duplex-milestone.md) delivers what this tier was for — endpointing, echo cancellation, and barge-in — without leaving the agent model, by moving the fast loop into the scripts rather than wrapping the CLI. Read that instead.
 
 ```
 voice_bridge.py
