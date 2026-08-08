@@ -29,7 +29,7 @@ WorkSpaces `event-forwarder.sh` on those events.
 
 Tracked `settings.json` should not contain machine- or session-specific paths
 such as `.codex/worktrees/<id>/...`. Use stable repo/runtime commands in source,
-for example `~/.claude/skills/status-line-live/scripts/statusline.sh`, or
+for example `~/.claude/skills/<skill>/scripts/<script>.sh`, or
 machine-agnostic installer commands. WorkSpaces hook and status-line commands use
 the canonical unquoted `~/.local/share/workspaces/hook-forwarders/` paths from
 the WorkSpaces installer so source and runtime settings stay byte-identical.

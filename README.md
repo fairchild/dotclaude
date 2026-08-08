@@ -18,7 +18,6 @@ This config is personal — `CLAUDE.md` has my name, hooks call my Chronicle scr
 
 **Copy directly** (self-contained):
 - `settings.json` permissions pattern (allow/ask/deny tiers)
-- `skills/status-line-live/` (needs jq + bc)
 - Individual commands or skills (each is a standalone directory)
 
 **Customize first:**
@@ -95,7 +94,6 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 | excalidraw-diagrams | Creating diagrams via Excalidraw |
 | fork | Fork session to new worktree or local session |
 | dotclaude-config | Editing Claude Code configuration |
-| status-line-live | Customizing or troubleshooting the live status line |
 | update-dependencies | Dependency analysis and updates |
 | youtube-content | Extracting/analyzing YouTube video content |
 
@@ -182,33 +180,33 @@ Defined in `settings.json`:
 
 ## Status Line
 
-Custom status line: `project branch (uncommitted) Model $cost +add -del (tokens) [ratio]`
+`settings.json` points `statusLine.command` at the WorkSpaces forwarder, which
+picks a renderer based on whether a host socket is live:
 
 ```
-myproject fix/branch (3) Opus 4.6 $0.66 +28 -5 (70+210K+1.6M):7K [1:267]
-│           │          │   │       │     │    │                   │
-│           │          │   │       │     │    │                   └── Input:Output ratio
-│           │          │   │       │     │    └── Token breakdown
-│           │          │   │       │     └── Lines changed
-│           │          │   │       └── Session cost
-│           │          │   └── Model
-│           │          └── Uncommitted files
-│           └── Git branch
-└── Project name
+statusLine.command → ~/.local/share/workspaces/hook-forwarders/statusline.sh
+                       ├── socket live  → POST to the host; the app draws the footer
+                       └── socket unset → the forwarder's built-in renderer
 ```
 
-### Token Formula: `(in+cw+cr):out`
+The built-in renderer is bash + sed + git — no `jq`, no `bc`, no cache, no
+background jobs:
 
-| Symbol | Meaning | Price (Opus) |
-|--------|---------|--------------|
-| `in` | Uncached input | $5.00/MTok |
-| `cw` | Cache write | $6.25/MTok |
-| `cr` | Cache read | $0.50/MTok |
-| `out` | Output | $25.00/MTok |
+```
+Opus 5 (1M context) · fairchild/statline · statline · $0.42
+│                     │                    │          │
+│                     │                    │          └── Session cost
+│                     │                    └── Directory
+│                     └── Git branch
+└── Model
+```
 
-Cache reads are cumulative across turns (not context size).
-
-For implementation details, see [skills/status-line-live/docs/architecture.md](skills/status-line-live/docs/architecture.md).
+This replaced a custom 224-line renderer (`skills/status-line-live/`) that added
+a token-breakdown formula, a background token cache, and a session-title lookup.
+It forked a subshell every five seconds to `jq -s` the whole session JSONL, and
+inside the WorkSpaces app its output was discarded anyway. It was also the only
+writer of `~/.claude/session-titles/<project>/<id>.tokens`, so that file is no
+longer produced — session titles themselves still come from the `Stop` hook.
 
 ---
 
@@ -217,7 +215,6 @@ For implementation details, see [skills/status-line-live/docs/architecture.md](s
 | Doc | Topic |
 |-----|-------|
 | [docs/development.md](docs/development.md) | Worktree architecture, auto-sync, skill development |
-| [skills/status-line-live/docs/architecture.md](skills/status-line-live/docs/architecture.md) | Status line implementation |
 | [skills/chronicle/docs/chronicle-design.md](skills/chronicle/docs/chronicle-design.md) | Chronicle memory system design |
 
 ---
