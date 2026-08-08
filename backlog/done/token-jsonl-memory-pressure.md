@@ -38,3 +38,7 @@ Not urgent — only matters for very long sessions (hundreds of turns). Worth do
 
 - `~/.claude/skills/status-line-live/scripts/get-session-tokens.sh` — file to modify
 - Discovered during review of PR adding token cache enrichment
+
+---
+- 2026-08-08T22:44:44Z advanced to=doing claimer=fairchild@blue branch=fairchild/statline
+- 2026-08-08T22:44:48Z cancelled | get-session-tokens.sh was deleted — the custom status line it belonged to is replaced by the WorkSpaces forwarder's built-in renderer, which parses no JSONL

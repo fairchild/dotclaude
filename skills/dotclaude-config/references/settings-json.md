@@ -236,7 +236,7 @@ Custom status line displayed during sessions.
 ```json
 "statusLine": {
   "type": "command",
-  "command": "~/.claude/skills/status-line-live/scripts/statusline.sh"
+  "command": "~/.claude/scripts/statusline.sh"
 }
 ```
 

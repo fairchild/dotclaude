@@ -18,7 +18,6 @@ This config is personal — `CLAUDE.md` has my name, hooks call my Chronicle scr
 
 **Copy directly** (self-contained):
 - `settings.json` permissions pattern (allow/ask/deny tiers)
-- `skills/status-line-live/` (needs jq + bc)
 - Individual commands or skills (each is a standalone directory)
 
 **Customize first:**
@@ -28,7 +27,7 @@ This config is personal — `CLAUDE.md` has my name, hooks call my Chronicle scr
 
 **Prerequisites for the full config:**
 - `bun` — hooks and scripts are TypeScript
-- `jq`, `bc` — statusline calculations
+- `jq` — statusline payload parsing
 - `git` — core operations
 - Optional: `uv` (Python), `mise` (runtimes), Perplexity API key
 
@@ -41,7 +40,7 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 ├── CLAUDE.md          # Personal context (name, preferences, tool choices)
 ├── settings.json      # Permissions, hooks, model selection
 ├── .mcp.json          # MCP server configs
-├── commands/          # Slash commands (/bootstrap, /status_line)
+├── commands/          # Slash commands (/bootstrap, /code-review)
 ├── skills/            # Extended capabilities with references
 ├── agents/            # Specialized autonomous agents
 ├── hooks/             # Session lifecycle scripts
@@ -71,7 +70,6 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 | `/retro` | Review session trajectory and update todos |
 | `/chronicle wrapup` | Deliberate session close-out — curator + conditional backlog update |
 | `/chronicle recap` | Multi-session narrative recap for a project |
-| `/status_line` | Explain current session metrics |
 | `/update-dependencies` | Intelligent dependency updates with batching |
 | `/code-review` | Review recent work against plan and standards |
 | `/codex-review` | Code review via non-Claude models |
@@ -95,7 +93,6 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 | excalidraw-diagrams | Creating diagrams via Excalidraw |
 | fork | Fork session to new worktree or local session |
 | dotclaude-config | Editing Claude Code configuration |
-| status-line-live | Customizing or troubleshooting the live status line |
 | update-dependencies | Dependency analysis and updates |
 | youtube-content | Extracting/analyzing YouTube video content |
 
@@ -182,33 +179,49 @@ Defined in `settings.json`:
 
 ## Status Line
 
-Custom status line: `project branch (uncommitted) Model $cost +add -del (tokens) [ratio]`
+`statusLine.command` points at the WorkSpaces forwarder, which chooses a
+renderer based on whether a host socket is live. `env` in `settings.json`
+redirects its fallback to `scripts/statusline.sh`:
 
 ```
-myproject fix/branch (3) Opus 4.6 $0.66 +28 -5 (70+210K+1.6M):7K [1:267]
-│           │          │   │       │     │    │                   │
-│           │          │   │       │     │    │                   └── Input:Output ratio
-│           │          │   │       │     │    └── Token breakdown
-│           │          │   │       │     └── Lines changed
-│           │          │   │       └── Session cost
-│           │          │   └── Model
-│           │          └── Uncommitted files
-│           └── Git branch
-└── Project name
+statusLine.command → ~/.local/share/workspaces/hook-forwarders/statusline.sh
+                       ├── socket live  → POST to the host; the app draws the footer
+                       └── socket unset → $WORKSPACES_STATUSLINE_FALLBACK
+                                            → ~/.claude/scripts/statusline.sh
 ```
 
-### Token Formula: `(in+cw+cr):out`
+```
+statline (2) Opus 5 $7.24 18%
+│        │   │      │     └── context window used — yellow at 60, red at 80
+│        │   │      └── session cost
+│        │   └── model
+│        └── uncommitted files
+└── worktree — plus the branch, when the worktree name doesn't imply it
+```
 
-| Symbol | Meaning | Price (Opus) |
-|--------|---------|--------------|
-| `in` | Uncached input | $5.00/MTok |
-| `cw` | Cache write | $6.25/MTok |
-| `cr` | Cache read | $0.50/MTok |
-| `out` | Output | $25.00/MTok |
+Everything but the branch and the dirty count arrives on stdin: the payload
+carries `context_window.used_percentage`, `workspace.git_worktree`, and `cost`
+directly. One `jq` call, at most two `git` calls, no cache, no background job,
+and no read of the session transcript.
 
-Cache reads are cumulative across turns (not context size).
+The branch stays hidden while it agrees with the worktree name, so a surprising
+checkout is the thing that shows up:
 
-For implementation details, see [skills/status-line-live/docs/architecture.md](skills/status-line-live/docs/architecture.md).
+```
+statline (2) Opus 5 $7.24 18%                 on fairchild/statline
+dotclaude fairchild/statline (2) Opus 5 ...   same branch, different worktree
+```
+
+This replaced a 224-line renderer (`skills/status-line-live/`) whose token
+formula, background cache, and session-title lookup were reimplementing fields
+the harness now supplies — and which forked a subshell every five seconds to
+`jq -s` the whole session JSONL. It was also the only writer of
+`~/.claude/session-titles/<project>/<id>.tokens`, so that file is no longer
+produced; session titles themselves still come from the `Stop` hook.
+
+The payload carries more than this line uses — `rate_limits.five_hour` and
+`.seven_day` percentages, `session_name`, `effort.level`, `exceeds_200k_tokens`.
+Capture one with a probe at the fallback path to see the current shape.
 
 ---
 
@@ -217,7 +230,6 @@ For implementation details, see [skills/status-line-live/docs/architecture.md](s
 | Doc | Topic |
 |-----|-------|
 | [docs/development.md](docs/development.md) | Worktree architecture, auto-sync, skill development |
-| [skills/status-line-live/docs/architecture.md](skills/status-line-live/docs/architecture.md) | Status line implementation |
 | [skills/chronicle/docs/chronicle-design.md](skills/chronicle/docs/chronicle-design.md) | Chronicle memory system design |
 
 ---
