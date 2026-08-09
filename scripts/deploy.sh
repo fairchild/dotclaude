@@ -63,11 +63,12 @@ if [ "$local_main" = "$remote_main" ]; then
   exit 0
 fi
 
-if ! git -C "$RUNTIME" merge --ff-only origin/main --quiet 2>/dev/null; then
+if ! merge_err=$(git -C "$RUNTIME" merge --ff-only origin/main --quiet 2>&1); then
   echo "⚠ ~/.claude could not fast-forward to origin/main — auto-sync skipped"
-  echo "  Inspect: git -C ~/.claude status && git -C ~/.claude log --oneline origin/main..HEAD"
-  echo "  Usually settings.json drifted at runtime. To sync: git -C ~/.claude checkout settings.json && ~/.claude/scripts/deploy.sh"
-  echo "  To keep the drift, codify it via a PR from ~/code/dotclaude (main is protected; direct push is rejected)."
+  # git already names the exact blocking path; a guess here sends people the wrong way.
+  [ -n "$merge_err" ] && printf '%s\n' "$merge_err" | sed 's/^/  /'
+  echo "  Resolve the above, then: ~/.claude/scripts/deploy.sh"
+  echo "  Runtime drift worth keeping gets codified via a PR from ~/code/dotclaude."
   exit 0
 fi
 
