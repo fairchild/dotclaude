@@ -275,6 +275,15 @@
             "async": true
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -r \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -x \"$HOME/.orca/agent-hooks/claude-hook.sh\" ]; then /bin/sh \"$HOME/.orca/agent-hooks/claude-hook.sh\"; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "Stop": [
@@ -418,7 +427,8 @@
     "code-simplifier@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
     "swift-lsp@claude-plugins-official": true,
-    "warp@claude-code-warp": true
+    "warp@claude-code-warp": true,
+    "mattpocock-skills@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "claude-code-warp": {
