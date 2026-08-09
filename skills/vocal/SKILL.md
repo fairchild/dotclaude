@@ -273,4 +273,5 @@ Fixture files for loop validation:
 ## References
 
 - **Architecture & research**: See [references/architecture.md](references/architecture.md) — three-tier design, ElevenLabs API details, Claude Code background communication research, CLI programmatic modes
-- **Voice bridge backlog**: See `backlog/voice-bridge-plan.md` — standalone process for continuous voice conversation with self-eval loop
+- **Duplex milestone**: See [references/duplex-milestone.md](references/duplex-milestone.md) — the six-task arc that takes this loop from fixed-window ping-pong to something you can talk over, plus the WebRTC AEC3 over Apple VPIO decision. Supersedes Tier 3 `voice_bridge.py` in `architecture.md`
+- **Task specs**: One per arc task, added as dependencies land. Live now: [references/duplex-v1-endpointing.md](references/duplex-v1-endpointing.md) — VAD endpointing, independently shippable
