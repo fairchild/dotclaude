@@ -74,10 +74,12 @@ apple-ui-designer = true
 diagnose = true
 find-skills = true
 firecrawl = true
-firecrawl-monitor = true
-firecrawl-parse = true
-firecrawl-scrape = true
-firecrawl-search = true
+# The firecrawl bundle only ever installed `firecrawl` and `firecrawl-agent`;
+# these four have no source in ~/.agents/skills to link against.
+firecrawl-monitor = false
+firecrawl-parse = false
+firecrawl-scrape = false
+firecrawl-search = false
 fun-brainstorming = true
 grill-me = true
 grill-with-docs = true

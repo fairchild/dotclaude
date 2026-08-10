@@ -86,7 +86,8 @@ Test behavior over implementation details
 
 ## Safety
 
-- `~/.claude` must always be a standalone git clone on `main`. Never symlink, move, or replace it. Worktrees go in `~/.worktrees/`, never at `~/.claude`.
+- `~/.claude` must always be a standalone git clone on `main`. Never symlink, move, or replace it, and never make it a worktree.
+- `~/.worktrees/` is the preferred home for worktrees and the `git-worktree` skill's default — worktrees put there are the easiest to find again. Tools that manage their own (Conductor, Orca, Codex) keep their own roots; location is a preference, not a constraint.
 
 ## References
 

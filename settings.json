@@ -107,7 +107,6 @@
     ],
     "defaultMode": "default"
   },
-  "model": "opus[1m]",
   "enableAllProjectMcpServers": true,
   "hooks": {
     "Notification": [
