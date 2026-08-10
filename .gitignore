@@ -40,8 +40,7 @@ title-feedback/
 # Local scheduler and daemon runtime
 .last-cleanup
 .last-update-result.json
-daemon.log
-daemon/
+daemon*
 jobs/
 scheduled-tasks/
 
@@ -145,6 +144,8 @@ skills/code-council
 skills/personal-writing-style
 skills/orca-cli
 skills/orchestration
+skills/computer-use
+skills/macos-agent-pressure
 # Ecosystem skills are managed in the sync-dotagents block at the bottom of this file.
 
 # Local-only skills (kept off the public repo by choice)
@@ -163,10 +164,6 @@ skills/apple-ui-designer
 skills/diagnose
 skills/find-skills
 skills/firecrawl
-skills/firecrawl-monitor
-skills/firecrawl-parse
-skills/firecrawl-scrape
-skills/firecrawl-search
 skills/fun-brainstorming
 skills/grill-me
 skills/grill-with-docs
