@@ -5,7 +5,8 @@
 """Audit a repo's git worktrees and local branches for tidyup: classify each as
 KEEP, SAFE (provably landed in main), DIRTY_MERGED (landed, but has uncommitted
 files), or UNKNOWN. Merged-PR metadata is the ground truth because squash merges
-defeat ancestry checks. Read-only; --plan emits a reviewable deletion script."""
+defeat ancestry checks. Read-only apart from fetching the default branch;
+--plan emits a reviewable deletion script but never runs it."""
 
 from __future__ import annotations
 
@@ -163,7 +164,7 @@ def main() -> int:
             return "--keep"
         return None
 
-    worktrees, kept_branches = [], set()
+    worktrees, checked_out = [], set()
     for e in entries:
         path, branch = e["path"], e["branch"]
         assert path
@@ -176,13 +177,17 @@ def main() -> int:
             merged_by_name=merged_by_name, merged_by_oid=merged_by_oid,
         )
         worktrees.append(item)
-        if item.cls == "KEEP" and branch:
-            kept_branches.add(branch)
+        if branch:
+            checked_out.add(branch)
 
+    # A branch checked out anywhere is already classified as that worktree's item,
+    # with its real dirty count. Re-listing it here would report path=None dirty=0 —
+    # laundering a DIRTY_MERGED worktree into a SAFE branch and emitting a
+    # `branch -D` the worktree's own existence would reject.
     branches = []
     for line in git(primary, "for-each-ref", "--format=%(refname:short) %(objectname)", "refs/heads/").splitlines():
         br, oid = line.rsplit(" ", 1)
-        if br in kept_branches:
+        if br in checked_out:
             continue
         branches.append(
             classify(
@@ -207,6 +212,12 @@ def main() -> int:
         loc = i.path or "(branch only)"
         extra = i.keep_reason or (f"PR #{i.merged_pr}" if i.merged_pr else i.tier)
         print(f"{i.cls:13} dirty={i.dirty:<3} last={i.last_commit or '-':10} {i.name}  {loc}  [{extra}]")
+
+    free_safe = [b for b in branches if b.cls == "SAFE"]
+    if free_safe:
+        print(f"\ndeletable now — landed, and no worktree holds them ({len(free_safe)}):")
+        for b in free_safe:
+            print(f"  {b.name}  [{f'PR #{b.merged_pr}' if b.merged_pr else b.tier}]")
 
     if args.json:
         args.json.write_text(json.dumps(

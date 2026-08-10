@@ -32,6 +32,6 @@ Classifies every worktree and local branch as KEEP (primary, current session, op
 ## Guardrails
 
 - Never delete an UNKNOWN without the user naming it or approving its tier explicitly.
-- Branch deletion follows worktree removal, never precedes it (`branch -D` fails on checked-out branches — that failure is a safety net, not an obstacle).
+- Branch deletion follows worktree removal, never precedes it. A branch held by a worktree the plan keeps is not listed for deletion at all, so `branch -D` failing on a checked-out branch is a backstop for the unexpected rather than a routine line in the log — a plan whose correctness depends on expected failures hides the real ones.
 - Deleted branch tips stay reflog-recoverable for ~90 days; deleted dirty files do not — hence preserve-then-delete.
 - A primary checkout sitting on a non-default branch with uncommitted files is usually a half-finished automation run — surface it, don't silently absorb it.
