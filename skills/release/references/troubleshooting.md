@@ -186,19 +186,48 @@ git worktree remove ~/.worktrees/<repo>/release-<tag> --force
 
 ## CI Issues
 
-### CI failing on default branch
+### CI failing on the commit being released
 
 Fix the CI issue before releasing, or use `--skip-ci` if you're confident the release is safe.
 
-```bash
-# Check recent CI runs
-gh run list --limit 5
+The gate looks at `push`-event runs for the head SHA of the target branch, so
+`gh run list` (which shows every workflow on the branch) can look greener than
+the gate does. To see what the gate sees:
 
-# View specific run
+```bash
+sha=$(git rev-parse origin/main)
+
+# The runs that actually gate that commit
+gh api "repos/{owner}/{repo}/actions/runs?head_sha=$sha&per_page=100" \
+  --jq '.workflow_runs[] | select(.event=="push") | [.name,.status,.conclusion] | @tsv'
+
+# View a specific run
 gh run view <run-id>
 
 # Release anyway (use with caution)
 bun release.ts --skip-ci
+```
+
+### CI reported as `none`
+
+No `push`-event workflow ran for that commit. That is not a pass — the commit
+is unverified. Either no workflow is configured to run on push, every one of
+them was filtered out by path rules, or the runs were deleted. Confirm with the
+query above before reaching for `--skip-ci`.
+
+### The skill refuses because the repo owns its releases
+
+Not a fault. The repo has a `RELEASING.md`, release helper scripts, or a
+workflow that triggers on tag push, so releasing from here would run a second
+publisher against the same tag. Follow the repo's runbook. There is
+deliberately no override.
+
+If the detection is wrong — say a `RELEASING.md` that documents using this very
+skill — the release is still two commands:
+
+```bash
+git tag vX.Y.Z && git push origin vX.Y.Z
+gh release create vX.Y.Z --generate-notes
 ```
 
 ### CI pending for too long
