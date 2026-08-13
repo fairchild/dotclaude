@@ -34,6 +34,7 @@ interface AnalysisResult {
     branch: string;
     target: string;
     repo: string;
+    headSha: string;
   };
   lastTag: string | null;
   commits: Array<{
@@ -43,9 +44,10 @@ interface AnalysisResult {
     description: string;
     breaking: boolean;
   }>;
-  suggestedVersion: string;
+  suggestedVersion: string | null;
   changelog: string;
-  ciStatus: "success" | "failure" | "pending" | "unknown";
+  ciStatus: "success" | "failure" | "pending" | "none";
+  ownership: Array<{ scope: "publish" | "commit"; detail: string }>;
   errors: string[];
 }
 
@@ -188,25 +190,42 @@ async function main() {
   const analysis: AnalysisResult = JSON.parse(analysisJson);
 
   console.log(`  Branch: ${analysis.context.branch}${analysis.context.worktree ? " (worktree)" : ""}`);
-  console.log(`  Target: origin/${analysis.context.target}`);
+  console.log(`  Target: origin/${analysis.context.target} @ ${analysis.context.headSha.slice(0, 7)}`);
   console.log(`  Last tag: ${analysis.lastTag || "(none)"}`);
   console.log(`  Commits: ${analysis.commits.length}`);
   console.log(`  CI: ${analysis.ciStatus}`);
   console.log();
 
-  // 2. Check CI status
-  if (!options.skipCi && analysis.ciStatus === "failure") {
-    console.error("❌ CI is failing on default branch. Fix CI first or use --skip-ci");
+  // 2. Defer to the repo's own release process if it has one
+  const ownsPublish = analysis.ownership.filter((s) => s.scope === "publish");
+  if (ownsPublish.length > 0) {
+    console.error("🛑 This repo already owns its release process:\n");
+    for (const s of ownsPublish) console.error(`   • ${s.detail}`);
+    console.error(
+      "\n   Tagging or publishing from here would compete with it - a second\n" +
+      "   publisher for one tag, or a tag its own checks would reject.\n" +
+      "   Follow the repo's runbook instead.\n"
+    );
     process.exit(1);
   }
 
-  if (!options.skipCi && analysis.ciStatus === "pending") {
-    console.error("⏳ CI is still running. Wait for completion or use --skip-ci");
+  // 3. Check CI on the exact commit being released
+  if (!options.skipCi && analysis.ciStatus !== "success") {
+    const reason = {
+      failure: "CI is failing on the commit being released.",
+      pending: "CI is still running on the commit being released.",
+      none: "No gating workflow run was found for the commit being released.",
+    }[analysis.ciStatus];
+    console.error(`❌ ${reason} Fix it first, or use --skip-ci to release anyway.`);
     process.exit(1);
   }
 
-  // 3. Determine version
+  // 4. Determine version
   let version = options.version || analysis.suggestedVersion;
+  if (!version) {
+    console.error("❌ No version to release. Pass --version vX.Y.Z.");
+    process.exit(1);
+  }
   if (options.prerelease) {
     version = applyPrerelease(version, options.prerelease, analysis.lastTag);
   }
@@ -214,22 +233,37 @@ async function main() {
   console.log(`Version: ${version}`);
   console.log();
 
-  // 4. Show changelog preview
+  // 5. Show changelog preview
   console.log("Changelog:");
   console.log(analysis.changelog.split("\n").map((l) => `  ${l}`).join("\n"));
   console.log();
 
-  // 5. Dry run check
+  const target = options.currentBranch
+    ? analysis.context.branch
+    : analysis.context.target;
+
+  // 6. A protected branch cannot take the changelog commit directly. The
+  // rules were read for the default branch, so they bind whenever that is
+  // what we would push to - including `--current-branch` while standing on it.
+  const ownsCommit = analysis.ownership.filter((s) => s.scope === "commit");
+  if (ownsCommit.length > 0 && !options.noChangelog && target === analysis.context.target) {
+    console.error("🛑 The changelog commit cannot be pushed to the target branch:\n");
+    for (const s of ownsCommit) console.error(`   • ${s.detail}`);
+    console.error(
+      "\n   Re-run with --no-changelog to tag and publish without writing to\n" +
+      "   the branch, or land the changelog through a pull request first.\n"
+    );
+    process.exit(1);
+  }
+
+  // 7. Dry run check
   if (options.dryRun) {
     console.log("🔍 Dry run complete. No changes made.\n");
     return;
   }
 
-  // 6. Find or create release directory
+  // 8. Find or create release directory
   console.log("Preparing release environment...");
-  const target = options.currentBranch
-    ? analysis.context.branch
-    : analysis.context.target;
 
   let releaseDir: string;
   let cleanupNeeded = false;
@@ -249,7 +283,7 @@ async function main() {
   }
 
   try {
-    // 7. Update CHANGELOG.md (unless --no-changelog)
+    // 9. Update CHANGELOG.md (unless --no-changelog)
     if (!options.noChangelog) {
       console.log("\nUpdating CHANGELOG.md...");
 
@@ -269,7 +303,7 @@ async function main() {
       await exec(`git -C "${releaseDir}" add CHANGELOG.md`);
     }
 
-    // 8. Commit and tag
+    // 10. Commit and tag
     console.log("Creating release commit and tag...");
     if (!options.noChangelog) {
       await exec(
@@ -280,11 +314,11 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"`
     }
     await exec(`git -C "${releaseDir}" tag "${version}"`);
 
-    // 9. Push
+    // 11. Push
     console.log("Pushing to remote...");
     await exec(`git -C "${releaseDir}" push origin HEAD:${target} --tags`);
 
-    // 10. Create GitHub release
+    // 12. Create GitHub release
     console.log("Creating GitHub release...");
     // Write notes to temp file to avoid shell escaping issues
     const notesFile = join(releaseDir, ".release-notes.tmp");
@@ -305,7 +339,7 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"`
     console.error("\nSee references/troubleshooting.md for recovery steps.\n");
     process.exit(1);
   } finally {
-    // 11. Cleanup ephemeral worktree
+    // 13. Cleanup ephemeral worktree
     if (cleanupNeeded) {
       console.log("Cleaning up ephemeral worktree...");
       try {
