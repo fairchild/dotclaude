@@ -10,6 +10,37 @@
       "description": "Environment variables to set",
       "additionalProperties": { "type": "string" }
     },
+    "autoMode": {
+      "type": "object",
+      "description": "Auto mode classifier customization",
+      "properties": {
+        "allow": {
+          "type": "array",
+          "description": "Classifier allow rules; \"$defaults\" inherits the built-ins at that position",
+          "items": { "type": "string" }
+        },
+        "soft_deny": {
+          "type": "array",
+          "description": "Destructive actions that user intent can clear",
+          "items": { "type": "string" }
+        },
+        "hard_deny": {
+          "type": "array",
+          "description": "Security boundaries that user intent does not clear",
+          "items": { "type": "string" }
+        },
+        "environment": {
+          "type": "array",
+          "description": "Classifier environment entries",
+          "items": { "type": "string" }
+        },
+        "classifyAllShell": {
+          "type": "boolean",
+          "description": "Suspend every Bash allow rule while auto mode is active"
+        }
+      },
+      "additionalProperties": false
+    },
     "permissions": {
       "type": "object",
       "description": "Tool and command access permissions",
@@ -31,8 +62,15 @@
         },
         "defaultMode": {
           "type": "string",
-          "enum": ["default", "ask", "deny"],
-          "description": "Default permission mode"
+          "enum": [
+            "acceptEdits",
+            "auto",
+            "bypassPermissions",
+            "default",
+            "dontAsk",
+            "plan"
+          ],
+          "description": "Default permission mode when Claude Code needs access"
         }
       },
       "additionalProperties": false
