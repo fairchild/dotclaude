@@ -35,24 +35,7 @@ Detect package manager from lockfile: `bun.lock` → bun, `pnpm-lock.yaml` → p
 - **Use cmux-orchestrator when available** for multi-pane or multi-session orchestration workflows. Confirm the local skill/package shape before depending on it.
 - **Prefer project-scripts** when a repo supports them: use standardized `scripts/` entrypoints for setup, run, stop, and archive, with `mise` as the preferred orchestrator when present.
 - **Memory is available**. Use `chronicle`, `team-memory`, or `persona-memory` when continuity across sessions, recall, or durable context would help.
-
-### Fable sessions (my default handoff shape)
-
-"Hand off to a **fable session**" / "**fable team session**" / "**fable workflow
-session**" means: a fresh Claude terminal in the target worktree, launched
-`claude --model claude-fable-5` (bare `claude` opens on that terminal's default
-model — it came up Opus once), given a brief that points at the plan. In it,
-Fable is the **orchestrator**: it holds the long arc, coordinates, and checks
-quality and consistency; it does *not* do most of the implementation itself, so
-its context stays under ~200k where its judgment holds. It delegates the work —
-*team* = directly via `Agent`, *workflow* = via the `Workflow` tool, unspecified
-= its call — with these model defaults per task: **Opus** by default, **Sonnet**
-when the task is simple and fully specified, **Fable** when it needs more nuance
-and care. It verifies every delegated result itself (run the checks, look at the
-rendered output) before accepting it. The brief lives at
-`docs/plans/<name>.handoff.md`, committed before launch; done means a commit
-plus a demonstrated run (an e2e recording where there's a UI), not a claim.
-Recipe: the `orca-cli` skill, "Fable session handoff".
+- **Hand long-arc work to a fable session**: Fable orchestrates and verifies coherent quality while delegating the implementation — Opus by default, Sonnet when the task is simple and fully specified, Fable when it needs nuance. Contract: the `fable-session` skill.
 
 ## Memory noticing
 
