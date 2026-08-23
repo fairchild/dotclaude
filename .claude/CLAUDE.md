@@ -24,20 +24,28 @@ This repo is public on GitHub but serves as Michael's actual working config.
 
 All skills are Apache 2.0 — consistent with Anthropic skills. Attribution is handled per-skill in each skill's README.md.
 
-## Skill Status Convention
+## Skill Tiers
 
-Skills use `metadata.status` in SKILL.md frontmatter.
+Every first-party skill is in one tier, declared in `SKILL.md` frontmatter. The README tables are generated from this (`mise run catalog`); CI fails when they drift.
 
-| Frontmatter | Meaning |
-|-------------|---------|
-| (none) | Production-ready, auto-invoked |
-| `metadata.status: experimental` | Usable but incomplete; include `metadata.experimental_reason` |
+| Tier | Declared by | Meaning |
+|------|-------------|---------|
+| stable | no `metadata.status` | Has a skill eval, a deterministic eval, or sustained real use (`analyze-usage` shows invocations) |
+| experimental | `metadata.status: experimental` + `metadata.experimental_reason` | Usable; the reason states what keeps it from stable |
+| local | listed in `skills/.gitignore` | Lives only in `~/.claude`; personal or not ready to publish |
+
+Promotion is removing `metadata.status` once the gate is met. Demotion is adding it back with a reason. A skill nobody has invoked in months is a candidate for deletion, not for experimental — git keeps it.
+
+`disable-model-invocation: true` is orthogonal: it says a skill runs only as `/name`, not how mature it is.
+
+Skills carried from another repo declare `origin:` (copied) or `inspired-by:` (reworked) and carry a `README.md` with credits; CI checks both.
 
 ## Conventions
 
-- New skills: `/skill-creator`
+- New skills: `/skill-building`
 - Commands: `commands/{name}.md`
 - Scripts: black-box, use `--help`
+- After editing any frontmatter: `mise run catalog`
 
 ## Testing
 

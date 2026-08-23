@@ -1,6 +1,7 @@
 ---
 name: swiftui-expert
 description: Write, review, or improve SwiftUI code. Use for SwiftUI features/refactors, state management, view composition, performance, concurrency, modern Apple APIs, or native UI quality.
+license: Apache-2.0
 ---
 
 # SwiftUI Expert

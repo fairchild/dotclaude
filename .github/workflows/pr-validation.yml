@@ -43,6 +43,9 @@ jobs:
         run: python .github/scripts/validate-config.py
         continue-on-error: true
 
+      - name: Verify README catalog matches frontmatter
+        run: python scripts/catalog.py readme --check
+
       - name: Verify invalid settings fixtures are rejected
         run: |
           for fixture in .github/fixtures/*.invalid.json; do

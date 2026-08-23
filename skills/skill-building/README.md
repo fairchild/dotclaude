@@ -26,5 +26,5 @@ Run `scripts/quick_validate.py <skill-dir>` after writing or editing a SKILL.md.
 
 Built on work from:
 
-- **[anthropic-agent-skills](https://github.com/anthropics/anthropic-agent-skills)** (Anthropic, Apache-2.0) — Original skill-creator framework, anatomy, progressive disclosure patterns, init/package scripts
+- **[anthropics/skills](https://github.com/anthropics/skills)** (Anthropic, Apache-2.0) — Original skill-creator framework, anatomy, progressive disclosure patterns, init/package scripts
 - **[superpowers](https://github.com/obra/superpowers)** (Jesse Vincent, MIT) — Defensive writing patterns, rationalization tables, evidence-before-claims, red-green-refactor for skills, testing methodology

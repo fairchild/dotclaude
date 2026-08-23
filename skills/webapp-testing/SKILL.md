@@ -2,7 +2,7 @@
 name: webapp-testing
 description: Interact with and test web applications using Playwright. Supports ad-hoc browser tasks (screenshots, form filling, deploy checks), Python and TypeScript E2E testing, visual debugging, and browser automation.
 license: Apache-2.0
-inspired-by: https://github.com/anthropics/anthropic-agent-skills
+inspired-by: https://github.com/anthropics/skills
 ---
 
 # Web Application Testing

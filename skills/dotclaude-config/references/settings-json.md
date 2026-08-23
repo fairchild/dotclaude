@@ -249,7 +249,7 @@ Script receives JSON:
     "current_dir": "/path/to/project"
   },
   "model": {
-    "display_name": "Opus 4.6"
+    "display_name": "Opus 5"
   },
   "session_id": "abc123",
   "cost": {
@@ -264,7 +264,7 @@ Script receives JSON:
 
 Script prints status line with ANSI colors. Example output:
 ```
-project-name main (3) Opus 4.6 $0.150 +50 -10 (5K+10K+50K):2K [1:32]
+project-name main (3) Opus 5 $0.150 +50 -10 (5K+10K+50K):2K [1:32]
 ```
 
 ## Model
@@ -276,7 +276,7 @@ Set the default model:
 ```
 
 Options:
-- `"opus"` - Claude Opus 4.6 (most capable)
+- `"opus"` - Claude Opus 5 (most capable)
 - `"sonnet"` - Claude Sonnet 4.5 (balanced)
 - `"haiku"` - Claude Haiku 4.5 (fast, lightweight)
 - Full model ID (e.g., `"claude-opus-4-6"`, `"claude-sonnet-4-5-20250929"`)

@@ -59,7 +59,7 @@ import { ToolLoopAgent, tool, stepCountIs } from 'ai';
 import { z } from 'zod';
 
 const myAgent = new ToolLoopAgent({
-  model: 'anthropic/claude-sonnet-4.5',
+  model: 'anthropic/claude-sonnet-5',
   instructions: 'You are a helpful assistant.', // Note: "instructions" not "system"
   tools: {
     search: tool({
@@ -117,7 +117,7 @@ const { messages } = useChat<MyAgentUIMessage>();
 import { stepCountIs, hasToolCall } from 'ai';
 
 const agent = new ToolLoopAgent({
-  model: 'anthropic/claude-sonnet-4.5',
+  model: 'anthropic/claude-sonnet-5',
   instructions: 'You are a helpful assistant.',
   tools: { /* ... */ },
   // Stop after 10 steps OR when answer tool is called
@@ -135,7 +135,7 @@ const hasAnswer: StopCondition<typeof tools> = ({ steps }) => {
 };
 
 const agent = new ToolLoopAgent({
-  model: 'anthropic/claude-sonnet-4.5',
+  model: 'anthropic/claude-sonnet-5',
   instructions: 'Always prefix your final answer with ANSWER:',
   stopWhen: [stepCountIs(20), hasAnswer],
 });
@@ -145,7 +145,7 @@ const agent = new ToolLoopAgent({
 
 ```typescript
 const agent = new ToolLoopAgent({
-  model: 'anthropic/claude-sonnet-4.5',
+  model: 'anthropic/claude-sonnet-5',
   instructions: 'You are a research assistant.',
   tools: { search, calculate, summarize },
   prepareStep: ({ stepNumber, steps }) => {
@@ -163,7 +163,7 @@ const agent = new ToolLoopAgent({
 
 ```typescript
 const agent = new ToolLoopAgent({
-  model: 'anthropic/claude-sonnet-4.5',
+  model: 'anthropic/claude-sonnet-5',
   instructions: 'You can modify files.',
   tools: {
     writeFile: tool({
@@ -185,7 +185,7 @@ import { generateText, tool, stepCountIs } from 'ai';
 import { z } from 'zod';
 
 const { toolCalls } = await generateText({
-  model: 'anthropic/claude-sonnet-4.5',
+  model: 'anthropic/claude-sonnet-5',
   tools: {
     calculate: tool({
       description: 'Evaluate math expressions',
@@ -218,14 +218,14 @@ import { generateText, streamText } from 'ai';
 
 // Non-interactive (automation, agents)
 const { text } = await generateText({
-  model: 'anthropic/claude-sonnet-4.5',
+  model: 'anthropic/claude-sonnet-5',
   system: 'You are a helpful assistant.',
   prompt: 'Explain quantum computing.',
 });
 
 // Interactive (chat, real-time)
 const stream = streamText({
-  model: 'anthropic/claude-sonnet-4.5',
+  model: 'anthropic/claude-sonnet-5',
   system: 'You are a helpful assistant.',
   messages: [{ role: 'user', content: 'Explain quantum computing.' }],
 });
@@ -240,7 +240,7 @@ for await (const chunk of stream.textStream) {
 ```typescript
 // In v6, you can combine tools and structured output in generateText
 const result = await generateText({
-  model: 'anthropic/claude-sonnet-4.5',
+  model: 'anthropic/claude-sonnet-5',
   tools: { /* your tools */ },
   output: z.object({
     summary: z.string(),

@@ -1,6 +1,7 @@
 ---
 name: signoz-log
 description: Send structured logs to SigNoz observability platform. Use when you need to record events, errors, or activity for monitoring. Triggers on log, observe, signoz, telemetry, record event.
+license: Apache-2.0
 ---
 
 # SigNoz Logging
