@@ -9,6 +9,11 @@
  *                          for human consumption, written to ~/.claude/chronicle/recaps/.
  *                          Used by /chronicle recap.
  *
+ * Providers: Anthropic primary, OpenRouter fallback when the Anthropic account
+ * is out of budget or otherwise refusing. Env: CHRONICLE_SUMMARIZE_PROVIDER
+ * (anthropic|openrouter) pins one, CHRONICLE_OPENROUTER_MODEL overrides the
+ * fallback model.
+ *
  * Usage:
  *   bun summarize.ts                                                # Daily structured summary (cron path)
  *   bun summarize.ts --weekly                                       # Weekly structured summary (cron path)
@@ -19,6 +24,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { loadAllBlocks, type ChronicleBlock } from "./queries.ts";
 import { getGlobalUsage, getRepoUsage, getToolBreakdown } from "./usage-queries.ts";
+import { loadEnvAssignments } from "./extract.ts";
 import { execFileSync } from "child_process";
 import {
   mkdirSync,
@@ -28,20 +34,30 @@ import {
   readdirSync,
 } from "fs";
 
-// Load ~/.claude/.env if present so ANTHROPIC_API_KEY resolves outside Claude Code.
-const envPath = `${process.env.HOME}/.claude/.env`;
-if (existsSync(envPath)) {
-  for (const line of readFileSync(envPath, "utf-8").split("\n")) {
-    const [key, ...rest] = line.split("=");
-    if (key?.trim() && !key.startsWith("#") && !process.env[key.trim()]) {
-      process.env[key.trim()] = rest.join("=").trim().replace(/^["']|["']$/g, "");
-    }
-  }
-}
+// launchd runs this with neither a login shell nor Claude Code's injected
+// credentials, so ANTHROPIC_API_KEY has to come off disk. Shared with extract.ts:
+// ~/.claude/.env, then ~/.env, then ANTHROPIC_API_KEY only from ~/.zprofile.
+// The same walk picks up OPENROUTER_API_KEY for the fallback provider.
+loadEnvAssignments();
 
 const SUMMARIES_DIR = `${process.env.HOME}/.claude/chronicle/summaries`;
 const RECAPS_DIR = `${process.env.HOME}/.claude/chronicle/recaps`;
 const PROJECTS_DIR = `${process.env.HOME}/.claude/projects`;
+
+const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
+
+// Gemini Flash reads a 1M-token context — comfortably above the largest
+// narrative prompt (blocks + git log + every memory file) — holds the
+// "return ONLY valid JSON" contract without fences, and costs about a
+// thousandth of Opus per run.
+const DEFAULT_OPENROUTER_MODEL = "google/gemini-3.7-flash";
+
+// On the OpenAI-compatible endpoint max_tokens is the ceiling for reasoning
+// AND content together, where Anthropic's caps content alone. Reasoning is
+// not optional on the default model, and left unbudgeted it eats the whole
+// allowance — truncating the JSON into an unparseable fragment. Callers pass
+// a content budget; this is the thinking room added on top of it.
+const OPENROUTER_REASONING_HEADROOM = 4096;
 
 export type SummaryFormat = "structured" | "narrative";
 
@@ -72,6 +88,119 @@ export interface GenerateSummaryResult {
   summary: HierarchicalSummary;
   /** Populated when format === "narrative". */
   markdown?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Providers
+//
+// Anthropic is primary. When the Anthropic account cannot serve the call at
+// all — spend cap, revoked key, sustained rate limit — OpenRouter takes the
+// request instead, so a billing ceiling on one vendor doesn't cost the day's
+// summaries. CHRONICLE_SUMMARIZE_PROVIDER=openrouter|anthropic pins one path.
+// ---------------------------------------------------------------------------
+
+interface Completion {
+  text: string;
+  /** The model that actually produced `text`, provider-qualified. */
+  generatedBy: string;
+}
+
+/**
+ * True for failures another provider can rescue: the account is out of budget,
+ * unauthenticated, or throttled. A malformed request or a 500 is not one of
+ * these — retrying it elsewhere would just burn a second call.
+ */
+export function isProviderExhausted(err: unknown): boolean {
+  const status = (err as { status?: number })?.status;
+  if (status === 401 || status === 402 || status === 403 || status === 429) return true;
+  if (status !== 400) return false;
+  const message = err instanceof Error ? err.message : String(err);
+  return /usage limit|credit balance|quota|insufficient/i.test(message);
+}
+
+async function completeViaAnthropic(
+  model: string,
+  prompt: string,
+  maxTokens: number
+): Promise<Completion> {
+  const client = new Anthropic();
+  const response = await client.messages.create({
+    model,
+    max_tokens: maxTokens,
+    messages: [{ role: "user", content: prompt }],
+  });
+  const first = response.content[0];
+  return { text: first?.type === "text" ? first.text : "", generatedBy: model };
+}
+
+async function completeViaOpenRouter(
+  model: string,
+  prompt: string,
+  maxTokens: number
+): Promise<Completion> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) {
+    throw new Error("OPENROUTER_API_KEY not found in ~/.claude/.env or ~/.env");
+  }
+
+  const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      "X-Title": "chronicle-summarize",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: maxTokens + OPENROUTER_REASONING_HEADROOM,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  const body = (await response.json().catch(() => null)) as {
+    error?: { message?: string; code?: number };
+    model?: string;
+    choices?: { message?: { content?: string }; finish_reason?: string }[];
+  } | null;
+
+  // OpenRouter reports upstream failures in the body, sometimes under HTTP 200.
+  if (!response.ok || body?.error) {
+    const err = new Error(
+      `OpenRouter ${model}: ${body?.error?.message ?? `HTTP ${response.status}`}`
+    );
+    (err as Error & { status?: number }).status = body?.error?.code ?? response.status;
+    throw err;
+  }
+
+  const choice = body?.choices?.[0];
+  // A truncated response still parses as a successful call, then degrades into
+  // an empty summary several layers up. Say so here, where the cause is legible.
+  if (choice?.finish_reason === "length") {
+    console.error(`[summarize] ${model} hit the token ceiling — output may be truncated`);
+  }
+
+  return {
+    text: choice?.message?.content ?? "",
+    generatedBy: `openrouter/${body?.model ?? model}`,
+  };
+}
+
+async function complete(model: string, prompt: string, maxTokens: number): Promise<Completion> {
+  const pinned = process.env.CHRONICLE_SUMMARIZE_PROVIDER?.trim().toLowerCase();
+  const openRouterModel = process.env.CHRONICLE_OPENROUTER_MODEL?.trim() || DEFAULT_OPENROUTER_MODEL;
+
+  if (pinned === "openrouter") return completeViaOpenRouter(openRouterModel, prompt, maxTokens);
+
+  try {
+    return await completeViaAnthropic(model, prompt, maxTokens);
+  } catch (err) {
+    if (pinned === "anthropic" || !isProviderExhausted(err) || !process.env.OPENROUTER_API_KEY) {
+      throw err;
+    }
+    const reason = err instanceof Error ? err.message : String(err);
+    console.error(`[summarize] anthropic unavailable → ${openRouterModel}: ${reason}`);
+    return completeViaOpenRouter(openRouterModel, prompt, maxTokens);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -403,16 +532,12 @@ export async function generateSummary(opts: GenerateSummaryOptions): Promise<Gen
     const memory = loadMemoryFiles(memoryDir);
     const prompt = buildNarrativePrompt(opts.repoName ?? "(global)", windowLabel, filtered, gitLog, memory);
 
-    const client = new Anthropic();
     let markdown: string;
+    let generatedBy = model;
     try {
-      const response = await client.messages.create({
-        model,
-        max_tokens: 2048,
-        messages: [{ role: "user", content: prompt }],
-      });
-      const text = response.content[0].type === "text" ? response.content[0].text : "";
-      const cleaned = stripOuterCodeFences(text);
+      const completion = await complete(model, prompt, 2048);
+      generatedBy = completion.generatedBy;
+      const cleaned = stripOuterCodeFences(completion.text);
       markdown = cleaned
         ? `# Recap: ${opts.repoName ?? "global"} (${windowLabel})\n\n${cleaned}\n`
         : renderNarrativeFallback(opts.repoName ?? "global", windowLabel, filtered, gitLog, memory, "empty API response");
@@ -424,6 +549,7 @@ export async function generateSummary(opts: GenerateSummaryOptions): Promise<Gen
     return {
       summary: {
         ...baseSummary,
+        generatedBy,
         narrative: "(narrative — see markdown field)",
       },
       markdown,
@@ -434,21 +560,15 @@ export async function generateSummary(opts: GenerateSummaryOptions): Promise<Gen
   const periodLegacy = isLongWindow ? "weekly" : "daily";
   const prompt = buildStructuredPrompt(filtered, opts.level, periodLegacy, usage, tools);
 
-  const client = new Anthropic();
   try {
-    const response = await client.messages.create({
-      model,
-      max_tokens: 1024,
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const { text, generatedBy } = await complete(model, prompt, 1024);
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
 
     return {
       summary: {
         ...baseSummary,
+        generatedBy,
         narrative: parsed.narrative || "Unable to generate summary.",
         highlights: parsed.highlights || [],
         pending: parsed.pending || [],
