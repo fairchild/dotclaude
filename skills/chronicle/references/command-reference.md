@@ -317,7 +317,7 @@ A Markdown recap with exactly four sections:
 - Output goes to stdout **and** to `~/.claude/chronicle/recaps/{project}-{YYYY-MM-DD}.md` (unless `--stdout-only`)
 - If fewer than 2 blocks in window: prints a "not enough data" message with pointers to raw session JSONLs under `~/.claude/projects/<slug>/` and exits 0
 - If the API call fails: falls back to a raw-facts dump (sessions + git log + memory file counts) so the command is still useful offline
-- Model: **Opus** (`claude-opus-4-5-20251101`) — recap is lower-frequency than summarize, quality matters more than cost
+- Model: **Opus** (`claude-opus-5`) — recap is lower-frequency than summarize, quality matters more than cost
 
 ### When to use it
 

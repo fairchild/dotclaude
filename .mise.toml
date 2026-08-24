@@ -30,3 +30,11 @@ description = "Exercise the independent-clone source/runtime contract"
 [tasks.setup]
 run = "./setup.sh"
 description = "Bootstrap Claude Code development environment"
+
+[tasks.catalog]
+run = "./scripts/catalog.py readme"
+description = "Regenerate the README skill/command/agent tables from frontmatter"
+
+[tasks."catalog:check"]
+run = "./scripts/catalog.py readme --check"
+description = "Fail if the README catalog has drifted from frontmatter"

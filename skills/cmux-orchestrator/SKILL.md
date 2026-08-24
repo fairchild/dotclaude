@@ -1,6 +1,7 @@
 ---
 name: cmux-orchestrator
 description: "Orchestrate the cmux terminal — named layouts (workshop, ops-deck), sidebar dashboarding (status, progress, logs), browser automation, cross-workspace agent coordination, and theme customization. Use this skill whenever inside a cmux terminal (CMUX_WORKSPACE_ID is set), the user mentions cmux, asks to set up a workspace layout, open a browser pane, update sidebar status/progress, spawn agents across workspaces, change themes, or says 'workshop' or 'ops deck'. Also use when other skills need to update the sidebar or rename the workspace tab."
+license: Apache-2.0
 ---
 
 # cmux Orchestrator

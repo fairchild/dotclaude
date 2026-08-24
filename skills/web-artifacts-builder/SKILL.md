@@ -3,7 +3,7 @@ name: web-artifacts-builder
 description: Suite of tools for creating elaborate, multi-component claude.ai HTML artifacts using modern frontend web technologies (React, Tailwind CSS, shadcn/ui). Use for complex artifacts requiring state management, routing, or shadcn/ui components - not for simple single-file HTML/JSX artifacts.
 license: Apache-2.0
 disable-model-invocation: true
-origin: https://github.com/anthropics/anthropic-agent-skills
+origin: https://github.com/anthropics/skills
 ---
 
 # Web Artifacts Builder

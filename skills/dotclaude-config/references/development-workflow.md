@@ -71,6 +71,16 @@ ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
 ~/.claude/scripts/deploy.sh
 ```
 
+The symlink target is whatever checkout holds the branch — the dev clone, a worktree, or a tool-managed session:
+
+| Context | Target |
+|---------|--------|
+| Direct development | `~/code/dotclaude/skills/<name>` |
+| Worktree branch | `~/.worktrees/dotclaude/<branch>/skills/<name>` |
+| Conductor / Orca / workspaces session | `<session-root>/skills/<name>` |
+
+`deploy.sh` removes any symlink under `~/.claude/skills/` regardless of where it points.
+
 ### Deleting a Skill
 
 ```bash

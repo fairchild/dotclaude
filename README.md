@@ -39,89 +39,120 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 ~/.claude/
 ├── CLAUDE.md          # Personal context (name, preferences, tool choices)
 ├── settings.json      # Permissions, hooks, model selection
-├── .mcp.json          # MCP server configs
+├── skills/            # Skills — tiered stable / experimental / local (see below)
 ├── commands/          # Slash commands (/bootstrap, /code-review)
-├── skills/            # Extended capabilities with references
 ├── agents/            # Specialized autonomous agents
 ├── hooks/             # Session lifecycle scripts
-├── scripts/           # Helper utilities
-├── references/        # Reference documentation
+├── scripts/           # Runtime contract (bootstrap, sync, doctor) and catalog
+├── dotagents.toml     # Manifest of ecosystem skills linked from ~/.agents
+├── backlog/           # Markdown issue tracker (todo/doing/done) + ROADMAP.md
 ├── chronicle/         # Chronicle session memory
+├── managed-agents/    # Self-hosted execution environments for managed agents
 ├── webui/             # Config Visualizer dashboard
-├── docs/              # Architecture documentation
+├── docs/              # Agent-skill config and development notes
+├── blog/              # Writing about this config
 └── [session data]     # Gitignored: history, todos, plans, caches, etc.
 ```
 
 ## Quick Reference
 
-### Commands (`/command`)
+Every first-party skill sits in one of three tiers, declared in its `SKILL.md` frontmatter and rendered here by `mise run catalog` (CI fails when this block drifts from the frontmatter):
 
-| Command | Purpose |
-|---------|---------|
-| `/bootstrap` | Scaffold new projects with structure |
-| `/claude-webui` | Launch the web dashboard for this dotclaude repo |
-| `/opensource-precheck` | Audit repo before making public |
-| `/plan_retro` | Append retrospective to current plan |
-| `/respond-to-pr-review` | Respond to feedback on our PR toward merge |
-| `/review-pr` | Review a PR someone else wrote |
-| `/project-health` | Review ~/code projects health |
-| `/reflect` | Pause to review work with fresh eyes |
-| `/reflection-log` | Log feedback to improve reflection prompt |
-| `/retro` | Review session trajectory and update todos |
-| `/chronicle wrapup` | Deliberate session close-out — curator + conditional backlog update |
-| `/chronicle recap` | Multi-session narrative recap for a project |
-| `/update-dependencies` | Intelligent dependency updates with batching |
-| `/code-review` | Review recent work against plan and standards |
-| `/codex-review` | Code review via non-Claude models |
+| Tier | Declared by | Meaning |
+|------|-------------|---------|
+| stable | no `metadata.status` | Has an eval or sustained use; safe to auto-invoke |
+| experimental | `metadata.status: experimental` + `experimental_reason` | Usable, with a stated reason it hasn't graduated |
+| local | listed in `skills/.gitignore` | Lives in `~/.claude` only; never published |
 
-### Skills (auto-invoked)
+Ecosystem skills (installed by `npx skills` from other repos) are symlinked in from `~/.agents/skills/` per [`dotagents.toml`](dotagents.toml) and aren't listed here.
+
+<!-- catalog:start -->
+### Skills — stable, auto-invoked
+
+Claude loads these when the task matches the description.
 
 | Skill | Domain |
-|-------|--------|
-| analyze-usage | Analyzing AI coding patterns and statistics |
-| brainstorm-to-brief | Visual design exploration and design briefs |
-| image-gen | Generating images with AI (OpenAI, Imagen, fal.ai) |
-| backlog | Capturing explored work for later |
-| chronicle | Capturing and curating session memory |
-| frontend-design | Building web UIs, components, pages |
-| webapp-testing | Playwright testing (Python and TypeScript) |
-| skill-creator | Building new skills |
-| release | Semantic versioned releases from any branch (worktree-aware) |
-| git-worktree | Parallel branch development |
-| web-artifacts-builder | Complex claude.ai artifacts |
-| verify | Deployment verification and health checks |
-| excalidraw-diagrams | Creating diagrams via Excalidraw |
-| fork | Fork session to new worktree or local session |
-| dotclaude-config | Editing Claude Code configuration |
-| update-dependencies | Dependency analysis and updates |
-| youtube-content | Extracting/analyzing YouTube video content |
+|---|---|
+| `agent-inbox` | File-based messaging between agents across any harness. |
+| `analyze-usage` | Analyze local AI coding-assistant activity across Claude Code, Codex, Cursor, and Pi. |
+| `backlog` | Markdown task backlog and project roadmap (backlog/{todo,doing,done,failed}/, backlog/ROADMAP.md) for adding,… |
+| `chronicle` | Session continuity for coding work. |
+| `cmux-orchestrator` | Orchestrate the cmux terminal — named layouts (workshop, ops-deck), sidebar dashboarding (status, progress, logs),… |
+| `codespaces` | Manage GitHub Codespaces lifecycle via gh CLI. |
+| `dotclaude-config` | Work with Claude Code configuration at global (~/.claude) or project (.claude/) level. |
+| `fable-session` | Hand off long-arc work to a fable session — Fable orchestrates and verifies while delegating the implementation. |
+| `frontend-design` | Create distinctive, production-grade frontend interfaces with high design quality. |
+| `gh-apps` | Create, authenticate, and manage GitHub Apps. |
+| `git-worktree` | Manage Git worktrees for concurrent local development. |
+| `image-gen` | Generate images from prompts using AI APIs (OpenAI GPT Image, Google Gemini/Nano Banana, Google Imagen, fal.ai Flux). |
+| `project-scripts` | Standardize project lifecycle scripts (setup, run, stop, archive) in scripts/ so agents can manage workspaces through a… |
+| `session-titles` | Session title generation, evaluation, and optimization. |
+| `signoz-log` | Send structured logs to SigNoz observability platform. |
+| `skills-manager` | Use when the user wants to list, search, install, remove, inspect, validate, audit, or update skills. |
+| `swiftui-expert` | Write, review, or improve SwiftUI code. |
+| `team-memory` | Persistent AI teammate memory framework. |
+| `update-dependencies` | Smart dependency updates across ecosystems (npm/bun/pnpm, uv/poetry, cargo). |
+| `webapp-testing` | Interact with and test web applications using Playwright. |
 
-### Skills (Experimental)
+### Skills — stable, invoked by slash command
 
-Experimental skills have `metadata.status: experimental` in frontmatter, plus `metadata.experimental_reason` explaining why. Usable but incomplete.
+`disable-model-invocation: true` — run as `/name`; Claude will not load them on its own.
 
-| Skill | Purpose |
-|-------|---------|
-| ascii-art-fix | Repair misaligned ASCII box diagrams |
-| cloudflare-workers-deploy | Set up Cloudflare Workers deployments |
-| ios-simulator | Automate iOS Simulator screenshots and flows |
-| persona-memory | Persistent persona and memory framework |
-| skill-seeker | Generate skills from docs, repos, or local codebases |
-| vocal | Text-to-speech and speech-to-text workflows |
+| Skill | Domain |
+|---|---|
+| `/brainstorm-to-brief` | Wide→Narrow design workflow taking UI/UX concepts from exploration to polished design brief. |
+| `/canon-printer` | Check status, ink levels, job queue, cancel stuck jobs, print files and rendered documents, track loaded paper, and… |
+| `/excalidraw-diagrams` | Create diagrams and visual artifacts using Excalidraw with real-time canvas preview. |
+| `/fork` | Fork the current session with context carried over. |
+| `/release` | Create semantic versioned releases with AI-generated changelogs, for repos that do not already have a release pipeline… |
+| `/skill-building` | Guide for creating, editing, and evaluating skills. |
+| `/tart-gui-automation` | Run deterministic GUI workflows in isolated Tart macOS VMs. |
+| `/tidyup` | Proof-based sweep of a repo's accumulated worktrees, stale local branches, and in-flight PRs — reduces open threads to… |
+| `/web-artifacts-builder` | Suite of tools for creating elaborate, multi-component claude.ai HTML artifacts using modern frontend web technologies… |
+| `/youtube-content` | Extract and analyze YouTube video content (transcripts + metadata). |
 
-### Agents (background tasks)
+### Skills — experimental
 
-| Agent | Use case | Example prompt |
-|-------|----------|----------------|
-| research | Deep codebase exploration | "Research how auth works in this codebase" |
-| github-notifications-triager | Prioritize GitHub notifications | "What's important on GitHub today?" |
-| devcontainer-setup | Configure dev containers | "Set up a devcontainer for this project" |
-| project-handoff-auditor | Pre-handoff quality audit | "Prepare this project for client handoff" |
-| ai-sdk-agent-architect | Vercel AI SDK 6 agent implementations | "Implement a search agent with AI SDK" |
-| chronicle-curator | Curate Chronicle memory blocks | Auto-invoked for memory management |
-| chronicle-insights | Deep memory and worktree exploration | "What patterns emerge across my sessions?" |
-| recall | Search memory for information | "What do I know about deployment?" |
-| remember | Persist items to memory blocks | Auto-invoked for memory management |
+`metadata.status: experimental` in frontmatter. Usable, and the reason each one hasn't graduated is stated in `metadata.experimental_reason`.
+
+| Skill | Domain | Why experimental |
+|---|---|---|
+| `ascii-art-fix` | Fix misaligned right borders in ASCII art diagrams | Prompt-only repair is useful but still has edge cases around nested diagrams, tables, and mixed markdown content. |
+| `cloudflare-workers-deploy` | Set up Cloudflare Workers deployment for web applications with GitHub Actions CI/CD. | Deployment patterns are useful but not yet validated across enough project shapes and Cloudflare account setups. |
+| `ios-simulator` | Automate iOS Simulator tasks — capture screenshots, interact with apps, generate screen flow galleries. | Simulator automation remains sensitive to local device state, timing, window focus, and Xcode version differences. |
+| `persona-memory` | Build and operate a persistent persona and memory framework for Claude Code. | Healthy framework, intentionally experimental until background memory agents and full interactive-session CI coverage exist. |
+| `skill-seeker` | Generate Claude Code skills from docs sites, GitHub repos, or local codebases using Skill Seekers. | Generated skill quality varies by source corpus and still requires explicit human review before installation. |
+| `vocal` | Speak text aloud (TTS) and transcribe speech (STT). | Voice workflows depend on local audio devices and optional ElevenLabs credentials, so reliability is environment-sensitive. |
+
+### Commands
+
+| Command | Purpose |
+|---|---|
+| `/bootstrap` | Bootstrap a new project with interactive brainstorming and structure generation |
+| `/code-review` | Review recent work against plan and project standards |
+| `/codex-review` | Run code review via Codex CLI with non-Claude models (GPT-5, o3, Ollama) |
+| `/opensource-precheck` | Audit a private repo before making it public |
+| `/plan_retro` | Append a retrospective section to the current plan file |
+| `/project-health` | Review health of ~/code projects (git status, tests, remote sync) |
+| `/reflect` | Pause to review work with fresh eyes for bugs, missed cases, or simplifications |
+| `/respond-to-pr-review` | Respond to review feedback on our PR and advance toward mergeable state |
+| `/retro` | Review session trajectory and update todo file with lessons learned |
+| `/review-pr` | Review a pull request someone else wrote |
+
+### Agents
+
+| Agent | Use case |
+|---|---|
+| `ai-sdk-agent-architect` | Implement Vercel AI SDK 6 agents with streaming, tool orchestration, and reasoning visibility. |
+| `chronicle-curator` | Curate and organize Chronicle memory blocks. |
+| `chronicle-insights` | Deep exploration of Chronicle memory and worktrees to generate meaningful insights. |
+| `devcontainer-setup` | Use this agent when you need to set up, configure, or verify a DevContainer environment for a project. |
+| `github-notifications-triager` | Check GitHub notifications and provide a prioritized summary of important items. |
+| `project-handoff-auditor` | Audit codebase quality, docs, tests, and deployment before client handoff. |
+| `research` | Deep codebase exploration to understand a problem and create a research artifact |
+| `team-memory-sleep` | Sleep-time compute orchestrator for team-memory skill. |
+| `vocal-listener` | Background listener that records speech, transcribes it, and sends transcripts to the main session. |
+<!-- catalog:end -->
 
 ### MCP Servers
 

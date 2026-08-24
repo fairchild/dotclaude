@@ -335,12 +335,42 @@ def validate_skill(skill_dir: Path) -> ValidationResult:
     elif len(fm.get("description", "")) < 30:
         result["warnings"].append("Description is very short (< 30 chars)")
 
+    check_skill_tier(skill_dir, fm, result)
+
     # Check for referenced files in SKILL.md
     body = content.split("---", 2)[2] if content.startswith("---") else content
     check_skill_references(skill_dir, body, result)
     check_skill_scripts(skill_dir, result)
 
     return result
+
+
+SKILL_STATUSES = {"experimental"}
+ATTRIBUTION_KEYS = ("origin", "inspired-by")
+
+
+def check_skill_tier(skill_dir: Path, fm: dict, result: ValidationResult) -> None:
+    """Tier and attribution rules: the README catalog is generated from these."""
+    meta = fm.get("metadata") or {}
+    status = meta.get("status")
+    if "status" in fm:
+        result["valid"] = False
+        result["errors"].append("Top-level 'status' is not read; use metadata.status")
+    if status is not None and status not in SKILL_STATUSES:
+        result["valid"] = False
+        result["errors"].append(
+            f"metadata.status '{status}' is not one of {sorted(SKILL_STATUSES)}"
+        )
+    if status == "experimental" and not meta.get("experimental_reason"):
+        result["valid"] = False
+        result["errors"].append(
+            "metadata.status: experimental requires metadata.experimental_reason"
+        )
+    if any(key in fm for key in ATTRIBUTION_KEYS) and not (skill_dir / "README.md").exists():
+        result["valid"] = False
+        result["errors"].append(
+            "Skill declares origin/inspired-by but has no README.md for attribution"
+        )
 
 
 def check_skill_references(skill_dir: Path, body: str, result: ValidationResult):

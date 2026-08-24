@@ -335,8 +335,8 @@ export async function generateSummary(opts: GenerateSummaryOptions): Promise<Gen
   // Structured: Sonnet for short windows, Opus for week+.
   const isLongWindow = opts.windowDays >= 7;
   const model = format === "narrative"
-    ? "claude-opus-4-5-20251101"
-    : (isLongWindow ? "claude-opus-4-5-20251101" : "claude-sonnet-4-20250514");
+    ? "claude-opus-5"
+    : (isLongWindow ? "claude-opus-5" : "claude-sonnet-5");
 
   const blocks = loadAllBlocks();
   const cutoff = new Date();

@@ -1,6 +1,7 @@
 ---
 name: canon-printer
 description: Check status, ink levels, job queue, cancel stuck jobs, print files and rendered documents, track loaded paper, and troubleshoot reachability for the home Canon PIXMA iX6800 printer. Manually invoked only — use `/canon-printer` (optionally `status`, `jobs`, `cancel-job`, `print`, `print-doc`, `paper`, `ink-history`, `discover`, `troubleshoot`).
+license: Apache-2.0
 disable-model-invocation: true
 ---
 

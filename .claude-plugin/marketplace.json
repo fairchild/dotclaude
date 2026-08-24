@@ -43,10 +43,10 @@
       "category": "workflow"
     },
     {
-      "name": "skill-creator",
+      "name": "skill-building",
       "source": "./",
       "strict": false,
-      "skills": ["./skills/skill-creator"],
+      "skills": ["./skills/skill-building"],
       "description": "Guide for creating effective Claude Code skills with validation",
       "license": "Apache-2.0",
       "category": "meta"
