@@ -178,3 +178,8 @@ skills/to-prd
 skills/triage
 skills/zoom-out
 # END sync-dotagents
+
+# Runtime state that must never reach this public repo
+handoffs/
+.claude.json
+settings.json.bak*
