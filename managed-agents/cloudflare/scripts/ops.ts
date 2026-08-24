@@ -13,6 +13,7 @@
  *   bun scripts/ops.ts env list
  *   bun scripts/ops.ts env create [name]
  *   bun scripts/ops.ts env show <id>
+ *   bun scripts/ops.ts agent show <id>
  *   bun scripts/ops.ts agent register [--dir agents/pr-review]
  *   bun scripts/ops.ts session create --agent <id> --env-id <id> [--metadata <json|@file>]
  *   bun scripts/ops.ts work stats --env-id <id>
@@ -98,6 +99,7 @@ function usage(): never {
   bun scripts/ops.ts env list
   bun scripts/ops.ts env create [name]
   bun scripts/ops.ts env show <id>
+  bun scripts/ops.ts agent show <id>
   bun scripts/ops.ts agent register [--dir agents/pr-review]
   bun scripts/ops.ts session create --agent <id> --env-id <id> [--metadata <json|@file>]
   bun scripts/ops.ts work stats --env-id <id>
@@ -129,6 +131,12 @@ async function main(): Promise<void> {
     const id = rest[0];
     if (!id) usage();
     console.log(JSON.stringify(await api("GET", `/v1/environments/${id}`), null, 2));
+    return;
+  }
+  if (sub === "agent" && op === "show") {
+    const id = rest[0];
+    if (!id) usage();
+    console.log(JSON.stringify(await api("GET", `/v1/agents/${id}`), null, 2));
     return;
   }
   if (sub === "agent" && op === "register") {
