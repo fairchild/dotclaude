@@ -1,8 +1,15 @@
 name: dotclaude-pr-review
 
+# Automatic review is OFF — this pipeline has never posted a review.
+# 55 green runs through 2026-08-17 only ever proved that a session was
+# created and a user.message accepted; no review from the agent has ever
+# appeared on a PR (checked across every PR since the worker deployed on
+# 2026-06-01). Since 2026-08-23 session create additionally fails outright
+# on an Anthropic account usage limit.
+#
+# Left dispatch-only rather than deleted while we decide whether to keep
+# managed agents at all. To re-enable, restore the pull_request trigger.
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       pr:
