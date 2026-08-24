@@ -94,8 +94,10 @@ to-prd = true
 triage = true
 zoom-out = true
 
-# Reverse sharing is currently empty. Canonical first-party shared sources live
-# in fairchild/dotfiles and are materialized into ~/.agents/skills/ there.
-# Keep this table as the explicit extension point for a future dotclaude-only
-# skill that genuinely needs to flow in the other direction.
+# Reverse sharing is the exception. Canonical first-party shared sources live
+# in fairchild/dotfiles and are materialized into ~/.agents/skills/ there; this
+# table is for dotclaude-only skills that genuinely need to flow the other way.
+# personal-writing-style qualifies because the voice it encodes is Michael's
+# rather than this repo's, and it applies wherever he writes — Codex included.
 [share-to-agents]
+personal-writing-style = true
