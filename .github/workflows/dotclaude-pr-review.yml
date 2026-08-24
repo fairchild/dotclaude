@@ -1,8 +1,15 @@
 name: dotclaude-pr-review
 
+# Automatic review is OFF — this pipeline has never posted a review.
+# 55 green runs through 2026-08-17 only ever proved that a session was
+# created and a user.message accepted; no review from the agent has ever
+# appeared on a PR (checked across every PR since the worker deployed on
+# 2026-06-01). Since 2026-08-23 session create additionally fails outright
+# on an Anthropic account usage limit.
+#
+# Left dispatch-only rather than deleted while we decide whether to keep
+# managed agents at all. To re-enable, restore the pull_request trigger.
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       pr:
@@ -44,12 +51,17 @@ jobs:
           AGENT_ID: ${{ vars.PR_REVIEW_AGENT_ID }}
           ENVIRONMENT_ID: ${{ vars.MANAGED_AGENTS_ENVIRONMENT_ID }}
         run: |
-          curl -sS --fail-with-body https://api.anthropic.com/v1/sessions \
+          # Capture status and body separately. --fail-with-body writes the
+          # API's error into whatever stdout points at, so redirecting into
+          # session.json swallowed the one thing worth reading and left the
+          # log showing only "curl: (22) ... returned error: 400".
+          HTTP_CODE=$(curl -sS -o session.json -w '%{http_code}' \
+            https://api.anthropic.com/v1/sessions \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
             -H "anthropic-beta: managed-agents-2026-04-01" \
             -H "content-type: application/json" \
-            -d @- <<EOF > session.json
+            -d @- <<EOF
           {
             "agent": "$AGENT_ID",
             "environment_id": "$ENVIRONMENT_ID",
@@ -62,7 +74,22 @@ jobs:
             }
           }
           EOF
-          SESSION_ID=$(jq -r .id session.json)
+          )
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "::error::POST /v1/sessions returned HTTP $HTTP_CODE (agent=$AGENT_ID environment=$ENVIRONMENT_ID)"
+            echo "--- response body ---"
+            cat session.json
+            echo
+            exit 1
+          fi
+          SESSION_ID=$(jq -r '.id // empty' session.json)
+          if [ -z "$SESSION_ID" ]; then
+            echo "::error::HTTP $HTTP_CODE but the response carried no session id"
+            echo "--- response body ---"
+            cat session.json
+            echo
+            exit 1
+          fi
           echo "session_id=$SESSION_ID" >> "$GITHUB_OUTPUT"
           echo "Created session $SESSION_ID for PR #${{ steps.pr.outputs.number }}"
 
