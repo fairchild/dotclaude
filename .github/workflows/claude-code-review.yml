@@ -12,9 +12,7 @@ on:
 
 jobs:
   claude-review:
-    # Was gated on a 'needs code review' label nobody applied — 100 skipped runs
-    # out of 100. Runs on every non-draft PR now.
-    if: github.event.pull_request.draft == false
+    if: contains(github.event.pull_request.labels.*.name, 'needs code review')
     runs-on: ubuntu-latest
     permissions:
       contents: read
