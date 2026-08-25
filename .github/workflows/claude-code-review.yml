@@ -12,7 +12,9 @@ on:
 
 jobs:
   claude-review:
-    if: contains(github.event.pull_request.labels.*.name, 'needs code review')
+    # Was gated on a 'needs code review' label nobody applied — 100 skipped runs
+    # out of 100. Runs on every non-draft PR now.
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -93,15 +95,33 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Check if the most recent review from claude[bot] requested changes
           REVIEW_STATE=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
             --jq '[.[] | select(.user.login == "claude[bot]")] | last | .state')
 
-          echo "Latest Claude review state: $REVIEW_STATE"
+          echo "Latest Claude review state: ${REVIEW_STATE:-<none>}"
 
-          if [ "$REVIEW_STATE" = "CHANGES_REQUESTED" ]; then
-            echo "::error::Code review failed - changes requested (score <= 3)"
+          # A missing review used to fall through to "Code review passed" — the
+          # check reported success in precisely the case where nothing had been
+          # reviewed. Distinguish the one legitimate reason for a missing review
+          # from the failure it otherwise is.
+          if [ -z "$REVIEW_STATE" ] || [ "$REVIEW_STATE" = "null" ]; then
+            # claude-code-action refuses to run when the PR changes a workflow
+            # file, requiring the workflow to match the default branch —
+            # otherwise a PR could rewrite the reviewer's own prompt. Expected.
+            if gh pr diff ${{ github.event.pull_request.number }} --name-only \
+                 | grep -q '^\.github/workflows/'; then
+              echo "::notice::No Claude review — expected, this PR changes workflow files."
+              exit 0
+            fi
+            echo "::error::No review from claude[bot]. The reviewer did not run; check the 'Run Claude Code Review' step."
             exit 1
           fi
-          echo "Code review passed"
+
+          if [ "$REVIEW_STATE" = "CHANGES_REQUESTED" ]; then
+            # Advisory until this reviewer has demonstrated it works. Swap the
+            # warning for `exit 1` to make a low score block merges as designed.
+            echo "::warning::Claude requested changes (score <= 3) — advisory, not blocking."
+            exit 0
+          fi
+          echo "Code review passed (state: $REVIEW_STATE)"
 
