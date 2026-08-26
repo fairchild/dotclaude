@@ -164,6 +164,19 @@ def validate_json(path: Path) -> bool:
         return False
 
 
+def _skill_gitignored(paths: Paths, name: str) -> bool:
+    try:
+        return (
+            subprocess.run(
+                ["git", "-C", str(paths.runtime), "check-ignore", "-q", f"skills/{name}"],
+                capture_output=True,
+            ).returncode
+            == 0
+        )
+    except OSError:
+        return False
+
+
 def check_skill_links(paths: Paths) -> tuple[int, int]:
     manifest_path = paths.runtime / "dotagents.toml"
     try:
@@ -177,8 +190,14 @@ def check_skill_links(paths: Paths) -> tuple[int, int]:
         if enabled is True:
             checks.append((paths.runtime / "skills" / name, agents_skills / name))
     for name, enabled in manifest.get("share-to-agents", {}).items():
-        if enabled is True:
-            checks.append((agents_skills / name, paths.runtime / "skills" / name))
+        if enabled is not True:
+            continue
+        source = paths.runtime / "skills" / name
+        if not source.exists() and _skill_gitignored(paths, name):
+            # Private skill: content is machine-local (the tracked .gitignore
+            # is the proof of intent); the share materializes where it exists.
+            continue
+        checks.append((agents_skills / name, source))
 
     failed = 0
     for link, target in checks:

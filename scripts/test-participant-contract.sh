@@ -89,7 +89,17 @@ for name, enabled in manifest.get("share-to-agents", {}).items():
     if enabled is not True:
         continue
     target = runtime / "skills" / name
-    assert target.exists(), f"tracked skill missing: {name}"
+    if not target.exists():
+        # A shared skill may be deliberately private: content gitignored,
+        # machine-local, materializing only where it exists (e.g.
+        # personal-writing-style). The tracked .gitignore is the proof of
+        # intent; anything else missing is still a contract violation.
+        import subprocess
+        gitignored = subprocess.run(
+            ["git", "-C", str(runtime), "check-ignore", "-q", f"skills/{name}"]
+        ).returncode == 0
+        assert gitignored, f"tracked skill missing: {name}"
+        continue
     link = agents / name
     link.symlink_to(target)
 PY
