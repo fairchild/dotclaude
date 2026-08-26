@@ -6,11 +6,12 @@
 """Speak text with macOS say."""
 
 import argparse
-import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+from env_helpers import audio_context_prefix
 
 
 def error_exit(msg: str, hint: str | None = None) -> None:
@@ -18,19 +19,6 @@ def error_exit(msg: str, hint: str | None = None) -> None:
     if hint:
         print(f"\n{hint}", file=sys.stderr)
     sys.exit(1)
-
-
-def audio_context_prefix() -> list[str]:
-    """Outside the Aqua session (tmux servers, daemons), say exits 0 without
-    speaking and renders near-empty files; launchctl asuser crosses back into
-    the user's GUI audio session."""
-    try:
-        r = subprocess.run(["launchctl", "managername"], capture_output=True, text=True, timeout=5)
-        if r.returncode == 0 and r.stdout.strip() != "Aqua":
-            return ["launchctl", "asuser", str(os.getuid())]
-    except Exception:
-        pass
-    return []
 
 
 def ensure_say() -> str:
