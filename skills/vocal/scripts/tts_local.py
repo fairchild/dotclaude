@@ -11,6 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from env_helpers import audio_context_prefix
+
 
 def error_exit(msg: str, hint: str | None = None) -> None:
     print(f"Error: {msg}", file=sys.stderr)
@@ -48,7 +50,7 @@ def list_voices() -> None:
 
 def speak(text: str, voice: str | None, rate: int | None, output: Path | None) -> Path | None:
     ensure_say()
-    cmd = ["say"]
+    cmd = [*audio_context_prefix(), "say"]
     if voice:
         cmd.extend(["-v", voice])
     if rate is not None:
