@@ -63,9 +63,6 @@
       "Edit(~/.aws/**)",
       "Edit(~/.config/**/credentials*)"
     ],
-    "ask": [
-      "Bash(rm -rf *)"
-    ],
     "defaultMode": "auto"
   },
   "enableAllProjectMcpServers": true,
