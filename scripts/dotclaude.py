@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import tomllib
 from dataclasses import dataclass
@@ -129,6 +130,7 @@ def cmd_bootstrap(paths: Paths) -> int:
             )
             return 1
         if is_independent_clone(paths.runtime):
+            seed_runtime_settings(paths)
             return sync_runtime(paths)
         backup_ambiguous_runtime(paths)
 
@@ -151,8 +153,19 @@ def cmd_bootstrap(paths: Paths) -> int:
     )
     if not require_independent_main(paths):
         return 1
+    seed_runtime_settings(paths)
     print("OK: created independent dotclaude runtime clone on main")
     return 0
+
+
+def seed_runtime_settings(paths: Paths) -> None:
+    """settings.json is never tracked, so a fresh runtime starts from the example."""
+    settings = paths.runtime / "settings.json"
+    example = paths.runtime / "settings.example.json"
+    if settings.exists() or not example.is_file():
+        return
+    shutil.copyfile(example, settings)
+    print("OK: seeded settings.json from settings.example.json")
 
 
 def validate_json(path: Path) -> bool:

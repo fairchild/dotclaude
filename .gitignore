@@ -183,3 +183,8 @@ skills/zoom-out
 handoffs/
 .claude.json
 settings.json.bak*
+
+# The runtime settings file is machine-local: it holds the autoMode environment
+# description and whatever Claude Code and other apps write at runtime.
+# settings.example.json is the shareable shape.
+settings.json

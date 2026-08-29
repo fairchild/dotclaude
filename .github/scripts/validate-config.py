@@ -3,7 +3,7 @@
 Validate Claude Code configuration files.
 
 Validates:
-- settings.json against JSON schema
+- settings.example.json against JSON schema
 - .mcp.json against JSON schema
 - agents/*.md YAML frontmatter
 - skills/*/SKILL.md YAML frontmatter and integrity
@@ -438,10 +438,10 @@ def main():
     results: list[ValidationResult] = []
     has_errors = False
 
-    # Validate settings.json
+    # Validate settings.example.json (settings.json is the untracked runtime file)
     settings_schema = load_json_schema(schemas_dir / "settings.schema.json")
     if settings_schema:
-        settings_path = args.settings_only or root / "settings.json"
+        settings_path = args.settings_only or root / "settings.example.json"
         result = validate_json_file(settings_path, settings_schema)
         results.append(result)
         if not result["valid"]:
