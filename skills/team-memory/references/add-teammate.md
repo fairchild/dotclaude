@@ -67,7 +67,7 @@ Then edit Identity/Values to match your vision.
 
 If this is your first teammate, populate the shared files that all teammates
 @import. Human preferences and conventions are already covered by your global
-`~/.claude/CLAUDE.md`, so only project and platform context need shared files: <!-- portability: allow -->
+`~/.claude/CLAUDE.md`, so only project and platform context need shared files: <!-- portability: allow — names Claude Code's global memory file -->
 
 - `~/.ai-memory/shared/projects.md` — active projects and their context
 - `~/.ai-memory/shared/platform.md` — shell, OS, and infrastructure defaults
