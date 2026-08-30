@@ -192,3 +192,11 @@ settings.json
 # Private voice + role skills (personal content; see personal-writing-style above)
 skills/writing-voice
 skills/steward
+
+# Tool-managed: herdr rewrites this on every reinstall, so tracking it would
+# recreate the runtime-drift problem settings.json had.
+hooks/herdr-agent-state.sh
+
+# Machine-local: hardcodes /Applications/Foundation.app and is useless without
+# that app installed.
+agents/foundation.md
