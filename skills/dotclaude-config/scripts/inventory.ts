@@ -173,7 +173,7 @@ async function scanProjects(
 
 async function loadGlobalSkills(): Promise<Set<string>> {
   const skills = new Set<string>();
-  const skillsDir = join(homedir(), ".claude", "skills");
+  const skillsDir = join(homedir(), ".claude", "skills");  // portability: allow
 
   try {
     const entries = await readdir(skillsDir);

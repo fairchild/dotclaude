@@ -70,13 +70,13 @@ scripts/launch.sh --persona <name>   # specific teammate
 scripts/launch.sh --persona <name> ~/code/project
 ```
 
-Recommended alias — a shell alias resolves at typing time, so expand
-`$SKILL_DIR` to this skill's own base directory when you write it into your
-shell rc:
+Recommended alias — `<team-memory base dir>` here and below is this skill's
+base directory, announced at invocation; substitute the real path when writing
+into a shell rc (an alias must hold a resolved path):
 
 ```bash
-alias claude-memory="$SKILL_DIR/scripts/launch.sh"
-alias claude-bertram="$SKILL_DIR/scripts/launch.sh --persona bertram"
+alias claude-memory="<team-memory base dir>/scripts/launch.sh"
+alias claude-bertram="<team-memory base dir>/scripts/launch.sh --persona bertram"
 ```
 
 ## List (`/team-memory list`)

@@ -10,8 +10,8 @@ import { join, basename } from "path";
 import { createHash } from "crypto";
 
 const HOME = process.env.HOME!;
-const PROJECTS_DIR = join(HOME, ".claude", "projects");
-const TITLES_DIR = join(HOME, ".claude", "session-titles");
+const PROJECTS_DIR = join(HOME, ".claude", "projects");  // portability: allow
+const TITLES_DIR = join(HOME, ".claude", "session-titles");  // portability: allow
 const OUTPUT_FILE = join(import.meta.dir, "..", "data", "candidates.jsonl");
 
 interface SessionContext {

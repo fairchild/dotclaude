@@ -1091,7 +1091,9 @@ cmd_install() {
     local source_line="source $SCRIPT_DIR/wt.zsh"
     local zshrc="$HOME/.zshrc"
 
-    if [[ -f "$zshrc" ]] && grep -qF "$source_line" "$zshrc"; then
+    # Any existing wt.zsh source counts as installed — earlier installs wrote
+    # a literal ~-prefixed path, which grep -qF on the resolved path would miss.
+    if [[ -f "$zshrc" ]] && grep -qE '^[[:space:]]*source[[:space:]].*/wt\.zsh' "$zshrc"; then
         log_ok "Already installed in ~/.zshrc"
         return 0
     fi

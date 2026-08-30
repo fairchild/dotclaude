@@ -6,7 +6,7 @@ Standard hooks to use in your project's `.claude/settings.json`.
 
 Generates AI-powered session titles when session ends.
 
-```json
+```jsonc
 {
   "hooks": {
     "Stop": [
@@ -91,7 +91,7 @@ For projects that inject beads updates before each prompt.
 
 Display project-specific metrics.
 
-```json
+```jsonc
 {
   "statusLine": {
     "type": "command",

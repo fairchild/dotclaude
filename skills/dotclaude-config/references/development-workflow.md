@@ -165,7 +165,7 @@ git -C "$DEV_REPO" log --oneline -1
 
 The `SessionStart` hook runs `scripts/deploy.sh` so merged PRs are live at next session start. Place it **first** so other hooks see updated code:
 
-```json
+```jsonc
 {
   "hooks": {
     "SessionStart": [

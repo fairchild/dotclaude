@@ -27,7 +27,7 @@ import {
   type ProjectStats,
 } from "./queries.ts";
 
-const DIGESTS_DIR = `${process.env.HOME}/.claude/chronicle/digests`;
+const DIGESTS_DIR = `${process.env.HOME}/.claude/chronicle/digests`;  // portability: allow
 
 type Period = "daily" | "weekly" | "month";
 

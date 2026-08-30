@@ -37,7 +37,7 @@ Invokable as `/backlog <subcommand> [args]`. The canonical mechanism is `scripts
 | `/backlog worker` | follow `references/worker-loop.md` | Full loop: load + maintain + rank + claim + execute + close |
 | `/backlog` (no args) | — | Skill loads; agent infers intent from conversation context |
 
-The full script path from a deployed dotclaude is `~/.claude/skills/backlog/scripts/backlog.sh`. <!-- portability: allow --> Semantics for each verb live in `references/worker.md`; mechanism details (what the script actually does) live in `references/backends/<name>.md`. The test harness `scripts/test.sh` exercises the maildir backends end-to-end including a real `git worktree`-based race test, and syntax-checks every bundled script.
+The script is `scripts/backlog.sh` in this skill's base directory. Semantics for each verb live in `references/worker.md`; mechanism details (what the script actually does) live in `references/backends/<name>.md`. The test harness `scripts/test.sh` exercises the maildir backends end-to-end including a real `git worktree`-based race test, and syntax-checks every bundled script.
 
 ## File shape
 

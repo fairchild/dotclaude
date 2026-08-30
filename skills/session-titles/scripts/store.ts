@@ -5,7 +5,7 @@
 import { appendFileSync, readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import type { TitleFeedback } from "./schema.ts";
 
-const FEEDBACK_DIR = `${process.env.HOME}/.claude/title-feedback`;
+const FEEDBACK_DIR = `${process.env.HOME}/.claude/title-feedback`;  // portability: allow
 const PENDING_FILE = `${FEEDBACK_DIR}/pending.jsonl`;
 const SCORED_FILE = `${FEEDBACK_DIR}/scored.jsonl`;
 

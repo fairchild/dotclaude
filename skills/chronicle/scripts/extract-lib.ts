@@ -10,7 +10,7 @@ import { ChronicleBlock } from "./queries.ts";
 
 export type { ChronicleBlock };
 
-const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;
+const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;  // portability: allow
 
 const DEBUG = process.env.CHRONICLE_DEBUG === "1";
 function dbg(...args: unknown[]): void {

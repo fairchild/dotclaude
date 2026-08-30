@@ -31,7 +31,7 @@ def main() -> int:
         target = Path(args.target).expanduser().resolve()
     else:
         name = source.name
-        target = Path.home() / ".claude" / "skills" / name
+        target = Path.home() / ".claude" / "skills" / name  # portability: allow
 
     # Safety check: don't overwrite without notice
     if target.exists():

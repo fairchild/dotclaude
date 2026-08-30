@@ -17,8 +17,8 @@
 import { readdirSync, readFileSync, mkdirSync, renameSync, writeFileSync, existsSync } from "fs";
 import type { ChronicleBlock } from "./types.ts";
 
-const BLOCKS_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;
-const ARCHIVE_DIR = `${process.env.HOME}/.claude/chronicle/archive`;
+const BLOCKS_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;  // portability: allow
+const ARCHIVE_DIR = `${process.env.HOME}/.claude/chronicle/archive`;  // portability: allow
 
 interface ConsolidationGroup {
   key: string; // "project::2026-W05"

@@ -13,6 +13,7 @@ on:
       - 'agents/*.md'
       - 'skills/**'
       - 'scripts/sync-dotagents.py'
+      - 'scripts/portability.py'
       - 'scripts/dotclaude.py'
       - 'scripts/test-participant-contract.sh'
       - '.github/schemas/**'
@@ -45,6 +46,9 @@ jobs:
 
       - name: Verify README catalog matches frontmatter
         run: python scripts/catalog.py readme --check
+
+      - name: Verify skill portability tiers (SEP-2640 serving gate)
+        run: python scripts/portability.py --check
 
       - name: Verify invalid settings fixtures are rejected
         run: |

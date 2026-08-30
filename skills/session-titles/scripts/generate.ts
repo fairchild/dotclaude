@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from "fs";
 import { getProjectName, writeTitle } from "./generate-core.ts";
 
 // Load ~/.claude/.env if present  // portability: allow
-const envPath = `${process.env.HOME}/.claude/.env`;
+const envPath = `${process.env.HOME}/.claude/.env`;  // portability: allow
 if (existsSync(envPath)) {
   for (const line of readFileSync(envPath, "utf-8").split("\n")) {
     const [key, ...rest] = line.split("=");
@@ -22,7 +22,7 @@ async function main() {
   if (!session_id || !cwd) process.exit(1);
 
   const projectName = getProjectName(cwd);
-  const dir = `${process.env.HOME}/.claude/session-titles/${projectName}`;
+  const dir = `${process.env.HOME}/.claude/session-titles/${projectName}`;  // portability: allow
   const titleFile = `${dir}/${session_id}.txt`;
 
   let currentTitle = existsSync(titleFile) ? readFileSync(titleFile, "utf-8").trim() : null;

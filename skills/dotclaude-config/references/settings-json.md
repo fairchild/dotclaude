@@ -218,7 +218,7 @@ Auto-format after writes:
 ```
 
 Generate session title on stop:
-```json
+```jsonc
 "Stop": [{
   "hooks": [{
     "type": "command",
@@ -233,7 +233,7 @@ Custom status line displayed during sessions.
 
 ### Configuration
 
-```json
+```jsonc
 "statusLine": {
   "type": "command",
   "command": "~/.claude/scripts/statusline.sh"  // portability: allow

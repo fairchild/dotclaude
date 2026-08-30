@@ -19,7 +19,7 @@
 import { readdirSync, readFileSync, writeFileSync, existsSync } from "fs";
 import type { ChronicleBlock } from "./types.ts";
 
-const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;
+const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;  // portability: allow
 const BASELINE_PATH = `${import.meta.dir}/extract-bench-baseline.json`;
 
 type BlockClass = "fallback" | "narrative" | "curator" | "thin-other";

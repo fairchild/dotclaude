@@ -8,6 +8,10 @@ license: Apache-2.0
 
 Captures and curates session memory so coding context survives across restarts.
 
+Prerequisites: Claude Code (chronicle reads and writes the invoking user's own
+Claude config dir) and `bun`; the optional background services additionally
+need macOS with `launchd`.
+
 > **Related:** For persistent teammate behavior see [team-memory](../team-memory/SKILL.md). For session title lifecycle see [session-titles](../session-titles/SKILL.md).
 
 ## Start Here

@@ -18,10 +18,13 @@ the skill is portable, and this lint verifies the claim:
 - portable + any other `~/.claude` reference → FAIL: the skill depends on this
   machine's Claude config; declare machine-bound or drop the dependency.
 - `/Users/<name>` → FAIL when portable, WARN when machine-bound.
-- machine-bound + no such references → WARN: consider declaring it portable.
 
-A line that must mention a path as subject matter (documentation about the
-layout itself) carries `portability: allow` in a comment on that line.
+Programmatic home-path forms count too: `${process.env.HOME}/.claude/...`,
+`join(HOME, ".claude", ...)`, `Path.home() / ".claude"`, `${HOME}/.claude`.
+
+A deliberate reference carries `portability: allow` in a comment on that line;
+docs/skill-portability.md defines the three grounds that justify one (content
+about paths, consumer-config access, declared optional integration).
 
 `report` prints every skill's verdict; `--check` exits non-zero on any FAIL.
 """
@@ -44,7 +47,12 @@ TEXT_SUFFIXES = {
     ".json", ".jsonc", ".yaml", ".yml", ".toml", ".html", ".css", ".csv",
 }
 
-DOTCLAUDE = re.compile(r"(?:~|\$HOME|/Users/[A-Za-z0-9_-]+)/\.claude(?P<rest>/[^\s`'\")\]]*)?")
+HOME_FORMS = r"(?:~|\$HOME|\$\{HOME\}|\$\{?process\.env\.HOME\}?|\$\{?os\.homedir\(\)\}?|\$\{?homedir\(\)\}?|/Users/[A-Za-z0-9_-]+)"
+DOTCLAUDE = re.compile(HOME_FORMS + r"/\.claude(?P<rest>/[^\s`'\")\]]*)?")
+JOINED_HOME = re.compile(
+    r"(?:join|resolve)\(\s*(?:HOME|homedir\(\)|os\.homedir\(\))\s*,\s*['\"]\.claude['\"](?P<args>(?:\s*,\s*['\"][^'\"]+['\"])*)"
+    r"|Path\.home\(\)\s*/\s*['\"]\.claude['\"](?P<segs>(?:\s*/\s*['\"][^'\"]+['\"])*)"
+)
 USER_HOME = re.compile(r"/Users/[A-Za-z0-9_-]+")
 
 
@@ -114,12 +122,17 @@ def scan_skill(skill_md: Path) -> Verdict:
                 kind, why = classify(m, skill)
                 severity = "FAIL" if tier == "portable" else "WARN"
                 findings.append(Finding(severity, rel, lineno, kind, why))
+            for m in JOINED_HOME.finditer(line):
+                matched_dotclaude = True
+                parts = re.findall(r"['\"]([^'\"]+)['\"]", m.group("args") or m.group("segs") or "")
+                rest = "/" + "/".join(parts) if parts else ""
+                kind, why = classify(re.match(r"(?P<rest>.*)", rest), skill)
+                severity = "FAIL" if tier == "portable" else "WARN"
+                findings.append(Finding(severity, rel, lineno, kind, why))
             if not matched_dotclaude and USER_HOME.search(line):
                 severity = "FAIL" if tier == "portable" else "WARN"
                 findings.append(Finding(severity, rel, lineno, "user-home", "hardcodes a user home path"))
 
-    if tier == "machine-bound" and not findings:
-        findings.append(Finding("WARN", f"skills/{skill}/SKILL.md", 1, "tier", "no machine-bound signals; consider portable"))
     return Verdict(skill, tier, tuple(findings))
 
 

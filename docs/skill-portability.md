@@ -31,19 +31,41 @@ MCP another skill may not be installed at all, and naming degrades gracefully.
 ## Tiers
 
 `metadata.portability` in SKILL.md frontmatter declares the tier. Absence
-claims **portable** and the lint verifies the claim.
+claims **portable** and the lint verifies the claim. The test: would the skill
+do its job on a stranger's machine that has the stated prerequisites
+installed?
 
 - **portable** (default): meaningful on any machine that meets the skill's
-  stated prerequisites. Needing macOS, an API key, or a CLI is portable —
-  state the prerequisite in prose. Served by every MCP binding.
+  stated prerequisites. Needing macOS, an API key, a CLI, or Claude Code
+  itself is portable — state the prerequisite in prose. A skill operating on
+  the consumer's *own* `~/.claude` (their config, their session data) is
+  portable with Claude Code as the prerequisite. Served by every MCP binding.
 - **machine-bound** (`metadata.portability: machine-bound`): depends on this
-  specific machine or account — Claude config under `~/.claude`, personal
-  infrastructure hostnames, local hardware. Served only by the local stdio
+  specific machine or account — personal infrastructure hostnames, local
+  hardware, accounts only the author holds. Served only by the local stdio
   binding, never by the hosted one.
+
+Skills in the repo's `local` tier (listed in `skills/.gitignore`, untracked)
+are outside the lint's scope — it walks `git ls-files` — and are served only
+by the local binding, which reads the live directory.
 
 ## Waivers
 
-A line whose subject matter is a path — documentation about the layout itself,
-not a reference the skill resolves — carries `portability: allow` in a comment
-on that line (`<!-- portability: allow -->` in markdown). Waive sparingly: a
-waiver asserts the path is content, not coupling.
+`portability: allow` in a comment on the flagged line (`<!-- … -->` in
+markdown, `// …` or `# …` in code) asserts the reference is deliberate. The
+lint also matches programmatic home-path forms (`${process.env.HOME}/.claude`,
+`join(HOME, ".claude", …)`, `Path.home() / ".claude"`), so waivers appear in
+code as well as prose. Three grounds justify one:
+
+1. **Content, not coupling** — the line's subject matter is a path:
+   documentation about the layout itself, not a reference the skill resolves.
+2. **Consumer-config access** — runtime code reading or writing the invoking
+   user's own `~/.claude`, where Claude Code is a stated prerequisite. The
+   waiver marks the touchpoint as examined; grepping for waivers inventories
+   exactly where a skill touches consumer config.
+3. **Declared optional integration** — a conventional default path for a
+   cross-skill or external integration that is environment-overridable and
+   feature-detected, degrading cleanly when absent.
+
+Waive sparingly, and say which ground applies when it isn't obvious from the
+line itself.

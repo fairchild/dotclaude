@@ -16,7 +16,7 @@ const GOLDEN_FILE = join(SKILL_DIR, "data", "golden.jsonl");
 const RESULTS_DIR = join(SKILL_DIR, "data", "results");
 
 // Load API key from ~/.claude/.env  // portability: allow
-const envPath = join(HOME, ".claude", ".env");
+const envPath = join(HOME, ".claude", ".env");  // portability: allow
 if (existsSync(envPath)) {
   for (const line of readFileSync(envPath, "utf-8").split("\n")) {
     const [key, ...rest] = line.split("=");

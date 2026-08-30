@@ -37,7 +37,7 @@ class AnalysisEntry(TypedDict):
 
 def get_knowledge_dir() -> Path:
     """Get the knowledge base directory from env or default."""
-    default = Path.home() / ".claude" / "knowledge"
+    default = Path.home() / ".claude" / "knowledge"  # portability: allow
     env_dir = os.environ.get("CLAUDE_KNOWLEDGE_DIR")
     return Path(env_dir) if env_dir else default
 

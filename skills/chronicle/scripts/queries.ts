@@ -9,7 +9,7 @@ import { loadResolved, loadResolvedKeys, generatePendingKey } from "./resolve-li
 // Re-export types for backward compatibility
 export type { ChronicleBlock, PendingItem, PendingItemWithAge } from "./types.ts";
 
-const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;
+const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;  // portability: allow
 
 // Simple cache: invalidated when block count or dir mtime changes
 let _cache: { blocks: ChronicleBlock[]; fileCount: number; mtimeMs: number } | null = null;

@@ -40,9 +40,9 @@ import {
 // The same walk picks up OPENROUTER_API_KEY for the fallback provider.
 loadEnvAssignments();
 
-const SUMMARIES_DIR = `${process.env.HOME}/.claude/chronicle/summaries`;
-const RECAPS_DIR = `${process.env.HOME}/.claude/chronicle/recaps`;
-const PROJECTS_DIR = `${process.env.HOME}/.claude/projects`;
+const SUMMARIES_DIR = `${process.env.HOME}/.claude/chronicle/summaries`;  // portability: allow
+const RECAPS_DIR = `${process.env.HOME}/.claude/chronicle/recaps`;  // portability: allow
+const PROJECTS_DIR = `${process.env.HOME}/.claude/projects`;  // portability: allow
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 
@@ -208,7 +208,7 @@ async function complete(model: string, prompt: string, maxTokens: number): Promi
 // ---------------------------------------------------------------------------
 
 const PROJECT_PATH_ALIASES: Record<string, string> = {
-  dotclaude: `${process.env.HOME}/.claude`,
+  dotclaude: `${process.env.HOME}/.claude`,  // portability: allow
 };
 
 function findProjectPath(project: string): string | null {

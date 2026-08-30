@@ -11,7 +11,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from "fs";
 import { loadAllBlocks, type ChronicleBlock, getTopFiles } from "./queries";
 
-const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle`;
+const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle`;  // portability: allow
 const INSIGHTS_DIR = `${CHRONICLE_DIR}/insights`;
 const LIGHTWEIGHT_STATS_FILE = `${INSIGHTS_DIR}/lightweight-stats.json`;
 
