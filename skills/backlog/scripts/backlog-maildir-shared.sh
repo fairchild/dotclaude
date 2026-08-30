@@ -304,7 +304,7 @@ cmd_status() {
 }
 
 cmd_maintain() {
-  echo "maintain: load ~/.claude/skills/backlog/references/maintain.md and walk the buckets" >&2
+  echo "maintain: load references/maintain.md and walk the buckets" >&2
   echo "(this script doesn't enumerate them — they're advisory and benefit from agent judgment)"
 }
 

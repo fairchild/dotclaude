@@ -26,7 +26,7 @@ Usage:
   backlog maintain
 
 Backend is read from backlog/AGENTS.md (## Backend section). Default: maildir-git.
-See ~/.claude/skills/backlog/SKILL.md for the full surface.
+See SKILL.md for the full surface.
 EOF
 }
 

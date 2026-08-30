@@ -256,7 +256,7 @@ ORDER BY interactions DESC;
 ## Data Sources
 
 ### Claude Code
-- **Location**: `~/.claude/projects/*/*.jsonl`
+- **Location**: `~/.claude/projects/*/*.jsonl` <!-- portability: allow -->
 - **Contents**: Full tool invocation logs, messages, system events, queue operations, PR links
 - **Metadata**: `sessions-index.json` files with session summaries
 
@@ -281,7 +281,7 @@ ORDER BY interactions DESC;
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ANALYZE_USAGE_DB` | `~/.local/share/analyze-usage/usage.duckdb` | Database path |
-| `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Claude Code logs path |
+| `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Claude Code logs path <!-- portability: allow --> |
 | `CODEX_HOME` | `~/.codex` | Codex logs path |
 | `CURSOR_USER_DIR` | Platform Cursor user directory | Cursor `User` directory override |
 | `PI_AGENT_DIR` | `~/.pi/agent` | Pi agent directory override |

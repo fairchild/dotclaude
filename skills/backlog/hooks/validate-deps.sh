@@ -57,7 +57,7 @@ for arg in "$@"; do
 
     if ! dep_resolves "$dep"; then
       printf 'backlog: unresolved dep in %s: %s\n' "$file" "$dep" >&2
-      printf '  -> author it with: bash ~/.claude/skills/backlog/scripts/backlog.sh add %s [followup|plan|task-list|ideas]\n' "$dep" >&2
+      printf '  -> author it with: bash scripts/backlog.sh add %s [followup|plan|task-list|ideas]\n' "$dep" >&2
       failed=1
     fi
   done < <(backlog_deps "$file")

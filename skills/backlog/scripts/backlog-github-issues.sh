@@ -665,7 +665,7 @@ cmd_status() {
 }
 
 cmd_maintain() {
-  echo "maintain: load ~/.claude/skills/backlog/references/maintain.md and walk the buckets" >&2
+  echo "maintain: load references/maintain.md and walk the buckets" >&2
   echo "(advisory walk; benefits from agent judgment)"
 }
 

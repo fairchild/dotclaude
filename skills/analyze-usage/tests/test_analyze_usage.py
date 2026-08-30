@@ -93,7 +93,7 @@ def write_fixture(home: Path, *, cwd: str | None = None) -> Path:
     claude_dir = home / ".claude" / "projects" / "demo"
     claude_dir.mkdir(parents=True, exist_ok=True)
     session_file = claude_dir / "session.jsonl"
-    cwd = cwd or "/Users/fairchild/conductor/workspaces/services/demo"
+    cwd = cwd or "/conductor/workspaces/services/demo"
     entries = [
         {
             "uuid": "u1",
@@ -165,7 +165,7 @@ def write_claude_subagent_fixture(home: Path, *, cwd: str | None = None) -> Path
     subagent_dir = home / ".claude" / "projects" / "demo" / "s1" / "subagents"
     subagent_dir.mkdir(parents=True, exist_ok=True)
     session_file = subagent_dir / "agent-nested1.jsonl"
-    cwd = cwd or "/Users/fairchild/conductor/workspaces/services/demo"
+    cwd = cwd or "/conductor/workspaces/services/demo"
     entries = [
         {
             "uuid": "sub-u1",
@@ -220,7 +220,7 @@ def write_codex_fixture(
     session_dir = codex_home / "sessions" / "2026" / "05" / "26"
     session_dir.mkdir(parents=True, exist_ok=True)
     session_file = session_dir / f"rollout-2026-05-26T00-00-00-{session_id}.jsonl"
-    cwd = cwd or "/Users/fairchild/.worktrees/dotclaude/codex-import"
+    cwd = cwd or "/.worktrees/dotclaude/codex-import"
     token_usage = token_usage or {
         "input_tokens": 10,
         "cached_input_tokens": 2,
@@ -328,7 +328,7 @@ def write_pi_fixture(
     provider: str = "anthropic",
     cost_total: float = 0.123456,
 ) -> tuple[str, Path]:
-    cwd = cwd or "/Users/fairchild/.worktrees/dotclaude/pi-import"
+    cwd = cwd or "/.worktrees/dotclaude/pi-import"
     session_dir = home / ".pi" / "agent" / "sessions" / "--fixture-dir--"
     session_dir.mkdir(parents=True, exist_ok=True)
     session_file = session_dir / f"2026-05-26T00-00-00-000Z_{session_id}.jsonl"
@@ -457,7 +457,7 @@ def write_sparse_claude_fixture(
             "sessionId": session_id,
             "type": "user",
             "timestamp": user_timestamp,
-            "cwd": f"/Users/example/code/{session_id}",
+            "cwd": f"/code/{session_id}",
             "entrypoint": "cli",
             "isSidechain": False,
             "message": {"content": prompt},
@@ -468,7 +468,7 @@ def write_sparse_claude_fixture(
             "sessionId": session_id,
             "type": "assistant",
             "timestamp": assistant_timestamp,
-            "cwd": f"/Users/example/code/{session_id}",
+            "cwd": f"/code/{session_id}",
             "entrypoint": "cli",
             "isSidechain": False,
             "message": {
@@ -489,7 +489,7 @@ def write_cursor_fixture(home: Path) -> Path:
     workspace_dir = home / ".cursor-user" / "workspaceStorage" / "cursor-fixture"
     workspace_dir.mkdir(parents=True, exist_ok=True)
     (workspace_dir / "workspace.json").write_text(
-        json.dumps({"folder": "file:///Users/example/code/cursor-repo"})
+        json.dumps({"folder": "file:///code/cursor-repo"})
     )
     db_path = workspace_dir / "state.vscdb"
     payload = [
@@ -1284,7 +1284,7 @@ def test_codex_managed_worktree_attribution() -> None:
         home.mkdir()
         write_codex_fixture(
             home,
-            cwd="/Users/fairchild/.codex/worktrees/abc123/dotclaude",
+            cwd="/.codex/worktrees/abc123/dotclaude",
         )
         db_path = Path(tmp) / "usage.duckdb"
         env = make_env(home, db_path)
@@ -1338,7 +1338,7 @@ def test_incremental_sparse_claude_file() -> None:
                 "sessionId": "sparse-session",
                 "type": "user",
                 "timestamp": "2026-07-11T12:00:00Z",
-                "cwd": "/Users/fairchild/code/sparse",
+                "cwd": "/code/sparse",
                 "entrypoint": "cli",
                 "isSidechain": False,
                 "message": {"content": "sparse input"},
@@ -1349,7 +1349,7 @@ def test_incremental_sparse_claude_file() -> None:
                 "sessionId": "sparse-session",
                 "type": "assistant",
                 "timestamp": "2026-07-11T12:00:01Z",
-                "cwd": "/Users/fairchild/code/sparse",
+                "cwd": "/code/sparse",
                 "entrypoint": "cli",
                 "isSidechain": False,
                 "message": {

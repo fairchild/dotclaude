@@ -107,7 +107,7 @@ def check_static() -> int:
     skill_md = SKILL_DIR / "SKILL.md"
     skill_text = skill_md.read_text()
     if (
-        "~/.claude/skills/image-gen/scripts/<script>.py" in skill_text
+        "scripts/<script>.py" in skill_text
         and "uv run --script" in skill_text
         and "fallback" in skill_text.lower()
     ):

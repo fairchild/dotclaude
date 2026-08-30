@@ -4,15 +4,14 @@
  *
  * Logs dependency update outcomes for learning.
  *
- * Usage:
- *   bun ~/.claude/skills/update-dependencies/scripts/log-outcome.ts
- *   bun ~/.claude/skills/update-dependencies/scripts/log-outcome.ts --outcome success --notes "patch security fix"
- *   bun ~/.claude/skills/update-dependencies/scripts/log-outcome.ts --show
+ * Usage (paths relative to this skill's base directory):
+ *   bun scripts/log-outcome.ts
+ *   bun scripts/log-outcome.ts --outcome success --notes "patch security fix"
+ *   bun scripts/log-outcome.ts --show
  */
 
 import { appendFileSync, existsSync, readFileSync } from "fs";
-import { basename } from "path";
-import { homedir } from "os";
+import { basename, join } from "path";
 
 interface OutcomeEntry {
   date: string;
@@ -26,7 +25,7 @@ interface OutcomeEntry {
   notes: string;
 }
 
-const DATA_FILE = `${homedir()}/.claude/skills/update-dependencies/data/outcomes.jsonl`;
+const DATA_FILE = join(import.meta.dir, "..", "data", "outcomes.jsonl");
 
 function detectEcosystem(): string {
   const lockfiles: [string, string][] = [
@@ -136,7 +135,7 @@ function main() {
     console.log(`Ecosystem: ${detectEcosystem()}`);
     console.log(`Date: ${new Date().toISOString().split("T")[0]}`);
     console.log("\nFill in and run:");
-    console.log(`bun ~/.claude/skills/update-dependencies/scripts/log-outcome.ts \\
+    console.log(`bun scripts/log-outcome.ts \\
   --packages "pkg1,pkg2" \\
   --from "1.0.0" \\
   --to "2.0.0" \\
