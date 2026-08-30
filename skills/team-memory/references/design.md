@@ -14,7 +14,7 @@ The framework is **general-purpose**. A specific personality (like Bertram) is o
 - **Local-first** — markdown files on disk, no databases, no external services
 - **AI-only pipeline** — memory operations handled by subagents, not TypeScript scripts
 - **Claude Code native** — exploits the CLAUDE.md `@import` → system prompt pipeline for durable memory injection (see [Key Insight](#key-insight-memory-as-system-prompt))
-- **Distributable as a skill** — ships as `~/.claude/skills/team-memory/`, data lives in `~/.ai-memory/`
+- **Distributable as a skill** — code ships inside the skill directory, data lives in `~/.ai-memory/`
 - **Two memory loops** — conscious (active remember/recall) + subconscious (sleep-time compute)
 
 ## Key Insight: Memory as System Prompt
@@ -67,13 +67,13 @@ This is why **promotion to `core/` matters** — a memory block in `core/` gets 
 │   └── ...
 ```
 
-### Skill (`~/.claude/skills/team-memory/`)
+### Skill (paths relative to the skill's base directory)
 
 ```
-~/.claude/skills/team-memory/
+.
 ├── SKILL.md                        # Skill definition, triggers, commands
 ├── agents/
-│   └── team-memory-sleep.md        # Orchestrator source (synced to ~/.claude/agents/)
+│   └── team-memory-sleep.md        # Orchestrator source (synced into Claude Code's agents dir)
 ├── references/
 │   ├── design.md                   # This file
 │   └── agents/
@@ -209,7 +209,7 @@ The `<!-- IMMUTABLE -->` / `<!-- MUTABLE -->` markers are guardrails. The sleep-
 
 ### Shared Knowledge
 
-`~/.ai-memory/shared/projects.md` and `~/.ai-memory/shared/platform.md` are @imported by every teammate's CLAUDE.md. Human preferences and conventions are already covered by the global `~/.claude/CLAUDE.md` which loads alongside the persona.
+`~/.ai-memory/shared/projects.md` and `~/.ai-memory/shared/platform.md` are @imported by every teammate's CLAUDE.md. Human preferences and conventions are already covered by the global `~/.claude/CLAUDE.md` which loads alongside the persona. <!-- portability: allow — names Claude Code's global memory file -->
 
 Teammates can also read each other's archival/ for cross-pollination (e.g., Oracle reading Bertram's memories about a shared project).
 
@@ -294,7 +294,9 @@ Usage:
 
 ## Hook Wiring
 
-Added to `settings.json` by the init command:
+Added to `settings.json` by the init command. `init.sh` resolves its own
+location and writes the absolute path to `session-end.sh`; `<skill-dir>` below
+stands for that resolved directory:
 
 ```json
 {
@@ -304,7 +306,7 @@ Added to `settings.json` by the init command:
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/skills/team-memory/scripts/session-end.sh"
+            "command": "<skill-dir>/scripts/session-end.sh"
           }
         ]
       }
@@ -313,7 +315,7 @@ Added to `settings.json` by the init command:
 }
 ```
 
-`session-end.sh` parses `transcript_path` from hook JSON input and skips when missing (strict mode). Optional fallback to latest transcript is available via `AI_MEMORY_ALLOW_TRANSCRIPT_FALLBACK=1`. The script also syncs `agents/team-memory-sleep.md` into `~/.claude/agents/`, then invokes `team-memory-sleep` with explicit env vars (`AI_MEMORY_TARGET_PERSONA`, `AI_MEMORY_TRANSCRIPT`, `AI_MEMORY_DIR`) while clearing `AI_MEMORY_PERSONA` to prevent recursive cascades.
+`session-end.sh` parses `transcript_path` from hook JSON input and skips when missing (strict mode). Optional fallback to latest transcript is available via `AI_MEMORY_ALLOW_TRANSCRIPT_FALLBACK=1`. The script also syncs `agents/team-memory-sleep.md` into Claude Code's agents directory, then invokes `team-memory-sleep` with explicit env vars (`AI_MEMORY_TARGET_PERSONA`, `AI_MEMORY_TRANSCRIPT`, `AI_MEMORY_DIR`) while clearing `AI_MEMORY_PERSONA` to prevent recursive cascades.
 
 ## SKILL.md Commands
 
@@ -375,14 +377,14 @@ Task tool: subagent_type "general-purpose", run_in_background true
 
 ## Distribution Model
 
-The skill is self-contained in `~/.claude/skills/team-memory/`. Anyone can install by:
+The skill is self-contained in its own directory. Anyone can install by:
 
 1. Copy the skill directory
 2. Run `/team-memory init <name>` to create their first teammate
 3. Edit `~/.ai-memory/<name>/personality.md`
 4. Alias `claude-memory` to the launcher script
 5. Hook wiring is handled automatically by init
-6. init/session-end keep `~/.claude/agents/team-memory-sleep.md` in sync from the skill-local `agents/` copy
+6. init/session-end keep Claude Code's `agents/team-memory-sleep.md` in sync from the skill-local `agents/` copy
 
 Memory data in `~/.ai-memory/` is user-specific and not part of the skill distribution.
 

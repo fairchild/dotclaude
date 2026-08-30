@@ -1,6 +1,10 @@
 # Hook Setup
 
-Add these hooks to `~/.claude/settings.json`:
+Add these hooks to `~/.claude/settings.json`: <!-- portability: allow — names Claude Code's own settings file -->
+
+A hook command runs from an arbitrary cwd, so it needs an absolute path.
+`<skill-dir>` below stands for this skill's base directory — expand it when you
+write the entry.
 
 ```json
 {
@@ -10,7 +14,7 @@ Add these hooks to `~/.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "bun ~/.claude/skills/persona-memory/scripts/session-start.ts"
+            "command": "bun <skill-dir>/scripts/session-start.ts"
           }
         ]
       }
@@ -20,7 +24,7 @@ Add these hooks to `~/.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "bun ~/.claude/skills/persona-memory/scripts/session-end.ts"
+            "command": "bun <skill-dir>/scripts/session-end.ts"
           }
         ]
       }
@@ -37,10 +41,10 @@ Use launcher wrapper:
 claude-persona
 ```
 
-or call script directly:
+or call the script directly from this skill's base directory:
 
 ```bash
-~/.claude/skills/persona-memory/scripts/launch-claude.sh
+scripts/launch-claude.sh
 ```
 
 ## Recommended Environment Variables

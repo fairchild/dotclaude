@@ -60,8 +60,11 @@ resolve_skill_dir() {
     return 0
   fi
 
+  # Fallback for a launcher copied out of the skill (bootstrap --install-launcher
+  # writes ~/.local/bin/claude-persona): probe the standard per-agent skill roots
+  # that exist on any consumer's machine.
   local candidates=(
-    "$HOME/.claude/skills/persona-memory"
+    "$HOME/.claude/skills/persona-memory"  # portability: allow — consumer's own skill root, probed alongside .agents/.codex
     "$HOME/.agents/skills/persona-memory"
     "$HOME/.codex/skills/persona-memory"
   )

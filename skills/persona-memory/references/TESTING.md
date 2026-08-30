@@ -1,22 +1,24 @@
 # Testing Persona-Memory
 
+Every command below runs from this skill's base directory; paths are relative
+to it. Prerequisite: `bun`.
+
 ## Test Harness Commands
 
 Search convention:
 ```bash
 # preferred
-rg "pattern" /Users/fairchild/.claude/skills/persona-memory
-rg --files /Users/fairchild/.claude/skills/persona-memory
+rg "pattern" .
+rg --files .
 ```
 
 Deterministic suite (required gate):
 ```bash
-bun /Users/fairchild/.claude/skills/persona-memory/tests/harness.ts --suite deterministic
+bun tests/harness.ts --suite deterministic
 ```
 
 Skill-spec compatibility checks (structure/frontmatter/required files):
 ```bash
-cd /Users/fairchild/.claude/skills/persona-memory
 bun scripts/test-skill-spec.ts --report text
 ```
 
@@ -27,18 +29,17 @@ bun scripts/test-skill-spec.ts --require-metadata-status --report text
 
 Skill-spec + runtime verification (rebuild + deterministic harness):
 ```bash
-cd /Users/fairchild/.claude/skills/persona-memory
 bun scripts/test-skill-spec.ts --full --report text
 ```
 
 Synthetic evaluation only:
 ```bash
-bun /Users/fairchild/.claude/skills/persona-memory/tests/eval.ts --report text
+bun tests/eval.ts --report text
 ```
 
 Rebuild compiled evalset from base + hand labels:
 ```bash
-bun /Users/fairchild/.claude/skills/persona-memory/scripts/evalset-rebuild.ts --report json
+bun scripts/evalset-rebuild.ts --report json
 ```
 
 Live smoke suite (Anthropic):
@@ -46,7 +47,7 @@ Live smoke suite (Anthropic):
 AI_MEMORY_TEST_LIVE=1 \
 AI_MEMORY_TEST_PROVIDER=anthropic \
 ANTHROPIC_API_KEY=... \
-bun /Users/fairchild/.claude/skills/persona-memory/tests/harness.ts --suite live
+bun tests/harness.ts --suite live
 ```
 
 All suites:
@@ -54,19 +55,17 @@ All suites:
 AI_MEMORY_TEST_LIVE=1 \
 AI_MEMORY_TEST_PROVIDER=anthropic \
 ANTHROPIC_API_KEY=... \
-bun /Users/fairchild/.claude/skills/persona-memory/tests/harness.ts --suite all --report json
+bun tests/harness.ts --suite all --report json
 ```
 
 Eval dashboard:
 ```bash
-cd /Users/fairchild/.claude/skills/persona-memory
 bun scripts/serve-eval-dashboard.ts
 # open http://127.0.0.1:8787/assets/eval-dashboard/
 ```
 
 Automated dashboard screenshots (desktop/mobile, light/dark):
 ```bash
-cd /Users/fairchild/.claude/skills/persona-memory
 bun scripts/capture-dashboard.ts
 ```
 

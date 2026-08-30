@@ -8,7 +8,11 @@ license: Apache-2.0
 
 Persistent memory and evolving personality for AI teammates.
 
-> **Related:** For session journaling see [chronicle](../chronicle/SKILL.md). For persona/profile mechanics see [persona-memory](../persona-memory/SKILL.md).
+> **Related:** For session journaling use the `chronicle` skill. For persona/profile mechanics use the `persona-memory` skill.
+
+File paths like `scripts/init.sh` and `references/design.md` are relative to
+this skill's base directory; run the commands below from there. Memory lives
+under `~/.ai-memory/` (override with `AI_MEMORY_DIR`). Prerequisite: Claude Code.
 
 ## Usage
 
@@ -27,7 +31,7 @@ Persistent memory and evolving personality for AI teammates.
 Run regression smoke checks:
 
 ```bash
-bash ~/.claude/skills/team-memory/tests/regression.sh
+bash tests/regression.sh
 ```
 
 Transcript fallback behavior:
@@ -39,7 +43,7 @@ Transcript fallback behavior:
 Bootstrap a new AI teammate:
 
 ```bash
-bash ~/.claude/skills/team-memory/scripts/init.sh <name>
+bash scripts/init.sh <name>
 ```
 
 This creates:
@@ -61,15 +65,18 @@ For the full walkthrough, see [`references/add-teammate.md`](references/add-team
 Launch Claude with a teammate personality:
 
 ```bash
-~/.claude/skills/team-memory/scripts/launch.sh                    # active teammate
-~/.claude/skills/team-memory/scripts/launch.sh --persona <name>   # specific teammate
-~/.claude/skills/team-memory/scripts/launch.sh --persona <name> ~/code/project
+scripts/launch.sh                    # active teammate
+scripts/launch.sh --persona <name>   # specific teammate
+scripts/launch.sh --persona <name> ~/code/project
 ```
 
-Recommended alias:
+Recommended alias — a shell alias resolves at typing time, so expand
+`$SKILL_DIR` to this skill's own base directory when you write it into your
+shell rc:
+
 ```bash
-alias claude-memory='~/.claude/skills/team-memory/scripts/launch.sh'
-alias claude-bertram='~/.claude/skills/team-memory/scripts/launch.sh --persona bertram'
+alias claude-memory="$SKILL_DIR/scripts/launch.sh"
+alias claude-bertram="$SKILL_DIR/scripts/launch.sh --persona bertram"
 ```
 
 ## List (`/team-memory list`)
@@ -119,7 +126,7 @@ Dispatch the sleep-consolidate agent:
 ```
 Task tool:
   subagent_type: "general-purpose"
-  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-consolidate.md and execute. Persona: <name>, Memory dir: <MEMORY_DIR>/<name>"
+  prompt: "Read <team-memory base dir>/references/agents/sleep-consolidate.md and execute. Persona: <name>, Memory dir: <MEMORY_DIR>/<name>"
 ```
 
 ## Forget (`/team-memory forget <query>`)
@@ -175,7 +182,7 @@ Blocks that stay relevant get refreshed by merges and re-references.
 
 ## Sample Personalities
 
-A sample Bertram personality is available at:
-`~/.claude/skills/team-memory/references/sample-bertram-personality.md`
+A sample Bertram personality is available at
+[`references/sample-bertram-personality.md`](references/sample-bertram-personality.md).
 
 Copy and customize for your teammate.

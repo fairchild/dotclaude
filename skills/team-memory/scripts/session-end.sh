@@ -9,8 +9,10 @@ persona="${AI_MEMORY_PERSONA:-}"
 [ -z "$persona" ] && exit 0
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
-skill_agent="$script_dir/../agents/team-memory-sleep.md"
-global_agent_dir="$HOME/.claude/agents"
+skill_dir="$(dirname "$script_dir")"
+skill_agent="$skill_dir/agents/team-memory-sleep.md"
+claude_home="$HOME/.claude"  # portability: allow — Claude Code's own config dir, identical on every install
+global_agent_dir="$claude_home/agents"
 global_agent="$global_agent_dir/team-memory-sleep.md"
 
 # Keep global auto-discovered agent synced from the skill-local copy.
@@ -31,7 +33,7 @@ fi
 
 if [ -z "$transcript" ]; then
   if [ "${AI_MEMORY_ALLOW_TRANSCRIPT_FALLBACK:-0}" = "1" ]; then
-    transcript=$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1 || true)
+    transcript=$(ls -t "$claude_home"/projects/*/*.jsonl 2>/dev/null | head -1 || true)
   else
     exit 0
   fi
@@ -50,4 +52,5 @@ AI_MEMORY_PERSONA= \
 AI_MEMORY_TARGET_PERSONA="$persona" \
 AI_MEMORY_TRANSCRIPT="$transcript" \
 AI_MEMORY_DIR="$memory_home" \
+AI_MEMORY_SKILL_DIR="$skill_dir" \
   claude --agent team-memory-sleep --model haiku --print "Run sleep-time compute for persona $persona" || true

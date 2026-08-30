@@ -50,7 +50,7 @@ cat > "$home_init/.claude/settings.json" <<'JSON'
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/session-end.sh"
+            "command": "/usr/local/bin/unrelated-session-end.sh"
           }
         ]
       }
@@ -62,17 +62,17 @@ JSON
 HOME="$home_init" AI_MEMORY_DIR="$home_init/.ai-memory" bash "$INIT_SCRIPT" scout >/dev/null
 commands="$tmp/sessionend-commands.txt"
 jq -r '.hooks.SessionEnd[]?.hooks[]?.command // empty' "$home_init/.claude/settings.json" > "$commands"
-assert_file_contains "$commands" "~/.claude/skills/team-memory/scripts/session-end.sh"
-hook_count=$(jq -r '.hooks.SessionEnd[]?.hooks[]?.command // empty' "$home_init/.claude/settings.json" | grep -F -c "~/.claude/skills/team-memory/scripts/session-end.sh" || true)
+assert_file_contains "$commands" "$SESSION_END_SCRIPT"
+hook_count=$(jq -r '.hooks.SessionEnd[]?.hooks[]?.command // empty' "$home_init/.claude/settings.json" | grep -F -c "$SESSION_END_SCRIPT" || true)
 [ "$hook_count" -eq 1 ] || fail "Expected exactly one team-memory SessionEnd hook after first init"
 
 # Second init should not duplicate the team-memory hook.
 HOME="$home_init" AI_MEMORY_DIR="$home_init/.ai-memory" bash "$INIT_SCRIPT" oracle >/dev/null
-hook_count=$(jq -r '.hooks.SessionEnd[]?.hooks[]?.command // empty' "$home_init/.claude/settings.json" | grep -F -c "~/.claude/skills/team-memory/scripts/session-end.sh" || true)
+hook_count=$(jq -r '.hooks.SessionEnd[]?.hooks[]?.command // empty' "$home_init/.claude/settings.json" | grep -F -c "$SESSION_END_SCRIPT" || true)
 [ "$hook_count" -eq 1 ] || fail "Expected exactly one team-memory SessionEnd hook after repeated init"
 
 # Reordered SessionEnd entries should still be detected as already wired.
-cat > "$home_init/.claude/settings.json" <<'JSON'
+cat > "$home_init/.claude/settings.json" <<JSON
 {
   "hooks": {
     "SessionEnd": [
@@ -80,7 +80,7 @@ cat > "$home_init/.claude/settings.json" <<'JSON'
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/skills/team-memory/scripts/session-end.sh"
+            "command": "$SESSION_END_SCRIPT"
           }
         ]
       },
@@ -88,7 +88,7 @@ cat > "$home_init/.claude/settings.json" <<'JSON'
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/other-session-end.sh"
+            "command": "/usr/local/bin/other-session-end.sh"
           }
         ]
       }
@@ -97,7 +97,7 @@ cat > "$home_init/.claude/settings.json" <<'JSON'
 }
 JSON
 HOME="$home_init" AI_MEMORY_DIR="$home_init/.ai-memory" bash "$INIT_SCRIPT" atlas >/dev/null
-hook_count=$(jq -r '.hooks.SessionEnd[]?.hooks[]?.command // empty' "$home_init/.claude/settings.json" | grep -F -c "~/.claude/skills/team-memory/scripts/session-end.sh" || true)
+hook_count=$(jq -r '.hooks.SessionEnd[]?.hooks[]?.command // empty' "$home_init/.claude/settings.json" | grep -F -c "$SESSION_END_SCRIPT" || true)
 [ "$hook_count" -eq 1 ] || fail "Expected exactly one team-memory SessionEnd hook when existing hook is not the last SessionEnd entry"
 if ! cmp -s "$SKILL_ORCHESTRATOR" "$home_init/.claude/agents/team-memory-sleep.md"; then
   fail "Expected init.sh to install synced global team-memory-sleep agent"
@@ -125,6 +125,7 @@ cat > "$tmp/bin/claude" <<'SH'
   echo "AI_MEMORY_TARGET_PERSONA:${AI_MEMORY_TARGET_PERSONA:-}"
   echo "AI_MEMORY_TRANSCRIPT:${AI_MEMORY_TRANSCRIPT:-}"
   echo "AI_MEMORY_DIR:${AI_MEMORY_DIR:-}"
+  echo "AI_MEMORY_SKILL_DIR:${AI_MEMORY_SKILL_DIR:-}"
 } > "$TEAM_MEMORY_TEST_CAPTURE"
 SH
 chmod +x "$tmp/bin/claude"
@@ -143,6 +144,7 @@ assert_file_contains "$capture" "ARGS:--agent team-memory-sleep --model haiku --
 assert_file_contains "$capture" "AI_MEMORY_TARGET_PERSONA:smoky"
 assert_file_contains "$capture" "AI_MEMORY_TRANSCRIPT:$hook_transcript"
 assert_file_contains "$capture" "AI_MEMORY_DIR:$tmp/custom-memory-root"
+assert_file_contains "$capture" "AI_MEMORY_SKILL_DIR:$SKILL_DIR"
 assert_file_contains "$capture" "AI_MEMORY_PERSONA_VALUE:"
 assert_file_not_contains "$capture" "AI_MEMORY_PERSONA_VALUE:smoky"
 if ! cmp -s "$SKILL_ORCHESTRATOR" "$home_hook/.claude/agents/team-memory-sleep.md"; then
