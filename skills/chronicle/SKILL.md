@@ -67,15 +67,17 @@ Use `chronicle-curator` when the user wants a meaningful checkpoint, retrospecti
 
 ## Scripts
 
-Run scripts from the Chronicle script directory unless the command reference says otherwise:
+Script paths are relative to this skill's base directory — the one the harness
+announced at invocation. Prefix them with it when the working directory is a
+project rather than the skill:
 
 ```bash
-bun ~/.claude/skills/chronicle/scripts/catchup.ts
-bun ~/.claude/skills/chronicle/scripts/recap.ts <project> --days=14
-bun ~/.claude/skills/chronicle/scripts/stale.ts
-bun ~/.claude/skills/chronicle/scripts/resolve.ts "<pending item>"
-bun ~/.claude/skills/chronicle/scripts/publish.ts --period weekly
-bun ~/.claude/skills/chronicle/scripts/dashboard.ts
+bun scripts/catchup.ts
+bun scripts/recap.ts <project> --days=14
+bun scripts/stale.ts
+bun scripts/resolve.ts "<pending item>"
+bun scripts/publish.ts --period weekly
+bun scripts/dashboard.ts
 ```
 
 Use repo-local paths (`skills/chronicle/scripts/...`) when developing this repo.

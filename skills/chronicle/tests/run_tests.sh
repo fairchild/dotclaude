@@ -13,7 +13,19 @@ sleep 1
 echo "Starting Chronicle dashboard tests..."
 echo ""
 
-python3 ~/.claude/skills/webapp-testing/scripts/with_server.py \
-  --server "bun skills/chronicle/scripts/dashboard.ts" \
-  --port 3456 \
-  -- bash -c "./skills/chronicle/tests/flows.py && ./skills/chronicle/tests/edge_cases.py"
+# Start the dashboard, wait for the port, run the suites, then clean up.
+bun skills/chronicle/scripts/dashboard.ts &
+server_pid=$!
+trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+for _ in $(seq 60); do
+  nc -z localhost 3456 2>/dev/null && break
+  sleep 0.5
+done
+
+if ! nc -z localhost 3456 2>/dev/null; then
+  echo "Dashboard failed to start on port 3456 within 30s" >&2
+  exit 1
+fi
+
+./skills/chronicle/tests/flows.py && ./skills/chronicle/tests/edge_cases.py

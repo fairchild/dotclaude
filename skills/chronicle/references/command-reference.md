@@ -4,6 +4,8 @@ Captures and curates session memory so coding context survives across restarts.
 
 This reference preserves the expanded command details that used to live in `SKILL.md`. Load it when the concise Chronicle entrypoint points here or when a user asks for an advanced command, example, schema detail, dashboard behavior, publishing behavior, or development command.
 
+Script paths such as `scripts/catchup.ts` are relative to this skill's base directory — the one the harness announced at invocation. Prefix them with it when running from a project directory.
+
 ## Start Here
 
 Prefer these three workflows unless the user explicitly asks for something else:
@@ -85,7 +87,7 @@ Captures current session state as a memory block:
 - Key actions taken
 - Pending work
 
-Blocks stored in `~/.claude/chronicle/blocks/`.
+Blocks stored in `~/.claude/chronicle/blocks/`.  <!-- portability: allow -->
 
 > **Want a thoughtful synthesis instead of a raw snapshot?** Use `/chronicle curate` — it invokes the curator agent which updates today's block with editor-level reasoning (continuation vs new vs resolution, cross-block linking). Quick capture is the fast path; curate is the considered path.
 
@@ -98,7 +100,7 @@ Blocks stored in `~/.claude/chronicle/blocks/`.
    - Accomplishments so far
    - Unfinished work
 
-2. **Write block** to `~/.claude/chronicle/blocks/{date}-{descriptive-name}.json`:
+2. **Write block** to `~/.claude/chronicle/blocks/{date}-{descriptive-name}.json`:  <!-- portability: allow -->
 
 ```json
 {
@@ -175,7 +177,7 @@ Task(
     Challenges: {user's challenges}
     Next Steps: {user's next steps}
 
-    Review existing blocks in ~/.claude/chronicle/blocks/
+    Review existing blocks in ~/.claude/chronicle/blocks/  # portability: allow
     Update or create blocks as needed.
     Report what you changed."
 )
@@ -202,7 +204,7 @@ The curator will:
 
 Show all pending work across sessions:
 
-1. Read all blocks from `~/.claude/chronicle/blocks/`
+1. Read all blocks from `~/.claude/chronicle/blocks/`  <!-- portability: allow -->
 2. Extract `pending` arrays from each
 3. Group by project
 4. Display with recency info
@@ -214,7 +216,7 @@ Show all pending work across sessions:
 List recent memory blocks:
 
 ```bash
-ls -lt ~/.claude/chronicle/blocks/ | head -10
+ls -lt ~/.claude/chronicle/blocks/ | head -10  # portability: allow
 ```
 
 Show filename, date, and first line of summary for each.
@@ -229,7 +231,7 @@ Restore context when returning to a project — last session + aggregated pendin
 > **Want the longer view across the last several sessions?** Use `/chronicle recap` instead — it produces a Themes / Wins / Open threads / Friction narrative across a window of sessions, not just the last one. Catchup is for return-to-work; recap is for orienting after days away or producing a teammate handoff.
 
 ```bash
-bun ~/.claude/skills/chronicle/scripts/catchup.ts [--days=N]
+bun scripts/catchup.ts [--days=N]
 ```
 
 Options:
@@ -248,7 +250,7 @@ If no data found, suggests `/chronicle` to capture current session.
 The script can output resolution candidates for semantic matching:
 
 ```bash
-bun ~/.claude/skills/chronicle/scripts/catchup.ts --candidates
+bun scripts/catchup.ts --candidates
 ```
 
 This outputs JSON with pending/accomplished pairs scored by keyword overlap.
@@ -271,7 +273,7 @@ Task(
 3. Save confirmed resolutions:
 
 ```bash
-bun ~/.claude/skills/chronicle/scripts/resolve.ts "pending text"
+bun scripts/resolve.ts "pending text"
 ```
 
 ---
@@ -283,18 +285,18 @@ Generate a multi-session narrative recap for a project — the shape "returning 
 `recap.ts` is a thin wrapper that calls `summarize.ts` with `format=narrative`. The synthesis logic, fallback handling, and context-gathering all live in `summarize.ts` — recap is just the friendly entry point with project-and-window argument parsing.
 
 ```bash
-bun ~/.claude/skills/chronicle/scripts/recap.ts [project] [--days=N] [--stdout-only]
+bun scripts/recap.ts [project] [--days=N] [--stdout-only]
 ```
 
 Options:
 - `project` — positional, defaults to current project from `detectContext()`
 - `--days=N` — time window (default: 7)
-- `--stdout-only` — skip writing to `~/.claude/chronicle/recaps/`
+- `--stdout-only` — skip writing to `~/.claude/chronicle/recaps/`  <!-- portability: allow -->
 
 You can also call summarize directly for the same result, plus `--md` to print markdown to stdout:
 
 ```bash
-bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=<project> --days=14 --format=narrative --with-context --md
+bun scripts/summarize.ts --repo=<project> --days=14 --format=narrative --with-context --md
 ```
 
 ### What it produces
@@ -310,12 +312,12 @@ A Markdown recap with exactly four sections:
 
 - Chronicle blocks for `project` within the window (from `queries.ts`)
 - `git log --oneline --since=<window>` from the local project path (best-effort — skipped if the repo isn't found under `~/code/<project>` or cwd)
-- Curated memory at `~/.claude/projects/<slug>/memory/feedback_*.md` and `project_*.md`
+- Curated memory at `~/.claude/projects/<slug>/memory/feedback_*.md` and `project_*.md`  <!-- portability: allow -->
 
 ### Behavior
 
-- Output goes to stdout **and** to `~/.claude/chronicle/recaps/{project}-{YYYY-MM-DD}.md` (unless `--stdout-only`)
-- If fewer than 2 blocks in window: prints a "not enough data" message with pointers to raw session JSONLs under `~/.claude/projects/<slug>/` and exits 0
+- Output goes to stdout **and** to `~/.claude/chronicle/recaps/{project}-{YYYY-MM-DD}.md` (unless `--stdout-only`)  <!-- portability: allow -->
+- If fewer than 2 blocks in window: prints a "not enough data" message with pointers to raw session JSONLs under `~/.claude/projects/<slug>/` and exits 0  <!-- portability: allow -->
 - If the API call fails: falls back to a raw-facts dump (sessions + git log + memory file counts) so the command is still useful offline
 - Model: **Opus** (`claude-opus-5`) — recap is lower-frequency than summarize, quality matters more than cost
 
@@ -407,7 +409,7 @@ If the session completed a milestone (not just a task), suggest `/release` to bu
 Show pending items that have been open for more than 14 days:
 
 ```bash
-bun ~/.claude/skills/chronicle/scripts/stale.ts
+bun scripts/stale.ts
 ```
 
 Shows:
@@ -424,11 +426,11 @@ Staleness warnings also appear in `/chronicle catchup` output with ⚠️ marker
 Reduce block bloat by merging per-project, per-week blocks into consolidated summaries.
 
 ```bash
-bun ~/.claude/skills/chronicle/scripts/consolidate.ts                    # Dry run
-bun ~/.claude/skills/chronicle/scripts/consolidate.ts --apply            # Execute
-bun ~/.claude/skills/chronicle/scripts/consolidate.ts --apply --drop-pending  # Execute + clear stale pending
-bun ~/.claude/skills/chronicle/scripts/consolidate.ts --older-than=30    # Only blocks >30 days old (default: 14)
-bun ~/.claude/skills/chronicle/scripts/consolidate.ts --project=services # Single project
+bun scripts/consolidate.ts                    # Dry run
+bun scripts/consolidate.ts --apply            # Execute
+bun scripts/consolidate.ts --apply --drop-pending  # Execute + clear stale pending
+bun scripts/consolidate.ts --older-than=30    # Only blocks >30 days old (default: 14)
+bun scripts/consolidate.ts --project=services # Single project
 ```
 
 Consolidation:
@@ -436,11 +438,11 @@ Consolidation:
 - Deduplicates accomplished and pending items (case-insensitive)
 - Removes pending items that appear in accomplished
 - Cross-week dedup: each project's pending kept only in earliest week
-- Archives originals to `~/.claude/chronicle/archive/` (not deleted)
+- Archives originals to `~/.claude/chronicle/archive/` (not deleted)  <!-- portability: allow -->
 
 Also runs monthly via launchd (1st of each month at 2am). Install:
 ```bash
-~/.claude/skills/chronicle/scripts/install-services.sh install consolidate
+scripts/install-services.sh install consolidate
 ```
 
 ---
@@ -454,12 +456,12 @@ Mark pending items as resolved. Resolutions can happen two ways:
 **Explicit resolution**: Manually mark items as complete:
 
 ```bash
-bun ~/.claude/skills/chronicle/scripts/resolve.ts "Add unit tests"  # Mark as resolved
-bun ~/.claude/skills/chronicle/scripts/resolve.ts --list            # Show resolved items
-bun ~/.claude/skills/chronicle/scripts/resolve.ts --undo "text"     # Undo a resolution
+bun scripts/resolve.ts "Add unit tests"  # Mark as resolved
+bun scripts/resolve.ts --list            # Show resolved items
+bun scripts/resolve.ts --undo "text"     # Undo a resolution
 ```
 
-Resolutions are stored in `~/.claude/chronicle/resolved.json` as an overlay - original blocks remain immutable.
+Resolutions are stored in `~/.claude/chronicle/resolved.json` as an overlay - original blocks remain immutable.  <!-- portability: allow -->
 
 Resolved items:
 - Are excluded from pending lists in catchup and stale
@@ -471,7 +473,7 @@ Resolved items:
 
 Search across all Chronicle blocks by text:
 
-1. Read all blocks from `~/.claude/chronicle/blocks/`
+1. Read all blocks from `~/.claude/chronicle/blocks/`  <!-- portability: allow -->
 2. Search in: summary, accomplished items, pending items, project name, branch
 3. Return matching blocks sorted by relevance
 
@@ -510,13 +512,13 @@ Task(
 
     For each project, spawn Explore subagents to examine actual code.
     Cross-reference findings with memory blocks.
-    Save results to ~/.claude/chronicle/insights/"
+    Save results to ~/.claude/chronicle/insights/"  # portability: allow
 )
 ```
 
 2. The insights agent spawns **Explore subagents** to examine actual code in worktrees.
 
-3. Results saved to `~/.claude/chronicle/insights/{date}-{project}.json`
+3. Results saved to `~/.claude/chronicle/insights/{date}-{project}.json`  <!-- portability: allow -->
 
 ### Insight Types
 
@@ -533,7 +535,7 @@ Insights appear in the Chronicle dashboard under each repo's detail view.
 You can also read them directly:
 
 ```bash
-cat ~/.claude/chronicle/insights/*.json | jq .
+cat ~/.claude/chronicle/insights/*.json | jq .  # portability: allow
 ```
 
 ---
@@ -569,7 +571,7 @@ Generate markdown digests of your Chronicle data.
 Run the digest generator:
 
 ```bash
-bun ~/.claude/skills/chronicle/scripts/publish.ts [period]
+bun scripts/publish.ts [period]
 ```
 
 Periods:
@@ -577,7 +579,7 @@ Periods:
 - `daily` - Last 24 hours
 - `month` - Last 30 days
 
-Output goes to `~/.claude/chronicle/digests/`:
+Output goes to `~/.claude/chronicle/digests/`:  <!-- portability: allow -->
 - Weekly: `2026-W01.md` (ISO week)
 - Daily: `2026-01-04-daily.md`
 - Monthly: `2026-01.md`
@@ -597,7 +599,7 @@ Output goes to `~/.claude/chronicle/digests/`:
 Launch an interactive web dashboard for exploring Chronicle data.
 
 ```bash
-bun ~/.claude/skills/chronicle/scripts/dashboard.ts
+bun scripts/dashboard.ts
 ```
 
 Opens browser to `http://localhost:3456`.
@@ -628,14 +630,14 @@ Run the dashboard on a remote server with periodic data sync from your Mac.
 
 **Setup:**
 1. Deploy dashboard to remote host (requires Bun runtime + systemd)
-2. Configure sync in `~/.claude/.env`:
+2. Configure sync in `~/.claude/.env`:  <!-- portability: allow -->
    ```bash
    CHRONICLE_SYNC_TARGET=myserver      # Display name
    CHRONICLE_DEPLOY_DIR=/path/to/deploy # Ansible deploy directory
    ```
 3. Install the reminder service:
    ```bash
-   ~/.claude/skills/chronicle/scripts/install-services.sh install sync-reminder
+   scripts/install-services.sh install sync-reminder
    ```
 
 **How it works:**
@@ -645,7 +647,7 @@ Run the dashboard on a remote server with periodic data sync from your Mac.
 
 **Manual sync:**
 ```bash
-~/.claude/skills/chronicle/scripts/sync-reminder.sh           # Interactive
+scripts/sync-reminder.sh           # Interactive
 ansible-playbook claude.yml --tags chronicle-sync -e chronicle_sync_enabled=true  # Direct
 ```
 
@@ -657,8 +659,8 @@ Start a development session for working on Chronicle itself.
 
 ```bash
 # Stop service to free port, start dev server with auto-reload
-~/.claude/skills/chronicle/scripts/install-services.sh uninstall dashboard 2>/dev/null
-bun --watch ~/.claude/skills/chronicle/scripts/dashboard.ts
+scripts/install-services.sh uninstall dashboard 2>/dev/null
+bun --watch scripts/dashboard.ts
 ```
 
 Opens browser to http://localhost:3456
@@ -689,15 +691,15 @@ Generate high-quality AI summaries using Claude. **Time-bucketed** (daily / week
 ### Manual Generation
 
 ```bash
-bun ~/.claude/skills/chronicle/scripts/summarize.ts                          # Daily global + repo summaries (cron path)
-bun ~/.claude/skills/chronicle/scripts/summarize.ts --weekly                 # Weekly summaries, Opus (cron path)
-bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=name              # Single repo, structured JSON, daily window
-bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=name --days=14    # Custom window
-bun ~/.claude/skills/chronicle/scripts/summarize.ts --repo=name --days=14 --format=narrative --with-context --md
+bun scripts/summarize.ts                          # Daily global + repo summaries (cron path)
+bun scripts/summarize.ts --weekly                 # Weekly summaries, Opus (cron path)
+bun scripts/summarize.ts --repo=name              # Single repo, structured JSON, daily window
+bun scripts/summarize.ts --repo=name --days=14    # Custom window
+bun scripts/summarize.ts --repo=name --days=14 --format=narrative --with-context --md
 # Narrative recap (also exposed as /chronicle recap)
 ```
 
-Structured (default) summaries stored in `~/.claude/chronicle/summaries/{global,repos}/` as JSON. Narrative summaries stored in `~/.claude/chronicle/recaps/` as markdown — see the Recap section above.
+Structured (default) summaries stored in `~/.claude/chronicle/summaries/{global,repos}/` as JSON. Narrative summaries stored in `~/.claude/chronicle/recaps/` as markdown — see the Recap section above.  <!-- portability: allow -->
 
 Flags:
 - `--weekly` — preset for `--days=7` with weekly file naming
@@ -713,7 +715,7 @@ Daily summaries run at midnight, weekly on Sunday 00:05.
 
 **Install services:**
 ```bash
-~/.claude/skills/chronicle/scripts/install-services.sh install summarize summarize-weekly
+scripts/install-services.sh install summarize summarize-weekly
 ```
 
 **Check logs:**

@@ -198,4 +198,4 @@ Bertram becomes an implementation profile on top of this framework:
 
 ## Immediate Next Step
 
-Draft the implementation spec with exact file tree, script contracts, hook payload schemas, and minimal viable commands for bootstrapping `persona-memory` in a clean `~/.claude` install.
+Draft the implementation spec with exact file tree, script contracts, hook payload schemas, and minimal viable commands for bootstrapping `persona-memory` in a clean `~/.claude` install.  <!-- portability: allow -->

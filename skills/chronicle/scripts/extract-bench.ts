@@ -2,7 +2,7 @@
 /**
  * Chronicle extraction quality benchmark.
  *
- * Classifies blocks in ~/.claude/chronicle/blocks/ into:
+ * Classifies blocks in ~/.claude/chronicle/blocks/ into:  (portability: allow)
  *   - fallback     summary matches fallbackEntry() templates from extract-lib.ts
  *   - narrative    summary is not a fallback template AND has challenges or nextSteps
  *   - curator      narrative + multi-item accomplished + challenges + nextSteps (or notes field)

@@ -2,6 +2,10 @@
 
 Run the Chronicle dashboard as a persistent launchd service or in development mode.
 
+Paths in this document are relative to this skill's base directory; run the
+commands from there, or prefix them with the base directory the harness
+announced.
+
 ## Commands
 
 ```bash
@@ -22,13 +26,13 @@ Run the Chronicle dashboard as a persistent launchd service or in development mo
 
 ### watch
 ```bash
-bun --watch ~/.claude/skills/chronicle/scripts/dashboard.ts
+bun --watch scripts/dashboard.ts
 ```
 Full process restart when files change. Reliable for development.
 
 ### hot
 ```bash
-bun --hot ~/.claude/skills/chronicle/scripts/dashboard.ts
+bun --hot scripts/dashboard.ts
 ```
 In-place hot reload without full restart. Faster but may have state issues.
 
@@ -38,7 +42,7 @@ When user runs `/chronicle ui <command>`, execute:
 
 ### install
 ```bash
-~/.claude/skills/chronicle/scripts/install-services.sh install dashboard
+scripts/install-services.sh install dashboard
 ```
 Report: "Service installed. Run `/chronicle ui start` to start it."
 
@@ -56,7 +60,7 @@ Report: "Dashboard service stopped."
 
 ### status
 ```bash
-~/.claude/skills/chronicle/scripts/install-services.sh status
+scripts/install-services.sh status
 ```
 - If output shows PID: "Dashboard running (PID: {pid})"
 - If no output: "Dashboard not running."
@@ -68,7 +72,7 @@ tail -50 /tmp/chronicle-dashboard.log
 
 ### uninstall
 ```bash
-~/.claude/skills/chronicle/scripts/install-services.sh uninstall dashboard
+scripts/install-services.sh uninstall dashboard
 ```
 Report: "Service uninstalled."
 
@@ -78,19 +82,19 @@ All services are managed via `install-services.sh`:
 
 ```bash
 # List available services
-~/.claude/skills/chronicle/scripts/install-services.sh list
+scripts/install-services.sh list
 
 # Install all services
-~/.claude/skills/chronicle/scripts/install-services.sh install
+scripts/install-services.sh install
 
 # Install specific service
-~/.claude/skills/chronicle/scripts/install-services.sh install dashboard
+scripts/install-services.sh install dashboard
 
 # Check status
-~/.claude/skills/chronicle/scripts/install-services.sh status
+scripts/install-services.sh status
 
 # Uninstall specific service
-~/.claude/skills/chronicle/scripts/install-services.sh uninstall dashboard
+scripts/install-services.sh uninstall dashboard
 
 # View logs
 tail -f /tmp/chronicle-dashboard.log

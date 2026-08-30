@@ -9,7 +9,9 @@ set -euo pipefail
 
 LAUNCH_AGENTS="$HOME/Library/LaunchAgents"
 BUN="$HOME/.bun/bin/bun"
-SCRIPTS="$HOME/.claude/skills/chronicle/scripts"
+# launchd needs absolute paths, so resolve this script's own directory rather
+# than assuming where the skill is installed.
+SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STD_PATH="$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 ALL_SERVICES="dashboard summarize summarize-weekly consolidate sync-reminder"
 

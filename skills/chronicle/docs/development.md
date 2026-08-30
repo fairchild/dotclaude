@@ -2,6 +2,10 @@
 
 Guide for working on the Chronicle skill itself.
 
+Bare paths like `scripts/dashboard.ts` are relative to this skill's base
+directory (`skills/chronicle/` when working in this repo); paths written
+`skills/chronicle/...` are relative to the repo root.
+
 ## Ports
 
 | Mode | Port | Purpose |
@@ -18,7 +22,7 @@ The dashboard reads `PORT` env variable, defaulting to 3456.
 /chronicle dev
 
 # Or manually:
-bun --watch ~/.claude/skills/chronicle/scripts/dashboard.ts
+bun --watch scripts/dashboard.ts
 ```
 
 Opens browser to http://localhost:3456
@@ -27,13 +31,13 @@ Opens browser to http://localhost:3456
 
 ### watch (recommended)
 ```bash
-bun --watch ~/.claude/skills/chronicle/scripts/dashboard.ts
+bun --watch scripts/dashboard.ts
 ```
 Full process restart when files change. Reliable.
 
 ### hot
 ```bash
-bun --hot ~/.claude/skills/chronicle/scripts/dashboard.ts
+bun --hot scripts/dashboard.ts
 ```
 In-place hot reload. Faster but may have state issues.
 
@@ -75,14 +79,14 @@ When developing, **stop the service first** to avoid port conflicts:
 launchctl unload ~/Library/LaunchAgents/com.chronicle.dashboard.plist
 
 # Develop on port 3456
-bun --watch ~/.claude/skills/chronicle/scripts/dashboard.ts
+bun --watch scripts/dashboard.ts
 
 # When done, restart service (runs on port 3457)
 launchctl load ~/Library/LaunchAgents/com.chronicle.dashboard.plist
 ```
 
 Or run both simultaneously:
-- Service: http://localhost:3457 (production, from ~/.claude)
+- Service: http://localhost:3457 (production, from the installed skill)
 - Dev: http://localhost:3456 (your worktree changes)
 
 ## File Structure

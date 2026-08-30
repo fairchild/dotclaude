@@ -6,7 +6,7 @@
  * - structured (default) — JSON {narrative, highlights, pending} for the dashboard.
  *   This is the format the launchd cron and dashboard depend on; do not break it.
  * - narrative           — 4-section markdown (Themes / Wins / Open threads / Friction)
- *                          for human consumption, written to ~/.claude/chronicle/recaps/.
+ *                          for human consumption, written to ~/.claude/chronicle/recaps/.  (portability: allow)
  *                          Used by /chronicle recap.
  *
  * Providers: Anthropic primary, OpenRouter fallback when the Anthropic account
@@ -36,7 +36,7 @@ import {
 
 // launchd runs this with neither a login shell nor Claude Code's injected
 // credentials, so ANTHROPIC_API_KEY has to come off disk. Shared with extract.ts:
-// ~/.claude/.env, then ~/.env, then ANTHROPIC_API_KEY only from ~/.zprofile.
+// ~/.claude/.env, then ~/.env, then ANTHROPIC_API_KEY only from ~/.zprofile.  (portability: allow)
 // The same walk picks up OPENROUTER_API_KEY for the fallback provider.
 loadEnvAssignments();
 
@@ -140,7 +140,7 @@ async function completeViaOpenRouter(
 ): Promise<Completion> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) {
-    throw new Error("OPENROUTER_API_KEY not found in ~/.claude/.env or ~/.env");
+    throw new Error("OPENROUTER_API_KEY not found in ~/.claude/.env or ~/.env");  // portability: allow
   }
 
   const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
@@ -428,7 +428,7 @@ function renderNarrativeFallback(
   }
 
   if (memory.feedback.length > 0) {
-    lines.push(`## Feedback memory (${memory.feedback.length} file${memory.feedback.length === 1 ? "" : "s"} — see ~/.claude/projects/*/memory/)`);
+    lines.push(`## Feedback memory (${memory.feedback.length} file${memory.feedback.length === 1 ? "" : "s"} — see ~/.claude/projects/*/memory/)`);  // portability: allow
     lines.push("");
   }
 

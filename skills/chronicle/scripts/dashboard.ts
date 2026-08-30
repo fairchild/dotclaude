@@ -129,7 +129,7 @@ function generateRandomName(): string {
 }
 
 function getSessionStatus(wtPath: string): WorktreeStatus["session"] | null {
-  // Path encoding: /Users/x/.worktrees/y -> -Users-x--worktrees-y
+  // Path encoding: /Users/x/.worktrees/y -> -Users-x--worktrees-y  (portability: allow)
   // Both / and . become -
   const encodedPath = wtPath.replace(/[/.]/g, "-");
   const claudeProjectDir = `${process.env.HOME}/.claude/projects/${encodedPath}`;
