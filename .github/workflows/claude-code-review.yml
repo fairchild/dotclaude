@@ -2,7 +2,10 @@ name: Claude Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review, reopened, labeled]
+    # `labeled` was here for the 'needs code review' gate, dropped in #245.
+    # It now only fires when the reviewer applies its own 'code review passed'
+    # label at the end of a review — re-running this workflow with a bot actor.
+    types: [opened, synchronize, ready_for_review, reopened]
     # Optional: Only run on specific file changes
     # paths:
     #   - "src/**/*.ts"
@@ -14,7 +17,14 @@ jobs:
   claude-review:
     # Was gated on a 'needs code review' label nobody applied — 100 skipped runs
     # out of 100. Runs on every non-draft PR now.
-    if: github.event.pull_request.draft == false
+    #
+    # The Bot guard is belt-and-braces alongside dropping the `labeled` trigger:
+    # claude-code-action refuses a run whose actor is a bot ("Workflow initiated
+    # by non-human actor") and exits 1, so any self-retrigger fails the check
+    # rather than being skipped. Cheaper to not start than to fail.
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.sender.type != 'Bot'
     runs-on: ubuntu-latest
     permissions:
       contents: read
