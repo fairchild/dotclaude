@@ -17,12 +17,12 @@ Much of this config observes work rather than does it. The memory system is wher
 This config is personal — `CLAUDE.md` has my name, hooks call my Chronicle scripts, the MCP server needs my API key. To draw from it, cherry-pick rather than clone.
 
 **Copy directly** (self-contained):
-- `settings.json` permissions pattern (allow/ask/deny tiers)
+- `settings.example.json` permissions pattern (allow/ask/deny tiers)
 - Individual commands or skills (each is a standalone directory)
 
 **Customize first:**
 - `CLAUDE.md` — personal identity and tool preferences
-- `settings.json` hooks — these call Chronicle scripts; remove or replace with your own session lifecycle
+- `settings.example.json` hooks — these call Chronicle scripts; remove or replace with your own session lifecycle
 - `.mcp.json` — requires `PERPLEXITY_API_KEY` environment variable
 
 **Prerequisites for the full config:**
@@ -38,7 +38,8 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 ```
 ~/.claude/
 ├── CLAUDE.md          # Personal context (name, preferences, tool choices)
-├── settings.json      # Permissions, hooks, model selection
+├── settings.example.json  # Permissions, hooks, model selection (the live
+│                          # settings.json is machine-local and gitignored)
 ├── skills/            # Skills — tiered stable / experimental / local (see below)
 ├── commands/          # Slash commands (/bootstrap, /code-review)
 ├── agents/            # Specialized autonomous agents
@@ -199,7 +200,7 @@ Skill installation and symlinking is driven by [`dotagents.toml`](dotagents.toml
 
 ## Permissions Model
 
-Defined in `settings.json`:
+Defined in `settings.example.json`:
 
 | Category | Scope | Behavior |
 |----------|-------|----------|

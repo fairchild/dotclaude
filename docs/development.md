@@ -27,17 +27,17 @@ WorkSpaces `event-forwarder.sh` on those events.
 
 ## Source Settings Boundaries
 
-Tracked `settings.json` should not contain machine- or session-specific paths
-such as `.codex/worktrees/<id>/...`. Use stable repo/runtime commands in source,
-for example `~/.claude/skills/<skill>/scripts/<script>.sh`, or
-machine-agnostic installer commands. WorkSpaces hook and status-line commands use
-the canonical unquoted `~/.local/share/workspaces/hook-forwarders/` paths from
-the WorkSpaces installer so source and runtime settings stay byte-identical.
-Optional integrations such as Orca use `$HOME` in tracked commands. An installer
-must not serialize `/Users/<name>` or `/home/<name>` into public settings.
+`settings.example.json` is the only settings file this repo tracks, and it is read
+by people seeding a new machine rather than by Claude Code. It carries no machine-
+or session-specific paths such as `.codex/worktrees/<id>/...`, no host-level detail,
+and never a serialized `/Users/<name>` or `/home/<name>`. Commands in it stay stable
+across machines — `~/.claude/skills/<skill>/scripts/<script>.sh`, or `$HOME` for
+optional integrations such as Orca. Machine-local forwarders, such as the WorkSpaces
+installer's hooks and status line, belong in the runtime file and are stripped from
+the example.
 
-Theme is a user preference. Keep the tracked value conservative unless the user
-intends it as the global default across machines.
+Theme is a user preference. Keep the example's value conservative unless it is a
+sensible default across machines.
 
 ## Skill Sources
 
@@ -72,25 +72,26 @@ ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
 
 ## Runtime Config Changes
 
-`main` is protected, so nothing — including `~/.claude` — pushes to it directly. When Claude Code or another app (e.g. the workspaces hook installer) modifies `~/.claude/settings.json` at runtime, codify the change through a PR from the dev repo:
+`settings.json` is **not tracked**. It is the live runtime file: Claude Code writes to it
+(`/model`, `/config`), other apps rewrite their own hooks in it, and it is the only place an
+`autoMode.environment` description of this machine's infrastructure can live — the classifier
+reads `autoMode` from user or managed settings, never from a repository. Keeping that out of a
+public repo is why the file is gitignored, and it also means app drift no longer dirties the
+tree, so `deploy.sh` can fast-forward.
+
+`settings.example.json` is the shareable shape: this repo's own hooks, permissions, plugins,
+and defaults, with machine-specific forwarders and the environment block removed. Change it
+when the shape changes, through a PR like any other file.
+
+Never `cp ~/.claude/settings.json` into this repo. To seed a new machine, copy the example the
+other way and fill it in:
 
 ```bash
-cp ~/.claude/settings.json ~/code/dotclaude/settings.json
-git -C ~/code/dotclaude checkout -b chore/settings-sync main
-git -C ~/code/dotclaude add settings.json
-git -C ~/code/dotclaude commit -m "chore: sync settings.json from runtime"
-git -C ~/code/dotclaude push -u origin chore/settings-sync
-gh pr create --fill   # review, merge
+cp ~/code/dotclaude/settings.example.json ~/.claude/settings.json
 ```
 
-After merge, discard the now-redundant runtime drift so the tree is clean, then deploy:
-
-```bash
-git -C ~/.claude checkout settings.json
-~/.claude/scripts/deploy.sh
-```
-
-Until you do this, `~/.claude` shows `settings.json` as modified and the `SessionStart` auto-deploy skips. Everything else (new skills, workflow changes, doc updates) goes through feature branches and PRs in `~/code/dotclaude` the same way.
+Everything else (new skills, workflow changes, doc updates) goes through feature branches and
+PRs in `~/code/dotclaude` the same way.
 
 ## Gitignore
 

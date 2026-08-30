@@ -198,7 +198,7 @@ When the current directory IS `~/.claude`:
 
 - **`~/code/dotclaude`** — feature branches, PRs, all development
 - **`~/.claude`** — always on `main`, updated by SessionStart hook (`scripts/deploy.sh`)
-- Runtime config changes (`settings.json`) push directly from `~/.claude` as the one exception
+- Runtime config changes stay in `~/.claude/settings.json` — it is gitignored; `settings.example.json` is the tracked shape and changes by PR
 
 See [references/development-workflow.md](references/development-workflow.md) for setup, symlink workflow, and migration from worktree.
 
