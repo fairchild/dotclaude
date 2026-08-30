@@ -36,7 +36,7 @@ run = "./scripts/portability.py --check"
 description = "Fail if any skill violates its declared portability tier"
 
 [tasks."mcp:test"]
-run = "bun test"
+run = "bun test conformance"
 dir = "mcp"
 description = "SEP-2640 conformance and corpus tests for the skills MCP server"
 
