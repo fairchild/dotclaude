@@ -81,8 +81,6 @@ Claude loads these when the task matches the description.
 | `cmux-orchestrator` | Orchestrate the cmux terminal — named layouts (workshop, ops-deck), sidebar dashboarding (status, progress, logs),… |
 | `codespaces` | Manage GitHub Codespaces lifecycle via gh CLI. |
 | `dotclaude-config` | Work with Claude Code configuration at global (~/.claude) or project (.claude/) level. |
-| `dotclaude-config` | Work with Claude Code configuration at global (~/.claude) or project (.claude/) level. |
-| `dotclaude-config` | Work with Claude Code configuration at global (~/.claude) or project (.claude/) level. |
 | `fable-session` | Hand off long-arc work to a fable session — Fable orchestrates and verifies while delegating the implementation. |
 | `frontend-design` | Create distinctive, production-grade frontend interfaces with high design quality. |
 | `gh-apps` | Create, authenticate, and manage GitHub Apps. |
