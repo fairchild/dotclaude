@@ -42,6 +42,7 @@ Box diagrams use border characters to draw rectangular outlines:
 **DO fix:**
 - Content lines where the closing `|` or `│` is at the wrong column
 - Pad with spaces between content and closing border
+- Borders with the wrong corner glyphs — a top border uses `┌…┐`, a bottom border uses `└…┘` (a bottom drawn as `┌…┐` gets its corners replaced)
 
 **DO NOT touch:**
 - Markdown tables (`| Col | Col |` with `|---|---|` separator rows)

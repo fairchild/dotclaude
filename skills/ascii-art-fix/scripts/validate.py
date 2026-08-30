@@ -11,9 +11,19 @@ from pathlib import Path
 
 
 PLUS_BORDER_RE = re.compile(r"\+[-=]+\+")
-UNICODE_BORDER_RE = re.compile(r"[┌┐└┘][─━]+[┌┐└┘]")
+UNICODE_TOP_RE = re.compile(r"┌[─━]+┐")
+UNICODE_BOTTOM_RE = re.compile(r"└[─━]+┘")
+UNICODE_ANY_BORDER_RE = re.compile(r"[┌┐└┘][─━]+[┌┐└┘]")
 FENCE_OPEN_RE = re.compile(r"^(\s*)(```|~~~)")
 TABLE_SEP_RE = re.compile(r"^\s*\|[\s:-]*[-:][\s:-]*\|[\s:|-]*$")
+
+
+def match_at(regex: re.Pattern, line: str, col_start: int, col_end: int) -> bool:
+    """True if the regex matches this line exactly at the given column span."""
+    return any(
+        m.start() == col_start and m.end() - 1 == col_end
+        for m in regex.finditer(line)
+    )
 
 
 def find_boxes(lines: list[str]) -> list[dict]:
@@ -92,25 +102,31 @@ def find_boxes(lines: list[str]) -> list[dict]:
                     "style": "plus",
                 })
 
-    # Find unicode box borders
+    # Find unicode box borders: a box opens only with ┌───┐ and closes only
+    # with └───┘ at the same columns. A border-shaped line with any other
+    # corner mix where the bottom belongs still closes the box, flagged.
     for i, line in enumerate(lines):
         if i in fenced or i in tables:
             continue
-        for m in UNICODE_BORDER_RE.finditer(line):
+        for m in UNICODE_TOP_RE.finditer(line):
             col_start = m.start()
             col_end = m.end() - 1
             width = col_end - col_start + 1
 
             content_lines = []
             bottom = None
+            bad_bottom = False
             for j in range(i + 1, len(lines)):
                 if j in fenced or j in tables:
                     break
                 if lines[j].strip() == "":
                     break
-                jm = UNICODE_BORDER_RE.search(lines[j])
-                if jm and jm.start() == col_start and jm.end() - 1 == col_end:
+                if match_at(UNICODE_BOTTOM_RE, lines[j], col_start, col_end):
                     bottom = j
+                    break
+                if match_at(UNICODE_ANY_BORDER_RE, lines[j], col_start, col_end):
+                    bottom = j
+                    bad_bottom = True
                     break
                 content_lines.append(j)
 
@@ -123,6 +139,7 @@ def find_boxes(lines: list[str]) -> list[dict]:
                     "width": width,
                     "content_lines": content_lines,
                     "style": "unicode",
+                    "bad_bottom": bad_bottom,
                 })
 
     return boxes
@@ -134,6 +151,12 @@ def validate_box(lines: list[str], box: dict) -> list[str]:
     open_char = "|" if box["style"] == "plus" else "│"
     col_start = box["col_start"]
     col_end = box["col_end"]
+
+    if box.get("bad_bottom"):
+        errors.append(
+            f"  line {box['bottom'] + 1}: bottom border has wrong corner "
+            f"glyphs, expected '└' and '┘'"
+        )
 
     for line_idx in box["content_lines"]:
         line = lines[line_idx]
