@@ -32,9 +32,12 @@ Every first-party skill is in one tier, declared in `SKILL.md` frontmatter. The 
 |------|-------------|---------|
 | stable | no `metadata.status` | Has a skill eval, a deterministic eval, or sustained real use (`analyze-usage` shows invocations) |
 | experimental | `metadata.status: experimental` + `metadata.experimental_reason` | Usable; the reason states what keeps it from stable |
+| superseded | `metadata.status: superseded` + `metadata.superseded_reason` | Something else does the job now; kept on disk and reachable as `/name` |
 | local | listed in `skills/.gitignore` | Lives only in `~/.claude`; personal or not ready to publish |
 
 Promotion is removing `metadata.status` once the gate is met. Demotion is adding it back with a reason. A skill nobody has invoked in months is a candidate for deletion, not for experimental — git keeps it.
+
+Superseded is the tier for a skill whose job moved somewhere else while the text stays worth reading — a carried-in voice guide folded into a local one, an approach replaced by a better one. It is not a synonym for unused: a skill nobody replaced and nobody invokes still gets deleted. Because the successor is the one that should load, a superseded skill normally sets `disable-model-invocation: true`; validation warns when it does not.
 
 `disable-model-invocation: true` is orthogonal: it says a skill runs only as `/name`, not how mature it is.
 

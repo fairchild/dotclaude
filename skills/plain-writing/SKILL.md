@@ -3,12 +3,20 @@ name: plain-writing
 description: Plain, direct writing voice — no undefined jargon, no throat-clearing, no showing off — for any prose a person reads (reports, docs, emails, proposals, summaries, chat replies). Use by default when writing or revising prose.
 license: Apache-2.0
 origin: https://github.com/evanphx/llm-voice/blob/main/plain-writing/SKILL.md
+disable-model-invocation: true
 metadata:
-  status: experimental
-  experimental_reason: "Just carried in — no invocation history or skill eval yet."
+  status: superseded
+  superseded_reason: "A local voice skill that loads by default now carries its floor."
 ---
 
 # Plain writing
+
+Superseded on 2026-08-29. A local voice skill loads by default and carries the
+floor below — no jargon, no throat-clearing, no showing off, active voice — so
+this one no longer auto-invokes and stays reachable as `/plain-writing`. One
+rule did not carry over: "one idea per sentence" gives way to one-arc sentences
+in reasoning prose, and survives only in action lines. The text below is
+unchanged from the original, kept for reference.
 
 Write plain and direct. Apply from the first sentence, to your own replies and
 summaries as much as to drafts you're handed.
