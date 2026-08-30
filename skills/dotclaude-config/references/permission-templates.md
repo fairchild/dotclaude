@@ -14,10 +14,10 @@ Copy relevant sections into your project's `.claude/settings.json`.
 
 ### Read/Write/Edit patterns
 - **Gitignore semantics** — `**` works for recursive directory matching.
-- **`~` expands** to home directory: `Read(~/.ssh/**)` matches `/Users/you/.ssh/id_rsa`.
+- **`~` expands** to home directory: `Read(~/.ssh/**)` matches `/Users/you/.ssh/id_rsa`. <!-- portability: allow -->
 
 ### Scripts
-- Allowlist executable scripts by path: `Bash(~/.claude/skills/my-skill/scripts/run.py *)`
+- Allowlist executable scripts by path: `Bash(~/.claude/skills/my-skill/scripts/run.py *)` <!-- portability: allow -->
 - Agent generates commands with `~` paths, so tilde matching works reliably.
 
 ## Minimal (Research/Exploration)

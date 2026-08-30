@@ -2,7 +2,7 @@
 /**
  * Config Inventory - Scan projects for Claude Code configuration
  *
- * Usage: bun ~/.claude/skills/dotclaude-config/scripts/inventory.ts [path]
+ * Usage: bun scripts/inventory.ts [path]   (from this skill's base directory)
  *
  * Scans ~/code/ (or specified path) for .claude/ directories
  * Reports what's configured per project and flags potential issues.

@@ -5,7 +5,7 @@ Extend Claude Code with custom agents, slash commands, and skills.
 ## Directory Structure
 
 ```
-~/.claude/                    # Global config
+~/.claude/                    # Global config  # portability: allow
 ├── settings.json
 ├── CLAUDE.md
 ├── agents/                   # Subagents
@@ -30,7 +30,7 @@ Subagents handle complex, multi-step tasks autonomously via the Task tool.
 
 ### Location
 
-- Global: `~/.claude/agents/`
+- Global: `~/.claude/agents/` <!-- portability: allow -->
 - Project: `.claude/agents/`
 
 ### Format
@@ -62,7 +62,7 @@ Instructions for the agent...
 
 Task(
   subagent_type: "general-purpose",
-  prompt: "Read ~/.claude/skills/verify/SKILL.md and follow the workflow.
+  prompt: "Use the `verify` skill and follow its workflow.
     Project: {project}, URL: {url}
     Return a concise pass/fail report."
 )
@@ -101,7 +101,7 @@ Custom commands invoked with `/command-name`.
 
 ### Location
 
-- Global: `~/.claude/commands/`
+- Global: `~/.claude/commands/` <!-- portability: allow -->
 - Project: `.claude/commands/`
 
 ### Format
@@ -142,7 +142,7 @@ Auto-triggered capabilities based on task context.
 
 ### Location
 
-- Global: `~/.claude/skills/`
+- Global: `~/.claude/skills/` <!-- portability: allow -->
 - Project: `.claude/skills/`
 
 ### Structure
@@ -270,9 +270,9 @@ Agents can be composed into teams where a lead agent delegates to specialist sub
 
 | Type | Global Location | Project Location | Behavior |
 |------|-----------------|------------------|----------|
-| Agents | `~/.claude/agents/` | `.claude/agents/` | Both available |
-| Commands | `~/.claude/commands/` | `.claude/commands/` | Both available |
-| Skills | `~/.claude/skills/` | `.claude/skills/` | Both available |
+| Agents | `~/.claude/agents/` | `.claude/agents/` | Both available <!-- portability: allow --> |
+| Commands | `~/.claude/commands/` | `.claude/commands/` | Both available <!-- portability: allow --> |
+| Skills | `~/.claude/skills/` | `.claude/skills/` | Both available <!-- portability: allow --> |
 
 When an agent, command, or skill with the same name exists at both levels, the project version likely shadows the global one (consistent with standard CLI conventions, though not explicitly documented).
 

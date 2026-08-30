@@ -15,7 +15,7 @@ Complete reference for Claude Code hooks, including the new v2.1.0 features for 
 
 | Location | Scope | Use Case |
 |----------|-------|----------|
-| `~/.claude/settings.json` | Global (all sessions) | Codebase protection, session management |
+| `~/.claude/settings.json` | Global (all sessions) | Codebase protection, session management <!-- portability: allow --> |
 | `.claude/settings.json` | Project-wide | Project-specific validation |
 | Skill/agent frontmatter | Component lifecycle | Specialized validation per skill/agent |
 

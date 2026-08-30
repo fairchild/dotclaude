@@ -1,11 +1,11 @@
 # Two-Clone Development Workflow
 
-Manage `~/.claude` as an independent clone that deploys from `origin/main`. Develop in `~/code/dotclaude` on feature branches. One command to sync.
+Manage `~/.claude` as an independent clone that deploys from `origin/main`. Develop in `~/code/dotclaude` on feature branches. One command to sync. <!-- portability: allow -->
 
 ## Architecture
 
 ```
-~/code/dotclaude          ~/.claude
+~/code/dotclaude          ~/.claude  # portability: allow
 (dev clone)               (deploy clone)
 feature branches          always on main
 PRs, commits              git pull to update
@@ -17,26 +17,26 @@ Two independent clones of the same remote. No worktrees, no branch sync, no cher
 | Path | Branch | Role |
 |------|--------|------|
 | `~/code/dotclaude` | `main` + feature branches | Development — branches, PRs |
-| `~/.claude` | `main` | Deploy target — Claude Code reads this |
+| `~/.claude` | `main` | Deploy target — Claude Code reads this <!-- portability: allow --> |
 
 ## Deploy
 
 After merging a PR (or anytime):
 
 ```bash
-~/.claude/scripts/deploy.sh
+~/.claude/scripts/deploy.sh  # portability: allow
 ```
 
 The script:
 1. Removes dev symlinks (skills pointing back to `~/code/dotclaude`)
-2. Fetches and fast-forwards `~/.claude` to `origin/main`
+2. Fetches and fast-forwards `~/.claude` to `origin/main` <!-- portability: allow -->
 3. Reports what changed (silent when nothing did)
 
 A `SessionStart` hook runs this automatically, so merged PRs are live at next session start.
 
 ## Skill Development
 
-Skills must be "live" at `~/.claude/skills/<name>` to test. Use symlinks to bridge dev and runtime during development.
+Skills must be "live" at `~/.claude/skills/<name>` to test. Use symlinks to bridge dev and runtime during development. <!-- portability: allow -->
 
 ### New Skill
 
@@ -46,13 +46,13 @@ git -C ~/code/dotclaude checkout -b feat/my-skill main
 mkdir -p ~/code/dotclaude/skills/my-skill
 
 # 2. Symlink into runtime for live testing
-ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
+ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill  # portability: allow
 
 # 3. Develop, test, commit in ~/code/dotclaude
 # 4. Push, open PR, merge
 
 # 5. Deploy (removes symlink automatically, pulls new code)
-~/.claude/scripts/deploy.sh
+~/.claude/scripts/deploy.sh  # portability: allow
 ```
 
 ### Existing Skill (modify on a branch)
@@ -62,13 +62,13 @@ ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
 git -C ~/code/dotclaude checkout -b feat/improve-my-skill main
 
 # 2. Swap runtime's copy for a dev symlink
-rm -rf ~/.claude/skills/my-skill
-ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
+rm -rf ~/.claude/skills/my-skill  # portability: allow
+ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill  # portability: allow
 
 # 3. Develop, test, commit, push, PR, merge
 
 # 4. Deploy (restores tracked version from main)
-~/.claude/scripts/deploy.sh
+~/.claude/scripts/deploy.sh  # portability: allow
 ```
 
 The symlink target is whatever checkout holds the branch — the dev clone, a worktree, or a tool-managed session:
@@ -79,22 +79,22 @@ The symlink target is whatever checkout holds the branch — the dev clone, a wo
 | Worktree branch | `~/.worktrees/dotclaude/<branch>/skills/<name>` |
 | Conductor / Orca / workspaces session | `<session-root>/skills/<name>` |
 
-`deploy.sh` removes any symlink under `~/.claude/skills/` regardless of where it points.
+`deploy.sh` removes any symlink under `~/.claude/skills/` regardless of where it points. <!-- portability: allow -->
 
 ### Deleting a Skill
 
 ```bash
 # In dev repo: delete the skill directory, commit on branch, merge PR
 # Deploy pulls the deletion:
-~/.claude/scripts/deploy.sh
+~/.claude/scripts/deploy.sh  # portability: allow
 ```
 
 ## Runtime Config Changes
 
-`main` is protected, so nothing — including `~/.claude` — pushes to it directly. When Claude Code or another app (e.g. the workspaces hook installer) modifies `~/.claude/settings.json` at runtime, codify the change through a PR from the dev repo:
+`main` is protected, so nothing — including `~/.claude` — pushes to it directly. When Claude Code or another app (e.g. the workspaces hook installer) modifies `~/.claude/settings.json` at runtime, codify the change through a PR from the dev repo: <!-- portability: allow -->
 
 ```bash
-cp ~/.claude/settings.json ~/code/dotclaude/settings.json
+cp ~/.claude/settings.json ~/code/dotclaude/settings.json  # portability: allow
 git -C ~/code/dotclaude checkout -b chore/settings-sync main
 git -C ~/code/dotclaude add settings.json
 git -C ~/code/dotclaude commit -m "chore: sync settings.json from runtime"
@@ -105,11 +105,11 @@ gh pr create --fill   # review, merge
 After merge, discard the now-redundant runtime drift so the tree is clean, then deploy:
 
 ```bash
-git -C ~/.claude checkout settings.json
-~/.claude/scripts/deploy.sh
+git -C ~/.claude checkout settings.json  # portability: allow
+~/.claude/scripts/deploy.sh  # portability: allow
 ```
 
-Until you do this, `~/.claude` shows `settings.json` as modified and the `SessionStart` auto-deploy skips. Everything else (new skills, workflow changes, doc updates) goes through feature branches and PRs in `~/code/dotclaude` the same way.
+Until you do this, `~/.claude` shows `settings.json` as modified and the `SessionStart` auto-deploy skips. Everything else (new skills, workflow changes, doc updates) goes through feature branches and PRs in `~/code/dotclaude` the same way. <!-- portability: allow -->
 
 ## Setup (Fresh)
 
@@ -119,34 +119,34 @@ DEV_REPO=~/code/dotclaude
 # 1. Clone the dev repo (if not already)
 git clone git@github.com:fairchild/dotclaude.git "$DEV_REPO"
 
-# 2. Back up current ~/.claude
-mv ~/.claude ~/.claude-backup
+# 2. Back up the current runtime clone
+mv ~/.claude ~/.claude-backup  # portability: allow
 
 # 3. Clone the deploy target
-git clone git@github.com:fairchild/dotclaude.git ~/.claude
+git clone git@github.com:fairchild/dotclaude.git ~/.claude  # portability: allow
 
 # 4. Restore gitignored runtime data (sessions, caches, plugins)
 rsync -a --exclude='.git/' --exclude='.git' --ignore-existing \
-  ~/.claude-backup/ ~/.claude/
+  ~/.claude-backup/ ~/.claude/  # portability: allow
 
 # 5. Verify
-git -C ~/.claude log --oneline -1
+git -C ~/.claude log --oneline -1  # portability: allow
 git -C "$DEV_REPO" log --oneline -1
 # Both should show the same HEAD commit
 ```
 
 ## Setup (Migrate from Worktree)
 
-If `~/.claude` is currently a worktree of `~/code/dotclaude`:
+If `~/.claude` is currently a worktree of `~/code/dotclaude`: <!-- portability: allow -->
 
 ```bash
 DEV_REPO=~/code/dotclaude
 
 # 1. Remove the worktree registration (keeps files in place)
-git -C "$DEV_REPO" worktree remove ~/.claude --force
+git -C "$DEV_REPO" worktree remove ~/.claude --force  # portability: allow
 
-# 2. Re-init ~/.claude as a standalone clone
-cd ~/.claude
+# 2. Re-init the runtime clone as standalone
+cd ~/.claude  # portability: allow
 git init
 git remote add origin git@github.com:fairchild/dotclaude.git
 git fetch origin
@@ -157,7 +157,7 @@ git -C "$DEV_REPO" branch -D runtime
 git push origin --delete runtime
 
 # 4. Verify
-git -C ~/.claude log --oneline -1
+git -C ~/.claude log --oneline -1  # portability: allow
 git -C "$DEV_REPO" log --oneline -1
 ```
 
@@ -173,7 +173,7 @@ The `SessionStart` hook runs `scripts/deploy.sh` so merged PRs are live at next 
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/scripts/deploy.sh"
+            "command": "~/.claude/scripts/deploy.sh"  // portability: allow
           }
         ]
       }
@@ -212,7 +212,7 @@ tmp/
 
 ## Skill Sources in Runtime
 
-Three origins coexist in `~/.claude/skills/`:
+Three origins coexist in `~/.claude/skills/`: <!-- portability: allow -->
 
 | Source | Tracked | Notes |
 |--------|---------|-------|
@@ -222,11 +222,11 @@ Three origins coexist in `~/.claude/skills/`:
 
 ## Gotchas
 
-- **Never develop directly in `~/.claude`** — it's the deploy target, read/fast-forward only. `main` is protected; never commit there, even runtime `settings.json` drift goes through a dev-repo PR.
-- **Dev symlinks shadow tracked skills** — a symlink at `~/.claude/skills/foo` overrides a tracked `skills/foo`. The deploy script handles cleanup, but be aware during development.
-- **Keep `~/.claude` clean before deploying** — the deploy script fast-forwards only when the runtime tree has no local commits and no uncommitted drift; otherwise it warns and skips.
-- **`settings.json` drifts** — Claude Code (and the workspaces app) modify it at runtime. Codify the drift via a dev-repo PR, then `git -C ~/.claude checkout settings.json` and deploy; `main` rejects direct pushes.
-- **Claude Code recreates `~/.claude`** — if you move it while a session is active, Claude Code may recreate it. Close all sessions first.
+- **Never develop directly in `~/.claude`** — it's the deploy target, read/fast-forward only. `main` is protected; never commit there, even runtime `settings.json` drift goes through a dev-repo PR. <!-- portability: allow -->
+- **Dev symlinks shadow tracked skills** — a symlink at `~/.claude/skills/foo` overrides a tracked `skills/foo`. The deploy script handles cleanup, but be aware during development. <!-- portability: allow -->
+- **Keep `~/.claude` clean before deploying** — the deploy script fast-forwards only when the runtime tree has no local commits and no uncommitted drift; otherwise it warns and skips. <!-- portability: allow -->
+- **`settings.json` drifts** — Claude Code (and the workspaces app) modify it at runtime. Codify the drift via a dev-repo PR, then `git -C ~/.claude checkout settings.json` and deploy; `main` rejects direct pushes. <!-- portability: allow -->
+- **Claude Code recreates `~/.claude`** — if you move it while a session is active, Claude Code may recreate it. Close all sessions first. <!-- portability: allow -->
 
 ## Preventing Common Mistakes
 
@@ -295,7 +295,7 @@ prek is the recommended pre-commit tool for this repo:
 
 ```bash
 # If something goes wrong with the deploy clone:
-rm -rf ~/.claude
-git clone git@github.com:fairchild/dotclaude.git ~/.claude
-rsync -a --ignore-existing ~/.claude-backup/ ~/.claude/
+rm -rf ~/.claude  # portability: allow
+git clone git@github.com:fairchild/dotclaude.git ~/.claude  # portability: allow
+rsync -a --ignore-existing ~/.claude-backup/ ~/.claude/  # portability: allow
 ```
