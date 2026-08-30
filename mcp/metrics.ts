@@ -9,7 +9,7 @@
  * Engine SQL API.
  *
  * Needs:
- *   CLOUDFLARE_ACCOUNT_ID  — `bunx wrangler whoami` prints it
+ *   CLOUDFLARE_ACCOUNT_ID  — `bunx wrangler whoami` prints it (env or mcp/.metrics.env)
  *   CLOUDFLARE_API_TOKEN   — API token with Account Analytics : Read
  *                            (dash.cloudflare.com → My Profile → API Tokens)
  *
@@ -27,11 +27,12 @@ const { values } = parseArgs({
   },
 });
 
+// Credentials live in the environment or in mcp/.metrics.env (gitignored), next to
+// the tool that uses them — never in shell history, never in the repo.
 function dotenvFallback(name: string): string | undefined {
   if (process.env[name]) return process.env[name];
   try {
-    const home = `${process.env.HOME}/.claude/.env`;  // portability: allow — the consumer's own gitignored env file
-    const line = require("node:fs").readFileSync(home, "utf-8").split("\n")
+    const line = require("node:fs").readFileSync(new URL(".metrics.env", import.meta.url), "utf-8").split("\n")
       .find((l: string) => l.startsWith(`${name}=`));
     return line?.slice(name.length + 1).trim();
   } catch {
@@ -42,7 +43,7 @@ function dotenvFallback(name: string): string | undefined {
 const account = dotenvFallback("CLOUDFLARE_ACCOUNT_ID");
 const token = dotenvFallback("CLOUDFLARE_API_TOKEN");
 if (!account || !token) {
-  console.error("set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN (Account Analytics : Read), in the environment or ~/.claude/.env — see the header of this script");
+  console.error("set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN (Account Analytics : Read), in the environment or mcp/.metrics.env — see the header of this script");
   process.exit(2);
 }
 
@@ -62,7 +63,8 @@ function show(title: string, rows: Record<string, unknown>[]): void {
   const keys = Object.keys(rows[0]!);
   const widths = keys.map((k) => Math.max(k.length, ...rows.map((r) => String(r[k]).length)));
   console.log(keys.map((k, i) => k.padEnd(widths[i]!)).join("  "));
-  for (const row of rows) console.log(keys.map((k, i) => String(row[k]).padEnd(widths[i]!)).join("  "));
+  // blob values (client label, user-agent) are attacker-controlled: strip control chars
+  for (const row of rows) console.log(keys.map((k, i) => String(row[k]).replace(/[\x00-\x1f]/g, "").padEnd(widths[i]!)).join("  "));
 }
 
 const since = `timestamp > NOW() - INTERVAL '${Number(values.hours)}' HOUR`;

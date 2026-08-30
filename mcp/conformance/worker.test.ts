@@ -163,3 +163,48 @@ describe("usage metrics", () => {
     expect(response.status).toBe(200);
   });
 });
+
+describe("posthog emission", () => {
+  test("skill-scoped requests emit skill_used; no key means no call", async () => {
+    const captured: any[] = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: any, init?: any) => {
+      const url = String(input);
+      if (url.includes("posthog.test")) {
+        captured.push(JSON.parse(init.body));
+        return new Response("{}", { status: 200 });
+      }
+      return realFetch(input, init);
+    }) as typeof fetch;
+    try {
+      const waited: Promise<unknown>[] = [];
+      const ctx = { waitUntil: (p: Promise<unknown>) => waited.push(p) };
+      const phEnv = { ...env, POSTHOG_API_KEY: "phc_test", POSTHOG_HOST: "https://posthog.test" };
+      const request = (headers: Record<string, string> = {}) =>
+        new Request("https://skills.example/mcp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "skills/get", params: { uri: "skill://git-workflow/SKILL.md" } }),
+        });
+
+      await worker.fetch(request({ "x-skills-client": "michael" }), phEnv, ctx);
+      await Promise.all(waited);
+      expect(captured.length).toBe(1);
+      expect(captured[0].event).toBe("skill_used");
+      expect(captured[0].distinct_id).toBe("michael");
+      expect(captured[0].properties.skill).toBe("git-workflow");
+      expect(captured[0].properties.transport).toBe("hosted-worker");
+
+      await worker.fetch(request(), phEnv, ctx); // unlabeled -> distinct_id public
+      await Promise.all(waited);
+      expect(captured.at(-1)!.distinct_id).toBe("public");
+
+      captured.length = 0;
+      await worker.fetch(request(), env, ctx); // no POSTHOG_API_KEY -> no emission
+      await Promise.all(waited);
+      expect(captured.length).toBe(0);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+});
