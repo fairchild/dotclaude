@@ -35,6 +35,11 @@ description = "Report skill portability tiers and violations (SEP-2640 serving g
 run = "./scripts/portability.py --check"
 description = "Fail if any skill violates its declared portability tier"
 
+[tasks."mcp:test"]
+run = "bun test"
+dir = "mcp"
+description = "SEP-2640 conformance and corpus tests for the skills MCP server"
+
 [tasks.setup]
 run = "./setup.sh"
 description = "Bootstrap Claude Code development environment"
