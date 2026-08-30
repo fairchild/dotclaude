@@ -65,8 +65,34 @@ bun worker/build.ts                            # snapshot ../skills -> worker/di
 bunx wrangler deploy -c worker/wrangler.toml   # publish (POST /mcp)
 ```
 
-Claude Code (or any MCP host) connects via:
+## Connect
+
+The hosted binding is live at `https://dotclaude-skills.irons-in-the-fire8698.workers.dev/mcp`
+(portable tier, public). Claude Code — or any MCP host — connects to either binding:
 
 ```json
-{ "mcpServers": { "dotclaude-skills": { "command": "bun", "args": ["<repo>/mcp/stdio.ts"] } } }
+{
+  "mcpServers": {
+    "dotclaude-skills-local": { "command": "bun", "args": ["<repo>/mcp/stdio.ts"] },
+    "dotclaude-skills": {
+      "type": "http",
+      "url": "https://dotclaude-skills.irons-in-the-fire8698.workers.dev/mcp",
+      "headers": { "x-skills-client": "<your-label>" }
+    }
+  }
+}
 ```
+
+`x-skills-client` is optional; it labels your traffic in the usage metrics.
+
+## Usage metrics
+
+Every request the worker serves writes one datapoint to the
+`skills_mcp_usage` Analytics Engine dataset: method, skill, outcome,
+client label, user agent, country, colo, latency, and response bytes — no
+raw IPs. `bun metrics.ts` renders a summary (needs
+`CLOUDFLARE_ACCOUNT_ID` and a `CLOUDFLARE_API_TOKEN` with Account
+Analytics read; the script header has details). Worker-level request and
+error metrics also appear in the Cloudflare dashboard under the
+`dotclaude-skills` worker, and `bunx wrangler tail -c worker/wrangler.toml`
+streams live invocations.

@@ -2,6 +2,7 @@
 # Build the snapshot first, then deploy:
 #   bun worker/build.ts && bunx wrangler deploy -c worker/wrangler.toml
 name = "dotclaude-skills"
+account_id = "9d1a8fe235b13dcab0fa3bcb6181ab0c"
 main = "worker.ts"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
@@ -9,3 +10,13 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = "dist/public"
 binding = "ASSETS"
+
+[observability]
+enabled = true
+
+# One datapoint per request: blobs = [method, skill, outcome, client-label,
+# user-agent, country, colo], doubles = [latency_ms, response_bytes].
+# Query with `bun metrics.ts` (Analytics Engine SQL API).
+[[analytics_engine_datasets]]
+binding = "METRICS"
+dataset = "skills_mcp_usage"
