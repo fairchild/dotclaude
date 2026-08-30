@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 import httpx
-from env_helpers import get_elevenlabs_api_key
+from env_helpers import audio_context_prefix, get_elevenlabs_api_key
 
 API_BASE = "https://api.elevenlabs.io/v1"
 
@@ -163,7 +163,7 @@ def play_audio(path: Path) -> None:
     if not afplay:
         error_exit("'afplay' is not available on this system")
 
-    result = subprocess.run([afplay, str(path)], capture_output=True, text=True)
+    result = subprocess.run([*audio_context_prefix(), afplay, str(path)], capture_output=True, text=True)
     if result.returncode != 0:
         error_exit(result.stderr.strip() or "Audio playback failed")
 

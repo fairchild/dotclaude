@@ -63,79 +63,10 @@
       "Edit(~/.aws/**)",
       "Edit(~/.config/**/credentials*)"
     ],
-    "ask": [
-      "Bash(rm -rf *)"
-    ],
     "defaultMode": "auto"
   },
   "enableAllProjectMcpServers": true,
   "hooks": {
-    "Notification": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "PermissionRequest": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "PostToolBatch": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "PostToolUseFailure": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
-            "async": true
-          }
-        ]
-      }
-    ],
     "SessionEnd": [
       {
         "hooks": [
@@ -187,15 +118,6 @@
             "command": "/opt/homebrew/bin/timeout 5 ~/.claude/scripts/sync-dotagents.py status 2>/dev/null || echo 'dotagents: status check skipped'"
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
-            "async": true
-          }
-        ]
       }
     ],
     "Stop": [
@@ -214,65 +136,12 @@
             "command": "/opt/homebrew/bin/timeout 5 \"$HOME/.claude/skills/signoz-log/scripts/signoz-log.sh\" INFO 'session stopped' 2>/dev/null || echo 'signoz-log: stop hook timed out'"
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "StopFailure": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "TaskCompleted": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "TaskCreated": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.local/share/workspaces/hook-forwarders/event-forwarder.sh",
-            "async": true
-          }
-        ]
       }
     ]
   },
   "statusLine": {
     "type": "command",
-    "command": "~/.local/share/workspaces/hook-forwarders/statusline.sh",
+    "command": "~/.claude/scripts/statusline.sh",
     "refreshInterval": 5000
   },
   "enabledPlugins": {
@@ -304,7 +173,6 @@
     "enabled": true,
     "mode": "hold"
   },
-  "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
   "theme": "light",
   "verbose": true,

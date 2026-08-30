@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'settings.json'
+      - 'settings.example.json'
       - '.mcp.json'
       - '.gitignore'
       - '.mise.toml'
@@ -63,7 +63,7 @@ jobs:
         uses: tj-actions/changed-files@v45
         with:
           files: |
-            settings.json
+            settings.example.json
             .mcp.json
             agents/*.md
             skills/**

@@ -7,7 +7,7 @@ Everything here affects ALL Claude Code sessions globally:
 - `skills/` → available in every session
 - `commands/` → slash commands everywhere
 - `agents/` → background agents everywhere
-- `settings.json` → global permissions, hooks, model
+- `settings.json` → global permissions, hooks, model (gitignored; `settings.example.json` is the tracked shape)
 - `CLAUDE.md` (root) → personal instructions for all projects
 
 This repo is public on GitHub but serves as Michael's actual working config.
@@ -32,9 +32,12 @@ Every first-party skill is in one tier, declared in `SKILL.md` frontmatter. The 
 |------|-------------|---------|
 | stable | no `metadata.status` | Has a skill eval, a deterministic eval, or sustained real use (`analyze-usage` shows invocations) |
 | experimental | `metadata.status: experimental` + `metadata.experimental_reason` | Usable; the reason states what keeps it from stable |
+| superseded | `metadata.status: superseded` + `metadata.superseded_reason` | Something else does the job now; kept on disk and reachable as `/name` |
 | local | listed in `skills/.gitignore` | Lives only in `~/.claude`; personal or not ready to publish |
 
 Promotion is removing `metadata.status` once the gate is met. Demotion is adding it back with a reason. A skill nobody has invoked in months is a candidate for deletion, not for experimental — git keeps it.
+
+Superseded is the tier for a skill whose job moved somewhere else while the text stays worth reading — a carried-in voice guide folded into a local one, an approach replaced by a better one. It is not a synonym for unused: a skill nobody replaced and nobody invokes still gets deleted. Because the successor is the one that should load, a superseded skill normally sets `disable-model-invocation: true`; validation warns when it does not.
 
 `disable-model-invocation: true` is orthogonal: it says a skill runs only as `/name`, not how mature it is.
 
@@ -93,30 +96,31 @@ ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
 
 ### Runtime Config Changes
 
-`main` is protected, so nothing — including `~/.claude` — pushes to it directly. When Claude Code or another app (e.g. the workspaces hook installer) modifies `~/.claude/settings.json` at runtime, codify the change through a PR from the dev repo:
+`settings.json` is **not tracked**. It is the live runtime file: Claude Code writes to it
+(`/model`, `/config`), other apps rewrite their own hooks in it, and it is the only
+place an `autoMode.environment` description of this machine's infrastructure can live — the
+classifier reads `autoMode` from user or managed settings, never from a repository. Keeping
+that out of a public repo is why the file is gitignored, and it also means app drift no longer
+dirties the tree, so `deploy.sh` can fast-forward.
+
+`settings.example.json` is the shareable shape: this repo's own hooks, permissions, plugins,
+and defaults, with machine-specific forwarders and the environment block removed. Change it
+when the shape changes, through a PR like any other file.
+
+Never `cp ~/.claude/settings.json` into this repo. To seed a new machine, copy the example the
+other way and fill it in:
 
 ```bash
-cp ~/.claude/settings.json ~/code/dotclaude/settings.json
-git -C ~/code/dotclaude checkout -b chore/settings-sync main
-git -C ~/code/dotclaude add settings.json
-git -C ~/code/dotclaude commit -m "chore: sync settings.json from runtime"
-git -C ~/code/dotclaude push -u origin chore/settings-sync
-gh pr create --fill   # review, merge
+cp ~/code/dotclaude/settings.example.json ~/.claude/settings.json
 ```
 
-After merge, discard the now-redundant runtime drift so the tree is clean, then deploy:
-
-```bash
-git -C ~/.claude checkout settings.json
-~/.claude/scripts/deploy.sh
-```
-
-Until you do this, `~/.claude` shows `settings.json` as modified and the `SessionStart` auto-deploy skips. Everything else (new skills, workflow changes, doc updates) goes through feature branches and PRs in `~/code/dotclaude` the same way.
+Everything else (new skills, workflow changes, doc updates) goes through feature branches and
+PRs in `~/code/dotclaude` the same way.
 
 ### Key Rules
 
 - **All development happens in `~/code/dotclaude`** — feature branches, PRs, code review
-- **`~/.claude` is deploy-only** — read and fast-forward only; never commit there. `main` is protected, so even runtime `settings.json` drift is codified via a dev-repo PR
+- **`~/.claude` is deploy-only** — read and fast-forward only; never commit there. `settings.json` is gitignored, so runtime drift no longer needs codifying; change `settings.example.json` when the shareable shape changes
 - **Symlink direction**: `~/.claude/skills/<name>` → `~/code/dotclaude/skills/<name>`
 - **Ecosystem installs**: `npx skills add <repo>` places content at `~/.agents/skills/<name>/`, symlinked into `~/.claude/skills/<name>`. Provenance (origin URL, commit hash, install timestamps) is tracked by the CLI in `~/.agents/.skill-lock.json`. This repo does not vendor third-party skill content; the lockfile is the source of truth.
 - **Full workflow docs**: `skills/dotclaude-config/references/development-workflow.md`
