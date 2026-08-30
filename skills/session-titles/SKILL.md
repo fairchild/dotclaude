@@ -10,6 +10,8 @@ license: Apache-2.0
 
 ## Overview
 
+Prerequisites: Claude Code (the hook and the transcripts it reads), `bun`, and an `ANTHROPIC_API_KEY` for generation, judging, and evolution. Paths written as `scripts/…`, `references/…`, and `data/…` are relative to this skill's base directory; tilde-prefixed paths are in the reader's own Claude Code config directory.
+
 This skill owns the entire session title lifecycle:
 
 1. **Generation** -- Stop hook extracts context from the transcript (primary request, branch, files) and calls Haiku to produce a 4-7 word active-voice title. Detects focus shifts and tracks them with a `(N)` prefix.
@@ -55,7 +57,7 @@ Interactive rating workflow (invoke as `/rate-title` or manually):
 
 1. **AI Judge assesses first** -- Score (1-5), reasoning, proposed better title.
 2. **Human calibrates** -- Agree? Different score? Better suggestion?
-3. **Both perspectives saved** to `~/.claude/title-feedback/scored.jsonl`.
+3. **Both perspectives saved** to `~/.claude/title-feedback/scored.jsonl`. <!-- portability: allow -->
 
 The dual-perspective data enables DSPy optimization of both the judge prompt (learn to rate like the human) and the journalist prompt (generate titles humans rate highly).
 
@@ -73,11 +75,11 @@ See `references/scoring-rubric.md` for detailed criteria.
 
 ## Data Layout
 
-**Runtime data** (gitignored, at `~/.claude/title-feedback/`):
+**Runtime data** (gitignored, in the Claude Code config directory at `~/.claude/title-feedback/`): <!-- portability: allow -->
 - `pending.jsonl` -- written by Stop hook
 - `scored.jsonl` -- written by /rate-title
 
-**Evaluation data** (gitignored, at `skills/session-titles/data/`):
+**Evaluation data** (gitignored, at `data/`, relative to this skill's base directory):
 - `candidates.jsonl` -- extracted test cases
 - `golden.jsonl` -- curated with ideal titles
 - `results/` -- timestamped eval outputs

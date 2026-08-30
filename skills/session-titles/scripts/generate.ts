@@ -6,7 +6,7 @@
 import { existsSync, readFileSync } from "fs";
 import { getProjectName, writeTitle } from "./generate-core.ts";
 
-// Load ~/.claude/.env if present
+// Load ~/.claude/.env if present  // portability: allow
 const envPath = `${process.env.HOME}/.claude/.env`;
 if (existsSync(envPath)) {
   for (const line of readFileSync(envPath, "utf-8").split("\n")) {

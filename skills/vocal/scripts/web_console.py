@@ -380,7 +380,12 @@ def json_bytes(payload: dict[str, Any]) -> bytes:
 
 def build_html() -> bytes:
     encoded_default = base64.b64encode(json.dumps(DEFAULT_PREFERENCES).encode("utf-8")).decode("ascii")
-    return HTML_TEMPLATE.replace("__DEFAULT_PREFS_B64__", encoded_default).encode("utf-8")
+    encoded_scripts_dir = base64.b64encode(str(SCRIPTS_DIR).encode("utf-8")).decode("ascii")
+    return (
+        HTML_TEMPLATE.replace("__DEFAULT_PREFS_B64__", encoded_default)
+        .replace("__SCRIPTS_DIR_B64__", encoded_scripts_dir)
+        .encode("utf-8")
+    )
 
 
 def make_handler(data_dir: Path) -> type[BaseHTTPRequestHandler]:
@@ -1668,6 +1673,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 
   <script>
     const defaultPrefs = JSON.parse(atob("__DEFAULT_PREFS_B64__"));
+    const scriptsDir = atob("__SCRIPTS_DIR_B64__");
     let prefs = {...defaultPrefs};
     let mediaRecorder = null;
     let recordedBlob = null;
@@ -1929,9 +1935,9 @@ HTML_TEMPLATE = r"""<!doctype html>
         ? `--model ${shellQuote(state.localSttModel)}`
         : `--model ${shellQuote(state.elevenlabsSttModel)}`;
       $("commandPreview").textContent =
-        `uv run --script ~/.claude/skills/vocal/scripts/web_console.py --port 8765\n\n` +
-        `uv run --script ~/.claude/skills/vocal/scripts/${ttsScript} --text ${shellQuote(state.sampleText)} ${ttsArgs}\n` +
-        `uv run --script ~/.claude/skills/vocal/scripts/${sttScript} --duration ${state.recordSeconds} ${sttArgs}\n\n` +
+        `uv run --script ${scriptsDir}/web_console.py --port 8765\n\n` +
+        `uv run --script ${scriptsDir}/${ttsScript} --text ${shellQuote(state.sampleText)} ${ttsArgs}\n` +
+        `uv run --script ${scriptsDir}/${sttScript} --duration ${state.recordSeconds} ${sttArgs}\n\n` +
         `/vocal stt=${state.sttProvider} tts=${state.ttsProvider} duration=${state.recordSeconds} ${state.sampleText}`;
       updateSaveSummary(state);
     }

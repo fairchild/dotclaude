@@ -22,7 +22,7 @@ import type { TitleFeedback } from "./schema.ts";
 const HOME = process.env.HOME!;
 const PENDING_FILE = join(HOME, ".claude", "title-feedback", "pending.jsonl");
 
-// Load API key from ~/.claude/.env
+// Load API key from ~/.claude/.env  // portability: allow
 const envPath = join(HOME, ".claude", ".env");
 if (existsSync(envPath)) {
   for (const line of readFileSync(envPath, "utf-8").split("\n")) {

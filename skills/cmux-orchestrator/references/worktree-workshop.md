@@ -122,7 +122,7 @@ From here, follow the standard Workshop convention (detect commands, build layou
 - **Project root** is `$WORKTREE_PATH`, not `~/code/<project>`
 - **Coder inbox** uses the repo-shared inbox root (all worktrees in the clone see it):
   ```bash
-  . ~/.claude/skills/agent-inbox/scripts/lib.sh
+  . <agent-inbox base dir>/scripts/lib.sh
   inbox_root="$(cd "$WORKTREE_PATH" && agent_inbox_root)"
   mkdir -p "$inbox_root/coder"/{new,tmp,archive}
   ```
@@ -183,7 +183,7 @@ If `wt` (git-worktree skill) is installed, these shortcuts work:
 The coder agent runs in the worktree and needs access to the repo-shared inbox root. Grant access with `--add-dir`:
 
 ```bash
-. ~/.claude/skills/agent-inbox/scripts/lib.sh
+. <agent-inbox base dir>/scripts/lib.sh
 inbox_root="$(cd "$WORKTREE_PATH" && agent_inbox_root)"
 
 claude --dangerously-skip-permissions -n coder \

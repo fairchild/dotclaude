@@ -8,6 +8,8 @@ A Worktree Workshop variant focused on responding to code review comments on our
 - Permissions pre-configured for autonomous verification
 - Re-review capability built into the workflow exit
 
+`scripts/…` paths below are relative to the cmux-orchestrator skill's base directory.
+
 ## Entry Points
 
 ```
@@ -40,7 +42,7 @@ Before creating any workspace or touching code, fetch the PR metadata, review co
 4. Save context to a temp file for the agent prompt:
    ```bash
    # Or use the helper script:
-   uv run ~/.claude/skills/cmux-orchestrator/scripts/pr-fetch-context.py <number> > /tmp/pr-<number>-context.md
+   uv run scripts/pr-fetch-context.py <number> > /tmp/pr-<number>-context.md
    ```
 
 ## Phase 2: Reflect and Decide
@@ -142,7 +144,7 @@ The critical difference from a standard workshop: the agent launches with pre-ap
 
 ### Permission Profile
 
-Use `--allowedTools` with this set when launching the agent in `-p` (print) mode, or rely on the user's global `~/.claude/settings.json` for interactive mode.
+Use `--allowedTools` with this set when launching the agent in `-p` (print) mode, or rely on the user's global `~/.claude/settings.json` for interactive mode. <!-- portability: allow -->
 
 For autonomous agents (`-p` mode), the `--allowedTools` set:
 
@@ -212,7 +214,7 @@ EOF
 ### 5c. Request re-review
 ```bash
 # Request re-review from all original reviewers (excludes bots)
-uv run ~/.claude/skills/cmux-orchestrator/scripts/pr-fetch-context.py <number> --request-rereview
+uv run scripts/pr-fetch-context.py <number> --request-rereview
 ```
 
 This discovers reviewers from comments and reviews, filters out bots, and calls the GitHub API to request re-review from each human reviewer.

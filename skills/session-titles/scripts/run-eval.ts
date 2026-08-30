@@ -11,11 +11,11 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
 const HOME = process.env.HOME!;
-const SKILL_DIR = join(HOME, ".claude", "skills", "session-titles");
+const SKILL_DIR = join(import.meta.dir, "..");
 const GOLDEN_FILE = join(SKILL_DIR, "data", "golden.jsonl");
 const RESULTS_DIR = join(SKILL_DIR, "data", "results");
 
-// Load API key from ~/.claude/.env
+// Load API key from ~/.claude/.env  // portability: allow
 const envPath = join(HOME, ".claude", ".env");
 if (existsSync(envPath)) {
   for (const line of readFileSync(envPath, "utf-8").split("\n")) {

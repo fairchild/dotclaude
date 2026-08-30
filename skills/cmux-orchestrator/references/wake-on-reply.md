@@ -7,7 +7,7 @@ Wake-on-Reply connects async inbox replies to session lifecycle. When a child ag
 Add the inbox startup hook to `settings.json` so every session checks for mail on start:
 
 ```json
-{"hooks":{"SessionStart":[{"type":"command","command":"bash ~/.claude/skills/agent-inbox/scripts/inbox-startup.sh"}]}}
+{"hooks":{"SessionStart":[{"type":"command","command":"bash <agent-inbox base dir>/scripts/inbox-startup.sh"}]}}
 ```
 
 ## Child Reply Flow
@@ -15,7 +15,7 @@ Add the inbox startup hook to `settings.json` so every session checks for mail o
 After a child completes work:
 
 ```bash
-. ~/.claude/skills/agent-inbox/scripts/lib.sh
+. <agent-inbox base dir>/scripts/lib.sh
 inbox_root="$(agent_inbox_root)"
 TIMESTAMP=$(date -u +%Y%m%dT%H%M%S)
 
@@ -33,7 +33,7 @@ EOF
 
 mv "$inbox_root/orchestrator/tmp/${TIMESTAMP}-done.md" "$inbox_root/orchestrator/new/"
 
-bash ~/.claude/skills/agent-inbox/scripts/wake-parent.sh \
+bash <agent-inbox base dir>/scripts/wake-parent.sh \
   --surface <parent-surface> --agent orchestrator
 ```
 
@@ -50,7 +50,7 @@ bash ~/.claude/skills/agent-inbox/scripts/wake-parent.sh \
 Bake the wake instruction into the child launch:
 
 ```bash
-cmux send --surface <child> "echo 'Check your inbox. When done, reply to orchestrator inbox and run: bash ~/.claude/skills/agent-inbox/scripts/wake-parent.sh --surface <parent> --agent orchestrator' | claude -p -n coder --add-dir '$inbox_root' --dangerously-skip-permissions"
+cmux send --surface <child> "echo 'Check your inbox. When done, reply to orchestrator inbox and run: bash <agent-inbox base dir>/scripts/wake-parent.sh --surface <parent> --agent orchestrator' | claude -p -n coder --add-dir '$inbox_root' --dangerously-skip-permissions"
 cmux send-key --surface <child> Enter
 ```
 

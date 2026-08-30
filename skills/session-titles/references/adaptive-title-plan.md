@@ -1,5 +1,9 @@
 # Adaptive Session Title Generation System
 
+This is a design document. Paths below name locations in the reader's own
+Claude Code config directory — where an artifact lives, or is proposed to live.
+Nothing here is a path this skill resolves at runtime.
+
 ## Roadmap Summary
 
 ```
@@ -168,7 +172,7 @@ From [LanceDB Continue Case Study](https://lancedb.com/blog/the-future-of-ai-nat
 │            ▼                                                │
 │   ┌─────────────────┐     ┌─────────────────────────────┐   │
 │   │  Query Vector   │────▶│      LanceDB (local)        │   │
-│   │  [0.23, -0.45,  │     │  ~/.claude/vectors/         │   │
+│   │  [0.23, -0.45,  │     │  vectors/ in config dir     │   │
 │   │   0.12, ...]    │     │                             │   │
 │   └─────────────────┘     │  ┌───────────────────────┐  │   │
 │                           │  │ Similar Past Sessions │  │   │
@@ -240,7 +244,7 @@ Session Start ──────────────────────
 **What**: Use LanceDB to find similar past sessions
 
 ```typescript
-// ~/.claude/vectors/sessions.lance
+// ~/.claude/vectors/sessions.lance  // portability: allow
 interface SessionEmbedding {
   id: string;
   context_embedding: Float32Array;  // Embed the context
@@ -456,7 +460,7 @@ Starting with Phase 2/3 without Phase 1 would train on bad data. Starting Phase 
 **Solution**: Multi-pass extraction that finds the *best* message, not just first/last.
 
 ```typescript
-// ~/.claude/scripts/generate-session-title-testable.ts
+// ~/.claude/scripts/generate-session-title-testable.ts  // portability: allow
 
 interface EnhancedContext {
   // PRIMARY: The most substantive request
@@ -490,8 +494,8 @@ function extractEnhancedContext(transcriptPath: string): EnhancedContext {
 ```
 
 **Files to modify**:
-- `~/.claude/scripts/generate-session-title-testable.ts` — Core extraction logic
-- `~/.claude/scripts/generate-session-title.test.ts` — Add test cases for edge cases
+- `~/.claude/scripts/generate-session-title-testable.ts` — Core extraction logic <!-- portability: allow -->
+- `~/.claude/scripts/generate-session-title.test.ts` — Add test cases for edge cases <!-- portability: allow -->
 
 **Test cases to add**:
 - [ ] Session with "yes" as first message → finds later substantive message
@@ -550,7 +554,7 @@ Bad titles to avoid:
 **Solution**: Define schema now, start collecting data.
 
 ```typescript
-// ~/.claude/title-feedback/schema.ts
+// ~/.claude/title-feedback/schema.ts  // portability: allow
 
 interface TitleFeedback {
   id: string;                    // Hash of session ID + project
@@ -572,7 +576,7 @@ interface TitleFeedback {
 }
 ```
 
-**Create**: `~/.claude/title-feedback/` directory structure
+**Create**: `~/.claude/title-feedback/` directory structure <!-- portability: allow -->
 - `pending.jsonl` — Titles awaiting feedback
 - `scored.jsonl` — Titles with human scores
 - `schema.ts` — Type definitions
@@ -592,7 +596,7 @@ interface TitleFeedback {
 /rate-title 3 "Better title here"  # Rating + correction
 ```
 
-**File**: Create `~/.claude/skills/rate-title/SKILL.md`
+**File**: Create the `rate-title` skill's `SKILL.md`
 
 ---
 
@@ -613,7 +617,7 @@ interface TitleFeedback {
 - Lance columnar format (efficient storage)
 
 ```typescript
-// ~/.claude/scripts/title-memory.ts
+// ~/.claude/scripts/title-memory.ts  // portability: allow
 import * as lancedb from "@lancedb/lancedb";
 
 interface SessionVector {
@@ -626,7 +630,7 @@ interface SessionVector {
   created_at: string;
 }
 
-const db = await lancedb.connect("~/.claude/vectors");
+const db = await lancedb.connect("~/.claude/vectors");  // portability: allow
 const sessions = await db.openTable("sessions");
 
 // On title generation: find similar past sessions
@@ -707,7 +711,7 @@ async function generateTitleWithMemory(ctx: EnhancedContext): Promise<string> {
 **Trigger**: Every 50 new sessions OR on explicit request.
 
 ```typescript
-// ~/.claude/scripts/quality-audit.ts
+// ~/.claude/scripts/quality-audit.ts  // portability: allow
 
 async function runQualityAudit() {
   // 1. Collect last 50 sessions with titles
@@ -754,7 +758,7 @@ This enables A/B analysis: "Did v2.1 perform better than v2.0?"
 **If Phase 3.1-3.2 aren't enough**, add systematic prompt optimization:
 
 ```python
-# ~/.claude/scripts/optimize-prompt.py
+# ~/.claude/scripts/optimize-prompt.py  # portability: allow
 import dspy
 
 class TitleGenerator(dspy.Signature):
@@ -763,7 +767,7 @@ class TitleGenerator(dspy.Signature):
     title = dspy.OutputField()
 
 # Load scored examples
-trainset = load_scored_examples("~/.claude/title-feedback/scored.jsonl")
+trainset = load_scored_examples("~/.claude/title-feedback/scored.jsonl")  # portability: allow
 
 # Define quality metric
 def title_quality(example, pred):
@@ -775,7 +779,7 @@ optimizer = dspy.MIPROv2(metric=title_quality, num_candidates=10)
 compiled = optimizer.compile(TitleGenerator(), trainset=trainset)
 
 # Export optimized prompt for TypeScript
-export_prompt(compiled, "~/.claude/prompts/title-v3.txt")
+export_prompt(compiled, "~/.claude/prompts/title-v3.txt")  # portability: allow
 ```
 
 **When to add DSPy**:
@@ -917,7 +921,7 @@ The user's insight: prompts should have **two levels** reflecting how a journali
 ### Implementation Sketch
 
 ```typescript
-// ~/.claude/scripts/journalist-agent.ts
+// ~/.claude/scripts/journalist-agent.ts  // portability: allow
 
 interface MemoryBlock {
   label: string;
@@ -1020,7 +1024,7 @@ The Journalist approach could be:
 1. **Embedding model**: Use OpenAI's text-embedding-3-small (~$0.02/1M tokens) or local model via Ollama?
 2. **Feedback UX**: Inline in status line, or separate command like `/rate-title`?
 3. **DSPy integration**: Run locally with Python, or create a TypeScript equivalent?
-4. **Storage location**: `~/.claude/vectors/` or inside project directories?
+4. **Storage location**: `~/.claude/vectors/` or inside project directories? <!-- portability: allow -->
 
 ---
 

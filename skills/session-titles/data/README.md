@@ -2,7 +2,7 @@
 
 All files in this directory are gitignored because they contain real session data from projects.
 
-## Runtime data (at `~/.claude/title-feedback/`)
+## Runtime data (at `~/.claude/title-feedback/`) <!-- portability: allow -->
 
 | File | Written by | Format |
 |------|-----------|--------|

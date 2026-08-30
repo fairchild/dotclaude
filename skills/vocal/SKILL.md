@@ -12,6 +12,10 @@ metadata:
 
 Speak text aloud and transcribe speech with local and cloud providers. User-invocable only (`/vocal`) — audio is a side-effect surface, not something to auto-trigger on.
 
+Prerequisites: macOS (`say`, `afplay`), `uv`, Apple Silicon for local STT (mlx-whisper), and an `ELEVENLABS_API_KEY` for the cloud providers.
+
+Every `scripts/…` and `tests/…` path below is relative to this skill's base directory — resolve them against it before running.
+
 ## Usage
 
 ### `/vocal` — turn-based vocal loop
@@ -36,10 +40,10 @@ Optional inline config:
 
 2. **Validate selected providers** before starting (run only the checks needed):
    ```bash
-   uv run ~/.claude/skills/vocal/scripts/stt_local.py --check
-   uv run ~/.claude/skills/vocal/scripts/stt_elevenlabs.py --check
-   uv run ~/.claude/skills/vocal/scripts/tts_local.py --check
-   uv run ~/.claude/skills/vocal/scripts/tts_elevenlabs.py --check
+   uv run scripts/stt_local.py --check
+   uv run scripts/stt_elevenlabs.py --check
+   uv run scripts/tts_local.py --check
+   uv run scripts/tts_elevenlabs.py --check
    ```
 
 3. **Launch the listener.** Create or reuse a team named `vocal` and launch `vocal-listener` as a background task with config:
@@ -66,7 +70,7 @@ Turn-based, not full-duplex realtime. Each listen cycle is a separate background
 
 ### Web tuning console
 ```bash
-uv run --script ~/.claude/skills/vocal/scripts/web_console.py
+uv run --script scripts/web_console.py
 ```
 
 Open http://127.0.0.1:8765 to tune the skill from a local browser.
@@ -76,54 +80,54 @@ The console supports:
 - Local and ElevenLabs voice listing
 - Browser microphone recording and audio-file transcription
 - Provider checks from the same scripts used by the skill
-- Saved local defaults in `skills/vocal/data/preferences.json`
+- Saved local defaults in `data/preferences.json`
 
 Options:
 ```bash
 # Choose a port
-uv run --script ~/.claude/skills/vocal/scripts/web_console.py --port 8799
+uv run --script scripts/web_console.py --port 8799
 
 # Use a private preference directory outside the skill checkout
 VOCAL_DATA_DIR=~/Library/Application\ Support/vocal-skill \
-  uv run --script ~/.claude/skills/vocal/scripts/web_console.py
+  uv run --script scripts/web_console.py
 ```
 
 ### Local TTS (macOS `say`)
 ```bash
-uv run --script ~/.claude/skills/vocal/scripts/tts_local.py --text "Hello Michael"
+uv run --script scripts/tts_local.py --text "Hello Michael"
 ```
 
 Examples:
 ```bash
 # Save audio to file
-uv run --script ~/.claude/skills/vocal/scripts/tts_local.py \
+uv run --script scripts/tts_local.py \
   --text "Build succeeded" \
   --voice Alex \
   --rate 200 \
   --output /tmp/build.aiff
 
 # List macOS voices
-uv run --script ~/.claude/skills/vocal/scripts/tts_local.py --list-voices
+uv run --script scripts/tts_local.py --list-voices
 ```
 
 ### Local STT (mlx-whisper, Apple Silicon)
 ```bash
 # Record microphone for 5 seconds and transcribe
-uv run --script ~/.claude/skills/vocal/scripts/stt_local.py --duration 5
+uv run --script scripts/stt_local.py --duration 5
 
 # Transcribe an existing file
-uv run --script ~/.claude/skills/vocal/scripts/stt_local.py --file ./meeting.wav
+uv run --script scripts/stt_local.py --file ./meeting.wav
 
 # List input devices
-uv run --script ~/.claude/skills/vocal/scripts/stt_local.py --list-devices
+uv run --script scripts/stt_local.py --list-devices
 
 # Use a specific device
-uv run --script ~/.claude/skills/vocal/scripts/stt_local.py --duration 5 --device 1
+uv run --script scripts/stt_local.py --duration 5 --device 1
 ```
 
 ### ElevenLabs TTS (cloud)
 ```bash
-uv run --script ~/.claude/skills/vocal/scripts/tts_elevenlabs.py \
+uv run --script scripts/tts_elevenlabs.py \
   --text "Hello Michael" \
   --voice George
 ```
@@ -131,7 +135,7 @@ uv run --script ~/.claude/skills/vocal/scripts/tts_elevenlabs.py \
 Examples:
 ```bash
 # Save and play the generated mp3
-uv run --script ~/.claude/skills/vocal/scripts/tts_elevenlabs.py \
+uv run --script scripts/tts_elevenlabs.py \
   --text "Deployment complete" \
   --model eleven_turbo_v2_5 \
   --output /tmp/deploy.mp3 \
@@ -141,24 +145,24 @@ uv run --script ~/.claude/skills/vocal/scripts/tts_elevenlabs.py \
 ### ElevenLabs STT (Scribe v2)
 ```bash
 # Record microphone for 5 seconds and transcribe
-uv run --script ~/.claude/skills/vocal/scripts/stt_elevenlabs.py --duration 5
+uv run --script scripts/stt_elevenlabs.py --duration 5
 
 # Transcribe an existing audio file
-uv run --script ~/.claude/skills/vocal/scripts/stt_elevenlabs.py --file ./call.wav
+uv run --script scripts/stt_elevenlabs.py --file ./call.wav
 
 # List input devices
-uv run --script ~/.claude/skills/vocal/scripts/stt_elevenlabs.py --list-devices
+uv run --script scripts/stt_elevenlabs.py --list-devices
 
 # Use a specific device
-uv run --script ~/.claude/skills/vocal/scripts/stt_elevenlabs.py --duration 5 --device 1
+uv run --script scripts/stt_elevenlabs.py --duration 5 --device 1
 ```
 
 ### Provider checks
 ```bash
-uv run --script ~/.claude/skills/vocal/scripts/tts_local.py --check
-uv run --script ~/.claude/skills/vocal/scripts/stt_local.py --check
-uv run --script ~/.claude/skills/vocal/scripts/tts_elevenlabs.py --check
-uv run --script ~/.claude/skills/vocal/scripts/stt_elevenlabs.py --check
+uv run --script scripts/tts_local.py --check
+uv run --script scripts/stt_local.py --check
+uv run --script scripts/tts_elevenlabs.py --check
+uv run --script scripts/stt_elevenlabs.py --check
 ```
 
 ## Provider Comparison
@@ -240,44 +244,44 @@ If transcription fails with permission errors:
 Run fast provider checks:
 
 ```bash
-uv run --script ~/.claude/skills/vocal/tests/test_voice.py
+uv run --script tests/test_voice.py
 ```
 
 Run file-based ask/listen/respond loop (no microphone required):
 
 ```bash
-uv run --script ~/.claude/skills/vocal/tests/test_voice_loop.py
+uv run --script tests/test_voice_loop.py
 ```
 
 Include cloud loop validation (requires ElevenLabs key):
 
 ```bash
-uv run --script ~/.claude/skills/vocal/tests/test_voice_loop.py --cloud
+uv run --script tests/test_voice_loop.py --cloud
 ```
 
 Run web console helper tests:
 
 ```bash
-uv run --script ~/.claude/skills/vocal/tests/test_web_console.py
+uv run --script tests/test_web_console.py
 ```
 
 Run browser validation for the web console:
 
 ```bash
 # Starts an isolated console on a free port and validates desktop/mobile flows
-uv run --script ~/.claude/skills/vocal/tests/test_web_console_playwright.py
+uv run --script tests/test_web_console_playwright.py
 
 # Validate a console you already have open
-uv run --script ~/.claude/skills/vocal/tests/test_web_console_playwright.py \
+uv run --script tests/test_web_console_playwright.py \
   --url http://127.0.0.1:8765
 
 # Include the ElevenLabs TTS UI path (uses API credits)
-uv run --script ~/.claude/skills/vocal/tests/test_web_console_playwright.py \
+uv run --script tests/test_web_console_playwright.py \
   --url http://127.0.0.1:8765 \
   --cloud
 
 # Watch the test in a real browser window
-uv run --script ~/.claude/skills/vocal/tests/test_web_console_playwright.py \
+uv run --script tests/test_web_console_playwright.py \
   --url http://127.0.0.1:8765 \
   --headed \
   --slow-mo 100

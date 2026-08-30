@@ -99,14 +99,14 @@ describe("getBookendMessages", () => {
   });
 
   test("handles sentence boundaries correctly", async () => {
-    const transcript = `{"message":{"role":"user","content":"Check the ~/.claude directory. Then fix it."},"type":"user"}`;
+    const transcript = `{"message":{"role":"user","content":"Check the ~/.claude directory. Then fix it."},"type":"user"}`;  // portability: allow
     const path = createTranscript(transcript);
     const { getBookendMessages } = await import("./generate-core.ts");
 
     const result = getBookendMessages(path);
 
     // Should get first sentence, not break on ~/.
-    expect(result.first).toBe("Check the ~/.claude directory.");
+    expect(result.first).toBe("Check the ~/.claude directory.");  // portability: allow
   });
 });
 
