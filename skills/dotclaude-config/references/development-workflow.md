@@ -91,25 +91,26 @@ The symlink target is whatever checkout holds the branch — the dev clone, a wo
 
 ## Runtime Config Changes
 
-`main` is protected, so nothing — including `~/.claude` — pushes to it directly. When Claude Code or another app (e.g. the workspaces hook installer) modifies `~/.claude/settings.json` at runtime, codify the change through a PR from the dev repo: <!-- portability: allow -->
+`settings.json` is **not tracked**. It is the live runtime file: Claude Code writes to it
+(`/model`, `/config`), other apps rewrite their own hooks in it, and it is the only place an
+`autoMode.environment` description of this machine's infrastructure can live — the classifier
+reads `autoMode` from user or managed settings, never from a repository. Keeping that out of a
+public repo is why the file is gitignored, and it also means app drift no longer dirties the
+tree, so `deploy.sh` can fast-forward.
+
+`settings.example.json` is the shareable shape: this repo's own hooks, permissions, plugins,
+and defaults, with machine-specific forwarders and the environment block removed. Change it
+when the shape changes, through a PR like any other file.
+
+Never `cp ~/.claude/settings.json` into this repo. <!-- portability: allow --> To seed a new machine, copy the example the
+other way and fill it in:
 
 ```bash
-cp ~/.claude/settings.json ~/code/dotclaude/settings.json  # portability: allow
-git -C ~/code/dotclaude checkout -b chore/settings-sync main
-git -C ~/code/dotclaude add settings.json
-git -C ~/code/dotclaude commit -m "chore: sync settings.json from runtime"
-git -C ~/code/dotclaude push -u origin chore/settings-sync
-gh pr create --fill   # review, merge
+cp ~/code/dotclaude/settings.example.json ~/.claude/settings.json  # portability: allow
 ```
 
-After merge, discard the now-redundant runtime drift so the tree is clean, then deploy:
-
-```bash
-git -C ~/.claude checkout settings.json  # portability: allow
-~/.claude/scripts/deploy.sh  # portability: allow
-```
-
-Until you do this, `~/.claude` shows `settings.json` as modified and the `SessionStart` auto-deploy skips. Everything else (new skills, workflow changes, doc updates) goes through feature branches and PRs in `~/code/dotclaude` the same way. <!-- portability: allow -->
+Everything else (new skills, workflow changes, doc updates) goes through feature branches and
+PRs in `~/code/dotclaude` the same way.
 
 ## Setup (Fresh)
 
@@ -222,10 +223,10 @@ Three origins coexist in `~/.claude/skills/`: <!-- portability: allow -->
 
 ## Gotchas
 
-- **Never develop directly in `~/.claude`** — it's the deploy target, read/fast-forward only. `main` is protected; never commit there, even runtime `settings.json` drift goes through a dev-repo PR. <!-- portability: allow -->
+- **Never develop directly in `~/.claude`** — it's the deploy target, read/fast-forward only. `main` is protected; never commit there. <!-- portability: allow -->
 - **Dev symlinks shadow tracked skills** — a symlink at `~/.claude/skills/foo` overrides a tracked `skills/foo`. The deploy script handles cleanup, but be aware during development. <!-- portability: allow -->
 - **Keep `~/.claude` clean before deploying** — the deploy script fast-forwards only when the runtime tree has no local commits and no uncommitted drift; otherwise it warns and skips. <!-- portability: allow -->
-- **`settings.json` drifts** — Claude Code (and the workspaces app) modify it at runtime. Codify the drift via a dev-repo PR, then `git -C ~/.claude checkout settings.json` and deploy; `main` rejects direct pushes. <!-- portability: allow -->
+- **`settings.json` drifts, and that is fine** — Claude Code and the workspaces app modify it at runtime. It is gitignored, so the drift never dirties the tree or blocks a fast-forward. Change `settings.example.json` by PR when the shareable shape changes.
 - **Claude Code recreates `~/.claude`** — if you move it while a session is active, Claude Code may recreate it. Close all sessions first. <!-- portability: allow -->
 
 ## Preventing Common Mistakes

@@ -199,7 +199,7 @@ When the current directory IS `~/.claude`: <!-- portability: allow -->
 
 - **`~/code/dotclaude`** — feature branches, PRs, all development
 - **`~/.claude`** — always on `main`, updated by SessionStart hook (`scripts/deploy.sh`) <!-- portability: allow -->
-- Runtime config changes (`settings.json`) push directly from `~/.claude` as the one exception <!-- portability: allow -->
+- Runtime config changes stay in `~/.claude/settings.json` — it is gitignored; `settings.example.json` is the tracked shape and changes by PR <!-- portability: allow -->
 
 See [references/development-workflow.md](references/development-workflow.md) for setup, symlink workflow, and migration from worktree.
 
