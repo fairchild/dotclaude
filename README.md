@@ -124,9 +124,16 @@ Claude loads these when the task matches the description.
 | `cloudflare-workers-deploy` | Set up Cloudflare Workers deployment for web applications with GitHub Actions CI/CD. | Deployment patterns are useful but not yet validated across enough project shapes and Cloudflare account setups. |
 | `ios-simulator` | Automate iOS Simulator tasks — capture screenshots, interact with apps, generate screen flow galleries. | Simulator automation remains sensitive to local device state, timing, window focus, and Xcode version differences. |
 | `persona-memory` | Build and operate a persistent persona and memory framework for Claude Code. | Healthy framework, intentionally experimental until background memory agents and full interactive-session CI coverage exist. |
-| `plain-writing` | Plain, direct writing voice — no undefined jargon, no throat-clearing, no showing off — for any prose a person reads… | Just carried in — no invocation history or skill eval yet. |
 | `skill-seeker` | Generate Claude Code skills from docs sites, GitHub repos, or local codebases using Skill Seekers. | Generated skill quality varies by source corpus and still requires explicit human review before installation. |
 | `vocal` | Speak text aloud (TTS) and transcribe speech (STT). | Voice workflows depend on local audio devices and optional ElevenLabs credentials, so reliability is environment-sensitive. |
+
+### Skills — superseded
+
+`metadata.status: superseded` in frontmatter. Something else does the job now; these stay on disk and reachable as `/name`, and `metadata.superseded_reason` says what replaced them.
+
+| Skill | Domain | Superseded by |
+|---|---|---|
+| `/plain-writing` | Plain, direct writing voice — no undefined jargon, no throat-clearing, no showing off — for any prose a person reads… | A local voice skill that loads by default now carries its floor. |
 
 ### Commands
 

@@ -72,7 +72,7 @@ def skills() -> list[Entry]:
                 name=path.parent.name,
                 summary=summarize(fm.get("description", "")),
                 status=meta.get("status"),
-                reason=meta.get("experimental_reason"),
+                reason=meta.get(f"{meta['status']}_reason") if meta.get("status") else None,
                 slash_only=fm.get("disable-model-invocation") is True,
             )
         )
@@ -107,6 +107,7 @@ def render() -> str:
     stable = [s for s in all_skills if s.status is None and not s.slash_only]
     slash = [s for s in all_skills if s.status is None and s.slash_only]
     experimental = [s for s in all_skills if s.status == "experimental"]
+    superseded = [s for s in all_skills if s.status == "superseded"]
 
     sections = [
         "### Skills — stable, auto-invoked",
@@ -129,6 +130,17 @@ def render() -> str:
         table(
             ("Skill", "Domain", "Why experimental"),
             [(f"`{s.name}`", s.summary, s.reason or "") for s in experimental],
+        ),
+        "",
+        "### Skills — superseded",
+        "",
+        "`metadata.status: superseded` in frontmatter. Something else does the job now; "
+        "these stay on disk and reachable as `/name`, and `metadata.superseded_reason` "
+        "says what replaced them.",
+        "",
+        table(
+            ("Skill", "Domain", "Superseded by"),
+            [(f"`/{s.name}`", s.summary, s.reason or "") for s in superseded],
         ),
         "",
         "### Commands",
