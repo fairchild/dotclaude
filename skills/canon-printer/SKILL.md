@@ -3,11 +3,15 @@ name: canon-printer
 description: Check status, ink levels, job queue, cancel stuck jobs, print files and rendered documents, track loaded paper, and troubleshoot reachability for the home Canon PIXMA iX6800 printer. Manually invoked only — use `/canon-printer` (optionally `status`, `jobs`, `cancel-job`, `print`, `print-doc`, `paper`, `ink-history`, `discover`, `troubleshoot`).
 license: Apache-2.0
 disable-model-invocation: true
+metadata:
+  portability: machine-bound
 ---
 
 # Canon Printer
 
 Manage the home Canon PIXMA iX6800 printer via its native protocols (IPP, nmap) instead of its auth-gated web UI.
+
+Declared `machine-bound`: it drives one specific piece of local hardware on one LAN, and the `Canon_iX6800_series_13x19` queue it prints Super B through is CUPS config created by hand on this Mac (see `print` below for the recreate command).
 
 ## Known Device
 
@@ -48,20 +52,18 @@ Runtime state (loaded-paper record, ink-level history) lives outside the repo at
 /canon-printer troubleshoot     # unreachable / browser-specific errors
 ```
 
-All read-only checks run via `scripts/canon-printer.sh {discover|reach|status|jobs|queues|all} [ip]`. Bare invocation defaults to `all`.
+All read-only checks run via `scripts/canon-printer.sh {discover|reach|status|jobs|queues|all} [ip]`, a path relative to this skill's base directory. Bare invocation defaults to `all`.
 
 ## Default / `status` / `jobs` / `discover` / `all`
 
 Run the matching subcommand:
 
 ```bash
-~/code/dotclaude/skills/canon-printer/scripts/canon-printer.sh all
-~/code/dotclaude/skills/canon-printer/scripts/canon-printer.sh status
-~/code/dotclaude/skills/canon-printer/scripts/canon-printer.sh jobs
-~/code/dotclaude/skills/canon-printer/scripts/canon-printer.sh discover
+scripts/canon-printer.sh all
+scripts/canon-printer.sh status
+scripts/canon-printer.sh jobs
+scripts/canon-printer.sh discover
 ```
-
-(Use the runtime path `~/.claude/skills/canon-printer/scripts/canon-printer.sh` if invoked from `~/.claude`.)
 
 Interpret the `status` output:
 - `printer-state: idle` + `printer-state-reasons: none` → healthy.

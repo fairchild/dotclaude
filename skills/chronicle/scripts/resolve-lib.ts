@@ -10,7 +10,7 @@ import type { ChronicleBlock, PendingItem, Resolution, ResolvedOverlay } from ".
 // Re-export types for backward compatibility
 export type { Resolution, ResolvedOverlay } from "./types.ts";
 
-const RESOLVED_PATH = `${process.env.HOME}/.claude/chronicle/resolved.json`;
+const RESOLVED_PATH = `${process.env.HOME}/.claude/chronicle/resolved.json`;  // portability: allow
 
 export interface AccomplishedCandidate {
   text: string;

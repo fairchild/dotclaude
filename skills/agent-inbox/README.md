@@ -87,14 +87,14 @@ mv "$old_root"/* "$inbox_root"/
 
 ## "You've got mail" hook
 
-An optional Stop hook scans the shared inbox root and nudges the agent with a one-line `📬` notification. Silent when empty — no configuration needed.
+An optional Stop hook scans the shared inbox root and nudges the agent with a one-line `📬` notification. Silent when empty — no configuration needed. `settings.json` hooks run outside skill invocation, so the command needs this skill's actual install path on your machine in place of `<agent-inbox base dir>`:
 
 ```json
 {
   "Stop": [{
     "hooks": [{
       "type": "command",
-      "command": "~/.claude/skills/agent-inbox/scripts/check-inbox-hook.sh"
+      "command": "<agent-inbox base dir>/scripts/check-inbox-hook.sh"
     }]
   }]
 }

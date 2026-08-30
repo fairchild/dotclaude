@@ -53,10 +53,10 @@ Categorize by update type:
 
 ### Phase 3: Check History
 
-Before major updates, check if we've updated this package before:
+Before major updates, check if we've updated this package before. Paths below are relative to this skill's base directory:
 
 ```bash
-grep "<package-name>" ~/.claude/skills/update-dependencies/data/outcomes.jsonl
+grep "<package-name>" data/outcomes.jsonl
 ```
 
 Learn from past outcomes:
@@ -104,13 +104,13 @@ gh pr create --title "deps: <type> update <group-name>" --body-file -
 After PR is merged (or if update fails), log the outcome:
 
 ```bash
-bun ~/.claude/skills/update-dependencies/scripts/log-outcome.ts
+bun scripts/log-outcome.ts
 ```
 
 The script will:
 1. Pre-fill: date, project, ecosystem, packages, versions
 2. Prompt for: outcome (success/failed/required_migration) and notes
-3. Append to `~/.claude/skills/update-dependencies/data/outcomes.jsonl`
+3. Append to `data/outcomes.jsonl`
 
 ---
 
@@ -132,7 +132,7 @@ When invoked via `/update-dependencies`:
 
 ```bash
 # Run the analyzer first
-bun ~/.claude/skills/update-dependencies/scripts/analyze.ts
+bun scripts/analyze.ts
 
 # Or invoke the skill
 /update-dependencies plan    # Analyze and plan

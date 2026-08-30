@@ -28,15 +28,15 @@ For the current comparison model matrix, read `references/current-models.md`. Fo
 
 ## Command Pattern
 
-The Python entrypoints are executable UV scripts. Prefer direct execution:
+The Python entrypoints are executable UV scripts. Paths below are relative to this skill's base directory. Prefer direct execution:
 
 ```bash
-~/.claude/skills/image-gen/scripts/<script>.py \
+scripts/<script>.py \
   --prompt "a cat wearing a top hat" \
   --output /tmp/cat.png
 ```
 
-`uv run --script ~/.claude/skills/image-gen/scripts/<script>.py ...` remains a valid fallback if a copied checkout has lost executable bits.
+`uv run --script scripts/<script>.py ...` remains a valid fallback if a copied checkout has lost executable bits.
 
 Provider scripts are image generation adapters. Keep their interface stable: executable UV script, `--prompt`, `--output`, `--output-dir`, `--model`, `--check`, `--protocol`, successful generation history, and resolved output path as the final stdout line.
 
@@ -46,12 +46,12 @@ Common examples:
 
 ```bash
 # Default OpenAI path
-~/.claude/skills/image-gen/scripts/generate_openai.py \
+scripts/generate_openai.py \
   --prompt "a cat wearing a top hat" \
   --output /tmp/cat.png
 
 # Gemini Pro / Nano Banana Pro
-~/.claude/skills/image-gen/scripts/generate_gemini.py \
+scripts/generate_gemini.py \
   --model gemini-3-pro-image-preview \
   --prompt "a typography-forward launch poster for a boutique coffee app" \
   --output /tmp/poster.png \
@@ -59,7 +59,7 @@ Common examples:
   --image-size 2K
 
 # fal with repeatability
-~/.claude/skills/image-gen/scripts/generate_fal.py \
+scripts/generate_fal.py \
   --prompt "isometric game asset of a glass greenhouse" \
   --output /tmp/greenhouse.jpg \
   --seed 1234
@@ -68,7 +68,7 @@ Common examples:
 Use each script's `--help` as the full option reference:
 
 ```bash
-~/.claude/skills/image-gen/scripts/generate_openai.py --help
+scripts/generate_openai.py --help
 ```
 
 ## Comparison Runs
@@ -76,9 +76,9 @@ Use each script's `--help` as the full option reference:
 Use `run_examples.py` to compare current model presets. It dry-runs by default and only makes paid API calls with `--generate`.
 
 ```bash
-~/.claude/skills/image-gen/scripts/run_examples.py --list
-~/.claude/skills/image-gen/scripts/run_examples.py
-~/.claude/skills/image-gen/scripts/run_examples.py --generate --example typography-poster
+scripts/run_examples.py --list
+scripts/run_examples.py
+scripts/run_examples.py --generate --example typography-poster
 ```
 
 Single-example generated manifests are reviewable directly with `review_gallery.py`.
@@ -86,7 +86,7 @@ Single-example generated manifests are reviewable directly with `review_gallery.
 Use `review_gallery.py` for local winner selection, image-order ranking, an optional comment, and one/all candidate regeneration:
 
 ```bash
-~/.claude/skills/image-gen/scripts/review_gallery.py --run-dir <comparison-run-dir>
+scripts/review_gallery.py --run-dir <comparison-run-dir>
 ```
 
 Click-to-rank assigns rank 1 to the first distinct image clicked, rank 2 to the second, rank 3 to the third, then leaves remaining unclicked images in current order. Clicking an already-ranked image or clicking after a completed pass starts a fresh ranking pass from rank 1.
@@ -96,7 +96,7 @@ The review page opens image-only. Tap or click outside the image cards and contr
 After changing the review UI or generating comparison outputs, run the visual evaluator and inspect its screenshots/checks before reporting:
 
 ```bash
-~/.claude/skills/image-gen/scripts/evaluate_review_gallery.py --run-dir <comparison-run-dir>
+scripts/evaluate_review_gallery.py --run-dir <comparison-run-dir>
 ```
 
 It captures default, interaction, and mobile screenshots under `outputs/evaluations/` and checks that the default view is image-only, images load, metadata does not overlap the image, click-to-rank works, keyboard ranking works, `R` toggles details, and `S` saves with a visual indicator. With `--run-dir`, it serves a temporary copy so validation does not mutate the original comparison run.
@@ -130,17 +130,17 @@ Successful generations are also logged to `skills/image-gen/data/generations.jso
 Check keys without spending generation credits:
 
 ```bash
-~/.claude/skills/image-gen/scripts/generate_openai.py --check
-~/.claude/skills/image-gen/scripts/generate_gemini.py --check
-~/.claude/skills/image-gen/scripts/generate_imagen.py --check
-~/.claude/skills/image-gen/scripts/generate_fal.py --check
+scripts/generate_openai.py --check
+scripts/generate_gemini.py --check
+scripts/generate_imagen.py --check
+scripts/generate_fal.py --check
 ```
 
 Inspect provider protocol metadata without API keys:
 
 ```bash
-~/.claude/skills/image-gen/scripts/generate_openai.py --protocol
-~/.claude/skills/image-gen/scripts/check_protocol.py
+scripts/generate_openai.py --protocol
+scripts/check_protocol.py
 ```
 
 Generation may incur provider costs. If a key is missing or invalid, fix the env var rather than changing the script.
@@ -156,10 +156,10 @@ Generation may incur provider costs. If a key is missing or invalid, fix the env
 ## Testing
 
 ```bash
-~/.claude/skills/image-gen/scripts/check_protocol.py
-~/.claude/skills/image-gen/tests/test_image_gen.py
-~/.claude/skills/image-gen/tests/test_image_gen.py --check-env
-~/.claude/skills/image-gen/tests/test_image_gen.py --generate --provider openai
+scripts/check_protocol.py
+tests/test_image_gen.py
+tests/test_image_gen.py --check-env
+tests/test_image_gen.py --generate --provider openai
 ```
 
 Default testing is free and does not require API keys. `check_protocol.py` is the focused adapter-contract check and is also run by PR validation when `skills/image-gen/` changes. `--check-env` reports configured keys. `--generate` makes real API calls and stores outputs in `skills/image-gen/outputs/test-runs/`.

@@ -21,6 +21,7 @@ Requires `gh` CLI authenticated.
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 
 def run_gh(*args: str) -> str:
@@ -92,7 +93,7 @@ def fetch_pr_context(pr_number: int, repo: str | None = None) -> str:
             lines.append(f"**Comment:** {c['body']}")
             lines.append("")
 
-    script = "uv run ~/.claude/skills/cmux-orchestrator/scripts/pr-fetch-context.py"
+    script = f"uv run {Path(__file__).resolve()}"
     repo_flag_str = f" --repo {repo}" if repo else ""
 
     reviewers = list({c["user"]["login"] for c in comments_json})

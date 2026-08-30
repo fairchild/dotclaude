@@ -33,7 +33,7 @@ describe("parseEnvAssignment", () => {
 });
 
 describe("loadEnvAssignments", () => {
-  test("loads ANTHROPIC_API_KEY from ~/.env when ~/.claude/.env is absent", () => {
+  test("loads ANTHROPIC_API_KEY from ~/.env when ~/.claude/.env is absent", () => {  // portability: allow
     const home = mkdtempSync(join(tmpdir(), "chronicle-env-"));
     try {
       delete process.env.ANTHROPIC_API_KEY;

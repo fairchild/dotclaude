@@ -6,7 +6,7 @@ Complete reference for Claude Code settings configuration.
 
 | Level | Path | Purpose |
 |-------|------|---------|
-| Global | `~/.claude/settings.json` | User defaults for all projects |
+| Global | `~/.claude/settings.json` | User defaults for all projects <!-- portability: allow --> |
 | Project | `.claude/settings.json` | Project-specific, version-controlled |
 | Local | `.claude/settings.local.json` | Per-machine overrides, gitignored |
 
@@ -218,11 +218,11 @@ Auto-format after writes:
 ```
 
 Generate session title on stop:
-```json
+```jsonc
 "Stop": [{
   "hooks": [{
     "type": "command",
-    "command": "~/.claude/hooks/stop.sh"
+    "command": "~/.claude/hooks/stop.sh"  // portability: allow
   }]
 }]
 ```
@@ -233,10 +233,10 @@ Custom status line displayed during sessions.
 
 ### Configuration
 
-```json
+```jsonc
 "statusLine": {
   "type": "command",
-  "command": "~/.claude/scripts/statusline.sh"
+  "command": "~/.claude/scripts/statusline.sh"  // portability: allow
 }
 ```
 

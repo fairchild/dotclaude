@@ -80,7 +80,7 @@ NAME=$(gh cs create -r fairchild/dotclaude -b main -m standardLinux32gb \
 The container runs `setup.sh` post-create which:
 - Installs mise runtimes from `.mise.toml`
 - Installs Claude Code globally via npm
-- Symlinks the workspace as `~/.claude`
+- Symlinks the workspace as `~/.claude` <!-- portability: allow -->
 - Syncs Python dependencies with uv
 
 The firewall (`init-firewall.sh`) restricts outbound traffic to:

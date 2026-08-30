@@ -728,7 +728,7 @@ cmd_status() {
 }
 
 cmd_maintain() {
-  echo "maintain: load ~/.claude/skills/backlog/references/maintain.md and references/backends/gitea.md" >&2
+  echo "maintain: load references/maintain.md and references/backends/gitea.md" >&2
   echo "(advisory walk; benefits from agent judgment)"
 }
 

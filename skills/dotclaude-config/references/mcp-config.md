@@ -6,7 +6,7 @@ Configure Model Context Protocol servers for Claude Code.
 
 | Scope | File | Purpose |
 |-------|------|---------|
-| Global | `~/.claude.json` | User-wide MCP servers |
+| Global | `~/.claude.json` | User-wide MCP servers <!-- portability: allow --> |
 | Project | `.mcp.json` | Project-specific servers |
 
 Both use the same format. Project servers supplement global ones.
@@ -170,7 +170,7 @@ MCP tools with tool search enabled load up to 10% of context by default. Monitor
 | Scope | Storage | Visibility |
 |-------|---------|------------|
 | `local` | Session memory | Current session only |
-| `user` (global) | `~/.claude.json` | All projects |
+| `user` (global) | `~/.claude.json` | All projects <!-- portability: allow --> |
 | `project` | `.mcp.json` | This project only |
 
 Servers from all applicable scopes are available. When a project-scope server has the same name as a user-scope server, the project version completely replaces the global one (no merging of fields).

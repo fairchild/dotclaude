@@ -10,7 +10,7 @@ import { loadAllBlocks } from "./queries.ts";
 export { loadAllBlocks };
 export type { ChronicleBlock };
 
-const LAST_SYNC_FILE = `${process.env.HOME}/.claude/.chronicle-last-sync`;
+const LAST_SYNC_FILE = `${process.env.HOME}/.claude/.chronicle-last-sync`;  // portability: allow
 
 export interface PendingThread {
   text: string;
@@ -43,7 +43,7 @@ export interface Suggestion {
 
 
 export function loadEnv(): Record<string, string> {
-  const envPath = `${process.env.HOME}/.claude/.env`;
+  const envPath = `${process.env.HOME}/.claude/.env`;  // portability: allow
   if (!existsSync(envPath)) return {};
 
   const content = readFileSync(envPath, "utf-8");

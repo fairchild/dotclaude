@@ -17,10 +17,17 @@ PERSONA="${AI_MEMORY_TARGET_PERSONA:-${AI_MEMORY_PERSONA:-}}"
 MEMORY_HOME="${AI_MEMORY_DIR:-$HOME/.ai-memory}"
 MEMORY_DIR="$MEMORY_HOME/$PERSONA"
 TRANSCRIPT="${AI_MEMORY_TRANSCRIPT:-}"
-echo "PERSONA=$PERSONA MEMORY_DIR=$MEMORY_DIR TRANSCRIPT=$TRANSCRIPT"
+SKILL_DIR="${AI_MEMORY_SKILL_DIR:-}"
+echo "PERSONA=$PERSONA MEMORY_DIR=$MEMORY_DIR TRANSCRIPT=$TRANSCRIPT SKILL_DIR=$SKILL_DIR"
 ```
 
 If `PERSONA` is empty, report "missing persona, skipping" and exit.
+
+`SKILL_DIR` is the team-memory skill's base directory, exported by
+`scripts/session-end.sh`. If it is empty, load the `team-memory` skill and use
+the base directory the harness announces for it; the stage instructions live
+under `<SKILL_DIR>/references/agents/`.
+
 Use these concrete values in all sub-agent prompts below.
 
 ## Pipeline
@@ -33,7 +40,7 @@ Run these three stages **sequentially**. Each must complete before the next begi
 Task tool:
   subagent_type: "general-purpose"
   model: "haiku"
-  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-extract.md for instructions, then execute them. Memory dir: <MEMORY_DIR>. Persona name: <PERSONA>. Session transcript: <TRANSCRIPT>"
+  prompt: "Read <SKILL_DIR>/references/agents/sleep-extract.md for instructions, then execute them. Memory dir: <MEMORY_DIR>. Persona name: <PERSONA>. Session transcript: <TRANSCRIPT>"
 ```
 
 ### Stage 2: Consolidate
@@ -42,7 +49,7 @@ Task tool:
 Task tool:
   subagent_type: "general-purpose"
   model: "haiku"
-  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-consolidate.md for instructions, then execute them. Memory dir: <MEMORY_DIR>. Persona name: <PERSONA>"
+  prompt: "Read <SKILL_DIR>/references/agents/sleep-consolidate.md for instructions, then execute them. Memory dir: <MEMORY_DIR>. Persona name: <PERSONA>"
 ```
 
 ### Stage 3: Reflect
@@ -51,7 +58,7 @@ Task tool:
 Task tool:
   subagent_type: "general-purpose"
   model: "haiku"
-  prompt: "Read ~/.claude/skills/team-memory/references/agents/sleep-reflect.md for instructions, then execute them. Memory dir: <MEMORY_DIR>. Persona name: <PERSONA>. Session transcript: <TRANSCRIPT>"
+  prompt: "Read <SKILL_DIR>/references/agents/sleep-reflect.md for instructions, then execute them. Memory dir: <MEMORY_DIR>. Persona name: <PERSONA>. Session transcript: <TRANSCRIPT>"
 ```
 
 ## Output

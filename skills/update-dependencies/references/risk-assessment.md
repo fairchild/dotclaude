@@ -76,10 +76,10 @@ For Rust, check crates.io or GitHub releases.
 
 ## Using History
 
-Before scoring, check if we've updated this before:
+Before scoring, check if we've updated this before (paths are relative to this skill's base directory):
 
 ```bash
-grep "<package>" ~/.claude/skills/update-dependencies/data/outcomes.jsonl
+grep "<package>" data/outcomes.jsonl
 ```
 
 Past `required_migration` outcomes → increase risk score.

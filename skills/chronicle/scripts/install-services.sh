@@ -9,7 +9,11 @@ set -euo pipefail
 
 LAUNCH_AGENTS="$HOME/Library/LaunchAgents"
 BUN="$HOME/.bun/bin/bun"
-SCRIPTS="$HOME/.claude/skills/chronicle/scripts"
+# launchd needs absolute paths, so resolve this script's own directory rather
+# than assuming where the skill is installed.
+SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The invoking user's own Claude Code config dir (prerequisite: Claude Code)
+CLAUDE_DIR="${HOME}/.claude"  # portability: allow
 STD_PATH="$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 ALL_SERVICES="dashboard summarize summarize-weekly consolidate sync-reminder"
 
@@ -60,7 +64,7 @@ plist_for() {
     <key>StandardErrorPath</key>
     <string>/tmp/${label}.err</string>
     <key>WorkingDirectory</key>
-    <string>${HOME}/.claude</string>
+    <string>${CLAUDE_DIR}</string>
 $(env_block "
         <key>PORT</key>
         <string>3457</string>")
@@ -93,7 +97,7 @@ XML
     <key>StandardErrorPath</key>
     <string>/tmp/${label}.err</string>
     <key>WorkingDirectory</key>
-    <string>${HOME}/.claude</string>
+    <string>${CLAUDE_DIR}</string>
 $(env_block)
 </dict>
 </plist>
@@ -127,7 +131,7 @@ XML
     <key>StandardErrorPath</key>
     <string>/tmp/${label}.err</string>
     <key>WorkingDirectory</key>
-    <string>${HOME}/.claude</string>
+    <string>${CLAUDE_DIR}</string>
 $(env_block)
 </dict>
 </plist>
@@ -162,7 +166,7 @@ XML
     <key>StandardErrorPath</key>
     <string>/tmp/${label}.err</string>
     <key>WorkingDirectory</key>
-    <string>${HOME}/.claude</string>
+    <string>${CLAUDE_DIR}</string>
 $(env_block)
 </dict>
 </plist>

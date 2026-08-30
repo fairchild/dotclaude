@@ -27,7 +27,7 @@ All connected via agent-inbox protocol.
 
 2. Set up inboxes:
    ```bash
-   . ~/.claude/skills/agent-inbox/scripts/lib.sh
+   . <agent-inbox base dir>/scripts/lib.sh
    inbox_root="$(agent_inbox_root)"
    mkdir -p "$inbox_root/orchestrator"/{new,tmp,archive}
    mkdir -p "$inbox_root/test-runner"/{new,tmp,archive}

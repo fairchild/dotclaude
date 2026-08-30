@@ -22,7 +22,7 @@ The calling prompt includes the session transcript path. Use that exact path.
 If not provided, check `$AI_MEMORY_TRANSCRIPT` env var, then fall back to:
 
 ```bash
-ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1
+ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1  # portability: allow — Claude Code's own transcript store
 ```
 
 If no transcript is found, report "no transcript available" and exit.

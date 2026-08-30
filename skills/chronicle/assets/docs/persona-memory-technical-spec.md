@@ -184,9 +184,10 @@ Output:
 
 ## Hook Integration
 
-Global hook example:
+Global hook example (the hook command is an absolute path in the consumer's
+own `settings.json`, so it is written out in full here):
 
-```json
+```jsonc
 {
   "hooks": {
     "SessionStart": [
@@ -194,7 +195,7 @@ Global hook example:
         "hooks": [
           {
             "type": "command",
-            "command": "bun ~/.claude/skills/persona-memory/scripts/session-start.ts"
+            "command": "bun ~/.claude/skills/persona-memory/scripts/session-start.ts"  // portability: allow
           }
         ]
       }
@@ -204,7 +205,7 @@ Global hook example:
         "hooks": [
           {
             "type": "command",
-            "command": "bun ~/.claude/skills/persona-memory/scripts/session-end.ts"
+            "command": "bun ~/.claude/skills/persona-memory/scripts/session-end.ts"  // portability: allow
           }
         ]
       }
@@ -242,10 +243,10 @@ Launcher behavior:
 ## Packaging and Distribution
 
 Validation:
-- `bun ~/.claude/skills/skills-manager/scripts/manage.ts validate ~/.claude/skills/persona-memory`
+- Use the `skills-manager` skill to validate the `persona-memory` skill directory.
 
 Package:
-- `python ~/.claude/skills/skill-building/scripts/package_skill.py ~/.claude/skills/persona-memory`
+- Use the `skill-building` skill to package the `persona-memory` skill directory.
 
 Install (repo mode):
 - `npx skills add <owner>/<repo> --skill persona-memory`

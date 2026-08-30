@@ -1,12 +1,12 @@
 ---
 name: dotclaude-config
-description: Work with Claude Code configuration at global (~/.claude) or project (.claude/) level. Use when editing settings.json (permissions, hooks, statusline, model), managing MCP servers, creating agents/commands/skills, writing CLAUDE.md, setting up rules files, or configuring a new project. Determines context automatically and provides guidance on global vs project placement to avoid duplication.
+description: Work with Claude Code configuration at global (~/.claude) or project (.claude/) level. Use when editing settings.json (permissions, hooks, statusline, model), managing MCP servers, creating agents/commands/skills, writing CLAUDE.md, setting up rules files, or configuring a new project. Determines context automatically and provides guidance on global vs project placement to avoid duplication.  # portability: allow
 license: Apache-2.0
 ---
 
 # Claude Code Configuration
 
-Work with Claude Code configuration at any level - global (`~/.claude/`) or project (`.claude/`).
+Work with Claude Code configuration at any level - global (`~/.claude/`) or project (`.claude/`). <!-- portability: allow -->
 
 ## First: Determine Context
 
@@ -16,11 +16,11 @@ Before making changes, identify where you're working and what already exists:
 # Where are we?
 pwd
 
-# In a project repo or in ~/.claude itself?
-[[ "$(pwd)" == "$HOME/.claude"* ]] && echo "GLOBAL" || echo "PROJECT"
+# In a project repo or in the global config dir itself?
+[[ "$(pwd)" == "$HOME/.claude"* ]] && echo "GLOBAL" || echo "PROJECT"  # portability: allow
 
 # What config exists at each level?
-ls -la ~/.claude/settings.json ~/.claude.json 2>/dev/null
+ls -la ~/.claude/settings.json ~/.claude.json 2>/dev/null  # portability: allow
 ls -la .claude/settings.json .mcp.json 2>/dev/null
 ```
 
@@ -28,7 +28,7 @@ ls -la .claude/settings.json .mcp.json 2>/dev/null
 
 | Context | You're configuring... | Primary concern |
 |---------|----------------------|-----------------|
-| **Global** (`~/.claude`) | Personal defaults for all projects | Reusable patterns |
+| **Global** (`~/.claude`) | Personal defaults for all projects | Reusable patterns <!-- portability: allow --> |
 | **Project** (`.claude/`) | Project-specific behavior | Avoid duplicating global |
 
 ## Working in Project Context
@@ -41,13 +41,13 @@ Before adding anything to project config, examine what's already defined globall
 
 ```bash
 # Check global settings
-cat ~/.claude/settings.json 2>/dev/null | jq .
+cat ~/.claude/settings.json 2>/dev/null | jq .  # portability: allow
 
 # Check global MCP servers
-cat ~/.claude.json 2>/dev/null | jq .mcpServers
+cat ~/.claude.json 2>/dev/null | jq .mcpServers  # portability: allow
 
 # List global agents, commands, skills
-ls ~/.claude/agents/ ~/.claude/commands/ ~/.claude/skills/ 2>/dev/null
+ls ~/.claude/agents/ ~/.claude/commands/ ~/.claude/skills/ 2>/dev/null  # portability: allow
 ```
 
 ### 2. Apply the Reuse Principle
@@ -81,7 +81,7 @@ When making recommendations, always explain WHY:
 
 Use this to decide where configuration belongs:
 
-| Configuration | Global (`~/.claude`) | Project (`.claude/`) |
+| Configuration | Global (`~/.claude`) | Project (`.claude/`) <!-- portability: allow --> |
 |--------------|---------------------|---------------------|
 | **Permissions** | Personal security rules (deny secrets, keys) | Project-specific paths, team-agreed rules |
 | **Hooks** | Personal workflows (formatters, linters) | Project build/test hooks, CI-related |
@@ -97,25 +97,26 @@ Use this to decide where configuration belongs:
 
 Settings merge from general to specific (later overrides earlier):
 
-1. **Global**: `~/.claude/settings.json` - applies to all projects
+1. **Global**: `~/.claude/settings.json` - applies to all projects <!-- portability: allow -->
 2. **Project**: `.claude/settings.json` - project-specific, git-committed
 3. **Local**: `.claude/settings.local.json` - per-machine, gitignored
 
 For MCP servers:
-- **Global**: `~/.claude.json` (mcpServers key)
+- **Global**: `~/.claude.json` (mcpServers key) <!-- portability: allow -->
 - **Project**: `.mcp.json` (mcpServers key)
 
 For instructions:
-- **Global**: `~/.claude/CLAUDE.md`
+- **Global**: `~/.claude/CLAUDE.md` <!-- portability: allow -->
 - **Project**: `CLAUDE.md` or `.claude/CLAUDE.md`
 
 ## Configuration Inventory
 
-Scan projects for Claude Code configuration status and identify overlap:
+Scan projects for Claude Code configuration status and identify overlap. Paths
+below are relative to this skill's base directory:
 
 ```bash
-bun ~/.claude/skills/dotclaude-config/scripts/inventory.ts          # scan ~/code/
-bun ~/.claude/skills/dotclaude-config/scripts/inventory.ts ~/work   # custom path
+bun scripts/inventory.ts          # scan ~/code/
+bun scripts/inventory.ts ~/work   # custom path
 ```
 
 Reports: configured vs unconfigured projects, skill counts, package managers,
@@ -178,27 +179,27 @@ For authoring and organizing CLAUDE.md files — placement, `@path` imports, rul
 Key rules:
 - Keep CLAUDE.md concise (<500 lines); use `@path` imports for detail
 - Use `.claude/rules/*.md` for modular, auto-loaded instructions
-- Put personal preferences in `~/.claude/CLAUDE.md`, project context in project CLAUDE.md
+- Put personal preferences in `~/.claude/CLAUDE.md`, project context in project CLAUDE.md <!-- portability: allow -->
 
-## Working in ~/.claude Itself
+## Working in ~/.claude Itself <!-- portability: allow -->
 
-When the current directory IS `~/.claude`:
+When the current directory IS `~/.claude`: <!-- portability: allow -->
 
 - **Everything is global** — changes affect all Claude Code sessions
 - Treat it as a public repo — never commit secrets
 
 ### Two-Clone Architecture
 
-`~/.claude` is an independent clone that deploys from `origin/main`. Development happens in `~/code/dotclaude` on feature branches. Never commit directly to `~/.claude` — it's the deploy target.
+`~/.claude` is an independent clone that deploys from `origin/main`. Development happens in `~/code/dotclaude` on feature branches. Never commit directly to `~/.claude` — it's the deploy target. <!-- portability: allow -->
 
 ```bash
-# Verify: ~/.claude should be a standalone clone, NOT a worktree
-[ -d ~/.claude/.git ] && echo "STANDALONE (correct)" || echo "WORKTREE — see development-workflow.md to migrate"
+# Verify: the global config dir should be a standalone clone, NOT a worktree
+[ -d ~/.claude/.git ] && echo "STANDALONE (correct)" || echo "WORKTREE — see development-workflow.md to migrate"  # portability: allow
 ```
 
 - **`~/code/dotclaude`** — feature branches, PRs, all development
-- **`~/.claude`** — always on `main`, updated by SessionStart hook (`scripts/deploy.sh`)
-- Runtime config changes stay in `~/.claude/settings.json` — it is gitignored; `settings.example.json` is the tracked shape and changes by PR
+- **`~/.claude`** — always on `main`, updated by SessionStart hook (`scripts/deploy.sh`) <!-- portability: allow -->
+- Runtime config changes stay in `~/.claude/settings.json` — it is gitignored; `settings.example.json` is the tracked shape and changes by PR <!-- portability: allow -->
 
 See [references/development-workflow.md](references/development-workflow.md) for setup, symlink workflow, and migration from worktree.
 
@@ -255,7 +256,7 @@ When asked to configure a project, produce an audit like this:
 
 ### Add a project-specific permission
 
-First check global: `cat ~/.claude/settings.json | jq .permissions`
+First check global: `cat ~/.claude/settings.json | jq .permissions` <!-- portability: allow -->
 
 If not covered, add to `.claude/settings.json`:
 ```json
@@ -264,7 +265,7 @@ If not covered, add to `.claude/settings.json`:
 
 ### Add a project MCP server
 
-Add to `.mcp.json` (not `~/.claude.json`) so team gets it:
+Add to `.mcp.json` (not `~/.claude.json`) so team gets it: <!-- portability: allow -->
 ```json
 {"mcpServers": {"project-db": {"command": "...", "env": {"DB_URL": "${PROJECT_DB_URL}"}}}}
 ```
@@ -272,7 +273,7 @@ Add to `.mcp.json` (not `~/.claude.json`) so team gets it:
 ### Create a project-specific agent
 
 Create `.claude/agents/deploy.md` for project workflows.
-Keep personal agents in `~/.claude/agents/`.
+Keep personal agents in `~/.claude/agents/`. <!-- portability: allow -->
 
 ### Override global settings
 

@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.10"
 # ///
-"""Install a generated skill to ~/.claude/skills/."""
+"""Install a generated skill to ~/.claude/skills/."""  # portability: allow
 
 import argparse
 import shutil
@@ -13,7 +13,7 @@ from pathlib import Path
 def main() -> int:
     parser = argparse.ArgumentParser(description="Install skill to Claude Code")
     parser.add_argument("--source", required=True, help="Source skill directory")
-    parser.add_argument("--target", help="Target directory (default: ~/.claude/skills/<name>)")
+    parser.add_argument("--target", help="Target directory (default: ~/.claude/skills/<name>)")  # portability: allow
     args = parser.parse_args()
 
     source = Path(args.source).expanduser().resolve()
@@ -31,7 +31,7 @@ def main() -> int:
         target = Path(args.target).expanduser().resolve()
     else:
         name = source.name
-        target = Path.home() / ".claude" / "skills" / name
+        target = Path.home() / ".claude" / "skills" / name  # portability: allow
 
     # Safety check: don't overwrite without notice
     if target.exists():

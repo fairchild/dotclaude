@@ -12,8 +12,7 @@ Usage:
     uv run search_knowledge.py --tag ai            # Filter by tag
 
 Environment:
-    CLAUDE_KNOWLEDGE_DIR: Knowledge base directory (default: ~/.claude/knowledge)
-"""
+    CLAUDE_KNOWLEDGE_DIR: Knowledge base directory (default: ~/.claude/knowledge)"""  # portability: allow
 
 import argparse
 import os
@@ -38,7 +37,7 @@ class AnalysisEntry(TypedDict):
 
 def get_knowledge_dir() -> Path:
     """Get the knowledge base directory from env or default."""
-    default = Path.home() / ".claude" / "knowledge"
+    default = Path.home() / ".claude" / "knowledge"  # portability: allow
     env_dir = os.environ.get("CLAUDE_KNOWLEDGE_DIR")
     return Path(env_dir) if env_dir else default
 

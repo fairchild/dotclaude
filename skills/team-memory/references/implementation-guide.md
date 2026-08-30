@@ -6,16 +6,18 @@ You are implementing the **team-memory** skill — a persistent AI teammate memo
 
 > Historical handoff note: team-memory is now implemented. Use this file as architecture context, not as current task status.
 
+Paths below are relative to this skill's base directory.
+
 **Read the design first:**
 ```
-Read ~/.claude/skills/team-memory/references/design.md
+Read references/design.md
 ```
 
 ## What Exists
 
-- `~/.claude/skills/team-memory/references/design.md` — the complete approved design
-- The skill directory has been created at `~/.claude/skills/team-memory/`
-- Implementation now exists in `scripts/`, `templates/`, `references/agents/`, and `agents/team-memory-sleep.md` (synced into `~/.claude/agents/team-memory-sleep.md`)
+- `references/design.md` — the complete approved design
+- The skill directory exists with its full layout
+- Implementation now exists in `scripts/`, `templates/`, `references/agents/`, and `agents/team-memory-sleep.md` (synced into Claude Code's agents directory)
 
 ## What You're Building
 
@@ -34,7 +36,7 @@ A Claude Code skill with these components (in implementation order):
    - Copies and interpolates templates
    - Creates `~/.ai-memory/shared/` if it doesn't exist
    - Sets up `active` symlink if this is the first teammate
-   - Wires SessionEnd hook into `~/.claude/settings.json`
+   - Wires SessionEnd hook into Claude Code's `settings.json`
 
 3. **launch.sh** — Thin launcher that resolves persona and invokes claude:
    - Reads `--persona` flag or follows `active` symlink
@@ -60,12 +62,12 @@ A Claude Code skill with these components (in implementation order):
 
 ### Phase 3: Sleep-Time Compute (subconscious pipeline)
 
-7. **agents/team-memory-sleep.md** — Orchestrator source dispatched by SessionEnd hook (synced to `~/.claude/agents/team-memory-sleep.md`):
+7. **agents/team-memory-sleep.md** — Orchestrator source dispatched by SessionEnd hook (synced into Claude Code's agents directory):
    - Dispatches sleep-extract, sleep-consolidate, sleep-reflect in sequence
    - Each runs as a sub-task
 
 8. **references/agents/sleep-extract.md** — Extract memories the active loop missed:
-   - Read session transcript (find latest .jsonl in ~/.claude/projects/)
+   - Read session transcript (find latest .jsonl in Claude Code's transcript store)
    - Read existing archival/ blocks
    - Identify genuinely new memories not already captured
    - Focus on patterns across the session, not individual moments
@@ -107,13 +109,13 @@ A Claude Code skill with these components (in implementation order):
 
 - Claude Code sub-agents: https://code.claude.com/docs/en/sub-agents.md
 - Claude Code memory: https://code.claude.com/docs/en/memory
-- Existing agents to learn from: `~/.claude/agents/remember.md`, `~/.claude/agents/recall.md`
-- Existing hook patterns: `~/.claude/settings.json` (SessionStart, Stop, SessionEnd hooks)
-- Existing skill examples: `~/.claude/skills/chronicle/SKILL.md`, `~/.claude/skills/skill-building/SKILL.md`
+- Existing agents to learn from: the `remember` and `recall` agents in Claude Code's agents directory
+- Existing hook patterns: Claude Code's `settings.json` (SessionStart, Stop, SessionEnd hooks)
+- Existing skill examples: the `chronicle` and `skill-building` skills
 
 ## Style Notes
 
-- This is Michael's `~/.claude` — a public repo. No secrets, no personal data in committed files.
+- This skill ships from a public repo. No secrets, no personal data in committed files.
 - Apache 2.0 license on all skills
 - Prefer concise, well-typed code. "Code can be poetry."
 - Shell scripts should be POSIX-compatible where possible, bash where necessary

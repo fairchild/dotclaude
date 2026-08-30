@@ -131,7 +131,7 @@ Inspired by Letta's memory blocks and sleep-time compute, this agent **thinks wh
 ### Memory Block Schema
 
 ```typescript
-// ~/.claude/chronicle/blocks/
+// ~/.claude/chronicle/blocks/  (portability: allow)
 
 interface MemoryBlock {
   label: string;           // Unique identifier
@@ -242,7 +242,7 @@ const CHRONICLE_BLOCKS = {
 ### Session End Processing
 
 ```typescript
-// ~/.claude/scripts/chronicle-sleep.ts
+// ~/.claude/scripts/chronicle-sleep.ts  (portability: allow)
 
 interface SessionDigest {
   sessionId: string;
@@ -397,7 +397,7 @@ async function dailyConsolidation(): Promise<void> {
 ## Storage Layout
 
 ```
-~/.claude/chronicle/
+~/.claude/chronicle/  # portability: allow
 ├── blocks/                          # Memory blocks (JSON files)
 │   ├── developer_profile.json
 │   ├── preferences.json
@@ -500,7 +500,7 @@ async function mineWeeklyPatterns(): Promise<void> {
 
 | Component | Location | Reuse |
 |-----------|----------|-------|
-| Session history | `~/.claude/history.jsonl` | Source for episodic memory |
+| Session history | `~/.claude/history.jsonl` | Source for episodic memory |  <!-- portability: allow -->
 | Title generation | `skills/session-titles/scripts/generate-core.ts` | Context extraction logic |
 | Feedback schema | `skills/session-titles/scripts/schema.ts` | Extend for chronicle ratings |
 | Session titles | `session-titles/` | Compressed session summaries |
@@ -781,32 +781,32 @@ async function detectResolution(
 The Chronicle will integrate with the existing `Stop` hook infrastructure:
 
 ```
-~/.claude/settings.json
+~/.claude/settings.json  # portability: allow
     └── hooks.Stop
-        └── ~/.claude/hooks/stop.sh
-            └── ~/.claude/skills/session-titles/scripts/generate.ts  ← existing
-            └── ~/.claude/scripts/chronicle-extract.ts       ← NEW
+        └── ~/.claude/hooks/stop.sh  # portability: allow
+            └── ~/.claude/skills/session-titles/scripts/generate.ts  ← existing  # portability: allow
+            └── ~/.claude/scripts/chronicle-extract.ts       ← NEW  # portability: allow
 ```
 
 ### Existing Infrastructure
 
 ```bash
-# ~/.claude/hooks/stop.sh (current)
+# ~/.claude/hooks/stop.sh (current)  (portability: allow)
 #!/bin/bash
-~/.claude/skills/session-titles/scripts/generate.ts
+~/.claude/skills/session-titles/scripts/generate.ts  # portability: allow
 ```
 
 ### Extended Hook
 
 ```bash
-# ~/.claude/hooks/stop.sh (with Chronicle)
+# ~/.claude/hooks/stop.sh (with Chronicle)  (portability: allow)
 #!/bin/bash
 
 # Existing: Generate session title
-~/.claude/skills/session-titles/scripts/generate.ts
+~/.claude/skills/session-titles/scripts/generate.ts  # portability: allow
 
 # New: Extract pending threads for Chronicle
-~/.claude/scripts/chronicle-extract.ts
+~/.claude/scripts/chronicle-extract.ts  # portability: allow
 ```
 
 Both scripts read the same stdin (session JSON) passed by Claude Code.
@@ -828,7 +828,7 @@ Both scripts read the same stdin (session JSON) passed by Claude Code.
 | `scripts/chronicle-lib.ts` | Shared utilities |
 
 **Tasks:**
-1. Create `~/.claude/chronicle/` directory structure
+1. Create `~/.claude/chronicle/` directory structure  <!-- portability: allow -->
 2. Define `PendingThread` TypeScript interface
 3. Implement `chronicle-extract.ts`:
    - Read session context from stdin (same as title generator)

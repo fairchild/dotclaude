@@ -6,7 +6,7 @@ Standard hooks to use in your project's `.claude/settings.json`.
 
 Generates AI-powered session titles when session ends.
 
-```json
+```jsonc
 {
   "hooks": {
     "Stop": [
@@ -14,7 +14,7 @@ Generates AI-powered session titles when session ends.
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/stop.sh"
+            "command": "~/.claude/hooks/stop.sh"  // portability: allow
           }
         ]
       }
@@ -23,7 +23,7 @@ Generates AI-powered session titles when session ends.
 }
 ```
 
-Already configured globally. Stores titles in `~/.claude/session-titles/{project}/{session-id}.txt`.
+Already configured globally. Stores titles in `~/.claude/session-titles/{project}/{session-id}.txt`. <!-- portability: allow -->
 
 ## Beads Integration (SessionStart + PreCompact)
 
@@ -91,11 +91,11 @@ For projects that inject beads updates before each prompt.
 
 Display project-specific metrics.
 
-```json
+```jsonc
 {
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/scripts/statusline.sh"
+    "command": "~/.claude/scripts/statusline.sh"  // portability: allow
   }
 }
 ```

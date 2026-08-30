@@ -8,7 +8,7 @@ CLAUDE.md files are loaded from multiple locations, merged in order:
 
 | Location | Scope | Purpose |
 |----------|-------|---------|
-| `~/.claude/CLAUDE.md` | Global | Personal preferences, style, tools |
+| `~/.claude/CLAUDE.md` | Global | Personal preferences, style, tools <!-- portability: allow --> |
 | `CLAUDE.md` (repo root) | Project | Project context, architecture, conventions |
 | `.claude/CLAUDE.md` | Project | Alternative project location |
 | `src/CLAUDE.md` (subdirs) | Directory | Directory-specific rules (loaded when working in that dir) |
@@ -169,4 +169,4 @@ Monorepo with packages/ directory.
 | "Use good variable names" | Claude already does this |
 | Pasting entire API docs | Use `@path` to reference them |
 | Adding comments to explain CLAUDE.md | It's instructions, not documentation |
-| Duplicating global rules in project | Check `~/.claude/CLAUDE.md` first |
+| Duplicating global rules in project | Check `~/.claude/CLAUDE.md` first <!-- portability: allow --> |

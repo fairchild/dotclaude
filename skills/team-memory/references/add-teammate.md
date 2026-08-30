@@ -2,6 +2,11 @@
 
 Step-by-step guide for creating and configuring a new AI teammate.
 
+Paths like `scripts/init.sh` are relative to this skill's base directory — run
+the commands from there. Where a command has to survive outside that directory
+(a shell alias), `$SKILL_DIR` stands for the same base directory; expand it
+when you write the line. Prerequisite: Claude Code on the machine.
+
 ## 1. Choose a Name
 
 Pick a lowercase name with hyphens. The name becomes:
@@ -14,7 +19,7 @@ Good names: `bertram`, `oracle`, `code-scout`, `debug-buddy`
 ## 2. Bootstrap
 
 ```bash
-bash ~/.claude/skills/team-memory/scripts/init.sh <name>
+bash scripts/init.sh <name>
 ```
 
 This creates the directory structure, wires the SessionEnd hook (first time only),
@@ -53,7 +58,7 @@ it determines how the teammate behaves.
 
 A Bertram personality is available as a reference:
 ```bash
-cp ~/.claude/skills/team-memory/references/sample-bertram-personality.md \
+cp references/sample-bertram-personality.md \
    ~/.ai-memory/<name>/personality.md
 ```
 Then edit Identity/Values to match your vision.
@@ -62,7 +67,7 @@ Then edit Identity/Values to match your vision.
 
 If this is your first teammate, populate the shared files that all teammates
 @import. Human preferences and conventions are already covered by your global
-`~/.claude/CLAUDE.md`, so only project and platform context need shared files:
+`~/.claude/CLAUDE.md`, so only project and platform context need shared files: <!-- portability: allow — names Claude Code's global memory file -->
 
 - `~/.ai-memory/shared/projects.md` — active projects and their context
 - `~/.ai-memory/shared/platform.md` — shell, OS, and infrastructure defaults
@@ -76,11 +81,11 @@ Add an alias to your shell profile (`~/.zshrc`, `~/.bashrc`):
 
 ```bash
 # General launcher (uses active teammate)
-alias claude-memory='~/.claude/skills/team-memory/scripts/launch.sh'
+alias claude-memory="$SKILL_DIR/scripts/launch.sh"
 
 # Per-teammate shortcuts
-alias claude-bertram='~/.claude/skills/team-memory/scripts/launch.sh --persona bertram'
-alias claude-oracle='~/.claude/skills/team-memory/scripts/launch.sh --persona oracle'
+alias claude-bertram="$SKILL_DIR/scripts/launch.sh --persona bertram"
+alias claude-oracle="$SKILL_DIR/scripts/launch.sh --persona oracle"
 ```
 
 Reload: `source ~/.zshrc`

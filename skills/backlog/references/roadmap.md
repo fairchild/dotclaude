@@ -105,7 +105,7 @@ A fresh roadmap is the highest-leverage moment in the project's life; principles
 # ROADMAP
 
 ## Intent
-A working `~/.claude/` configuration that treats each Claude Code session as
+A working local Claude Code configuration that treats each session as
 worth remembering. Memory is the throughline; everything else is supporting
 infrastructure.
 

@@ -12,7 +12,7 @@ This skill wraps [Skill Seekers](https://pypi.org/project/skill-seekers/) — a 
 2. **Reviews** the output against our skill-building quality standards
 3. **Refines** — Claude rewrites the raw output into a proper Claude Code skill (frontmatter, progressive disclosure, token budget)
 4. **Suggests an eval set** — domain-specific test prompts for regression testing
-5. **Installs** the finished skill to `~/.claude/skills/`
+5. **Installs** the finished skill to `~/.claude/skills/` <!-- portability: allow -->
 
 ## Why not just use Skill Seekers directly?
 
@@ -43,7 +43,7 @@ All scripts use [PEP 723 inline metadata](https://peps.python.org/pep-0723/) and
 |--------|------|---------|
 | `scripts/create.py` | `skill-seekers` | Runs `skill-seekers create` with enhancement disabled |
 | `scripts/review.py` | `pyyaml` | Structural validation, token budget estimation, outputs JSON |
-| `scripts/install.py` | *(stdlib)* | Copies skill to `~/.claude/skills/`, verifies installation |
+| `scripts/install.py` | *(stdlib)* | Copies skill to `~/.claude/skills/`, verifies installation <!-- portability: allow --> |
 
 ## What's next
 

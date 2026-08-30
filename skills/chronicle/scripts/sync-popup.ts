@@ -41,7 +41,7 @@ async function main() {
   const deployDir = env.CHRONICLE_DEPLOY_DIR;
 
   if (!syncTarget || !deployDir) {
-    console.error("Missing required env vars. Set CHRONICLE_SYNC_TARGET and CHRONICLE_DEPLOY_DIR in ~/.claude/.env");
+    console.error("Missing required env vars. Set CHRONICLE_SYNC_TARGET and CHRONICLE_DEPLOY_DIR in ~/.claude/.env");  // portability: allow
     process.exit(1);
   }
 

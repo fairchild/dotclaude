@@ -10,13 +10,13 @@
  *   bun recap.ts                          # current project (from cwd), last 7 days
  *   bun recap.ts workspaces               # specific project
  *   bun recap.ts --days=14                # extend window
- *   bun recap.ts --stdout-only            # skip writing to ~/.claude/chronicle/recaps/
+ *   bun recap.ts --stdout-only            # skip writing to ~/.claude/chronicle/recaps/  (portability: allow)
  */
 import { generateSummary } from "./summarize.ts";
 import { detectContext } from "./context.ts";
 import { mkdirSync, writeFileSync } from "fs";
 
-const RECAPS_DIR = `${process.env.HOME}/.claude/chronicle/recaps`;
+const RECAPS_DIR = `${process.env.HOME}/.claude/chronicle/recaps`;  // portability: allow
 
 interface Args {
   project: string | null;

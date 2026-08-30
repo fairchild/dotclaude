@@ -27,6 +27,19 @@ description = "Read-only validation of tracked source and allowed private runtim
 run = "./scripts/test-participant-contract.sh"
 description = "Exercise the independent-clone source/runtime contract"
 
+[tasks.portability]
+run = "./scripts/portability.py"
+description = "Report skill portability tiers and violations (SEP-2640 serving gate)"
+
+[tasks."portability:check"]
+run = "./scripts/portability.py --check"
+description = "Fail if any skill violates its declared portability tier"
+
+[tasks."mcp:test"]
+run = "bun test conformance"
+dir = "mcp"
+description = "SEP-2640 conformance and corpus tests for the skills MCP server"
+
 [tasks.setup]
 run = "./setup.sh"
 description = "Bootstrap Claude Code development environment"

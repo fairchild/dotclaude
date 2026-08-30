@@ -9,7 +9,8 @@ license: Apache-2.0
 
 # Skills Manager
 
-Unified skill lifecycle management across agents.
+Unified skill lifecycle management across agents. Commands below run
+`scripts/manage.ts` relative to this skill's base directory.
 
 ## Usage
 
@@ -31,7 +32,7 @@ Unified skill lifecycle management across agents.
 Quick overview of all installed skills.
 
 ```bash
-bun ~/.claude/skills/skills-manager/scripts/manage.ts status
+bun scripts/manage.ts status
 ```
 
 Shows: total count, breakdown by origin (local/ecosystem/symlink) and agent, lock file stats, validation issue count.
@@ -44,7 +45,7 @@ All installed skills across agents with metadata.
 
 **Local skills:**
 ```bash
-bun ~/.claude/skills/skills-manager/scripts/manage.ts list
+bun scripts/manage.ts list
 ```
 
 **Ecosystem skills (via npx):**
@@ -85,7 +86,7 @@ The `-g` flag installs globally (user-level), `-y` skips confirmation.
 
 After install, run validate to confirm the skill is well-formed:
 ```bash
-bun ~/.claude/skills/skills-manager/scripts/manage.ts validate ~/.agents/skills/<name>
+bun scripts/manage.ts validate ~/.agents/skills/<name>
 ```
 
 ---
@@ -105,7 +106,7 @@ npx skills remove <name> -g -y
 Deep-read a specific skill by name.
 
 ```bash
-bun ~/.claude/skills/skills-manager/scripts/manage.ts inspect <name>
+bun scripts/manage.ts inspect <name>
 ```
 
 Shows: path, origin, agent, symlink target, frontmatter fields, scripts with size and executable status, references directory listing, SKILL.md heading structure.
@@ -117,12 +118,12 @@ Shows: path, origin, agent, symlink target, frontmatter fields, scripts with siz
 Validate skill structure and frontmatter against the spec.
 
 ```bash
-bun ~/.claude/skills/skills-manager/scripts/manage.ts validate <path>
+bun scripts/manage.ts validate <path>
 ```
 
 Path can be:
 - A single skill directory (containing SKILL.md)
-- A directory of skills (e.g., `~/.claude/skills`)
+- A directory of skills (e.g., `~/.claude/skills`) <!-- portability: allow -->
 
 ### Checks performed
 
@@ -147,7 +148,7 @@ Path can be:
 System-wide health check across all agents.
 
 ```bash
-bun ~/.claude/skills/skills-manager/scripts/manage.ts audit
+bun scripts/manage.ts audit
 ```
 
 Runs:
@@ -184,7 +185,7 @@ When user runs `/skills-manager create`:
 1. Invoke `/skill-creator` which provides the full guided workflow
 2. After creation, run validate on the new skill:
    ```bash
-   bun ~/.claude/skills/skills-manager/scripts/manage.ts validate <new-skill-path>
+   bun scripts/manage.ts validate <new-skill-path>
    ```
 
 ---
@@ -193,7 +194,7 @@ When user runs `/skills-manager create`:
 
 | Agent | Skills Dir | Lock File |
 |-------|-----------|-----------|
-| Claude Code | `~/.claude/skills/` | `~/.agents/.skill-lock.json` |
+| Claude Code | `~/.claude/skills/` <!-- portability: allow --> | `~/.agents/.skill-lock.json` |
 | Codex | `~/.codex/skills/` | `~/.agents/.skill-lock.json` |
 | Agents CLI | `~/.agents/skills/` | `~/.agents/.skill-lock.json` |
 

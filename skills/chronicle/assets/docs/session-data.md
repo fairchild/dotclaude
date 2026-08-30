@@ -4,7 +4,7 @@
 
 ## Overview
 
-The `~/.claude/` directory separates git-tracked configuration from personal session data:
+The `~/.claude/` directory separates git-tracked configuration from personal session data:  <!-- portability: allow -->
 
 | Type | Examples | Git-tracked | Reason |
 |------|----------|-------------|--------|
@@ -247,7 +247,7 @@ For users with multiple development machines, session data can be aggregated to 
 │                        HOST                                                 │
 │                                                                             │
 │                   ┌──────────────────────┐                                  │
-│                   │  ~/.claude/          │                                  │
+│                   │  <home>/.claude/     │                                  │
 │                   │  ├── chronicle/      │ ◀── unified view across machines │
 │                   │  ├── plans/          │                                  │
 │                   │  └── history.jsonl   │                                  │
@@ -283,7 +283,7 @@ For users with multiple development machines, session data can be aggregated to 
 
 ```bash
 #!/bin/bash
-# ~/.claude/scripts/sync-session-data.sh
+# ~/.claude/scripts/sync-session-data.sh  # portability: allow
 
 set -euo pipefail
 
@@ -294,24 +294,24 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
 # Chronicle - merge into host-specific subdirectory
 log "Syncing chronicle..."
-rsync -av ~/.claude/chronicle/ "$DEST_HOST:~/.claude/chronicle/incoming/$HOSTNAME/"
+rsync -av ~/.claude/chronicle/ "$DEST_HOST:~/.claude/chronicle/incoming/$HOSTNAME/"  # portability: allow
 
 # Plans - merge into host-specific subdirectory
 log "Syncing plans..."
-rsync -av ~/.claude/plans/ "$DEST_HOST:~/.claude/plans/incoming/$HOSTNAME/"
+rsync -av ~/.claude/plans/ "$DEST_HOST:~/.claude/plans/incoming/$HOSTNAME/"  # portability: allow
 
 # Knowledge - merge into host-specific subdirectory
 log "Syncing knowledge..."
-rsync -av ~/.claude/knowledge/ "$DEST_HOST:~/.claude/knowledge/incoming/$HOSTNAME/"
+rsync -av ~/.claude/knowledge/ "$DEST_HOST:~/.claude/knowledge/incoming/$HOSTNAME/"  # portability: allow
 
 # Title feedback - only .jsonl files
 log "Syncing title-feedback..."
 rsync -av --include='*.jsonl' --exclude='*' \
-    ~/.claude/title-feedback/ "$DEST_HOST:~/.claude/title-feedback/incoming/$HOSTNAME/"
+    ~/.claude/title-feedback/ "$DEST_HOST:~/.claude/title-feedback/incoming/$HOSTNAME/"  # portability: allow
 
 # History - append to host-specific file
 log "Syncing history..."
-rsync -av ~/.claude/history.jsonl "$DEST_HOST:~/.claude/history-incoming/$HOSTNAME.jsonl"
+rsync -av ~/.claude/history.jsonl "$DEST_HOST:~/.claude/history-incoming/$HOSTNAME.jsonl"  # portability: allow
 
 log "Sync complete"
 ```
@@ -321,7 +321,7 @@ log "Sync complete"
 ```bash
 crontab -e
 # Add:
-*/15 * * * * ~/.claude/scripts/sync-session-data.sh 2>&1 | logger -t session-data-sync
+*/15 * * * * ~/.claude/scripts/sync-session-data.sh 2>&1 | logger -t session-data-sync  # portability: allow
 ```
 
 **3. Schedule with launchd (macOS)**
@@ -336,7 +336,7 @@ crontab -e
     <string>com.claude.session-sync</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/you/.claude/scripts/sync-session-data.sh</string>
+        <string>/Users/<you>/.claude/scripts/sync-session-data.sh</string>
     </array>
     <key>StartInterval</key>
     <integer>900</integer>

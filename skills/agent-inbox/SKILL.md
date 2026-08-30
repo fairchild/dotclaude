@@ -122,7 +122,7 @@ Markdown with YAML frontmatter. Filename: `<YYYYMMDDTHHMMSS>-<slug>.md`
 
 `scripts/inbox-startup.sh` prints a summary of unread messages when a session starts. Agent name comes from `$CLAUDE_SESSION_NAME` (falls back to `orchestrator`). Silent when empty, fast (<200ms).
 
-Configure in `settings.json`:
+Configure in `settings.json`, substituting this skill's actual install path on your machine for `<agent-inbox base dir>` (a `settings.json` hook command runs outside skill invocation, so it needs a literal path, not a relative one):
 
 ```json
 {
@@ -130,7 +130,7 @@ Configure in `settings.json`:
     "SessionStart": [
       {
         "type": "command",
-        "command": "bash ~/.claude/skills/agent-inbox/scripts/inbox-startup.sh"
+        "command": "bash <agent-inbox base dir>/scripts/inbox-startup.sh"
       }
     ]
   }

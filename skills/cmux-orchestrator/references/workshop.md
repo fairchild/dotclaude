@@ -83,7 +83,7 @@ Inbox: repo-shared `.agents/inbox/coder/`
 
 9. Set up the repo-shared inbox:
    ```bash
-   . ~/.claude/skills/agent-inbox/scripts/lib.sh
+   . <agent-inbox base dir>/scripts/lib.sh
    inbox_root="$(agent_inbox_root)"
    mkdir -p "$inbox_root/coder"/{new,tmp,archive}
    mkdir -p "$inbox_root/orchestrator"/{new,tmp,archive}

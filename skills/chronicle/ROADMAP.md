@@ -59,7 +59,7 @@ Memory blocks    →    /catchup command    →    Ambient intelligence
 - Explicit `/chronicle resolve <item>` command
 - (Future) Git commit message matches pending item
 
-**Storage**: Resolutions stored in `~/.claude/chronicle/resolved.json` overlay file (blocks stay immutable).
+**Storage**: Resolutions stored in `~/.claude/chronicle/resolved.json` overlay file (blocks stay immutable).  <!-- portability: allow -->
 
 **Metrics**: Zero pending items older than 14 days without conscious decision.
 
@@ -123,7 +123,7 @@ Memory blocks    →    /catchup command    →    Ambient intelligence
 ## File Structure
 
 ```
-~/.claude/chronicle/
+~/.claude/chronicle/  # portability: allow
 ├── blocks/          # Session memory blocks (JSON)
 ├── resolved.json    # Resolution overlay (pending→accomplished links)
 ├── summaries/       # AI-generated summaries

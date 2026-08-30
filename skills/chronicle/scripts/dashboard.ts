@@ -47,6 +47,17 @@ const SHELL_PATH = [
   process.env.PATH,
 ].filter(Boolean).join(":");
 
+// Optional git-worktree skill integration. WT_SCRIPT overrides the conventional
+// install location; the worktree endpoints answer 501 when neither resolves.
+const WT_SCRIPT = process.env.WT_SCRIPT ?? `${process.env.HOME}/.claude/skills/git-worktree/scripts/wt.sh`;  // portability: allow
+
+function wtUnavailable(): Response {
+  return new Response(
+    JSON.stringify({ error: `git-worktree skill not found (set WT_SCRIPT or install it); looked at ${WT_SCRIPT}` }),
+    { status: 501, headers: { "Content-Type": "application/json" } },
+  );
+}
+
 // Worktree status for Mission Control sidebar
 interface WorktreeStatus {
   name: string;
@@ -129,10 +140,10 @@ function generateRandomName(): string {
 }
 
 function getSessionStatus(wtPath: string): WorktreeStatus["session"] | null {
-  // Path encoding: /Users/x/.worktrees/y -> -Users-x--worktrees-y
+  // Path encoding: /Users/x/.worktrees/y -> -Users-x--worktrees-y  (portability: allow)
   // Both / and . become -
   const encodedPath = wtPath.replace(/[/.]/g, "-");
-  const claudeProjectDir = `${process.env.HOME}/.claude/projects/${encodedPath}`;
+  const claudeProjectDir = `${process.env.HOME}/.claude/projects/${encodedPath}`;  // portability: allow
 
   if (!existsSync(claudeProjectDir)) return null;
 
@@ -359,7 +370,7 @@ interface SavedSummary {
 }
 
 function loadRepoSummaries(repoName: string): SavedSummary[] {
-  const summaryDir = `${process.env.HOME}/.claude/chronicle/summaries/repos/${repoName.toLowerCase()}`;
+  const summaryDir = `${process.env.HOME}/.claude/chronicle/summaries/repos/${repoName.toLowerCase()}`;  // portability: allow
   if (!existsSync(summaryDir)) return [];
 
   const summaries: SavedSummary[] = [];
@@ -394,7 +405,7 @@ interface DeepInsightsFile {
 }
 
 function loadDeepInsights(repoName: string): DeepInsightsFile | null {
-  const insightsDir = `${process.env.HOME}/.claude/chronicle/insights`;
+  const insightsDir = `${process.env.HOME}/.claude/chronicle/insights`;  // portability: allow
   if (!existsSync(insightsDir)) return null;
 
   try {
@@ -3556,10 +3567,10 @@ const server = Bun.serve({
         }
 
         const name = generateRandomName();
-        const wtScript = `${process.env.HOME}/.claude/skills/git-worktree/scripts/wt.sh`;
+        if (!existsSync(WT_SCRIPT)) return wtUnavailable();
 
         // Run wt command from main repo
-        const result = execSync(`bash "${wtScript}" "${name}" --no-editor`, {
+        const result = execSync(`bash "${WT_SCRIPT}" "${name}" --no-editor`, {
           cwd: mainRepoPath,
           encoding: "utf-8",
           timeout: 60000,
@@ -3600,10 +3611,10 @@ const server = Bun.serve({
           });
         }
 
-        const wtScript = `${process.env.HOME}/.claude/skills/git-worktree/scripts/wt.sh`;
+        if (!existsSync(WT_SCRIPT)) return wtUnavailable();
 
         // Run wt archive command from main repo
-        const result = execSync(`bash "${wtScript}" archive "${name}"`, {
+        const result = execSync(`bash "${WT_SCRIPT}" archive "${name}"`, {
           cwd: mainRepoPath,
           encoding: "utf-8",
           timeout: 60000,
@@ -3699,7 +3710,7 @@ const server = Bun.serve({
     if (url.pathname === "/api/sync/preview") {
       const stats = loadLightweightStats() ?? computeLightweightStats();
       const insights = generateSyncInsights(stats);
-      const lastSyncFile = `${process.env.HOME}/.claude/.chronicle-last-sync`;
+      const lastSyncFile = `${process.env.HOME}/.claude/.chronicle-last-sync`;  // portability: allow
       let lastSyncTime: string | null = null;
       if (existsSync(lastSyncFile)) {
         try {
@@ -3741,7 +3752,7 @@ const server = Bun.serve({
 
     // Sync trigger API - runs ansible sync
     if (url.pathname === "/api/sync/trigger" && req.method === "POST") {
-      const envPath = `${process.env.HOME}/.claude/.env`;
+      const envPath = `${process.env.HOME}/.claude/.env`;  // portability: allow
       let deployDir = "";
 
       if (existsSync(envPath)) {
@@ -3768,7 +3779,7 @@ const server = Bun.serve({
         );
 
         // Update last sync time
-        const lastSyncFile = `${process.env.HOME}/.claude/.chronicle-last-sync`;
+        const lastSyncFile = `${process.env.HOME}/.claude/.chronicle-last-sync`;  // portability: allow
         writeFileSync(lastSyncFile, Math.floor(Date.now() / 1000).toString());
 
         return new Response(JSON.stringify({ success: true }), {

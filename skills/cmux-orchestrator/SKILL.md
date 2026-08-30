@@ -80,10 +80,10 @@ For full syntax, run `cmux browser --help`.
 
 ## Prompt Via Inbox
 
-When launching an agent into a pane, write the detailed prompt to the repo-shared agent inbox first, then start the agent with a short instruction to check its inbox.
+When launching an agent into a pane, write the detailed prompt to the repo-shared agent inbox first, then start the agent with a short instruction to check its inbox. The inbox protocol and its helpers come from the `agent-inbox` skill; `<agent-inbox base dir>` below is that skill's base directory, wherever the host installed it.
 
 ```bash
-. ~/.claude/skills/agent-inbox/scripts/lib.sh
+. <agent-inbox base dir>/scripts/lib.sh
 inbox_root="$(agent_inbox_root)"
 mkdir -p "$inbox_root/coder"/{new,tmp,archive}
 mkdir -p "$inbox_root/orchestrator"/{new,tmp,archive}

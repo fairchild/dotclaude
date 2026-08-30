@@ -2,7 +2,7 @@
 /**
  * Chronicle extraction quality benchmark.
  *
- * Classifies blocks in ~/.claude/chronicle/blocks/ into:
+ * Classifies blocks in ~/.claude/chronicle/blocks/ into:  (portability: allow)
  *   - fallback     summary matches fallbackEntry() templates from extract-lib.ts
  *   - narrative    summary is not a fallback template AND has challenges or nextSteps
  *   - curator      narrative + multi-item accomplished + challenges + nextSteps (or notes field)
@@ -19,7 +19,7 @@
 import { readdirSync, readFileSync, writeFileSync, existsSync } from "fs";
 import type { ChronicleBlock } from "./types.ts";
 
-const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;
+const CHRONICLE_DIR = `${process.env.HOME}/.claude/chronicle/blocks`;  // portability: allow
 const BASELINE_PATH = `${import.meta.dir}/extract-bench-baseline.json`;
 
 type BlockClass = "fallback" | "narrative" | "curator" | "thin-other";

@@ -27,7 +27,7 @@ Read these files:
 
 Use the session transcript path from the calling prompt or `$AI_MEMORY_TRANSCRIPT` env var. If neither, fall back:
 ```bash
-ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1
+ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1  # portability: allow — Claude Code's own transcript store
 ```
 
 **Check for automated sessions**: Read the first few lines of the transcript. If the user message contains "Run sleep-time compute" or "sleep-pipeline", this is an automated pipeline session with no human interaction. Report "automated session, skipping" and exit immediately — there is nothing to reflect on.

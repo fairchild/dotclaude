@@ -11,7 +11,11 @@ metadata:
 
 General memory framework for teammate-style agents.
 
-> **Related:** For teammate-level memory see [team-memory](../team-memory/SKILL.md).
+> **Related:** For teammate-level memory use the `team-memory` skill.
+
+Paths like `scripts/bootstrap.ts` and `references/TESTING.md` are relative to
+this skill's base directory; run the commands below from there. Prerequisites:
+`bun` and Claude Code.
 
 This skill is framework-first: any specific persona (for example Bertram) should be implemented as a profile by providing `personality.md` and using the shared memory store.
 
@@ -33,7 +37,7 @@ This skill is framework-first: any specific persona (for example Bertram) should
 
 1. Initialize memory store and defaults:
 ```bash
-bun ~/.claude/skills/persona-memory/scripts/bootstrap.ts --install-launcher
+bun scripts/bootstrap.ts --install-launcher
 ```
 
 2. Launch Claude with persona-memory:
@@ -74,7 +78,7 @@ Profile-based personalities:
 Read:
 - `references/hook-setup.md`
 
-Add hooks to your `~/.claude/settings.json` for session lifecycle automation.
+Add hooks to Claude Code's `settings.json` for session lifecycle automation.
 
 ## References
 

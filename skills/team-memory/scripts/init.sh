@@ -6,10 +6,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILL_DIR="$(dirname "$SCRIPT_DIR")"
 TEMPLATE_DIR="$SKILL_DIR/templates"
 MEMORY_DIR="${AI_MEMORY_DIR:-$HOME/.ai-memory}"
-SETTINGS="$HOME/.claude/settings.json"
-TEAM_MEMORY_HOOK_COMMAND="~/.claude/skills/team-memory/scripts/session-end.sh"
+CLAUDE_HOME="$HOME/.claude"  # portability: allow — Claude Code's own config dir, identical on every install
+SETTINGS="$CLAUDE_HOME/settings.json"
+TEAM_MEMORY_HOOK_COMMAND="$SCRIPT_DIR/session-end.sh"
 TEAM_MEMORY_AGENT_SOURCE="$SKILL_DIR/agents/team-memory-sleep.md"
-TEAM_MEMORY_AGENT_DEST="$HOME/.claude/agents/team-memory-sleep.md"
+TEAM_MEMORY_AGENT_DEST="$CLAUDE_HOME/agents/team-memory-sleep.md"
 
 usage() {
   echo "Usage: $0 <teammate-name>"
@@ -152,9 +153,11 @@ fi
 
 # Wire SessionEnd hook if not already present
 if command -v jq &>/dev/null; then
-  # Check if hook already exists.
+  # Check if hook already exists — match this install's resolved path, or any
+  # earlier entry pointing at the same script under a different install path.
   if ! jq -e --arg cmd "$TEAM_MEMORY_HOOK_COMMAND" \
-    '[.hooks.SessionEnd[]?.hooks[]? | (.command // empty)] | any(. == $cmd)' \
+    '[.hooks.SessionEnd[]?.hooks[]? | (.command // empty)]
+     | any(. == $cmd or endswith("team-memory/scripts/session-end.sh"))' \
     "$SETTINGS" &>/dev/null; then
     echo "Wiring SessionEnd hook for sleep-time compute..."
     jq --arg cmd "$TEAM_MEMORY_HOOK_COMMAND" \
@@ -164,8 +167,9 @@ if command -v jq &>/dev/null; then
   fi
 else
   echo ""
-  echo "Note: jq not found. Add this SessionEnd hook to ~/.claude/settings.json manually."
-  echo "See ~/.claude/skills/team-memory/references/design.md for the hook configuration."
+  echo "Note: jq not found. Add this SessionEnd hook to $SETTINGS manually."
+  echo "  command: $TEAM_MEMORY_HOOK_COMMAND"
+  echo "See $SKILL_DIR/references/design.md for the hook configuration."
 fi
 
 echo ""
@@ -174,5 +178,5 @@ echo ""
 echo "Next steps:"
 echo "  1. Edit $PERSONA_DIR/theme.json to set icon, color, tagline"
 echo "  2. Edit $PERSONA_DIR/personality.md to define identity"
-echo "  3. Launch: ~/.claude/skills/team-memory/scripts/launch.sh --persona $NAME"
-echo "  4. Or alias: alias claude-$NAME='~/.claude/skills/team-memory/scripts/launch.sh --persona $NAME'"
+echo "  3. Launch: $SCRIPT_DIR/launch.sh --persona $NAME"
+echo "  4. Or alias: alias claude-$NAME='$SCRIPT_DIR/launch.sh --persona $NAME'"

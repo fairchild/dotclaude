@@ -71,7 +71,7 @@ This gets `priority=999`, `timeout=7d`, `dependencies={}`. Recipes treat it like
 
 ### Dependency validation
 
-Projects may opt into pre-commit dependency validation with the local `backlog-dep-validation` hook. When enabled in the repo's hook config, commits touching `backlog/**/*.md` are rejected if any declared `dependencies:` slug does not resolve to a file under `backlog/`, including dependency files staged in the same commit. The hook validates slug existence only; it does not validate reason text or detect dependency cycles. If it fails, author the missing dependency task with `bash ~/.claude/skills/backlog/scripts/backlog.sh add <slug> [followup|plan|task-list|ideas]`, then recommit.
+Projects may opt into pre-commit dependency validation with the local `backlog-dep-validation` hook. When enabled in the repo's hook config, commits touching `backlog/**/*.md` are rejected if any declared `dependencies:` slug does not resolve to a file under `backlog/`, including dependency files staged in the same commit. The hook validates slug existence only; it does not validate reason text or detect dependency cycles. If it fails, author the missing dependency task with `bash scripts/backlog.sh add <slug> [followup|plan|task-list|ideas]` (paths relative to this skill's base directory), then recommit.
 
 ### Other fields
 

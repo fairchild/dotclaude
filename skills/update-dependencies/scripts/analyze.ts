@@ -4,10 +4,10 @@
  *
  * Detects ecosystem and gathers dependency information.
  *
- * Usage:
- *   bun ~/.claude/skills/update-dependencies/scripts/analyze.ts
- *   bun ~/.claude/skills/update-dependencies/scripts/analyze.ts --security-only
- *   bun ~/.claude/skills/update-dependencies/scripts/analyze.ts --json
+ * Usage (paths relative to this skill's base directory):
+ *   bun scripts/analyze.ts
+ *   bun scripts/analyze.ts --security-only
+ *   bun scripts/analyze.ts --json
  */
 
 import { $ } from "bun";

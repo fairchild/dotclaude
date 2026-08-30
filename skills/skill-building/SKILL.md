@@ -93,7 +93,7 @@ For the full 7-step workflow, read `references/evaluating.md`.
 
 ## Live Development
 
-Skills must be "live" at the target path to test (`~/.claude/skills/` for global, `.claude/skills/` for project-local). Use **symlinks** to bridge development and runtime without copying files.
+Skills must be "live" at the target path to test (`~/.claude/skills/` for global, `.claude/skills/` for project-local). <!-- portability: allow --> Use **symlinks** to bridge development and runtime without copying files.
 
 For the symlink workflow and key rules, see `references/live-development.md`.
 

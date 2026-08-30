@@ -44,7 +44,7 @@ interface LockFile {
 // --- Skill discovery dirs ---
 
 const SKILL_DIRS: { path: string; agent: string }[] = [
-  { path: join(HOME, ".claude", "skills"), agent: "claude-code" },
+  { path: join(HOME, ".claude", "skills"), agent: "claude-code" },  // portability: allow
   { path: join(HOME, ".codex", "skills"), agent: "codex" },
   { path: join(HOME, ".agents", "skills"), agent: "agents-cli" },
 ];

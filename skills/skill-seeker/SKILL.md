@@ -14,6 +14,8 @@ Generate, review, and install Claude Code skills from any documentation source.
 
 **Pipeline**: Source → Generate → Review → Summarize → Install
 
+Scripts below run relative to this skill's base directory.
+
 ## Phase 1: Source + Options
 
 Gather inputs from the user:
@@ -35,7 +37,7 @@ Run the create script. Use a timeout appropriate for the preset — scraping tak
 - `comprehensive`: 60 minutes
 
 ```bash
-uv run ~/.claude/skills/skill-seeker/scripts/create.py \
+uv run scripts/create.py \
   --source "<source>" \
   --name "<skill-name>" \
   --preset "<preset>" \
@@ -55,7 +57,7 @@ Apply a two-lens review to the generated output.
 Run the review script:
 
 ```bash
-uv run ~/.claude/skills/skill-seeker/scripts/review.py \
+uv run scripts/review.py \
   --path "/tmp/skill-seeker/<skill-name>"
 ```
 
@@ -145,10 +147,11 @@ Base these on the actual content of the generated skill, not generic templates. 
 After user approval:
 
 ```bash
-uv run ~/.claude/skills/skill-seeker/scripts/install.py \
-  --source "/tmp/skill-seeker/<skill-name>" \
-  --target "~/.claude/skills/<skill-name>"
+uv run scripts/install.py \
+  --source "/tmp/skill-seeker/<skill-name>"
 ```
+
+`install.py` defaults `--target` to the user's Claude Code skills directory when omitted.
 
 Confirm installation:
 - Verify SKILL.md exists at target

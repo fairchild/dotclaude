@@ -11,8 +11,10 @@ Manage worktrees for concurrent development without clobbering changes.
 
 ## Setup
 
+Paths below are relative to this skill's base directory.
+
 ```bash
-~/.claude/skills/git-worktree/scripts/wt.sh install
+scripts/wt.sh install
 source ~/.zshrc
 ```
 
@@ -52,7 +54,7 @@ wt install               # Add wt to ~/.zshrc (one-time setup)
 Worktrees are created at `~/.worktrees/<repo>/<branch>` where `<repo>` is the **origin remote name** (not the local directory name). This is derived from `git remote get-url origin`.
 
 ```
-~/.claude  (remote: dotclaude.git)  →  ~/.worktrees/dotclaude/<branch>
+~/.claude  (remote: dotclaude.git)  →  ~/.worktrees/dotclaude/<branch>  <!-- portability: allow -->
 ~/code/services  (remote: services.git)  →  ~/.worktrees/services/<branch>
 ```
 
