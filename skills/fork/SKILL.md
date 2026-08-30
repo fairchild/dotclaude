@@ -35,10 +35,10 @@ Fork the current session, carrying context for continuity.
 
 ## Critical: Invoking wt
 
-`wt` is a **shell function** loaded by `.zshrc`. It is NOT available in Claude Code's Bash tool. Always invoke the script directly:
+`wt` is a **shell function** loaded by `.zshrc`. It is NOT available in Claude Code's Bash tool. Always invoke the script directly. `<git-worktree base dir>` below is the `git-worktree` skill's base directory, wherever the host installed it.
 
 ```bash
-WT_SCRIPT="$HOME/.claude/skills/git-worktree/scripts/wt.sh"
+WT_SCRIPT="<git-worktree base dir>/scripts/wt.sh"
 bash "$WT_SCRIPT" <branch> [options]
 ```
 
@@ -77,7 +77,7 @@ Before generating the handoff, verify prerequisites:
 
 2. **wt.sh available:**
    ```bash
-   test -x "$HOME/.claude/skills/git-worktree/scripts/wt.sh"
+   test -x "<git-worktree base dir>/scripts/wt.sh"
    ```
    If missing → tell user: "git-worktree skill not installed. Install it or use `/fork --local`."
 
@@ -216,7 +216,7 @@ Skip this step if there are no changes to carry.
 All worktree modes use `wt.sh` directly. Determine the repo name for the worktree path:
 
 ```bash
-WT_SCRIPT="$HOME/.claude/skills/git-worktree/scripts/wt.sh"
+WT_SCRIPT="<git-worktree base dir>/scripts/wt.sh"
 REPO_NAME=$(basename "$(git remote get-url origin 2>/dev/null || basename "$(git rev-parse --show-toplevel)")" .git)
 ```
 
@@ -480,7 +480,7 @@ Open a new terminal here and run `claude`.
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `wt: command not found` or `permission denied` | Used bare `wt` or `$_WT_SCRIPT` | Use `bash $HOME/.claude/skills/git-worktree/scripts/wt.sh` |
+| `wt: command not found` or `permission denied` | Used bare `wt` or `$_WT_SCRIPT` | Use `bash <git-worktree base dir>/scripts/wt.sh` |
 | `compdef: assignment to invalid subscript` | Sourced `wt.zsh` in non-interactive shell | Use `wt.sh` (bash), not `wt.zsh` |
 | Changes missing in worktree | Worktree created from clean base branch | Capture `git diff HEAD` as patch before creating worktree, apply after |
 | `cd` doesn't persist after Bash call | Claude Code Bash tool resets cwd per invocation | Use absolute paths or `EnterWorktree` tool |
@@ -488,7 +488,7 @@ Open a new terminal here and run `claude`.
 
 ## Notes
 
-- **Worktree naming**: `<repo>` is derived from `git remote get-url origin` (e.g., `~/.claude` with remote `dotclaude.git` → `~/.worktrees/dotclaude/<branch>`)
+- **Worktree naming**: `<repo>` is derived from `git remote get-url origin` (e.g., `~/.claude` with remote `dotclaude.git` → `~/.worktrees/dotclaude/<branch>`) <!-- portability: allow -->
 - **Requires**: `git-worktree` skill for all modes except `--local`
 - The handoff is a snapshot — it won't update if you continue working here
 - Use `/chronicle` if you want persistent cross-session memory instead

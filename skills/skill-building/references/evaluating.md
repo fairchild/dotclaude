@@ -37,10 +37,7 @@ If `find-skills` is installed, note it can discover alternative skills for compa
 
 ### Step 2: Structural Assessment
 
-If `skills-manager` is installed, delegate structural validation:
-```bash
-bun ~/.claude/skills/skills-manager/scripts/manage.ts validate <skill-path>
-```
+If the `skills-manager` skill is installed, delegate structural validation to it: `/skills-manager validate <skill-path>`
 
 If not installed, check manually:
 - SKILL.md exists with valid YAML frontmatter
@@ -111,7 +108,7 @@ Evaluate the skill's unique contribution:
 
 1. **Capabilities**: What does this skill enable that you can't do without it?
 2. **Built-in overlap**: How much of this knowledge is already in Claude's training data?
-3. **Installed overlap**: If `skills-manager` is installed, run `bun ~/.claude/skills/skills-manager/scripts/manage.ts list` to check for overlapping skills
+3. **Installed overlap**: If the `skills-manager` skill is installed, run `/skills-manager list` to check for overlapping skills
 4. **Unique value**: What specific, non-obvious knowledge or workflows does it add?
 5. **Value per token**: Is the context cost justified by the value provided?
 

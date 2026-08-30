@@ -3,7 +3,7 @@
 
 WORKTREES_ROOT="${WORKTREES_ROOT:-$HOME/.worktrees}"
 REPOS_ROOT="${REPOS_ROOT:-$HOME/code}"
-_WT_SCRIPT="$HOME/.claude/skills/git-worktree/scripts/wt.sh"
+_WT_SCRIPT="${${(%):-%N}:A:h}/wt.sh"
 
 _wt_get_repo_name() {
     local url

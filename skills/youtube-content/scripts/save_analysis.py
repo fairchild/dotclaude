@@ -15,8 +15,7 @@ Usage:
         uv run save_analysis.py --mode wisdom --tags "ai,coding"
 
 Environment:
-    CLAUDE_KNOWLEDGE_DIR: Knowledge base directory (default: ~/.claude/knowledge)
-"""
+    CLAUDE_KNOWLEDGE_DIR: Knowledge base directory (default: ~/.claude/knowledge)"""  # portability: allow
 
 import argparse
 import json

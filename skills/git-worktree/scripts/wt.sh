@@ -4,6 +4,8 @@ set -euo pipefail
 # wt - Git worktree manager with conductor.json integration
 # Usage: wt <branch> | wt archive [branch] | wt list
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+
 WORKTREES_ROOT="${WORKTREES_ROOT:-$HOME/.worktrees}"
 
 # Colors
@@ -765,7 +767,8 @@ cmd_status() {
 
             local encoded_path
             encoded_path=$(echo "$branch_dir" | sed 's|[/.]|-|g')
-            local claude_dir="$HOME/.claude/projects/$encoded_path"
+            # Reads the invoking user's own Claude Code session logs (prerequisite: Claude Code)
+            local claude_dir="$HOME/.claude/projects/$encoded_path"  # portability: allow
             local session_indicator="○"
             local age_text=""
 
@@ -1085,7 +1088,7 @@ cmd_prune() {
 }
 
 cmd_install() {
-    local source_line='source ~/.claude/skills/git-worktree/scripts/wt.zsh'
+    local source_line="source $SCRIPT_DIR/wt.zsh"
     local zshrc="$HOME/.zshrc"
 
     if [[ -f "$zshrc" ]] && grep -qF "$source_line" "$zshrc"; then
@@ -1141,7 +1144,7 @@ main() {
             ;;
         cd|home|done)
             log_error "wt $cmd requires shell function. Add to ~/.zshrc:"
-            echo "  source ~/.claude/skills/git-worktree/scripts/wt.zsh"
+            echo "  source $SCRIPT_DIR/wt.zsh"
             exit 1
             ;;
         *)

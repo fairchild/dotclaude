@@ -12,8 +12,7 @@ Usage:
     uv run search_knowledge.py --tag ai            # Filter by tag
 
 Environment:
-    CLAUDE_KNOWLEDGE_DIR: Knowledge base directory (default: ~/.claude/knowledge)
-"""
+    CLAUDE_KNOWLEDGE_DIR: Knowledge base directory (default: ~/.claude/knowledge)"""  # portability: allow
 
 import argparse
 import os

@@ -19,10 +19,10 @@ Extract transcripts and metadata from YouTube videos for analysis.
 
 ## Fetch Script
 
-Run from the skill directory (`~/.claude/skills/youtube-content/`):
+Paths below are relative to this skill's base directory.
 
 ```bash
-uv run ~/.claude/skills/youtube-content/scripts/fetch_youtube.py "https://youtube.com/watch?v=VIDEO_ID"
+uv run scripts/fetch_youtube.py "https://youtube.com/watch?v=VIDEO_ID"
 ```
 
 Options:
@@ -72,8 +72,7 @@ For video analysis that shouldn't block the main conversation, spawn a backgroun
 ```
 Task(
   subagent_type: "general-purpose",
-  prompt: "Read ~/.claude/skills/youtube-content/SKILL.md and follow the workflow.
-    Analyze this YouTube video: {url}
+  prompt: "Use the youtube-content skill to analyze this YouTube video: {url}
     Mode: {wisdom|summary|qa|quotes}
     Save to knowledge base: {yes|no}"
 )
@@ -85,7 +84,7 @@ Analyses and raw transcripts are automatically saved to a knowledge base for fut
 
 ### Configuration
 
-Set `CLAUDE_KNOWLEDGE_DIR` to customize storage location (default: `~/.claude/knowledge`).
+Set `CLAUDE_KNOWLEDGE_DIR` to customize storage location (default: `~/.claude/knowledge`). <!-- portability: allow -->
 
 ### Save Analysis
 
