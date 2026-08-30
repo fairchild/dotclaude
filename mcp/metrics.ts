@@ -27,10 +27,22 @@ const { values } = parseArgs({
   },
 });
 
-const account = process.env.CLOUDFLARE_ACCOUNT_ID;
-const token = process.env.CLOUDFLARE_API_TOKEN;
+function dotenvFallback(name: string): string | undefined {
+  if (process.env[name]) return process.env[name];
+  try {
+    const home = `${process.env.HOME}/.claude/.env`;  // portability: allow — the consumer's own gitignored env file
+    const line = require("node:fs").readFileSync(home, "utf-8").split("\n")
+      .find((l: string) => l.startsWith(`${name}=`));
+    return line?.slice(name.length + 1).trim();
+  } catch {
+    return undefined;
+  }
+}
+
+const account = dotenvFallback("CLOUDFLARE_ACCOUNT_ID");
+const token = dotenvFallback("CLOUDFLARE_API_TOKEN");
 if (!account || !token) {
-  console.error("set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN (Account Analytics : Read) — see the header of this script");
+  console.error("set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN (Account Analytics : Read), in the environment or ~/.claude/.env — see the header of this script");
   process.exit(2);
 }
 
