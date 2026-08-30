@@ -6,6 +6,9 @@
  * `directoryRead` setting. Everything else rides the base Resources
  * primitive: reading a skill file is an ordinary `resources/read`, with no
  * skill-specific read semantics — activation is the host's business.
+ *
+ * Handlers speak only to a SkillStore, so the same server serves a live
+ * filesystem over stdio and a prebuilt snapshot from a Worker.
  */
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
@@ -14,10 +17,8 @@ import {
   McpError,
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
 
-import { type Catalog, type ScannedSkill, scanCatalog, scanSkill } from "./manifest.ts";
+import type { SkillStore, StoredSkill } from "./store.ts";
 import {
   DIRECTORY_MIME,
   DirectoryReadRequestSchema,
@@ -29,13 +30,11 @@ import {
 } from "./types.ts";
 
 export interface SkillsServerOptions {
-  root: string;
   name?: string;
   version?: string;
-  /** Serve only this tier; omit to serve every scanned skill. */
+  /** Serve only this tier; omit to serve every stored skill. */
   tier?: "portable";
   pageSize?: number;
-  onDiagnostic?: (message: string) => void;
 }
 
 const TEXT_EXTENSIONS = new Set([
@@ -69,23 +68,16 @@ function decodeCursor(cursor: string | undefined): number {
   return index;
 }
 
-export function createSkillsServer(options: SkillsServerOptions): Server {
+export function createSkillsServer(store: SkillStore, options: SkillsServerOptions = {}): Server {
   const pageSize = options.pageSize ?? 50;
-  const note = options.onDiagnostic ?? (() => {});
 
-  let catalog: Catalog = scanCatalog(options.root);
-  for (const d of catalog.diagnostics) note(`skipped ${d.skill}: ${d.reason}`);
+  const served = (): StoredSkill[] =>
+    options.tier ? store.skills().filter((s) => s.tier === options.tier) : store.skills();
 
-  const served = (): ScannedSkill[] =>
-    options.tier ? catalog.skills.filter((s) => s.tier === options.tier) : catalog.skills;
-
-  const findSkill = (name: string): ScannedSkill | undefined =>
-    served().find((s) => s.entry.frontmatter.name === name);
-
-  /** Resolve a skill:// URI to its skill and skill-relative path ('' = root). */
-  const resolve = (uri: string): { skill: ScannedSkill; rel: string } => {
+  /** Resolve a skill:// URI to its stored skill and skill-relative path ('' = root). */
+  const resolve = (uri: string): { skill: StoredSkill; rel: string } => {
     const segments = parseSkillUri(uri);
-    const skill = segments && findSkill(segments[0]!);
+    const skill = segments && served().find((s) => s.entry.frontmatter.name === segments[0]);
     if (!segments || !skill) {
       throw new McpError(ErrorCode.InvalidParams, `unknown resource: ${uri}`);
     }
@@ -120,14 +112,12 @@ export function createSkillsServer(options: SkillsServerOptions): Server {
       throw new McpError(ErrorCode.InvalidParams, `not a skill's SKILL.md: ${request.params.uri}`);
     }
     // A get is a point-in-time snapshot and the refresh path after a digest
-    // mismatch, so rescan the one skill rather than answering from the
-    // startup catalog.
-    const fresh = scanSkill(skill.dir);
-    if (!("entry" in fresh)) {
-      throw new McpError(ErrorCode.InvalidParams, `skill no longer serveable: ${fresh.reason}`);
+    // mismatch; a live store rescans, a snapshot store answers as built.
+    const fresh = store.refresh(String(skill.entry.frontmatter.name));
+    if ("error" in fresh) {
+      throw new McpError(ErrorCode.InvalidParams, `skill no longer serveable: ${fresh.error}`);
     }
-    catalog.skills = catalog.skills.map((s) => (s.dir === skill.dir ? fresh : s));
-    return { resultType: "complete", skill: fresh.entry };
+    return { resultType: "complete", skill: fresh };
   });
 
   server.setRequestHandler(ListResourcesRequestSchema, (request) => {
@@ -145,24 +135,27 @@ export function createSkillsServer(options: SkillsServerOptions): Server {
     return { resources: page, ...(next ? { nextCursor: next } : {}) };
   });
 
-  server.setRequestHandler(ReadResourceRequestSchema, (request) => {
+  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const { skill, rel } = resolve(request.params.uri);
-    const path = rel ? join(skill.dir, rel) : skill.dir;
-    let stat;
-    try {
-      stat = statSync(path);
-    } catch {
-      throw new McpError(ErrorCode.InvalidParams, `unknown resource: ${request.params.uri}`);
+    const name = String(skill.entry.frontmatter.name);
+    const manifest = skill.entry.resources === "dynamic" ? null : skill.entry.resources;
+    if (manifest && !manifest.some((r) => r.uri === request.params.uri)) {
+      const isDirectory = manifest.some((r) => r.uri.startsWith(`${request.params.uri}/`));
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        isDirectory
+          ? `directory, not a file: ${request.params.uri} (use resources/directory/read)`
+          : `unknown resource: ${request.params.uri}`,
+      );
     }
-    if (stat.isDirectory()) {
-      throw new McpError(ErrorCode.InvalidParams, `directory, not a file: ${request.params.uri} (use resources/directory/read)`);
-    }
-    const bytes = readFileSync(path);
+    const bytes = await store.read(name, rel);
+    if (!bytes) throw new McpError(ErrorCode.InvalidParams, `unknown resource: ${request.params.uri}`);
+    const buffer = Buffer.from(bytes);
     return {
       contents: [
         isText(rel)
-          ? { uri: request.params.uri, mimeType: mimeFor(rel), text: bytes.toString("utf-8") }
-          : { uri: request.params.uri, mimeType: mimeFor(rel), blob: bytes.toString("base64") },
+          ? { uri: request.params.uri, mimeType: mimeFor(rel), text: buffer.toString("utf-8") }
+          : { uri: request.params.uri, mimeType: mimeFor(rel), blob: buffer.toString("base64") },
       ],
     };
   });

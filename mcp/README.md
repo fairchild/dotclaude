@@ -53,7 +53,16 @@ See `docs/skill-portability.md`.
 ```bash
 bun stdio.ts                  # serve ~/.claude/skills
 bun stdio.ts --root ../skills # serve the repo corpus
-bun test                      # conformance + corpus integration
+bun run test                  # conformance + corpus + worker integration
+```
+
+The hosted binding is a Cloudflare Worker serving a build-time snapshot of
+the portable tier over stateless Streamable HTTP (each POST runs one
+JSON-RPC message through a fresh server on a one-shot transport):
+
+```bash
+bun worker/build.ts                            # snapshot ../skills -> worker/dist/public
+bunx wrangler deploy -c worker/wrangler.toml   # publish (POST /mcp)
 ```
 
 Claude Code (or any MCP host) connects via:

@@ -15,6 +15,6 @@
   },
   "scripts": {
     "serve": "bun stdio.ts",
-    "test": "bun test"
+    "test": "bun test conformance"
   }
 }

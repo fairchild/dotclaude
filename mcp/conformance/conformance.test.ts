@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 
+import { FsStore } from "../core/fs-store.ts";
 import { createSkillsServer, type SkillsServerOptions } from "../core/server.ts";
 import {
   DIRECTORY_MIME,
@@ -21,13 +22,10 @@ import {
 
 const FIXTURES = join(import.meta.dir, "fixtures");
 
-async function connect(options: Partial<SkillsServerOptions> = {}) {
+async function connect(options: SkillsServerOptions = {}) {
   const diagnostics: string[] = [];
-  const server = createSkillsServer({
-    root: FIXTURES,
-    onDiagnostic: (m) => diagnostics.push(m),
-    ...options,
-  });
+  const store = new FsStore(FIXTURES, (m) => diagnostics.push(m));
+  const server = createSkillsServer(store, options);
   const client = new Client({ name: "conformance", version: "0.0.0" }, { capabilities: {} });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);

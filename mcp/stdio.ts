@@ -15,6 +15,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
+import { FsStore } from "./core/fs-store.ts";
 import { createSkillsServer } from "./core/server.ts";
 
 const { values } = parseArgs({
@@ -24,10 +25,9 @@ const { values } = parseArgs({
   },
 });
 
-const server = createSkillsServer({
-  root: values.root!,
+const store = new FsStore(values.root!, (message) => console.error(`[skills] ${message}`));
+const server = createSkillsServer(store, {
   tier: values["portable-only"] ? "portable" : undefined,
-  onDiagnostic: (message) => console.error(`[skills] ${message}`),
 });
 
 await server.connect(new StdioServerTransport());

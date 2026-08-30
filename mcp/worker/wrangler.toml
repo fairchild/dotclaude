@@ -1,0 +1,11 @@
+# Hosted binding for the SEP-2640 skills server.
+# Build the snapshot first, then deploy:
+#   bun worker/build.ts && bunx wrangler deploy -c worker/wrangler.toml
+name = "dotclaude-skills"
+main = "worker.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "dist/public"
+binding = "ASSETS"
