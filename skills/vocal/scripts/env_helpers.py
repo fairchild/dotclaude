@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 
 
@@ -21,6 +22,19 @@ def load_dotenv(path: Path | None = None) -> None:
             continue
         value = value.strip().strip('"').strip("'")
         os.environ[key] = value
+
+
+def audio_context_prefix() -> list[str]:
+    """Outside the Aqua session (tmux servers started from hooks/daemons), say
+    and afplay exit 0 without reaching the speakers and say -o renders
+    near-empty files; launchctl asuser crosses back into the GUI session."""
+    try:
+        r = subprocess.run(["launchctl", "managername"], capture_output=True, text=True, timeout=5)
+        if r.returncode == 0 and r.stdout.strip() != "Aqua":
+            return ["launchctl", "asuser", str(os.getuid())]
+    except Exception:
+        pass
+    return []
 
 
 def get_elevenlabs_api_key() -> str | None:

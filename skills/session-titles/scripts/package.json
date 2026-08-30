@@ -1,0 +1,7 @@
+{
+  "name": "session-titles-scripts",
+  "private": true,
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest"
+  }
+}

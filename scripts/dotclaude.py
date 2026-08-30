@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import tomllib
 from dataclasses import dataclass
@@ -129,6 +130,7 @@ def cmd_bootstrap(paths: Paths) -> int:
             )
             return 1
         if is_independent_clone(paths.runtime):
+            seed_runtime_settings(paths)
             return sync_runtime(paths)
         backup_ambiguous_runtime(paths)
 
@@ -151,8 +153,19 @@ def cmd_bootstrap(paths: Paths) -> int:
     )
     if not require_independent_main(paths):
         return 1
+    seed_runtime_settings(paths)
     print("OK: created independent dotclaude runtime clone on main")
     return 0
+
+
+def seed_runtime_settings(paths: Paths) -> None:
+    """settings.json is never tracked, so a fresh runtime starts from the example."""
+    settings = paths.runtime / "settings.json"
+    example = paths.runtime / "settings.example.json"
+    if settings.exists() or not example.is_file():
+        return
+    shutil.copyfile(example, settings)
+    print("OK: seeded settings.json from settings.example.json")
 
 
 def validate_json(path: Path) -> bool:
@@ -161,6 +174,19 @@ def validate_json(path: Path) -> bool:
             value = json.load(handle)
         return isinstance(value, dict)
     except (OSError, json.JSONDecodeError):
+        return False
+
+
+def _skill_gitignored(paths: Paths, name: str) -> bool:
+    try:
+        return (
+            subprocess.run(
+                ["git", "-C", str(paths.runtime), "check-ignore", "-q", f"skills/{name}"],
+                capture_output=True,
+            ).returncode
+            == 0
+        )
+    except OSError:
         return False
 
 
@@ -177,8 +203,14 @@ def check_skill_links(paths: Paths) -> tuple[int, int]:
         if enabled is True:
             checks.append((paths.runtime / "skills" / name, agents_skills / name))
     for name, enabled in manifest.get("share-to-agents", {}).items():
-        if enabled is True:
-            checks.append((agents_skills / name, paths.runtime / "skills" / name))
+        if enabled is not True:
+            continue
+        source = paths.runtime / "skills" / name
+        if not source.exists() and _skill_gitignored(paths, name):
+            # Private skill: content is machine-local (the tracked .gitignore
+            # is the proof of intent); the share materializes where it exists.
+            continue
+        checks.append((agents_skills / name, source))
 
     failed = 0
     for link, target in checks:

@@ -194,6 +194,23 @@ The vocal scripts load `~/.env` automatically before checking the process enviro
 
 ## Troubleshooting
 
+### Silent TTS despite exit 0
+
+`say` and `afplay` reach the speakers only from the user's Aqua (GUI) launchd
+session. From a Background session — tmux servers started by hooks or
+automation, daemons — they exit 0 instantly, speak nothing, and `say -o`
+renders near-empty files.
+
+- Tell: the command returns faster than the speech would take. Confirm with
+  `launchctl managername` (prints `Background`).
+- The TTS scripts handle this themselves: `audio_context_prefix()` in
+  `env_helpers.py` wraps audio commands with `launchctl asuser $(id -u)` when
+  outside Aqua. Route any new audio playback through the same helper.
+- Also check output volume (`osascript -e 'get volume settings'`) — an
+  inaudibly low volume looks identical from the caller's side.
+
+Microphone capture from Background sessions is untested.
+
 ### Getting an ElevenLabs API key
 
 1. Open https://elevenlabs.io/app/settings/api-keys

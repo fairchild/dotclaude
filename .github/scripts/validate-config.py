@@ -3,7 +3,7 @@
 Validate Claude Code configuration files.
 
 Validates:
-- settings.json against JSON schema
+- settings.example.json against JSON schema
 - .mcp.json against JSON schema
 - agents/*.md YAML frontmatter
 - skills/*/SKILL.md YAML frontmatter and integrity
@@ -345,7 +345,7 @@ def validate_skill(skill_dir: Path) -> ValidationResult:
     return result
 
 
-SKILL_STATUSES = {"experimental"}
+SKILL_STATUSES = {"experimental", "superseded"}
 ATTRIBUTION_KEYS = ("origin", "inspired-by")
 
 
@@ -361,10 +361,15 @@ def check_skill_tier(skill_dir: Path, fm: dict, result: ValidationResult) -> Non
         result["errors"].append(
             f"metadata.status '{status}' is not one of {sorted(SKILL_STATUSES)}"
         )
-    if status == "experimental" and not meta.get("experimental_reason"):
+    if status in SKILL_STATUSES and not meta.get(f"{status}_reason"):
         result["valid"] = False
         result["errors"].append(
-            "metadata.status: experimental requires metadata.experimental_reason"
+            f"metadata.status: {status} requires metadata.{status}_reason"
+        )
+    if status == "superseded" and fm.get("disable-model-invocation") is not True:
+        result["warnings"].append(
+            "superseded skills normally set disable-model-invocation: true, so they "
+            "stop competing with their successor for auto-invocation"
         )
     if any(key in fm for key in ATTRIBUTION_KEYS) and not (skill_dir / "README.md").exists():
         result["valid"] = False
@@ -438,10 +443,10 @@ def main():
     results: list[ValidationResult] = []
     has_errors = False
 
-    # Validate settings.json
+    # Validate settings.example.json (settings.json is the untracked runtime file)
     settings_schema = load_json_schema(schemas_dir / "settings.schema.json")
     if settings_schema:
-        settings_path = args.settings_only or root / "settings.json"
+        settings_path = args.settings_only or root / "settings.example.json"
         result = validate_json_file(settings_path, settings_schema)
         results.append(result)
         if not result["valid"]:
