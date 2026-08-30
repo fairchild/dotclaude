@@ -106,3 +106,12 @@ describe("worker binding", () => {
     expect(batch.status).toBe(400);
   });
 });
+
+describe("hardening (exercise-workflow findings)", () => {
+  test("oversized request body answers 413, not a megabyte reflection", async () => {
+    const big = await post({ jsonrpc: "2.0", id: 99, method: "skills/get", params: { uri: "x".repeat(1024 * 1024) } });
+    expect(big.status).toBe(413);
+    const body: any = await big.json();
+    expect(body.error.code).toBe(-32600);
+  });
+});

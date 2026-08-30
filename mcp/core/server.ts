@@ -55,6 +55,11 @@ function isText(path: string): boolean {
   return TEXT_EXTENSIONS.has(path.split(".").pop()?.toLowerCase() ?? "");
 }
 
+/** Client-supplied strings are reflected into error messages; cap them. */
+function clip(input: string): string {
+  return input.length > 200 ? `${input.slice(0, 200)}…[${input.length} chars]` : input;
+}
+
 function encodeCursor(index: number): string {
   return Buffer.from(String(index)).toString("base64url");
 }
@@ -62,8 +67,10 @@ function encodeCursor(index: number): string {
 function decodeCursor(cursor: string | undefined): number {
   if (!cursor) return 0;
   const index = Number(Buffer.from(cursor, "base64url").toString());
-  if (!Number.isInteger(index) || index < 0) {
-    throw new McpError(ErrorCode.InvalidParams, `invalid cursor: ${cursor}`);
+  // Round-trip, don't just range-check: junk like "!!!" decodes to "" and
+  // Number("") is 0, which would silently restart pagination at page 0.
+  if (!Number.isInteger(index) || index < 0 || encodeCursor(index) !== cursor) {
+    throw new McpError(ErrorCode.InvalidParams, `invalid cursor: ${clip(cursor)}`);
   }
   return index;
 }
@@ -79,11 +86,11 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
     const segments = parseSkillUri(uri);
     const skill = segments && served().find((s) => s.entry.frontmatter.name === segments[0]);
     if (!segments || !skill) {
-      throw new McpError(ErrorCode.InvalidParams, `unknown resource: ${uri}`);
+      throw new McpError(ErrorCode.InvalidParams, `unknown resource: ${clip(uri)}`);
     }
     const rel = segments.slice(1).join("/");
     if (rel.split("/").includes("..")) {
-      throw new McpError(ErrorCode.InvalidParams, `invalid path in: ${uri}`);
+      throw new McpError(ErrorCode.InvalidParams, `invalid path in: ${clip(uri)}`);
     }
     return { skill, rel };
   };
@@ -109,7 +116,7 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
   server.setRequestHandler(SkillsGetRequestSchema, (request) => {
     const { skill, rel } = resolve(request.params.uri);
     if (rel !== "SKILL.md") {
-      throw new McpError(ErrorCode.InvalidParams, `not a skill's SKILL.md: ${request.params.uri}`);
+      throw new McpError(ErrorCode.InvalidParams, `not a skill's SKILL.md: ${clip(request.params.uri)}`);
     }
     // A get is a point-in-time snapshot and the refresh path after a digest
     // mismatch; a live store rescans, a snapshot store answers as built.
@@ -144,12 +151,12 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
       throw new McpError(
         ErrorCode.InvalidParams,
         isDirectory
-          ? `directory, not a file: ${request.params.uri} (use resources/directory/read)`
-          : `unknown resource: ${request.params.uri}`,
+          ? `directory, not a file: ${clip(request.params.uri)} (use resources/directory/read)`
+          : `unknown resource: ${clip(request.params.uri)}`,
       );
     }
     const bytes = await store.read(name, rel);
-    if (!bytes) throw new McpError(ErrorCode.InvalidParams, `unknown resource: ${request.params.uri}`);
+    if (!bytes) throw new McpError(ErrorCode.InvalidParams, `unknown resource: ${clip(request.params.uri)}`);
     const buffer = Buffer.from(bytes);
     return {
       contents: [
@@ -173,7 +180,7 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
       const filePath = resource.uri.slice(skillUri(skillName).length + 1);
       if (rel && !filePath.startsWith(prefix)) {
         if (filePath === rel) {
-          throw new McpError(ErrorCode.InvalidParams, `file, not a directory: ${request.params.uri}`);
+          throw new McpError(ErrorCode.InvalidParams, `file, not a directory: ${clip(request.params.uri)}`);
         }
         continue;
       }
@@ -189,7 +196,7 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
       );
     }
     if (!isDir) {
-      throw new McpError(ErrorCode.InvalidParams, `unknown directory: ${request.params.uri}`);
+      throw new McpError(ErrorCode.InvalidParams, `unknown directory: ${clip(request.params.uri)}`);
     }
     const sorted = [...children.values()].sort((a, b) => a.name.localeCompare(b.name));
     const start = decodeCursor(request.params.cursor);

@@ -71,9 +71,20 @@ export default {
       });
     }
 
+    // JSON-RPC requests to this server are URIs and cursors — tiny. A cap
+    // keeps a hostile body from being parsed and reflected at megabyte scale.
+    const MAX_BODY_BYTES = 64 * 1024;
+    const declared = Number(request.headers.get("content-length") ?? 0);
+    if (declared > MAX_BODY_BYTES) {
+      return json({ jsonrpc: "2.0", id: null, error: { code: -32600, message: `request body exceeds ${MAX_BODY_BYTES} bytes` } }, 413);
+    }
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) {
+      return json({ jsonrpc: "2.0", id: null, error: { code: -32600, message: `request body exceeds ${MAX_BODY_BYTES} bytes` } }, 413);
+    }
     let message: JSONRPCMessage;
     try {
-      message = (await request.json()) as JSONRPCMessage;
+      message = JSON.parse(raw) as JSONRPCMessage;
     } catch {
       return json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } }, 400);
     }

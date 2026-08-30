@@ -71,9 +71,9 @@ After fixing, check that every line in each box is the same width. Nested boxes 
 ```
 +------------------+          <- width 20, | at column 20
 | Outer content    |          <- | at column 20 ✓
-|  +----------+   |          <- | at column 20 ✓ (not column 17)
-|  | Inner    |   |          <- | at column 20 ✓
-|  +----------+   |          <- | at column 20 ✓
+|  +----------+    |         <- | at column 20 ✓ (not column 17)
+|  | Inner    |    |         <- | at column 20 ✓
+|  +----------+    |         <- | at column 20 ✓
 +------------------+
 ```
 

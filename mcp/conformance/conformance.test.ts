@@ -201,3 +201,28 @@ describe("reading", () => {
     expect(client.readResource({ uri: "skill://pdf-processing/../bad-name/SKILL.md" })).rejects.toThrow();
   });
 });
+
+describe("hardening (exercise-workflow findings)", () => {
+  test("junk cursor answers -32602 instead of silently restarting at page 0", async () => {
+    const { client } = await connect();
+    expect(listSkills(client, "!!!")).rejects.toThrow(/invalid cursor/);
+    expect(readDirectory(client, "skill://pdf-processing")).resolves.toBeDefined();
+    expect(
+      client.request(
+        { method: "resources/directory/read", params: { uri: "skill://pdf-processing", cursor: "!!!" } },
+        DirectoryReadResultSchema,
+      ),
+    ).rejects.toThrow(/invalid cursor/);
+  });
+
+  test("client-supplied strings are clipped in error messages", async () => {
+    const { client } = await connect();
+    const huge = `skill://no-such-skill/${"x".repeat(50_000)}`;
+    const error = await getSkill(client, huge).then(
+      () => null,
+      (e: Error) => e.message,
+    );
+    expect(error).toContain("…[");
+    expect(error!.length).toBeLessThan(400);
+  });
+});
