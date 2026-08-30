@@ -272,7 +272,7 @@ For dispatched visual analysis of test screenshots and UI/UX quality assessment:
 Task(
   subagent_type: "general-purpose",
   model: "sonnet",
-  prompt: "Read ~/.claude/skills/webapp-testing/SKILL.md. You are a Playwright
+  prompt: "Use the webapp-testing skill. You are a Playwright
     test engineer and UI/UX analyst. Run the E2E tests, capture screenshots at
     key interaction points, then analyze for:
     - Functionality: Does the UI reflect expected state?

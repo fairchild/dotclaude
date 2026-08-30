@@ -16,15 +16,17 @@ that and stands down rather than running a second, competing process.
 
 ## Quick Start
 
+Script paths below are relative to this skill's base directory.
+
 ```bash
 # Preview release (no changes)
-bun ~/.claude/skills/release/scripts/analyze.ts
+bun scripts/analyze.ts
 
 # Execute release
-bun ~/.claude/skills/release/scripts/release.ts
+bun scripts/release.ts
 
 # Dry run
-bun ~/.claude/skills/release/scripts/release.ts --dry-run
+bun scripts/release.ts --dry-run
 ```
 
 ## Command Options
@@ -116,7 +118,7 @@ This approach is predictable and never modifies your current working directory. 
 Run the analyze script (read-only, safe anytime):
 
 ```bash
-bun ~/.claude/skills/release/scripts/analyze.ts
+bun scripts/analyze.ts
 ```
 
 Shows:
@@ -137,7 +139,7 @@ Check the suggested version and changelog preview. Adjust with:
 ### 3. Execute
 
 ```bash
-bun ~/.claude/skills/release/scripts/release.ts
+bun scripts/release.ts
 ```
 
 The script:

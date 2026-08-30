@@ -9,6 +9,8 @@ disable-model-invocation: true
 
 Go wide, then narrow. Explore many options freely, then converge to one polished design brief.
 
+Commands below run from the project directory being designed; `assets/` paths are relative to this skill's base directory.
+
 ```
 WIDE                                    NARROW
 ┌──────────────────────────────────────────────┐
@@ -102,7 +104,7 @@ Generate many mockup variations. Use `assets/index.html` for gallery view.
 
 ```bash
 mkdir -p docs/design/brainstorm
-cp ~/.claude/skills/brainstorm-to-brief/assets/index.html docs/design/brainstorm/
+cp assets/index.html docs/design/brainstorm/
 # Generate images with image-gen skill, add to gallery
 ```
 
@@ -124,7 +126,7 @@ Sequential mockups showing complete user journeys. Use `assets/stories.html`.
 
 ```bash
 mkdir -p docs/design/stories/s1
-cp ~/.claude/skills/brainstorm-to-brief/assets/stories.html docs/design/stories/index.html
+cp assets/stories.html docs/design/stories/index.html
 # Generate sequential images with continuity (see Image Generation below)
 ```
 
@@ -151,7 +153,7 @@ Polish into one cohesive design brief.
 The final output — a shareable HTML page that ties everything together.
 
 ```bash
-cp ~/.claude/skills/brainstorm-to-brief/assets/design-brief.html docs/design/
+cp assets/design-brief.html docs/design/
 mkdir -p docs/design/brief
 # Generate hero image, app icon, persona images
 # Customize HTML with project details

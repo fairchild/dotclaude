@@ -2,6 +2,8 @@
 name: signoz-log
 description: Send structured logs to SigNoz observability platform. Use when you need to record events, errors, or activity for monitoring. Triggers on log, observe, signoz, telemetry, record event.
 license: Apache-2.0
+metadata:
+  portability: machine-bound
 ---
 
 # SigNoz Logging
@@ -10,14 +12,16 @@ Send structured logs to SigNoz from Claude Code sessions. Session start/stop are
 
 ## Manual Logging
 
+Paths below are relative to this skill's base directory.
+
 ```bash
 # Log an event
-~/.claude/skills/signoz-log/scripts/signoz-log.sh INFO "deployed langflow v2.1"
-~/.claude/skills/signoz-log/scripts/signoz-log.sh WARN "disk usage above 80%"
-~/.claude/skills/signoz-log/scripts/signoz-log.sh ERROR "health check failed for immich"
+scripts/signoz-log.sh INFO "deployed langflow v2.1"
+scripts/signoz-log.sh WARN "disk usage above 80%"
+scripts/signoz-log.sh ERROR "health check failed for immich"
 
 # Override service name (default: project directory name)
-~/.claude/skills/signoz-log/scripts/signoz-log.sh INFO "migration complete" "auth-service"
+scripts/signoz-log.sh INFO "migration complete" "auth-service"
 ```
 
 ## Automatic Hooks

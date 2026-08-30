@@ -44,8 +44,10 @@ Each screen entry:
 
 ### 3. Generate gallery
 
+Path is relative to this skill's base directory.
+
 ```bash
-bash ~/.claude/skills/ios-simulator/scripts/gallery.sh docs/screens "App Name"
+bash scripts/gallery.sh docs/screens "App Name"
 ```
 
 Opens as `docs/screens/index.html`. Verify with `open docs/screens/index.html`.

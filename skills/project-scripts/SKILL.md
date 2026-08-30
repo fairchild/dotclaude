@@ -158,9 +158,9 @@ To scaffold lifecycle scripts for a project:
 5. Optionally add `task_config.includes = ["scripts"]` to mise.toml
 6. Optionally wire into other runtime configs (conductor.json, devcontainer.json, etc.)
 
-Automated scaffolding:
+Automated scaffolding — run from the target project directory; `scripts/bootstrap.sh` is relative to this skill's base directory:
 ```bash
-bash ~/.claude/skills/project-scripts/scripts/bootstrap.sh [ecosystem]
+bash scripts/bootstrap.sh [ecosystem]
 ```
 
 See [references/ecosystem-templates.md](references/ecosystem-templates.md) for per-ecosystem script and conductor.json templates.

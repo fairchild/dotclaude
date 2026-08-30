@@ -13,10 +13,10 @@ Core fact this skill is built on: in a squash-merge repo, `git branch --merged` 
 
 ## Workflow
 
-**1. Audit (read-only).** Run from inside the current session's worktree so it self-protects:
+**1. Audit (read-only).** Run from inside the current session's worktree so it self-protects; `scripts/audit.py` is relative to this skill's base directory:
 
 ```bash
-uv run --script ~/.claude/skills/tidyup/scripts/audit.py --json audit.json --plan plan.sh
+uv run --script scripts/audit.py --json audit.json --plan plan.sh
 ```
 
 Classifies every worktree and local branch as KEEP (primary, current session, open-PR, default branch), SAFE (provably landed), DIRTY_MERGED (landed but has uncommitted files), or UNKNOWN (no proof — never auto-deleted). Alongside it, survey the rest of the in-flight surface yourself: open PRs with CI/merge state, dirty files in the primary checkout, claimed issues, and any session-manager view of the same worktrees (e.g. `orca worktree ps --json`).

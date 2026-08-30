@@ -114,7 +114,7 @@ The agent reads `SKILL.md` automatically. Reference docs are loaded on demand wh
 
 ## Adding this skill to a project
 
-1. Ensure the skill is available to Claude Code (symlinked or installed at `~/.claude/skills/tart-gui-automation`)
+1. Ensure the skill is installed and available to Claude Code
 2. Optionally create `.tart/target.yaml` in your project with calibrated landmarks
 3. Optionally create `.tart/flows/` with workflow recipes
 4. The agent will discover and use the skill automatically when asked to do GUI verification tasks
