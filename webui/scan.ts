@@ -124,6 +124,16 @@ interface McpServer {
   url?: string;
 }
 
+interface SkillsMcpInfo {
+  endpoint: string;
+  totalSkills: number;
+  portableSkills: number;
+  machineBound: string[];
+  connectSnippet: string;
+  specUrl: string;
+  sourceUrl: string;
+}
+
 interface Script {
   name: string;
   filename: string;
@@ -154,6 +164,7 @@ interface ConfigData {
   marketplaces: Marketplace[];
   installedPlugins: InstalledPlugin[];
   mcpServers: McpServer[];
+  skillsMcp: SkillsMcpInfo;
   blog: BlogPost[];
   sectionIntros: Record<string, string>;
 }
@@ -561,6 +572,52 @@ async function loadMcpUrls(): Promise<Record<string, string>> {
   }
 }
 
+// The repo's own skills-over-MCP server (SEP-2640): the hosted binding serves
+// the portable tier publicly; machine-bound skills stay local-to-stdio.
+const SKILLS_MCP_ENDPOINT = "https://dotclaude-skills.irons-in-the-fire8698.workers.dev/mcp";
+
+async function skillsMcpInfo(): Promise<SkillsMcpInfo> {
+  const dir = join(CLAUDE_DIR, "skills");
+  let total = 0;
+  const machineBound: string[] = [];
+  try {
+    for (const entry of await readdir(dir)) {
+      try {
+        const content = await readFile(join(dir, entry, "SKILL.md"), "utf-8");
+        total += 1;
+        if (/^\s*portability:\s*machine-bound/m.test(content.split("\n---")[0] ?? "")) {
+          machineBound.push(entry);
+        }
+      } catch {
+        continue; // not a skill directory
+      }
+    }
+  } catch (e) {
+    console.error("Error scanning skills for MCP info:", e);
+  }
+  return {
+    endpoint: SKILLS_MCP_ENDPOINT,
+    totalSkills: total,
+    portableSkills: total - machineBound.length,
+    machineBound: machineBound.sort(),
+    connectSnippet: JSON.stringify(
+      {
+        mcpServers: {
+          "dotclaude-skills": {
+            type: "http",
+            url: SKILLS_MCP_ENDPOINT,
+            headers: { "x-skills-client": "<your-label>" },
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    specUrl: "https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640",
+    sourceUrl: "https://github.com/fairchild/dotclaude/tree/main/mcp",
+  };
+}
+
 async function scanMcpServers(): Promise<McpServer[]> {
   const servers: McpServer[] = [];
   const path = join(CLAUDE_DIR, ".mcp.json");
@@ -929,6 +986,7 @@ async function main() {
     marketplaces: await scanMarketplaces(),
     installedPlugins: await scanInstalledPlugins(),
     mcpServers: await scanMcpServers(),
+    skillsMcp: await skillsMcpInfo(),
     blog: await scanBlog(),
     sectionIntros: {
       claude: "Personal instructions loaded into every Claude Code session. The ~/.claude/CLAUDE.md file.",
@@ -938,7 +996,7 @@ async function main() {
       scripts: "Custom utility scripts callable by skills and agents. Located in ~/.claude/scripts/.",
       marketplaces: "Plugin registries that provide installable extensions.",
       plugins: "Extensions installed from marketplaces.",
-      mcp: "Model Context Protocol servers providing external tool integrations.",
+      mcp: "This repo serves its own skills over MCP (SEP-2640, the Skills Extension) — plus the MCP servers its sessions connect to.",
       blog: "Notes and reflections on building with Claude Code. Written in ~/.claude/blog/.",
     },
   };

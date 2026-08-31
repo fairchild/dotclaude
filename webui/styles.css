@@ -1095,3 +1095,10 @@ a.plugin-name-link::after {
     transition-duration: 1ms !important;
   }
 }
+
+/* Featured card: the repo's own skills-over-MCP server */
+.card.featured {
+  border-color: var(--accent, #7aa2f7);
+  box-shadow: 0 0 0 1px var(--accent, #7aa2f7) inset;
+}
+.card.featured .card-content { white-space: pre-wrap; }
