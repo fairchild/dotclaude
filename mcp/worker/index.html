@@ -3,45 +3,77 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f3ef" media="(prefers-color-scheme: light)">
 <title>skills.cloudcompute.com</title>
 <meta name="description" content="dotclaude's skills served over the MCP Skills Extension (SEP-2640): {{PORTABLE}} skills, one endpoint, verifiable manifests.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Anybody:wght@700;900&display=swap" rel="stylesheet">
 <style>
   :root {
-    --paper:#F7F8F6; --ink:#1C2522; --muted:#5A6862; --accent:#0E7A6C;
-    --line:#DCE2DE; --code:#EEF1EF;
+    color-scheme: dark;
+    --bg-deep: #0d0d0d; --bg-surface: #161616; --bg-elevated: #1e1e1e;
+    --text-primary: #e8e4d9; --text-secondary: #8a8680; --text-muted: #5a5754;
+    --accent: #d4a04a; --accent-dim: #8b6a32; --accent-glow: rgba(212, 160, 74, 0.15);
+    --border: #2a2a2a; --scanline: rgba(255, 255, 255, 0.025);
   }
-  @media (prefers-color-scheme: dark) {
-    :root { --paper:#0F1513; --ink:#D8E1DC; --muted:#8FA098; --accent:#4FC8B4; --line:#263029; --code:#161D1A; }
+  @media (prefers-color-scheme: light) {
+    :root {
+      color-scheme: light;
+      --bg-deep: #f5f3ef; --bg-surface: #faf9f7; --bg-elevated: #ffffff;
+      --text-primary: #1a1918; --text-secondary: #5a5754; --text-muted: #8a8680;
+      --accent: #a67c28; --accent-dim: #c49b42; --accent-glow: rgba(166, 124, 40, 0.1);
+      --border: #e5e2dc; --scanline: rgba(0, 0, 0, 0.018);
+    }
   }
-  * { box-sizing:border-box; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 15px; }
   body {
-    margin:0; padding:0 20px 80px; background:var(--paper); color:var(--ink);
-    font:16px/1.6 "IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+    font-family: "JetBrains Mono", monospace; background: var(--bg-deep);
+    color: var(--text-primary); line-height: 1.6; min-height: 100vh;
+    padding: 0 20px 80px;
   }
-  main { max-width:74ch; margin:0 auto; }
-  a { color:var(--accent); text-underline-offset:2px; }
-  code, pre { font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace; }
-  code { background:var(--code); border-radius:3px; padding:1px 5px; font-size:.85em; }
-  pre { background:var(--code); border:1px solid var(--line); border-radius:6px; padding:14px 16px; overflow-x:auto; font-size:.8rem; line-height:1.55; position:relative; }
-  header { padding:64px 0 28px; border-bottom:2px solid var(--ink); margin-bottom:32px; }
-  .eyebrow { font-family:"IBM Plex Mono",monospace; font-size:.72rem; text-transform:uppercase; letter-spacing:.14em; color:var(--accent); margin-bottom:12px; }
-  h1 { font-size:2rem; font-weight:600; letter-spacing:-.015em; margin:0 0 10px; text-wrap:balance; }
-  h2 { font-size:1.2rem; font-weight:600; margin:40px 0 12px; }
-  .lede { color:var(--muted); font-size:1.05rem; max-width:60ch; }
-  .endpoint { font-family:"IBM Plex Mono",monospace; font-size:.95rem; background:var(--code); border:1px solid var(--line); border-radius:6px; padding:10px 14px; margin:20px 0 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-  .endpoint b { font-weight:500; color:var(--accent); }
-  button.copy { font:inherit; font-family:"IBM Plex Mono",monospace; font-size:.72rem; background:none; border:1px solid var(--line); border-radius:4px; color:var(--muted); padding:3px 10px; cursor:pointer; }
-  button.copy:hover, button.copy:focus-visible { border-color:var(--accent); color:var(--accent); outline:none; }
-  table { border-collapse:collapse; width:100%; font-size:.88rem; }
-  td { padding:8px 12px 8px 0; border-bottom:1px solid var(--line); vertical-align:top; }
-  td:first-child { font-family:"IBM Plex Mono",monospace; font-size:.8rem; white-space:nowrap; color:var(--accent); }
-  td:last-child { color:var(--muted); }
-  .note { font-size:.85rem; color:var(--muted); border-left:3px solid var(--line); padding-left:14px; }
-  footer { margin-top:56px; border-top:1px solid var(--line); padding-top:16px; font-size:.8rem; color:var(--muted); }
-  .tablewrap { overflow-x:auto; }
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, var(--scanline) 2px, var(--scanline) 4px);
+  }
+  main { max-width: 78ch; margin: 0 auto; }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:hover { color: var(--text-primary); }
+  code { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 3px; padding: 1px 6px; font-size: .85em; }
+  pre {
+    background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px;
+    padding: 14px 16px; overflow-x: auto; font-size: .8rem; line-height: 1.55;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  header { padding: 64px 0 28px; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
+  .eyebrow { font-size: .7rem; font-weight: 500; text-transform: uppercase; letter-spacing: .16em; color: var(--accent); margin-bottom: 14px; }
+  h1 {
+    font-family: "Anybody", sans-serif; font-weight: 900; font-size: 2.5rem;
+    letter-spacing: 0; line-height: 1.15; margin-bottom: 12px; text-wrap: balance;
+  }
+  h2 { font-family: "Anybody", sans-serif; font-weight: 700; font-size: 1.25rem; margin: 40px 0 12px; }
+  .lede { color: var(--text-secondary); max-width: 62ch; }
+  .endpoint {
+    font-size: .95rem; background: var(--bg-surface); border: 1px solid var(--accent-dim);
+    border-radius: 6px; padding: 12px 14px; margin-top: 22px;
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    box-shadow: 0 0 24px var(--accent-glow);
+  }
+  .endpoint b { font-weight: 600; color: var(--accent); }
+  button.copy {
+    font: inherit; font-size: .72rem; background: none; border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text-secondary); padding: 3px 10px; cursor: pointer;
+  }
+  button.copy:hover, button.copy:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+  table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+  td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+  td:first-child { font-size: .8rem; white-space: nowrap; color: var(--accent); }
+  td:last-child { color: var(--text-secondary); }
+  .note { font-size: .82rem; color: var(--text-secondary); border-left: 2px solid var(--accent-dim); padding-left: 14px; }
+  footer { margin-top: 56px; border-top: 1px solid var(--border); padding-top: 16px; font-size: .78rem; color: var(--text-muted); }
+  .tablewrap { overflow-x: auto; }
 </style>
 </head>
 <body>
@@ -76,7 +108,7 @@
 <p class="note">Requests to this server are logged for operational and usage metrics: JSON-RPC method, skill name, outcome, latency, response size, country, datacenter, user agent, and the optional <code>x-skills-client</code> label. No IP addresses are stored by this service, anonymous requests are not individually tracked, and identification happens only if you label yourself. Don't put personal data in the label. Infrastructure: Cloudflare Workers; usage events: PostHog (US).</p>
 
 <footer>
-  built from <a href="https://github.com/fairchild/dotclaude">fairchild/dotclaude</a> · snapshot: {{BUILT_AT}}
+  built from <a href="https://github.com/fairchild/dotclaude">fairchild/dotclaude</a> · explore the config at <a href="https://claude.cloudcompute.com">claude.cloudcompute.com</a> · snapshot: {{BUILT_AT}}
 </footer>
 </main>
 <script>
