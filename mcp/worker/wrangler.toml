@@ -3,6 +3,9 @@
 #   bun worker/build.ts && bunx wrangler deploy -c worker/wrangler.toml
 name = "dotclaude-skills"
 account_id = "9d1a8fe235b13dcab0fa3bcb6181ab0c"
+# Primary host; the workers.dev URL stays live as a secondary.
+routes = [{ pattern = "skills.cloudcompute.com", custom_domain = true }]
+workers_dev = true
 main = "worker.ts"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]

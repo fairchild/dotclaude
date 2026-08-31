@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>skills.cloudcompute.com</title>
+<meta name="description" content="dotclaude's skills served over the MCP Skills Extension (SEP-2640): {{PORTABLE}} skills, one endpoint, verifiable manifests.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --paper:#F7F8F6; --ink:#1C2522; --muted:#5A6862; --accent:#0E7A6C;
+    --line:#DCE2DE; --code:#EEF1EF;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper:#0F1513; --ink:#D8E1DC; --muted:#8FA098; --accent:#4FC8B4; --line:#263029; --code:#161D1A; }
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; padding:0 20px 80px; background:var(--paper); color:var(--ink);
+    font:16px/1.6 "IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  }
+  main { max-width:74ch; margin:0 auto; }
+  a { color:var(--accent); text-underline-offset:2px; }
+  code, pre { font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace; }
+  code { background:var(--code); border-radius:3px; padding:1px 5px; font-size:.85em; }
+  pre { background:var(--code); border:1px solid var(--line); border-radius:6px; padding:14px 16px; overflow-x:auto; font-size:.8rem; line-height:1.55; position:relative; }
+  header { padding:64px 0 28px; border-bottom:2px solid var(--ink); margin-bottom:32px; }
+  .eyebrow { font-family:"IBM Plex Mono",monospace; font-size:.72rem; text-transform:uppercase; letter-spacing:.14em; color:var(--accent); margin-bottom:12px; }
+  h1 { font-size:2rem; font-weight:600; letter-spacing:-.015em; margin:0 0 10px; text-wrap:balance; }
+  h2 { font-size:1.2rem; font-weight:600; margin:40px 0 12px; }
+  .lede { color:var(--muted); font-size:1.05rem; max-width:60ch; }
+  .endpoint { font-family:"IBM Plex Mono",monospace; font-size:.95rem; background:var(--code); border:1px solid var(--line); border-radius:6px; padding:10px 14px; margin:20px 0 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .endpoint b { font-weight:500; color:var(--accent); }
+  button.copy { font:inherit; font-family:"IBM Plex Mono",monospace; font-size:.72rem; background:none; border:1px solid var(--line); border-radius:4px; color:var(--muted); padding:3px 10px; cursor:pointer; }
+  button.copy:hover, button.copy:focus-visible { border-color:var(--accent); color:var(--accent); outline:none; }
+  table { border-collapse:collapse; width:100%; font-size:.88rem; }
+  td { padding:8px 12px 8px 0; border-bottom:1px solid var(--line); vertical-align:top; }
+  td:first-child { font-family:"IBM Plex Mono",monospace; font-size:.8rem; white-space:nowrap; color:var(--accent); }
+  td:last-child { color:var(--muted); }
+  .note { font-size:.85rem; color:var(--muted); border-left:3px solid var(--line); padding-left:14px; }
+  footer { margin-top:56px; border-top:1px solid var(--line); padding-top:16px; font-size:.8rem; color:var(--muted); }
+  .tablewrap { overflow-x:auto; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="eyebrow">MCP Skills Extension · SEP-2640 · io.modelcontextprotocol/skills</div>
+  <h1>dotclaude skills, served over MCP</h1>
+  <p class="lede">Every portable skill from <a href="https://github.com/fairchild/dotclaude">fairchild/dotclaude</a> — {{PORTABLE}} of {{TOTAL}} — as one resource per file under <code>skill://</code>, with complete per-skill manifests and SHA-256 digests, so a consuming host can verify every byte it reads.</p>
+  <div class="endpoint"><b>POST</b> https://skills.cloudcompute.com/mcp <button class="copy" onclick="copySnippet(this)">copy .mcp.json</button></div>
+</header>
+
+<h2>Connect</h2>
+<p>From Claude Code or any MCP host. The <code>x-skills-client</code> header is optional — it labels your traffic in the usage metrics.</p>
+<pre id="snippet">{
+  "mcpServers": {
+    "dotclaude-skills": {
+      "type": "http",
+      "url": "https://skills.cloudcompute.com/mcp",
+      "headers": { "x-skills-client": "your-label" }
+    }
+  }
+}</pre>
+<p>A host that knows the extension gets <code>skills/list</code>, <code>skills/get</code>, and <code>resources/directory/read</code>; a host that doesn't sees ordinary MCP resources and everything still works. Skills follow the <a href="https://agentskills.io/specification">Agent Skills spec</a>; the transport is <a href="https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640">SEP-2640</a>; the server is a <a href="https://github.com/fairchild/dotclaude/tree/main/mcp">public reference implementation</a>.</p>
+
+<h2>What's served</h2>
+<div class="tablewrap"><table>
+{{SKILL_ROWS}}
+</table></div>
+<p class="note">Machine-bound skills ({{MACHINE_BOUND}}) are excluded from this hosted tier — they assume their author's machine and are served only by the repo's local stdio binding.</p>
+
+<h2>Transparency</h2>
+<p class="note">Requests to this server are logged for operational and usage metrics: JSON-RPC method, skill name, outcome, latency, response size, country, datacenter, user agent, and the optional <code>x-skills-client</code> label. No IP addresses are stored by this service, anonymous requests are not individually tracked, and identification happens only if you label yourself. Don't put personal data in the label. Infrastructure: Cloudflare Workers; usage events: PostHog (US).</p>
+
+<footer>
+  built from <a href="https://github.com/fairchild/dotclaude">fairchild/dotclaude</a> · explore the config at the <a href="https://claude-code-config-ui.irons-in-the-fire8698.workers.dev">visualizer</a> · snapshot: {{BUILT_AT}}
+</footer>
+</main>
+<script>
+function copySnippet(btn) {
+  navigator.clipboard.writeText(document.getElementById("snippet").innerText).then(() => {
+    btn.textContent = "copied"; setTimeout(() => (btn.textContent = "copy .mcp.json"), 1500);
+  });
+}
+</script>
+</body>
+</html>
