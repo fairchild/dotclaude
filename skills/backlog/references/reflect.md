@@ -51,7 +51,7 @@ The first roadmap is the highest-leverage thing the project will write. Principl
 - `README.md` (always)
 - `docs/architecture.md` if present
 - All of `docs/` if it's small; index it if large
-- `CONTEXT.md` if present (often produced by the `grill-with-docs` skill)
+- `GLOSSARY.md` if present, falling back to the legacy name `CONTEXT.md` (often produced by the `grill-with-docs` skill)
 - `docs/adr/` if present (architectural decision records)
 - Root `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`
 
