@@ -200,3 +200,7 @@ hooks/herdr-agent-state.sh
 # Machine-local: hardcodes /Applications/Foundation.app and is useless without
 # that app installed.
 agents/foundation.md
+
+# defensive: never track key material
+*.pem
+*.key

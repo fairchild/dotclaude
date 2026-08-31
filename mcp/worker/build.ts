@@ -13,7 +13,7 @@
  *
  * Usage: bun worker/build.ts [--root <skills-dir>] [--out <dist-dir>]
  */
-import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -54,6 +54,25 @@ writeFileSync(
     null,
     2,
   ),
+);
+
+// Landing page: the template rendered with the snapshot's real catalog.
+const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const rows = portable
+  .map(({ entry }) => {
+    const description = String(entry.frontmatter.description ?? "").split(/(?<=[.!?])\s/)[0] ?? "";
+    return `<tr><td>${escapeHtml(String(entry.frontmatter.name))}</td><td>${escapeHtml(description)}</td></tr>`;
+  })
+  .join("\n");
+const template = readFileSync(join(import.meta.dir, "index.html"), "utf-8");
+writeFileSync(
+  join(publicDir, "index.html"),
+  template
+    .replaceAll("{{PORTABLE}}", String(portable.length))
+    .replaceAll("{{TOTAL}}", String(catalog.skills.length))
+    .replaceAll("{{MACHINE_BOUND}}", excluded.map((s) => String(s.entry.frontmatter.name)).join(", ") || "none")
+    .replaceAll("{{SKILL_ROWS}}", rows)
+    .replaceAll("{{BUILT_AT}}", new Date().toISOString().slice(0, 10)),
 );
 
 const totalBytes = portable.reduce(

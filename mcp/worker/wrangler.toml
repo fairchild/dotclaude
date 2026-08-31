@@ -2,6 +2,11 @@
 # Build the snapshot first, then deploy:
 #   bun worker/build.ts && bunx wrangler deploy -c worker/wrangler.toml
 name = "dotclaude-skills"
+# The Cloudflare account comes from CLOUDFLARE_ACCOUNT_ID — set it in the
+# environment, in a gitignored mcp/.env (wrangler auto-loads it), or as a
+# repository variable for CI. Forks bring their own account and route.
+routes = [{ pattern = "skills.cloudcompute.com", custom_domain = true }]
+workers_dev = false
 main = "worker.ts"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
@@ -9,3 +14,20 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = "dist/public"
 binding = "ASSETS"
+
+# Product-level usage events (skill_used) go to PostHog when a project key
+# is present. Forks: set your own with
+#   bunx wrangler secret put POSTHOG_API_KEY -c worker/wrangler.toml
+# No key means no emission — the worker no-ops it.
+[vars]
+POSTHOG_HOST = "https://us.i.posthog.com"
+
+[observability]
+enabled = true
+
+# One datapoint per request: blobs = [method, skill, outcome, client-label,
+# user-agent, country, colo], doubles = [latency_ms, response_bytes].
+# Query with `bun metrics.ts` (Analytics Engine SQL API).
+[[analytics_engine_datasets]]
+binding = "METRICS"
+dataset = "skills_mcp_usage"

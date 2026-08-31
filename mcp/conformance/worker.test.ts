@@ -17,6 +17,7 @@ const DIST = join(import.meta.dir, ".worker-dist");
 const PUBLIC = join(DIST, "public");
 
 /** Serve the built dist/public the way the Workers assets binding would. */
+const datapoints: Array<{ blobs?: string[]; doubles?: number[]; indexes?: string[] }> = [];
 const env = {
   ASSETS: {
     async fetch(request: Request): Promise<Response> {
@@ -24,6 +25,11 @@ const env = {
       const file = join(PUBLIC, path);
       if (!existsSync(file)) return new Response("not found", { status: 404 });
       return new Response(readFileSync(file));
+    },
+  },
+  METRICS: {
+    writeDataPoint(point: { blobs?: string[]; doubles?: number[]; indexes?: string[] }) {
+      datapoints.push(point);
     },
   },
 };
@@ -113,5 +119,92 @@ describe("hardening (exercise-workflow findings)", () => {
     expect(big.status).toBe(413);
     const body: any = await big.json();
     expect(body.error.code).toBe(-32600);
+  });
+});
+
+describe("usage metrics", () => {
+  test("every request emits one datapoint with method, skill, and outcome", async () => {
+    datapoints.length = 0;
+    await rpc("skills/get", { uri: "skill://git-workflow/SKILL.md" });
+    const ok = datapoints.at(-1)!;
+    expect(ok.blobs!.slice(0, 3)).toEqual(["skills/get", "git-workflow", "ok"]);
+    expect(ok.doubles![0]).toBeGreaterThanOrEqual(0); // latency
+    expect(ok.doubles![1]).toBeGreaterThan(0); // response bytes
+    expect(ok.indexes).toEqual(["skills/get"]);
+
+    await rpc("skills/get", { uri: "skill://bound-skill/SKILL.md" });
+    expect(datapoints.at(-1)!.blobs![2]).toBe("error:-32602");
+
+    await worker.fetch(new Request("https://skills.example/mcp"), env);
+    expect(datapoints.at(-1)!.blobs!.slice(0, 3)).toEqual(["http:GET", "", "http:405"]);
+
+    const labeled = await worker.fetch(
+      new Request("https://skills.example/mcp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-skills-client": "michael" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "skills/list", params: {} }),
+      }),
+      env,
+    );
+    expect(labeled.status).toBe(200);
+    expect(datapoints.at(-1)!.blobs![3]).toBe("michael");
+  });
+
+  test("a missing METRICS binding is harmless", async () => {
+    const bare = { ASSETS: env.ASSETS };
+    const response = await worker.fetch(
+      new Request("https://skills.example/mcp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "skills/list", params: {} }),
+      }),
+      bare,
+    );
+    expect(response.status).toBe(200);
+  });
+});
+
+describe("posthog emission", () => {
+  test("skill-scoped requests emit skill_used; no key means no call", async () => {
+    const captured: any[] = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: any, init?: any) => {
+      const url = String(input);
+      if (url.includes("posthog.test")) {
+        captured.push(JSON.parse(init.body));
+        return new Response("{}", { status: 200 });
+      }
+      return realFetch(input, init);
+    }) as typeof fetch;
+    try {
+      const waited: Promise<unknown>[] = [];
+      const ctx = { waitUntil: (p: Promise<unknown>) => waited.push(p) };
+      const phEnv = { ...env, POSTHOG_API_KEY: "phc_test", POSTHOG_HOST: "https://posthog.test" };
+      const request = (headers: Record<string, string> = {}) =>
+        new Request("https://skills.example/mcp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "skills/get", params: { uri: "skill://git-workflow/SKILL.md" } }),
+        });
+
+      await worker.fetch(request({ "x-skills-client": "michael" }), phEnv, ctx);
+      await Promise.all(waited);
+      expect(captured.length).toBe(1);
+      expect(captured[0].event).toBe("skill_used");
+      expect(captured[0].distinct_id).toBe("michael");
+      expect(captured[0].properties.skill).toBe("git-workflow");
+      expect(captured[0].properties.transport).toBe("hosted-worker");
+
+      await worker.fetch(request(), phEnv, ctx); // unlabeled -> distinct_id public
+      await Promise.all(waited);
+      expect(captured.at(-1)!.distinct_id).toBe("public");
+
+      captured.length = 0;
+      await worker.fetch(request(), env, ctx); // no POSTHOG_API_KEY -> no emission
+      await Promise.all(waited);
+      expect(captured.length).toBe(0);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 });
