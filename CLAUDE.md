@@ -52,6 +52,12 @@ Memory grows from explicit instruction (*"remember that..."*) *and* from quieter
 - Avoid comments and documentation that is clearly expressed by type hints and structure
 - Code can be poetry
 
+## Domain Glossaries
+
+- `GLOSSARY.md` is the standard name for a repo's domain-model doc (renamed from `CONTEXT.md`, 2026-08-30). Multi-context repos map their glossaries in `CONTEXT-MAP.md`.
+- Before planning or any non-trivial change in a repo, read its `GLOSSARY.md` (fall back to the legacy `CONTEXT.md` where the rename hasn't landed) and use its terms.
+- Skills that hardcode `CONTEXT.md` (grill-with-docs, improve-codebase-architecture, the mattpocock domain-modeling family — vendored upstream, don't edit them) follow this override: read `GLOSSARY.md` first with `CONTEXT.md` as fallback; write new or sharpened terms to `GLOSSARY.md`.
+
 ## Writing style
 
 **Register: casual-technical** — engineer writing to another engineer they respect and don't want to waste the time of. Contractions and em-dashes fine; *I think* / *ostensibly* earn their keep when they distinguish mechanism from theory.
