@@ -68,8 +68,7 @@ bunx wrangler deploy -c worker/wrangler.toml   # publish (POST /mcp)
 ## Connect
 
 The hosted binding is live at `https://skills.cloudcompute.com/mcp`
-(portable tier, public; `https://dotclaude-skills.irons-in-the-fire8698.workers.dev/mcp`
-stays as a secondary host). The root of that domain is a landing page built
+(portable tier, public). The root of that domain is a landing page built
 from the snapshot (`worker/index.html` + build.ts). Claude Code — or any MCP host — connects to either binding:
 
 ```json
