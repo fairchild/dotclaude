@@ -574,7 +574,7 @@ async function loadMcpUrls(): Promise<Record<string, string>> {
 
 // The repo's own skills-over-MCP server (SEP-2640): the hosted binding serves
 // the portable tier publicly; machine-bound skills stay local-to-stdio.
-const SKILLS_MCP_ENDPOINT = "https://dotclaude-skills.irons-in-the-fire8698.workers.dev/mcp";
+const SKILLS_MCP_ENDPOINT = "https://skills.cloudcompute.com/mcp";
 
 async function skillsMcpInfo(): Promise<SkillsMcpInfo> {
   const dir = join(CLAUDE_DIR, "skills");

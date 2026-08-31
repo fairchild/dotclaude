@@ -88,7 +88,7 @@ test.describe("Claude Config Visualizer", () => {
     const featured = page.locator(".card.featured");
     await expect(featured).toBeVisible();
     await expect(featured).toContainText("dotclaude-skills");
-    await expect(featured).toContainText("workers.dev/mcp");
+    await expect(featured).toContainText("skills.cloudcompute.com/mcp");
     await expect(featured).toContainText("skills served");
     await featured.locator(".card-header").click();
     await expect(featured.locator(".card-content")).toContainText("SEP-2640");
