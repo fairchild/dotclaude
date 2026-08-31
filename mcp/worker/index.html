@@ -70,6 +70,8 @@
   table { border-collapse: collapse; width: 100%; font-size: .85rem; }
   td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
   td:first-child { font-size: .8rem; white-space: nowrap; color: var(--accent); }
+  td:first-child a { color: var(--accent); text-decoration: none; }
+  td:first-child a:hover { color: var(--text-primary); text-decoration: underline; }
   td:last-child { color: var(--text-secondary); }
   .note { font-size: .82rem; color: var(--text-secondary); border-left: 2px solid var(--accent-dim); padding-left: 14px; }
   footer { margin-top: 56px; border-top: 1px solid var(--border); padding-top: 16px; font-size: .78rem; color: var(--text-muted); }
@@ -96,6 +98,8 @@
     }
   }
 }</pre>
+<p>Scripts and assets ride the same rails: every file in a skill — <code>scripts/</code>, <code>references/</code>, <code>assets/</code> — is an ordinary resource under its <code>skill://</code> path, enumerated in the skill's manifest with a digest and size, fetched with plain <code>resources/read</code> (binaries arrive base64-encoded). Scripts travel as verified bytes, nothing more — the spec deliberately gives them no execute semantics, so your host materializes them and runs them under its own permission gates.</p>
+
 <p>A host that knows the extension gets <code>skills/list</code>, <code>skills/get</code>, and <code>resources/directory/read</code>; a host that doesn't sees ordinary MCP resources and everything still works. Skills follow the <a href="https://agentskills.io/specification">Agent Skills spec</a>; the transport is <a href="https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640">SEP-2640</a>; the server is a <a href="https://github.com/fairchild/dotclaude/tree/main/mcp">public reference implementation</a>.</p>
 
 <h2>What's served</h2>
