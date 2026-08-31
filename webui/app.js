@@ -196,7 +196,7 @@ function render() {
   document.getElementById('count-scripts').textContent = data.scripts.length;
   document.getElementById('count-marketplaces').textContent = data.marketplaces.length;
   document.getElementById('count-plugins').textContent = data.installedPlugins.length;
-  document.getElementById('count-mcp').textContent = data.mcpServers.length;
+  document.getElementById('count-mcp').textContent = data.mcpServers.length + (data.skillsMcp ? 1 : 0);
 }
 
 const CARD_SECTIONS = new Set(['commands', 'agents', 'skills', 'scripts', 'marketplaces', 'plugins', 'mcp']);
@@ -486,12 +486,46 @@ function renderPlugins() {
   `}).join('')}</div>`;
 }
 
+function renderSkillsMcpCard() {
+  const m = data.skillsMcp;
+  if (!m) return '';
+  return `
+    <article class="card featured" data-name="dotclaude-skills">
+      <div class="card-header" tabindex="0" role="button" aria-expanded="false" onclick="toggleCard(this.parentElement)" onkeydown="handleCardKeydown(event, this)">
+        <span class="card-icon">📡</span>
+        <div class="card-info">
+          <div class="card-name">
+            dotclaude-skills
+            <a href="${escapeHtml(m.endpoint.replace(/\/mcp$/, ''))}" target="_blank" rel="noopener" class="source-link" onclick="event.stopPropagation()">↗</a>
+          </div>
+          <div class="mcp-command">${escapeHtml(m.endpoint)}</div>
+          <div class="card-meta">
+            <span class="tag">this repo's server</span>
+            <span class="tag">${m.portableSkills} skills served</span>
+            <span class="tag">Streamable HTTP</span>
+            <span class="tag">SEP-2640</span>
+          </div>
+        </div>
+        <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard(data.skillsMcp.connectSnippet, this)" aria-label="Copy connect config" title="Copy connect config">⧉</button>
+        <span class="card-toggle" aria-hidden="true">▶</span>
+      </div>
+      <div class="card-body">
+        <div class="card-content">Every skill in this repo, served over the MCP Skills Extension (<a href="${escapeHtml(m.specUrl)}" target="_blank" rel="noopener">SEP-2640</a>): one resource per file under skill://, complete per-skill manifests with SHA-256 digests, skills/list + skills/get + directory reads. The hosted endpoint serves the portable tier (${m.portableSkills} of ${m.totalSkills} skills); ${m.machineBound.map(escapeHtml).join(' and ')} stay machine-bound, served only by the local stdio binding. Source: <a href="${escapeHtml(m.sourceUrl)}" target="_blank" rel="noopener">mcp/</a>.
+
+Connect from any MCP host (.mcp.json) — the x-skills-client header is optional and labels your traffic in the usage metrics:
+
+${escapeHtml(m.connectSnippet)}</div>
+      </div>
+    </article>`;
+}
+
 function renderMcp() {
-  if (!data.mcpServers.length) {
+  const featured = renderSkillsMcpCard();
+  if (!data.mcpServers.length && !featured) {
     return '<div class="empty"><div class="empty-icon">⚡</div><p>No MCP servers configured</p></div>';
   }
 
-  return `<div class="cards">${data.mcpServers.map((srv, i) => `
+  return `<div class="cards">${featured}${data.mcpServers.map((srv, i) => `
     <article class="card" data-idx="${i}" data-name="${escapeHtml(srv.name)}">
       <div class="card-header" tabindex="0" role="button" aria-expanded="false" onclick="toggleCard(this.parentElement)" onkeydown="handleCardKeydown(event, this)">
         <span class="card-icon">⚡</span>

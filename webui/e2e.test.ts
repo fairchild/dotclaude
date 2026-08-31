@@ -82,6 +82,19 @@ test.describe("Claude Config Visualizer", () => {
     }
   });
 
+  test("mcp section features the repo's own skills server", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await page.click('[data-section="mcp"]');
+    const featured = page.locator(".card.featured");
+    await expect(featured).toBeVisible();
+    await expect(featured).toContainText("dotclaude-skills");
+    await expect(featured).toContainText("workers.dev/mcp");
+    await expect(featured).toContainText("skills served");
+    await featured.locator(".card-header").click();
+    await expect(featured.locator(".card-content")).toContainText("SEP-2640");
+    await expect(featured.locator(".card-content")).toContainText("x-skills-client");
+  });
+
   test("cards expand on click", async ({ page }) => {
     // Navigate to commands section first (readme has no cards)
     await page.click('.tab[data-section="commands"]');
