@@ -107,7 +107,6 @@ Claude loads these when the task matches the description.
 | `/fork` | Fork the current session with context carried over. |
 | `/release` | Create semantic versioned releases with AI-generated changelogs, for repos that do not already have a release pipeline… |
 | `/skill-building` | Guide for creating, editing, and evaluating skills. |
-| `/tart-gui-automation` | Run deterministic GUI workflows in isolated Tart macOS VMs. |
 | `/tidyup` | Proof-based sweep of a repo's accumulated worktrees, stale local branches, and in-flight PRs — reduces open threads to… |
 | `/web-artifacts-builder` | Suite of tools for creating elaborate, multi-component claude.ai HTML artifacts using modern frontend web technologies… |
 | `/youtube-content` | Extract and analyze YouTube video content (transcripts + metadata). |
