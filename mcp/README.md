@@ -22,6 +22,9 @@ skill-shaped view:
 - `resources/directory/read` (optional, declared via `directoryRead: true`) —
   direct children of a directory resource, for scoped navigation.
 
+For HTTP download routes, supported formats, and `Accept` negotiation, see
+[Skill HTTP downloads](worker/HTTP.md).
+
 Reading a file is plain `resources/read`; reading a `SKILL.md` does not
 activate anything — activation, approval, and origin-tagging are host
 concerns, and the SEP's security section makes them explicit.
