@@ -109,8 +109,8 @@ describe("skill reading and installation", () => {
  * diagnostic is produced. It never becomes a skill candidate and never
  * emits a `[skills] skipped ...` line, so the other conformance and worker
  * tests that count skills against this same fixtures root are unaffected
- * (verified: `bun test conformance` reports the same 109 pass / 3 skip / 0
- * fail before and after adding the file).
+ * (verified: adding the fixture alone changes no pass/skip count and adds no
+ * `[skills] skipped` line to `bun test conformance`).
  *
  * The fixture exercises, one section per case:
  *   - a raw HTML block and raw inline HTML tags (html: false must inert them)
@@ -121,8 +121,10 @@ describe("skill reading and installation", () => {
  *     before this renderer's link/image rules ever run (see BAD_PROTO_RE in
  *     markdown-it's source); the fixture documents that as defense-in-depth
  *   - an `ftp:` link, a `tel:` link, and a `data:image/png;base64,...` image
- *     — none of these are in markdown-it's own denylist, so they reach real
- *     link/image tokens; only this renderer's own href allow-list blocks them
+ *     — `ftp:` and `tel:` are not matched by markdown-it's BAD_PROTO_RE at
+ *     all, and `data:image/png` matches it but is exempted by its GOOD_DATA_RE
+ *     image-MIME allowance, so all three reach real link/image tokens; only
+ *     this renderer's own https:/http:/mailto: allow-list blocks them
  *   - safe targets that must keep working: mailto:, https:, and relative
  *     sibling links resolved against the skill's base URL, plus an in-page
  *     anchor
