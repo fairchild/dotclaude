@@ -13,6 +13,7 @@ on:
       - 'skills/**/SKILL.md'
       - 'scripts/**'
       - 'README.md'
+      - 'blog/**'
       - '.mcp.json'
 
   # Allow manual trigger
