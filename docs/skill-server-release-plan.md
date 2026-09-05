@@ -1,8 +1,9 @@
 # skill-server release plan
 
 Status, 2026-09-05: the GitHub-only candidate pipeline and package-backed site
-deployment are implemented. The package version is `0.1.0-rc.1`, but no
-`skill-server-v*` GitHub release has been published. npm publication remains
+deployment are implemented, and the first candidate,
+[`skill-server-v0.1.0-rc.1`](https://github.com/fairchild/dotclaude/releases/tag/skill-server-v0.1.0-rc.1)
+at `6702258f`, is published as a GitHub prerelease. npm publication remains
 unconfigured and requires separate maintainer approval. The repository's older
 `v0.1.0` release is not a skill-server package release.
 
@@ -81,7 +82,10 @@ free of concurrent external writers, and it is not an OS sandbox. See the
 1. Select a GitHub candidate explicitly. Verify the chosen commit's full matrix,
    create its matching RC tag, inspect the resulting release assets and
    attestation, and install that exact release tarball in a fresh directory.
-   The workflow exists; this first publication has not been exercised yet.
+   Exercised on 2026-09-05 for `skill-server-v0.1.0-rc.1`: the release
+   tarball's sha256 `6d00690f…` equals the main run's artifact, `SHA256SUMS`
+   and the SLSA provenance attestation verify, and a fresh-directory install
+   ran `stdio`, `build` and `serve`. Repeat for each later candidate.
 2. Complete broader reference-implementation qualification. The upstream pin
    and the supported-methods/limitations table now live in
    [`mcp/README.md`](../mcp/README.md#protocol-and-source-layout) (the pin)
