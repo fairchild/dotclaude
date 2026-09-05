@@ -13,8 +13,9 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=./lib.sh
-. "$script_dir/lib.sh"
+# The inbox skill is installed beside this orchestration skill.
+# shellcheck source=../../agent-inbox/scripts/lib.sh
+. "$script_dir/../../agent-inbox/scripts/lib.sh"
 
 surface=""
 inbox_path=""

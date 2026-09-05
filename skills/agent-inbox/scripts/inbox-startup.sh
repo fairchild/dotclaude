@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SessionStart hook: summarize unread inbox messages so the agent sees them as initial context.
-# Agent name from $CLAUDE_SESSION_NAME, fallback to "orchestrator".
-# Silent when empty. Designed to be fast (<200ms).
+# Uses the same identity and root as the unread-count hook.
+# Silent when empty; does not consume messages.
 
 set -euo pipefail
 
@@ -10,7 +10,10 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$script_dir/lib.sh"
 
 inbox_root=$(agent_inbox_root)
-agent="${CLAUDE_SESSION_NAME:-orchestrator}"
+agent=$(agent_inbox_name)
+if [[ -z "$agent" ]]; then
+  exec bash "$script_dir/check-inbox-hook.sh"
+fi
 inbox="$inbox_root/$agent/new"
 
 [[ -d "$inbox" ]] || exit 0

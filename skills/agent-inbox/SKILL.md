@@ -1,155 +1,88 @@
 ---
 name: agent-inbox
 license: Apache-2.0
-description: File-based messaging between agents across any harness. Invoke this skill when you see "📬 unread in .agents/inbox", need to send or read agent messages, or set up an inbox. Triggers on "📬", ".agents/inbox", "agent inbox", "send message to agent", "check inbox", "agent message".
+description: File-based messaging between agents across tools. Use when notified of unread inbox mail, setting up an agent inbox, or sending, reading, or replying to agent messages.
 ---
 
-# Agent Inbox Protocol
+# Agent inbox
 
-File-based messaging for agents across harnesses (Claude Code, Codex, Cursor, Gemini CLI, Warp, etc.). Just filesystem operations — `mkdir`, `cat`, `mv`.
+Mail is a Markdown file. Deliver it with an atomic rename; the recipient reads it and archives it after handling it. Any agent with filesystem access can participate.
 
-## Setup
+```text
+main checkout ----+--> shared .agents/inbox/<agent>/
+linked worktree ---+
 
-Pick a goal-oriented slug for yourself (see **Self-naming**), resolve the shared inbox root, then create your inbox:
-
-```bash
-if common_dir=$(git rev-parse --git-common-dir 2>/dev/null); then
-  case "$common_dir" in
-    /*) ;;
-    *) common_dir="$(git rev-parse --show-toplevel)/$common_dir" ;;
-  esac
-  inbox_root="$(dirname "$common_dir")/.agents/inbox"
-else
-  inbox_root="$PWD/.agents/inbox"
-fi
-
-mkdir -p "$inbox_root/<your-slug>"/{new,tmp,archive}
+message: tmp/ --mv--> new/ --read + handle--> archive/
+owner:   sender      recipient
 ```
 
-Inside a git repo, this stores mail beside the repo's common git directory so every worktree in the clone sees the same inbox. Outside git, it falls back to the current directory's `.agents/inbox/`.
+## Set up and discover
 
-## Send a message
+Pick a short, goal-oriented name such as `auth-rewrite`. Use lowercase kebab-case, check for an existing owner, and add a suffix if the name is taken. Keep your name for the session even if the task changes. One reader owns each inbox.
 
-Write to `tmp/`, then `mv` to `new/` (atomic — prevents partial reads). If the directory doesn't exist yet, create it with `mkdir -p` first.
+Set `skill_dir` to the directory containing this SKILL.md, then:
 
 ```bash
-mkdir -p "$inbox_root/recipient"/{new,tmp,archive}
-cat > "$inbox_root/recipient/tmp/20260315T101500-auth-ready.md" << 'EOF'
+. "$skill_dir/scripts/lib.sh"
+inbox_root=$(agent_inbox_root) || exit 1
+export AGENT_INBOX_NAME=auth-rewrite
+mkdir -p "$inbox_root/$AGENT_INBOX_NAME"/{tmp,new,archive}
+ls "$inbox_root"  # Discover peers; directories may belong to inactive sessions.
+```
+
+Share your name and resolved inbox root with collaborators. Directory existence does not prove an agent is running.
+
+By default, all worktrees in a Git clone share `.agents/inbox/` beside the common Git directory. This keeps discovery simple and mail independent of worktree deletion. Outside Git, the default is `$PWD/.agents/inbox/`; collaborators must use the same directory.
+
+Set `AGENT_INBOX_ROOT` to an absolute path to override the default. Use a worktree-local `.agents/inbox/` when isolation or filesystem permissions require it, and share that exact path with peers. A shared inbox may require access beyond an agent's worktree sandbox. Keep inbox contents ignored by Git; they are coordination state, not source code.
+
+## Send and reply
+
+Use a unique filename and write in the recipient's `tmp/`, then rename into its `new/`. Both directories must be on the same filesystem. `mktemp` prevents concurrent senders from reusing a filename.
+
+```bash
+recipient=api-review
+mkdir -p "$inbox_root/$recipient"/{tmp,new,archive}
+draft=$(mktemp "$inbox_root/$recipient/tmp/$(date -u +%Y%m%dT%H%M%SZ)-auth-ready.XXXXXX") || exit 1
+cat > "$draft" <<EOF_MESSAGE
 ---
-from: my-agent
-to: recipient
-reply_to: ../my-agent/tmp/
-timestamp: 2026-03-15T10:15:00Z
+from: $AGENT_INBOX_NAME
+to: $recipient
+reply_to: ../$AGENT_INBOX_NAME/tmp/
+timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 thread: auth-v2
 ---
 
-Auth middleware rewrite is ready on `feat/auth-v2`.
-EOF
-mv "$inbox_root/recipient/tmp/20260315T101500-auth-ready.md" "$inbox_root/recipient/new/"
+Auth middleware is ready on branch feat/auth-v2. Please review the token validation.
+EOF_MESSAGE
+mv "$draft" "$inbox_root/$recipient/new/$(basename "$draft").md"
 ```
 
-## Check for messages
+The body should state the result or request, relevant evidence or file/branch references, and the next action. Keep it short. Use a quoted heredoc for literal bodies containing shell syntax.
 
-```bash
-ls "$inbox_root/my-agent/new/"
-```
+Messages have YAML frontmatter. `from`, `to`, `reply_to`, and `timestamp` are required; `thread` is optional topic grouping. Keep the same `thread` when replying. Filenames end in `.md`; a UTC timestamp, subject, and unique suffix make them easy to scan.
+
+To reply, resolve `reply_to` relative to the recipient's inbox directory, not its `new/` directory. It identifies the sender's `tmp/`; deliver to the sibling `new/` using the same write-and-rename sequence. For separate inbox roots, use an agreed absolute `reply_to` path. Check that the path belongs to the intended peer before writing.
 
 ## Read and archive
 
 ```bash
-cat "$inbox_root/my-agent/new/20260315T101500-auth-ready.md"
-mv "$inbox_root/my-agent/new/20260315T101500-auth-ready.md" "$inbox_root/my-agent/archive/"
+ls "$inbox_root/$AGENT_INBOX_NAME/new/"
+cat "$inbox_root/$AGENT_INBOX_NAME/new/<file>.md"
+# After handling the message or recording its follow-up:
+mv "$inbox_root/$AGENT_INBOX_NAME/new/<file>.md" "$inbox_root/$AGENT_INBOX_NAME/archive/"
 ```
 
-## Reply
+Read and archive only your own mail unless asked to act for another agent. Archiving acknowledges handling, not task completion. Send an explicit reply when the sender needs a result. Delivery does not guarantee an agent is awake or has read the message.
 
-Read `reply_to` from the message frontmatter — it points to the sender's `tmp/` directory. Write there, then `mv` to `new/`.
+## Optional notifications
 
-## Migrating old per-worktree inboxes
+Run `scripts/check-inbox-hook.sh` at a turn boundary for an unread count, or `scripts/inbox-startup.sh` at session start for a summary. Both are read-only and silent when empty.
 
-Old `.agents/inbox/` trees use the same message format. Resolve the new `inbox_root`, then move each agent directory into it:
+Both use `AGENT_INBOX_NAME`, falling back to `CLAUDE_SESSION_NAME` for existing integrations. With no identity set, they report only the shared unread count. Export the name where the hook runs; setting it in a child shell does not configure the parent session.
 
-```bash
-old_root=/path/to/worktree/.agents/inbox
-mkdir -p "$inbox_root"
-mv "$old_root"/* "$inbox_root"/
-```
+Attach these scripts through your tool's hook configuration using their absolute install paths. Scheduling and waking agents belong to that tool; the inbox protocol only delivers files.
 
-Leave the old `.agents/` directory in place if that worktree still needs the non-git fallback; otherwise it can be removed after verifying the shared inbox has the expected agent directories.
+## Existing inboxes
 
-## Self-naming
-
-When you first need an inbox and don't already have one, name yourself:
-
-1. Reflect on the conversation so far — what is the goal?
-2. Pick a short slug (1–3 words, kebab-case) that captures that goal: `auth-rewrite`, `sidebar-focus`, `lume-validation`
-3. Resolve `inbox_root` as shown in Setup
-4. Create your inbox: `mkdir -p "$inbox_root/<your-slug>"/{new,tmp,archive}`
-5. Use that slug as your `from` in all messages
-
-Good names are **goal-oriented**, not role-oriented. Prefer `fix-split-focus` over `agent-1` or `debugger`. If the conversation pivots significantly, keep your original name — identity stability matters more than perfect accuracy.
-
-## Discovery
-
-Tell each agent the other's inbox path, or let agents discover peers by listing `$inbox_root/`. Every message carries `reply_to` so the recipient can reply without prior setup.
-
-## Message format
-
-Markdown with YAML frontmatter. Filename: `<YYYYMMDDTHHMMSS>-<slug>.md`
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `from` | yes | Sender's agent name |
-| `to` | yes | Recipient's agent name |
-| `reply_to` | yes | Sender's `tmp/` dir, relative to recipient's inbox (e.g. `../sender/tmp/`) |
-| `timestamp` | yes | ISO 8601 |
-| `thread` | no | Topic grouping (e.g. `auth-v2`) |
-
-## Conventions
-
-- **Slugs are short subjects**: `auth-update`, `review-needed`, `api-ready`
-- **Always write via `tmp/` then `mv` to `new/`**: atomic writes prevent partial reads
-- **Archive after reading**: move from `new/` to `archive/`
-- **Gitignore contents**: messages are ephemeral coordination, not project state
-
-## Hooks & Notifications
-
-### Stop hook — check for new mail
-
-`scripts/check-inbox-hook.sh` scans the repo-shared inbox root (`$inbox_root/*/new/`). Silent when empty — no configuration needed.
-
-### SessionStart hook — inbox summary
-
-`scripts/inbox-startup.sh` prints a summary of unread messages when a session starts. Agent name comes from `$CLAUDE_SESSION_NAME` (falls back to `orchestrator`). Silent when empty, fast (<200ms).
-
-Configure in `settings.json`, substituting this skill's actual install path on your machine for `<agent-inbox base dir>` (a `settings.json` hook command runs outside skill invocation, so it needs a literal path, not a relative one):
-
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      {
-        "type": "command",
-        "command": "bash <agent-inbox base dir>/scripts/inbox-startup.sh"
-      }
-    ]
-  }
-}
-```
-
-### Wake-on-reply — notify parent via cmux
-
-`scripts/wake-parent.sh` bridges async inbox messages to session lifecycle. After writing a reply to a parent's inbox, call it to wake the parent:
-
-```bash
-wake-parent.sh --surface <cmux-surface-ref> [--inbox-path <path>] [--agent <name>]
-```
-
-Behavior based on surface state:
-- **Active claude session**: no-op (mail is already in the inbox — the stop hook picks it up on next turn)
-- **Idle shell prompt**: spawns a headless `claude -p` session that reads the inbox
-- **Surface gone**: warns and exits
-
-> **Note:** The spawned headless session uses `--dangerously-skip-permissions` because there is no human at the terminal to approve tool calls. This is the pragmatic approach for now — a future permissions profile or allowlist flag would be preferable.
-
-Requires cmux. See `cmux-orchestrator` skill for the full Wake-on-Reply pattern.
+The message format is unchanged. Before moving an old worktree-local inbox, pause its readers and writers, resolve the shared root, and check for name and filename collisions. Merge messages deliberately; do not blindly move agent directories over existing inboxes. Verify the mail arrived and update collaborators' paths before removing the old copy.
