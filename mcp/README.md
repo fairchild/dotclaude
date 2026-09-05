@@ -8,14 +8,19 @@ checkout also includes the Cloudflare adapter for skills.cloudcompute.com.
 ## Install a GitHub candidate
 
 Download the `.tgz` from a published `skill-server-v<VERSION>` GitHub prerelease,
-then install it in a fresh project directory:
+then install it in a fresh project directory. Installing into an empty directory
+also creates `package.json` and `package-lock.json` there, since `npm install`
+scaffolds a project when none exists yet. `stdio` and `build` serve a skills
+directory, so create `./my-skills/<name>/SKILL.md` first, with frontmatter
+`name` matching the directory name and a `description` set, per the
+[Agent Skills spec](https://agentskills.io/specification):
 
 ```sh
 npm install ./skill-server-0.1.0-rc.1.tgz
 npx --no-install skill-server --help
 npx --no-install skill-server stdio --root ./my-skills
 npx --no-install skill-server build --root ./my-skills --out ./snapshot --base-url http://127.0.0.1:3000
-npx --no-install skill-server serve --snapshot ./snapshot
+npx --no-install skill-server serve --snapshot ./snapshot --port 3000
 ```
 
 The filename is the initial candidate version, not a claim that a release already
@@ -23,9 +28,16 @@ exists. Requires Node 22.14+; CI checks Node 22.14.0 and current Node 22/24.
 PRs qualify Linux/macOS; main and releases also qualify Windows. Dependencies download
 from npm, but this package is distributed through GitHub only. No Bun, TypeScript
 compiler, system tar, or consumer installation script is required. `stdio` and
-`build` require `--root`; `serve` requires `--snapshot`. HTTP listens on loopback
-by default; authentication and reverse proxy
-configuration are the operator's responsibility for external exposure.
+`build` require `--root`; `serve` requires `--snapshot` and defaults to
+`127.0.0.1:3000`, overridable with `--host`/`--port`. HTTP listens on loopback
+by default; authentication and reverse proxy configuration are the operator's
+responsibility for external exposure. On startup, `serve` writes one JSON line
+to stderr — `Listening on {"address":"127.0.0.1","family":"IPv4","port":3000}`
+— and stdout stays empty, which a wrapper can use as the readiness signal.
+`build`'s output `index.json` carries a `specification` field pointing at the
+[ext-skills repository](https://github.com/modelcontextprotocol/ext-skills), the
+MCP wire protocol for this extension — a different document from the Agent
+Skills spec linked above, which is the skill-directory format.
 
 Imports do not scan a directory, listen on a port, or send telemetry:
 
