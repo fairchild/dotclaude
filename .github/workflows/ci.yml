@@ -104,7 +104,7 @@ jobs:
           node -e 'const r=JSON.parse(process.env.RESULTS); if(r.changes.result!=="success" || Object.values(r).some(j=>!["success","skipped"].includes(j.result))) process.exit(1)'
   deploy-skills:
     needs: [gate, package]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: ${{ !cancelled() && needs.gate.result == 'success' && needs.package.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
@@ -138,7 +138,7 @@ jobs:
       - run: node .github/scripts/verify-deployment.mjs https://skills.cloudcompute.com skills
   deploy-webui:
     needs: [gate, webui]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: ${{ !cancelled() && needs.gate.result == 'success' && needs.webui.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
