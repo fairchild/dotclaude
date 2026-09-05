@@ -138,7 +138,10 @@ explicit.
 | `skills/get` | `io.modelcontextprotocol/skills` (required) | stdio, stateless HTTP | None | Same | stdio rescans the one skill on every call; the HTTP snapshot's refresh is identity (a deploy is the refresh point); `-32602` for an unknown URI |
 | `resources/directory/read` | `directoryRead: true` (optional) | stdio, stateless HTTP | Cursor, 200 children/page | Manifest-derived only, no live `readdir` | `-32602` for an unknown or non-directory URI |
 | `resources/list` | base `resources` capability | stdio, stateless HTTP | Cursor, 200 entries/page | Same per-skill limits | Flattened across every served skill |
-| `resources/read` | base `resources` capability | stdio, stateless HTTP | None | 16 MiB per skill (scan time); HTTP request bodies are separately capped at 64 KiB | Text/blob split by extension; `-32602` for an unknown resource or a directory read attempted here |
+| `resources/read` | base `resources` capability | stdio, stateless HTTP | None | 16 MiB per skill (scan time) | Text/blob split by extension; `-32602` for an unknown resource or a directory read attempted here |
+
+Every method over the stateless HTTP binding shares one 64 KiB cap on the
+streamed POST body; oversized requests receive 413 before dispatch.
 
 Not implemented: resource subscriptions and `listChanged` (the server
 declares a bare `resources: {}` capability), `resources/templates/list`, the
