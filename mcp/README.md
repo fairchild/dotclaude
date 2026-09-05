@@ -1,4 +1,74 @@
-# Skills over MCP
+# skill-server
+
+An independent implementation of the experimental Skills over MCP extension.
+GitHub candidates contain a Node CLI, importable modules, and snapshot templates.
+This is not an official MCP specification implementation endorsement. The source
+checkout also includes the Cloudflare adapter for skills.cloudcompute.com.
+
+## Install a GitHub candidate
+
+Download the `.tgz` from a published `skill-server-v<VERSION>` GitHub prerelease,
+then install it in a fresh project directory:
+
+```sh
+npm install ./skill-server-0.1.0-rc.1.tgz
+npx --no-install skill-server --help
+npx --no-install skill-server stdio --root ./my-skills
+npx --no-install skill-server build --root ./my-skills --out ./snapshot --base-url http://127.0.0.1:3000
+npx --no-install skill-server serve --snapshot ./snapshot
+```
+
+The filename is the initial candidate version, not a claim that a release already
+exists. Requires Node 22.14+; CI qualifies Node 22 and 24. Dependencies download
+from npm, but this package is distributed through GitHub only. No Bun, TypeScript
+compiler, system tar, or consumer installation script is required. `--root` is
+mandatory. HTTP listens on loopback by default; authentication and reverse proxy
+configuration are the operator's responsibility for external exposure.
+
+Imports do not scan a directory, listen on a port, or send telemetry:
+
+```js
+import { createSkillsServer } from 'skill-server';
+import { FsStore } from 'skill-server/fs';
+import { buildSnapshot, handleRequest } from 'skill-server/http';
+```
+
+`createSkillsServer(store)` returns an MCP SDK server for a transport supplied by
+the caller. `buildSnapshot({root, out, baseUrl})` creates a portable snapshot.
+`handleRequest(request, {ASSETS})` accepts a Fetch-compatible asset provider for
+the stateless HTTP binding. The hosting adapter alone supplies usage telemetry.
+
+Build output must be a fresh directory or a previously managed snapshot. Nested
+symlinks are rejected; selected top-level skill links remain supported. Imports
+and scans never execute skill scripts. Archives preserve file modes with fixed
+timestamps and sorted members. Operators must retain old snapshots themselves
+if historical digest URLs need to remain available.
+
+The GitHub release includes a SHA-256 checksum, source record and build
+attestation. Verify a downloaded artifact with:
+
+```sh
+gh attestation verify skill-server-0.1.0-rc.1.tgz --repo fairchild/dotclaude
+```
+
+## Developing in this repository
+
+```sh
+cd mcp
+bun install --frozen-lockfile
+bun run typecheck
+bun test conformance
+bun run build:package
+PACKAGE_OUTPUT_DIR=out bun run test:package
+node scripts/prepare-worker.mjs out/skill-server-0.1.0-rc.1.tgz
+node scripts/check-worker.mjs
+```
+
+The last two commands install the package into an isolated Worker consumer,
+bundle the deployment adapter, and verify the real local Cloudflare runtime.
+They replace source-only verification as the hosted release acceptance check.
+
+## Protocol and source layout
 
 Reference server for the MCP Skills Extension
 ([SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640),

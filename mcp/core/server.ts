@@ -19,6 +19,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 
 import type { SkillStore, StoredSkill } from "./store.ts";
+import { version } from "../version.ts";
 import {
   DIRECTORY_MIME,
   DirectoryReadRequestSchema,
@@ -96,7 +97,7 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
   };
 
   const server = new Server(
-    { name: options.name ?? "dotclaude-skills", version: options.version ?? "0.1.0" },
+    { name: options.name ?? "skill-server", version: options.version ?? version },
     {
       capabilities: {
         resources: {},

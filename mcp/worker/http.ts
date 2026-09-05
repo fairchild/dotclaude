@@ -78,7 +78,7 @@ export async function serveHttp(request: Request, assets: Assets, skills: () => 
       { asset: "/llms.txt", contentType: "text/markdown; charset=utf-8" },
       { asset: "/llms.txt", contentType: "text/plain; charset=utf-8" },
     ];
-  } else if (path === "/index.json" || path === "/manifest.json" || path === "/library.css") {
+  } else if (path === "/version.json" || path === "/index.json" || path === "/manifest.json" || path === "/library.css") {
     candidates = [{ asset: path, contentType: path.endsWith(".css") ? "text/css; charset=utf-8" : "application/json; charset=utf-8" }];
   } else {
     const pinned = path.match(/^\/downloads\/([a-z0-9]+(?:-[a-z0-9]+)*)\/([a-f0-9]{64})\.(tgz|json)$/);

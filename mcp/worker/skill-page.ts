@@ -1,3 +1,4 @@
+import MarkdownIt from "markdown-it";
 import { createHash } from "node:crypto";
 
 export const escapeHtml = (s: string) => s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
@@ -87,20 +88,30 @@ export function renderMarkdown(markdown: string, name: string, origin = defaultO
       return ["https:", "http:", "mailto:"].includes(url.protocol) ? escapeHtml(value.startsWith("#") ? value : url.href) : "";
     } catch { return ""; }
   };
-  return Bun.markdown.render(markdown.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, ""), {
-    text: escapeHtml,
-    heading: (s, { level, id }) => `<h${Math.min(level + 1, 6)}${id ? ` id="${escapeHtml(id)}"` : ""}>${s}</h${Math.min(level + 1, 6)}>`,
-    paragraph: s => `<p>${s}</p>`, strong: s => `<strong>${s}</strong>`, emphasis: s => `<em>${s}</em>`,
-    code: s => `<pre><code>${s}</code></pre>`, codespan: s => `<code>${s}</code>`,
-    link: (s, meta) => href(meta.href) ? `<a href="${href(meta.href)}">${s}</a>` : s,
-    image: (s, meta) => href(meta.src) ? `<a href="${href(meta.src)}">${s || "View image"}</a>` : s,
-    list: (s, m) => m.ordered ? `<ol start="${m.start ?? 1}">${s}</ol>` : `<ul>${s}</ul>`,
-    listItem: (s, m) => `<li>${m.checked === undefined ? "" : m.checked ? "☑ " : "☐ "}${s}</li>`,
-    blockquote: s => `<blockquote>${s}</blockquote>`, hr: () => "<hr>", strikethrough: s => `<del>${s}</del>`,
-    table: s => `<div class="table-scroll"><table>${s}</table></div>`,
-    thead: s => `<thead>${s}</thead>`, tbody: s => `<tbody>${s}</tbody>`, tr: s => `<tr>${s}</tr>`,
-    th: s => `<th>${s}</th>`, td: s => `<td>${s}</td>`,
-  }, { headings: { ids: true }, noHtmlBlocks: true, noHtmlSpans: true });
+  const md = new MarkdownIt({ html: false, linkify: false });
+  md.renderer.rules.heading_open = (tokens, index) => {
+    const token = tokens[index]!;
+    const text = tokens[index + 1]?.content ?? "";
+    const id = text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    return "<h" + Math.min(Number(token.tag.slice(1)) + 1, 6) + ' id="' + escapeHtml(id) + '">';
+  };
+  md.renderer.rules.heading_close = (tokens, index) => "</h" + Math.min(Number(tokens[index]!.tag.slice(1)) + 1, 6) + ">\n";
+  md.renderer.rules.link_open = (tokens, index, options, env, self) => {
+    const token = tokens[index]!;
+    const value = String(token.attrGet("href") ?? "");
+    // Let the renderer escape attributes exactly once.
+    try {
+      const url = new URL(value, base);
+      token.attrSet("href", ["https:", "http:", "mailto:"].includes(url.protocol) ? (value.startsWith("#") ? value : url.href) : "");
+    } catch { token.attrSet("href", ""); }
+    return self.renderToken(tokens, index, options);
+  };
+  md.renderer.rules.image = (tokens, index) => {
+    const token = tokens[index]!;
+    const target = href(String(token.attrGet("src") ?? ""));
+    return target ? '<a href="' + target + '">' + escapeHtml(token.content || "View image") + "</a>" : escapeHtml(token.content);
+  };
+  return md.render(markdown.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, ""));
 }
 
 export function renderSkillPage(template: string, name: string, description: string, markdown: string, paths: string[], download?: Download, origin = defaultOrigin): string {

@@ -1,0 +1,320 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      config: ${{ steps.paths.outputs.config }}
+      package: ${{ steps.paths.outputs.package }}
+      webui: ${{ steps.paths.outputs.webui }}
+      analyze: ${{ steps.paths.outputs.analyze }}
+      persona: ${{ steps.paths.outputs.persona }}
+      team: ${{ steps.paths.outputs.team }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: paths
+        run: node .github/scripts/changes.mjs
+      - run: node --test .github/scripts/paths.test.mjs
+      - name: Validate Actions syntax
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+  config:
+    needs: changes
+    if: needs.changes.outputs.config == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: '0.11.14'
+          enable-cache: false
+      - run: |
+          uv venv
+          uv pip install jsonschema==4.26.0 pyyaml==6.0.3
+          . .venv/bin/activate
+          python .github/scripts/validate-config.py
+          python scripts/catalog.py readme --check
+          python scripts/portability.py --check
+          python scripts/test_portability.py
+          for fixture in .github/fixtures/*.invalid.json; do
+            if python .github/scripts/validate-config.py --settings-only "$fixture"; then exit 1; fi
+          done
+          scripts/test-participant-contract.sh
+          bash skills/agent-inbox/scripts/test-hooks.sh
+          python skills/image-gen/scripts/check_protocol.py
+  package:
+    needs: changes
+    if: needs.changes.outputs.package == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.0'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck && bun test conformance && bun run build:package
+      - run: bun run test:package
+        env:
+          PACKAGE_OUTPUT_DIR: out
+      - run: node scripts/release-evidence.mjs
+      - run: node scripts/prepare-worker.mjs out/*.tgz
+      - run: node scripts/check-worker.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: skill-server-${{ github.sha }}
+          path: mcp/out/
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: skills-worker-${{ github.sha }}
+          path: |
+            mcp/.worker-package/dist/public/
+            mcp/.worker-package/bundle/
+            mcp/.worker-package/wrangler.toml
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+  consumer:
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: ['22', '24']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: skill-server-${{ github.sha }}
+          path: candidate
+      - shell: bash
+        run: node mcp/scripts/test-package.mjs candidate/*.tgz
+  webui:
+    needs: changes
+    if: needs.changes.outputs.webui == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.0'
+      - run: bun install --frozen-lockfile
+        working-directory: webui
+      - run: bun webui/scan.ts --skip-validation
+        env:
+          CLAUDE_DIR: .
+      - run: node .github/scripts/package-webui.mjs
+      - run: ./node_modules/.bin/playwright install --with-deps chromium && ./node_modules/.bin/playwright test
+        working-directory: webui
+        env:
+          WEBUI_ROOT: ${{ github.workspace }}/webui-release/public
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: webui-${{ github.sha }}
+          path: webui-release/
+          if-no-files-found: error
+          retention-days: 14
+  gate:
+    name: CI
+    if: always()
+    needs: [changes, config, package, consumer, webui, analyze, persona, team]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          node -e 'const r=JSON.parse(process.env.RESULTS); if(r.changes.result!=="success" || Object.values(r).some(j=>!["success","skipped"].includes(j.result))) process.exit(1)'
+  deploy-skills:
+    needs: [gate, package, consumer]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: skills-production
+      url: https://skills.cloudcompute.com
+    concurrency:
+      group: skills-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.0'
+      - run: bun install --frozen-lockfile
+        working-directory: mcp
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: skills-worker-${{ github.sha }}
+          path: deployed
+      - run: node .github/scripts/deployment-current.mjs package
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: ../mcp/node_modules/.bin/wrangler deploy --config wrangler.toml
+        working-directory: deployed
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: 'false'
+      - run: node .github/scripts/verify-deployment.mjs https://skills.cloudcompute.com skills
+  deploy-webui:
+    needs: [gate, webui]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: webui-production
+      url: https://claude.cloudcompute.com
+    concurrency:
+      group: webui-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.0'
+      - run: bun install --frozen-lockfile
+        working-directory: mcp
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: webui-${{ github.sha }}
+          path: deployed
+      - run: node .github/scripts/deployment-current.mjs webui
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: ../mcp/node_modules/.bin/wrangler deploy --config wrangler.toml
+        working-directory: deployed
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: 'false'
+      - run: node .github/scripts/verify-deployment.mjs https://claude.cloudcompute.com webui
+
+  analyze:
+    needs: changes
+    if: needs.changes.outputs.analyze == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: '0.11.14'
+          enable-cache: false
+
+      - name: Install DuckDB CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            https://install.duckdb.org/v1.5.4/duckdb_cli-linux-amd64.zip \
+            --output /tmp/duckdb.zip
+          echo '1f2fa724fb054b3dbe1a9cbd13de5b76997d850e7087ec762ba88db04e0180cf  /tmp/duckdb.zip' \
+            | sha256sum --check
+          mkdir -p "$HOME/.local/bin"
+          unzip -q /tmp/duckdb.zip -d "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Validate shell syntax
+        run: bash -n skills/analyze-usage/scripts/analyze-usage
+
+      - name: Run ingestion and report regressions
+        run: uv run skills/analyze-usage/tests/test_analyze_usage.py
+
+  team:
+    needs: changes
+    if: needs.changes.outputs.team == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Validate shell syntax
+        run: |
+          bash -n skills/team-memory/scripts/init.sh
+          bash -n skills/team-memory/scripts/launch.sh
+          bash -n skills/team-memory/scripts/session-end.sh
+          bash -n skills/team-memory/tests/regression.sh
+
+      - name: Run regression harness
+        run: bash skills/team-memory/tests/regression.sh
+
+  persona:
+    needs: changes
+    if: needs.changes.outputs.persona == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: skills/persona-memory
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: '1.4.0'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run deterministic harness
+        run: bun tests/harness.ts --suite deterministic --report text

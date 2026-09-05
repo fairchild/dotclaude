@@ -13,6 +13,11 @@ on:
     #   - "src/**/*.js"
     #   - "src/**/*.jsx"
 
+permissions:
+  contents: read
+concurrency:
+  group: review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
   claude-review:
     # Was gated on a 'needs code review' label nobody applied — 100 skipped runs
@@ -26,6 +31,7 @@ jobs:
       github.event.pull_request.draft == false &&
       github.event.sender.type != 'Bot'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       pull-requests: write
@@ -34,79 +40,38 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Run Claude Code Review
         id: claude-review
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@fa2b2666b747000bf42767d1f332065b375e3c8f # v1.0.214
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
-            Review this PR following the style in .github/copilot-instructions.md.
-
-            ## Step 1: Check Previous Review Comments
-            First, fetch all existing review threads:
-            ```bash
-            gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments
-            ```
-
-            For each unresolved comment from a previous review:
-            - Check if the issue has been fixed in the current code
-            - If fixed, resolve the thread using GraphQL:
-              ```bash
-              gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "THREAD_ID"}) { thread { isResolved } } }'
-              ```
-
-            ## Step 2: Review Current Code
-            For each NEW issue found, post an INLINE comment using:
-            `mcp__github_inline_comment__create_inline_comment`
-
-            Include a code suggestion block when you have a fix:
-            ```suggestion
-            // fixed code here
-            ```
-
-            Use terse labels: `Bug:`, `Security:`, `Perf:`
-
-            ## Step 3: Submit GitHub Review
-            After reviewing all files, determine your score (1-5).
-
-            Submit a formal GitHub PR review:
-            - If score >= 4: Submit APPROVE
-              ```bash
-              gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
-                -f event="APPROVE" \
-                -f body="**Score: X/5** [confidence: level] - summary"
-              ```
-            - If score <= 3: Submit REQUEST_CHANGES (blocks merging)
-              ```bash
-              gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
-                -f event="REQUEST_CHANGES" \
-                -f body="**Score: X/5** [confidence: level] - summary"
-              ```
-
-            ## Step 4: Update Labels and PR Description
-            1. Append score to PR description:
-               `gh pr edit --body "$(gh pr view --json body -q .body)\n\n---\n**Review Score: X/5** [confidence]\n<summary>"`
-
-            2. Update labels:
-               - Always remove `needs code review` label
-               - If score >= 4, add `code review passed` label
-               Use: `gh pr edit --remove-label "needs code review" --add-label "code review passed"`
+            Review the current PR head following .github/copilot-instructions.md.
+            Check existing inline findings first; resolve only those fixed in the current code.
+            Post actionable new findings inline with suggestions where useful.
+            Submit a formal review against the current head SHA with a 1-5 score,
+            confidence, findings, and checks actually run. Score >=4 means APPROVE;
+            lower scores mean REQUEST_CHANGES. This review remains advisory in CI.
+            Update the code review passed label to reflect the result, and remove
+            needs code review if present. Do not modify the PR description.
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr edit:*),Bash(gh api:*),Read,Glob,Grep"
 
       - name: Check Review Result
         env:
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           REVIEW_STATE=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
-            --jq '[.[] | select(.user.login == "claude[bot]")] | last | .state')
+            --jq "[.[] | select(.user.login == \"claude[bot]\" and .commit_id == \"$PR_HEAD\")] | last | .state")
 
           echo "Latest Claude review state: ${REVIEW_STATE:-<none>}"
 
@@ -134,4 +99,3 @@ jobs:
             exit 0
           fi
           echo "Code review passed (state: $REVIEW_STATE)"
-
