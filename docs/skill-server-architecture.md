@@ -94,7 +94,7 @@ attacker-controlled `Host` header cannot slip past the origin check
 adapter: it delegates every non-`/mcp` path straight to `handleRequest`, and on
 `/mcp` it measures latency, writes one Analytics Engine datapoint
 ([worker.ts](../mcp/worker/worker.ts#L43)) and fires a PostHog event when a key is
-configured ([worker.ts](../mcp/worker/worker.ts#L15)). Telemetry lives only in
+configured ([worker.ts](../mcp/worker/worker.ts#L15)). Telemetry emission lives only in
 that file — the reusable package has none.
 
 ## Building a snapshot
@@ -110,7 +110,7 @@ reference ([snapshot.ts](../mcp/worker/snapshot.ts#L88),
 Output validation runs before anything is created. The requested output is
 canonicalized through its nearest existing ancestor
 ([snapshot.ts](../mcp/worker/snapshot.ts#L21)), then rejected if it contains, or
-is contained by, the source root or the working directory
+is contained by, the source root, or if it contains the working directory
 ([snapshot.ts](../mcp/worker/snapshot.ts#L27)). Because a top-level skill may be a
 symlink pointing outside the root, the same containment test runs again against
 each scanned skill's resolved directory
