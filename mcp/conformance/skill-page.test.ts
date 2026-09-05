@@ -25,7 +25,6 @@ describe("skill reading and installation", () => {
       const build = spawnSync("bun", [join(import.meta.dir, "../worker/build.ts"), "--root", join(root, "skills"), "--out", join(root, "dist")], { encoding: "utf8" });
       expect(build.status).toBe(0);
       expect(build.stderr).toContain("unsafe skill name");
-      expect(build.stderr).toContain("unsafe skill name");
       expect(existsSync(join(root, "dist/public/skills", name))).toBe(false);
       expect(existsSync(join(root, "dist/public/downloads", name))).toBe(false);
     } finally { rmSync(root, { recursive: true, force: true }); }
