@@ -24,6 +24,8 @@ if (service === 'skills') {
   assert.equal(createHash('sha256').update(new Uint8Array(bytes)).digest('hex'), skill.download.digest);
   const rpc = await (await get('/mcp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'skills/list', params: {} }) })).json();
   assert(rpc.result?.skills.length > 0);
+  const init = await (await get('/mcp', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'verify-deployment', version: '0.0.0' } } }) })).json();
+  assert.equal(init.result?.serverInfo?.name, 'dotclaude-skills-hosted');
 } else {
   const catalog = await (await get('/data.json')).json();
   assert(catalog.skills.length > 0);

@@ -86,6 +86,22 @@ describe.skipIf(!origin)("local Worker HTTP integration", () => {
     expect((await rpc.json() as any).result.skills.length).toBeGreaterThan(0);
   });
 
+  test("initialize announces the deployment identity from the real wrangler.toml binding", async () => {
+    const response = await fetch(`${origin}/mcp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      body: JSON.stringify({
+        jsonrpc: "2.0", id: 1, method: "initialize",
+        params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "http-live-conformance", version: "0.0.0" } },
+      }),
+    });
+    expect(response.status).toBe(200);
+    const { result } = await response.json() as any;
+    expect(result.serverInfo.name).toBe("dotclaude-skills-hosted");
+    expect(typeof result.serverInfo.version).toBe("string");
+    expect(result.serverInfo.version.length).toBeGreaterThan(0);
+  });
+
   test("every raw and txt file matches the manifest; every archive matches its built bytes", async () => {
     const { skills } = JSON.parse(readFileSync(join(publicDir, "manifest.json"), "utf8")) as { skills: StoredSkill[] };
     let count = 0;
