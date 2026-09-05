@@ -72,6 +72,21 @@ describe("worker binding", () => {
     expect(note.status).toBe(202);
   });
 
+  test("catalog links to generated reading pages while raw resources stay intact", () => {
+    const index = readFileSync(join(PUBLIC, "index.html"), "utf8");
+    for (const name of ["git-workflow", "pdf-processing"]) {
+      expect(index).toContain(`href="/skill/${name}"`);
+      const page = readFileSync(join(PUBLIC, "skill", `${name}.html`), "utf8");
+      expect(page).toContain(`href="/skills/${name}/SKILL.md"`);
+      expect(page).toContain("Copy install prompt");
+      expect(page).toContain("manifest.json");
+      expect(readFileSync(join(PUBLIC, "skills", name, "SKILL.md"))).toEqual(
+        readFileSync(join(FIXTURES, name, "SKILL.md")),
+      );
+    }
+    expect(existsSync(join(PUBLIC, "skill", "bound-skill.html"))).toBe(false);
+  });
+
   test("serves the portable tier only — the build excluded machine-bound", async () => {
     const { result } = await rpc("skills/list");
     expect(result.skills.map((s: any) => s.frontmatter.name).sort()).toEqual([

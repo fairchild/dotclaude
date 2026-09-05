@@ -1,0 +1,45 @@
+import { describe, expect, test } from "bun:test";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { installPrompt, renderMarkdown, renderSkillPage } from "../worker/skill-page.ts";
+
+const template = readFileSync(join(import.meta.dir, "../worker/skill.html"), "utf8");
+describe("skill reading and installation", () => {
+  test("renders headings, code, tables and relative resource links without active HTML", () => {
+    const rendered = renderMarkdown('# Read\n\n`a < b`\n\n```sh\ncat < input\n```\n\n<script>alert(1)</script>\n\n[x](javascript:alert(1))\n\n[Guide](references/guide.md)\n\n| A | B |\n| - | - |\n| 1 | 2 |', 'example');
+    expect(rendered).toContain('<h2 id="read">Read</h2>');
+    expect(rendered).toContain('<code>a &lt; b</code>');
+    expect(rendered).toContain('cat &lt; input');
+    expect(rendered).toContain('<table>');
+    expect(rendered).toContain('https://skills.cloudcompute.com/skills/example/references/guide.md');
+    expect(rendered).not.toContain('<script>');
+    expect(rendered).not.toContain('href="javascript:');
+    expect(rendered).not.toContain('&amp;lt;');
+  });
+  test("escapes page metadata and inline prompt without replacing skill placeholders", () => {
+    const page = renderSkillPage(template, 'example', '\"><img src=x onerror=alert(1)>', '---\nname: example\n---\n\n</textarea><script>bad()</script>\n{{NAME}}\n', 2);
+    expect(page).not.toContain('<img src=x');
+    expect(page).not.toContain('<script>bad()');
+    expect(page).toContain('&lt;/textarea&gt;');
+    expect(page).toContain('{{NAME}}');
+    expect(page).toContain('2 files');
+  });
+  for (const ending of ['\n', '']) {
+    test(`copied shell command installs exact bytes ${ending ? 'with' : 'without'} final newline`, () => {
+      const root = mkdtempSync(join(tmpdir(), 'skill-install-'));
+      try {
+        const markdown = '---\nname: example\n---\n\n# Example\n\n$HOME `echo nope` $(echo nope) "quotes" & <tags>' + ending;
+        const prompt = installPrompt('example', markdown);
+        expect(prompt).toContain('https://skills.cloudcompute.com/manifest.json');
+        expect(prompt).toContain('SHA-256');
+        // Substitute only the destination; never change the process HOME.
+        const command = prompt.split('Run this command to install SKILL.md:\n\n')[1]!.replaceAll('"$HOME/.agents/skills/example', `"${root}/example`);
+        const result = spawnSync('sh', ['-c', command], { encoding: 'utf8' });
+        expect(result.status).toBe(0);
+        expect(readFileSync(join(root, 'example/SKILL.md'), 'utf8')).toBe(markdown);
+      } finally { rmSync(root, { recursive: true, force: true }); }
+    });
+  }
+});

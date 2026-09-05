@@ -13,10 +13,11 @@
  *
  * Usage: bun worker/build.ts [--root <skills-dir>] [--out <dist-dir>]
  */
-import { execSync } from "node:child_process";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
+
+import { escapeHtml, renderSkillPage } from "./skill-page.ts";
 
 import { scanCatalog } from "../core/manifest.ts";
 
@@ -57,27 +58,23 @@ writeFileSync(
   ),
 );
 
-// The repo this snapshot came from, so skill rows can link their SKILL.md
-// at the source — derived from the git remote, so a fork links its own.
-function repoWebUrl(): string {
-  try {
-    const raw = execSync("git config --get remote.origin.url", { cwd: import.meta.dir, encoding: "utf-8" }).trim();
-    const match = raw.match(/(?:github\.com[:/])([^/]+\/[^/.]+?)(?:\.git)?$/);
-    if (match) return `https://github.com/${match[1]}`;
-  } catch {}
-  return "";
+// Detail pages are separate from resource paths so skill files stay byte-exact.
+const detailTemplate = readFileSync(join(import.meta.dir, "skill.html"), "utf-8");
+mkdirSync(join(publicDir, "skill"), { recursive: true });
+for (const { entry, dir } of portable) {
+  const name = String(entry.frontmatter.name);
+  const markdown = readFileSync(join(dir, "SKILL.md"), "utf-8");
+  writeFileSync(join(publicDir, "skill", `${name}.html`), renderSkillPage(
+    detailTemplate, name, String(entry.frontmatter.description ?? ""), markdown,
+    entry.resources === "dynamic" ? 1 : entry.resources.length,
+  ));
 }
-const repoUrl = repoWebUrl();
 
-// Landing page: the template rendered with the snapshot's real catalog.
-const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const rows = portable
   .map(({ entry }) => {
     const name = String(entry.frontmatter.name);
     const description = String(entry.frontmatter.description ?? "").split(/(?<=[.!?])\s/)[0] ?? "";
-    const cell = repoUrl
-      ? `<a href="${repoUrl}/blob/main/skills/${encodeURIComponent(name)}/SKILL.md">${escapeHtml(name)}</a>`
-      : escapeHtml(name);
+    const cell = `<a href="/skill/${encodeURIComponent(name)}">${escapeHtml(name)}</a>`;
     return `<tr><td>${cell}</td><td>${escapeHtml(description)}</td></tr>`;
   })
   .join("\n");

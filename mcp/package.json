@@ -15,6 +15,11 @@
   },
   "scripts": {
     "serve": "bun stdio.ts",
-    "test": "bun test conformance"
+    "test": "bun test conformance",
+    "typecheck": "tsc --noEmit",
+    "build": "bun worker/build.ts"
+  },
+  "engines": {
+    "bun": ">=1.4.0"
   }
 }
