@@ -11,6 +11,8 @@ import { negotiate } from "./accept.ts";
 export interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> };
   ALLOWED_ORIGINS?: string;
+  /** Identity announced in `initialize`; a deployment names itself, everyone else gets the package name. */
+  SERVER_NAME?: string;
 }
 
 
@@ -129,7 +131,7 @@ export async function serve(request: Request, env: Env): Promise<Served> {
   const skill = typeof uri === "string" ? (parseSkillUri(uri)?.[0] ?? "") : "";
 
   const store = await loadStore(env);
-  const server = createSkillsServer(store, { name: "dotclaude-skills-hosted" });
+  const server = createSkillsServer(store, { name: env.SERVER_NAME ?? "skill-server" });
   const transport = new OneShotTransport();
   await server.connect(transport);
   let timeout: ReturnType<typeof setTimeout> | undefined;

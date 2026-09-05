@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { Readable } from 'node:stream';
-import { readFileSync, realpathSync } from 'node:fs';
+import { readFileSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkedPath } from './core/files.ts';
 import { handleRequest } from './http.ts';
@@ -8,13 +8,27 @@ import { handleRequest } from './http.ts';
 /** Serve a trusted, prebuilt snapshot. Skill files are returned as bytes, never executed. */
 export async function startServer(snapshot: string, host: string, port: number) {
   const root = realpathSync(join(snapshot, 'public'));
-  JSON.parse(readFileSync(checkedPath(root, 'manifest.json'), 'utf8'));
-  const assets = { async fetch(request: Request) {
+  const manifest = checkedPath(root, 'manifest.json');
+  JSON.parse(readFileSync(manifest, 'utf8'));
+  const openAssets = () => ({ async fetch(request: Request) {
     try {
       const rel = decodeURIComponent(new URL(request.url).pathname.slice(1));
       return new Response(readFileSync(checkedPath(root, rel)));
     } catch { return new Response('Not found', { status: 404 }); }
-  } };
+  } });
+  // The handler caches one parsed manifest per assets object — correct for a Worker, whose
+  // assets are immutable per deployment, but a rebuild replaces this snapshot under a live
+  // server, so a changed manifest.json gets a fresh object and that cache misses.
+  const stampOf = () => { const s = statSync(manifest); return `${s.ino}:${s.size}:${s.mtimeMs}`; };
+  let stamp = stampOf();
+  let assets = openAssets();
+  const currentAssets = () => {
+    try {
+      const next = stampOf();
+      if (next !== stamp) { stamp = next; assets = openAssets(); }
+    } catch { /* mid-replacement: keep serving the snapshot we last saw */ }
+    return assets;
+  };
   const server = createServer(async (incoming, outgoing) => {
     try {
       // Fix the origin to this listener; an attacker-controlled Host cannot bypass Origin checks.
@@ -31,7 +45,7 @@ export async function startServer(snapshot: string, host: string, port: number) 
       const method = incoming.method ?? 'GET';
       const init: RequestInit & { duplex?: string } = { method, headers };
       if (!['GET', 'HEAD'].includes(method)) { init.body = Readable.toWeb(incoming) as ReadableStream<Uint8Array>; init.duplex = 'half'; }
-      const response = await handleRequest(new Request(url.href, init), { ASSETS: assets });
+      const response = await handleRequest(new Request(url.href, init), { ASSETS: currentAssets() });
       outgoing.writeHead(response.status, Object.fromEntries(response.headers));
       if (response.body) Readable.fromWeb(response.body as import('node:stream/web').ReadableStream).pipe(outgoing);
       else outgoing.end();

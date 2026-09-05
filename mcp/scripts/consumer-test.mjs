@@ -75,6 +75,9 @@ try {
   const httpClient = new Client({ name: 'http-consumer', version: '1' });
   try {
     await httpClient.connect(new StreamableHTTPClientTransport(new URL(`${origin}/mcp`)));
+    // A third party's serve announces the package, not the maintainer's deployment name.
+    assert.equal(httpClient.getServerVersion().name, 'skill-server');
+    assert.equal(httpClient.getServerVersion().version, version);
     assert((await httpClient.listResources()).resources.length > 0);
   } finally { await httpClient.close(); }
   assert.equal((await fetch(`${origin}/mcp`, { method: 'POST', headers: { Origin: 'https://evil.example', 'Content-Type': 'application/json' }, body: '{}' })).status, 403);
