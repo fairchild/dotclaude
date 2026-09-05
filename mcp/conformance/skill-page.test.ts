@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, existsSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { installPrompt, renderMarkdown, renderSkillPage } from "../worker/skill-page.ts";
+import { packagePrompt, directoryMarkdown, installPrompt, renderMarkdown, renderSkillPage } from "../worker/skill-page.ts";
 
 const template = readFileSync(join(import.meta.dir, "../worker/skill.html"), "utf8");
 describe("skill reading and installation", () => {
@@ -61,6 +61,21 @@ describe("skill reading and installation", () => {
     expect(prompt).not.toContain("- example/");
     expect(prompt).not.toContain("https://skills.cloudcompute.com/skills/example/references/");
     expect(installPrompt("example", markdown, ["SKILL.md"])).toContain("No supporting files.");
+  });
+  test("the default prompt is a pinned package instruction and the inline version stays available", () => {
+    const download = { archive: "/downloads/example/abc.tgz", manifest: "/downloads/example/abc.json", digest: "abc" };
+    const prompt = packagePrompt("example", download);
+    expect(prompt).toContain("SHA-256: abc");
+    expect(prompt).not.toContain("cat >");
+    expect(prompt.length).toBeLessThan(800);
+    const directory = directoryMarkdown("example", "A useful skill", ["SKILL.md", "references/a guide.md"], download);
+    expect(directory).toContain("/skills/example/references/a%20guide.md");
+    expect(directory).toContain("## Files");
+    expect(directory).toContain(prompt);
+    const page = renderSkillPage(template, "example", "A useful skill", "# Example\n", ["SKILL.md"], download);
+    expect(page).toContain('id="copy-inline"');
+    expect(page).toContain('rel="canonical" href="/skills/example/"');
+    expect(page).toContain('rel="alternate" type="text/markdown"');
   });
   for (const ending of ['\n', '']) {
     test(`copied shell command installs exact bytes ${ending ? 'with' : 'without'} final newline`, () => {

@@ -5,17 +5,32 @@ manifest-backed resource resolver. `Accept` describes the response types a clien
 can use. A request's `Content-Type` describes its request body and does not select
 a download format. MCP remains at `POST /mcp`.
 
+## First visit
+
+The homepage puts skill names and descriptions first, with ordinary links to
+canonical `/skills/{name}/` directory pages. Each page lists SKILL.md first,
+then its supporting files, and offers a complete package download. MCP setup
+is optional and appears below the catalog.
+
+`/llms.txt` and `/index.md` expose the Markdown catalog. The homepage also
+negotiates Markdown or plain text through Accept. Directory Markdown contains
+the description, file links, and install instructions; raw SKILL.md remains a
+separate, byte-exact file. HTML alternate links and HTTP Link headers advertise
+Markdown and the catalog so clients do not have to guess URLs.
+
 ## Routes
 
 | URL | Available representations, in default preference order |
 | --- | --- |
-| `/`, `/index.html` | Catalog HTML |
+| `/`, `/index.html` | Catalog HTML, Markdown, plain text |
+| `/llms.txt`, `/index.md` | Markdown catalog, plain text |
 | `/manifest.json` | Catalog JSON |
-| `/skill/{name}`, `/skills/{name}` | Reading-page HTML, SKILL.md as Markdown, SKILL.md as plain text, gzip archive |
+| `/skill/{name}`, `/skills/{name}` | Directory HTML, directory Markdown, directory plain text, gzip archive |
 | `/skill/{name}.{html,md,txt,tgz,tar.gz}` | The explicit format; `/skills/` supports these suffixes too |
 | `/skills/{name}/{path}`, `/skill/{name}/{path}` | Original file bytes, with the file's MIME type |
 | `/txt/{name}`, `/txt/{name}/SKILL.md` | Original SKILL.md bytes as `text/plain` |
 | `/txt/{name}/{path}` | Original supporting file bytes; known text extensions use `text/plain`, binary extensions keep their MIME type |
+| `/downloads/{name}/{sha256}.tgz`, `/downloads/{name}/{sha256}.json` | Pinned archive and matching file manifest |
 | `/downloads/{name}/skill.tgz`, `/downloads/{name}/skill.tar.gz` | Original gzip archive, `Content-Disposition: attachment; filename="{name}.tgz"` |
 
 The two negotiated skill URLs also accept a trailing slash. Paths are case
@@ -29,7 +44,7 @@ filesystem path or asset fallback is available.
 An explicit prefix or suffix restricts the available representations. It does
 not override an incompatible `Accept`: `/txt/example/SKILL.md` with
 `Accept: text/html` returns 406. No arbitrary JSON, PDF, or other conversion is
-provided. The only HTML rendering is the reading page generated at build time.
+provided. The HTML directory and skill reading content are generated at build time.
 Supporting HTML files stay byte-exact and are served at their full `.html` paths.
 
 ## Negotiation and caching
@@ -51,12 +66,30 @@ include `X-Content-Type-Options: nosniff`. Archives use `application/gzip`, not 
 The Worker forwards the original method, range, and conditional headers to the
 selected asset. Cloudflare supplies asset ETags, cache policy, and conditional
 responses; this layer preserves them and merges `Vary`. Plain text and Markdown
-views share bytes and an asset ETag. HTML and archives have their own asset ETags.
+directory views share bytes and an asset ETag. HTML and archives have their own asset ETags.
 The Worker does not synthesize Last-Modified or implement a second cache.
 `run_worker_first = true` prevents asset dispatch from skipping negotiation.
 `html_handling = "none"` prevents HTML redirects from changing raw file paths.
 
+## Package installation
+
+The default copied prompt identifies the package, destination guidance, archive
+SHA-256, and its matching manifest. The archive and manifest URLs contain the
+archive digest, and the resolver accepts only the package named in the hosted
+catalog. This prevents silent substitution when the snapshot changes. The full
+inline prompt is a separate option; it includes SKILL.md but supporting files
+still need downloading.
+
+Content addressing does not promise historical retention. This static deployment
+contains the current build only: an older package URL can return 404 after a new
+deployment. Clients must report that result rather than silently fetch latest.
+Persisting historical packages would need a separate storage/retention decision.
+The existing `/downloads/{name}/skill.tgz` URL continues to mean the latest build.
+
 ## Extending the policy
+
+`build.ts` derives catalog, directory pages, package metadata, and archives from
+one scan. Both HTML templates share `library.css`.
 
 `http.ts` contains the route table, manifest resolver, and format definitions.
 Add an alias as a route entry that resolves to an existing format. Add a new
@@ -73,7 +106,10 @@ protocol behavior remains unchanged.
 
 The conformance suite covers the HTTP policy. The opt-in live test adds coverage
 for Cloudflare dispatch and validators that an in-process asset stub cannot prove;
-it checks every built resource through raw and txt URLs and every archive.
+it checks every built resource through raw and txt URLs and every archive. Its
+first-visit case starts at the homepage, follows the advertised links, and verifies
+the downloaded package and every member against the discovered manifest. This is
+a deterministic navigation check, not evidence from an independent agent usability study.
 
 ```sh
 cd mcp

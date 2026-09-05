@@ -11,6 +11,42 @@ const get = (path: string, accept = "*/*", method = "GET", headers: Record<strin
   fetch(`${origin}${path}`, { method, headers: { Accept: accept, ...headers }, redirect: "manual" });
 
 describe.skipIf(!origin)("local Worker HTTP integration", () => {
+  test("an agent can discover, read, follow files, and verify an installation from only the homepage", async () => {
+    const home = await get("/", "text/markdown");
+    expect(home.status).toBe(200);
+    expect(home.headers.get("Link")).toContain("/llms.txt");
+    const catalog = await home.text();
+    const directoryUrl = catalog.match(/\]\((\/skill\/[^)]+\.md)\)/)?.[1];
+    expect(directoryUrl).toBeTruthy();
+    const directory = await (await get(directoryUrl!)).text();
+    const fileLinks = [...directory.matchAll(/\]\((\/skills\/[^)]+)\)/g)].map(match => match[1]!);
+    const skillUrl = fileLinks.find(path => path.endsWith("/SKILL.md"));
+    expect(skillUrl).toBeTruthy();
+    const skill = await (await get(skillUrl!)).text();
+    expect(skill).toStartWith("---");
+    const supporting = fileLinks.find(path => !path.endsWith("/SKILL.md"));
+    expect(supporting).toBeTruthy();
+    expect((await get(supporting!)).status).toBe(200);
+    const archiveUrl = new URL(directory.match(/^Download: (.+)$/m)![1]!);
+    const manifestUrl = new URL(directory.match(/^Manifest: (.+)$/m)![1]!);
+    const digest = directory.match(/^SHA-256: ([a-f0-9]{64})$/m)![1]!;
+    const archive = await get(archiveUrl.pathname);
+    expect(archive.status).toBe(200);
+    const bytes = new Uint8Array(await archive.arrayBuffer());
+    expect(createHash("sha256").update(bytes).digest("hex")).toBe(digest);
+    const pinned = await (await get(manifestUrl.pathname)).json() as any;
+    const members = await new Bun.Archive(bytes).files();
+    expect([...members.keys()].sort()).toEqual(pinned.entry.resources.map((r: any) => r.uri.slice("skill://".length)).sort());
+    for (const resource of pinned.entry.resources) {
+      const file = members.get(resource.uri.slice("skill://".length))!;
+      const body = new Uint8Array(await file.arrayBuffer());
+      expect(body.length).toBe(resource.size);
+      expect(`sha256:${createHash("sha256").update(body).digest("hex")}`).toBe(resource.digest);
+    }
+    const missing = archiveUrl.pathname.replace(digest, "0".repeat(64));
+    expect((await get(missing)).status).toBe(404);
+  });
+
   test("real assets honor negotiation, explicit paths, HEAD, validators, and MCP", async () => {
     const { skills } = await (await get("/manifest.json")).json() as { skills: StoredSkill[] };
     const name = String(skills[0]!.entry.frontmatter.name);
@@ -30,8 +66,9 @@ describe.skipIf(!origin)("local Worker HTTP integration", () => {
     const head = await get(`/skills/${name}`, "text/plain", "HEAD");
     expect(head.status).toBe(200);
     expect(await head.text()).toBe("");
-    expect(head.headers.get("ETag")).toBe(etag);
-    const cached = await get(`/skills/${name}`, "text/plain", "GET", { "If-None-Match": etag! });
+    const directoryTag = head.headers.get("ETag");
+    expect(directoryTag).toBeTruthy();
+    const cached = await get(`/skills/${name}`, "text/plain", "GET", { "If-None-Match": directoryTag! });
     expect(cached.status).toBe(304);
     expect(cached.headers.get("Vary")).toContain("Accept");
     expect((await get(`/skills/${name}`, "text/html", "GET", { "If-None-Match": etag! })).status).toBe(200);

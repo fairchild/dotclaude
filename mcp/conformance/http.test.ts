@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { serveHttp } from "../worker/http.ts";
 import type { StoredSkill } from "../core/store.ts";
 
+const directoryBytes = new TextEncoder().encode("# Example\n\n## Files\n[SKILL.md](/skills/example/SKILL.md)\n");
 const files: Record<string, Uint8Array> = {
   "SKILL.md": new TextEncoder().encode("# Example\r\nExact bytes, no final newline"),
   "scripts/run.py": new TextEncoder().encode("print('hello')\n"),
@@ -18,6 +19,7 @@ const assets = { async fetch(request: Request) {
   forwarded = request;
   const path = decodeURIComponent(new URL(request.url).pathname);
   const body = path === "/skill/example.html" ? new TextEncoder().encode("<h1>Example</h1>")
+    : path === "/skill/example.md" ? directoryBytes
     : path === "/downloads/example/skill.tgz" ? new Uint8Array([31, 139, 8, 0, 255])
     : files[path.replace("/skills/example/", "")];
   if (!body) return new Response(null, { status: 404 });
@@ -62,8 +64,6 @@ describe("HTTP route and representation contract", () => {
     ["/txt/example", "text/plain", "SKILL.md"],
     ["/skills/example/SKILL.md", "text/markdown", "SKILL.md"],
     ["/skill/example/SKILL.md", "text/markdown", "SKILL.md"],
-    ["/skill/example.md", "text/markdown", "SKILL.md"],
-    ["/skills/example.txt", "text/plain", "SKILL.md"],
     ["/txt/example/scripts/run.py", "text/plain", "scripts/run.py"],
     ["/skills/example/scripts/run.py", "text/x-python", "scripts/run.py"],
     ["/txt/example/image.png", "image/png", "image.png"],
@@ -77,6 +77,14 @@ describe("HTTP route and representation contract", () => {
     expect(response.headers.get("Content-Type")).toStartWith(type!);
     expect(Array.from(new Uint8Array(await response.arrayBuffer()))).toEqual(Array.from(files[file!]!));
     expect((await get(path!, "application/unavailable")).status).toBe(406);
+  });
+
+  test("directory representations retain navigation while SKILL.md stays pristine", async () => {
+    for (const path of ["/skill/example.md", "/skills/example.txt", "/skills/example/"]) {
+      const response = await get(path, path.endsWith(".txt") ? "text/plain" : "text/markdown");
+      expect(await response.text()).toBe(new TextDecoder().decode(directoryBytes));
+    }
+    expect(await (await get("/skills/example/SKILL.md")).text()).toBe(new TextDecoder().decode(files["SKILL.md"]));
   });
 
   test("explicit format constrains negotiation and ignores request Content-Type", async () => {

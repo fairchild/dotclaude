@@ -7,6 +7,41 @@ export function validateSkillName(name: string): void {
   if (match?.[0] !== name) throw new Error(`unsafe skill name: ${JSON.stringify(name)}`);
 }
 
+export interface Download { archive: string; manifest: string; digest: string }
+const orderedPaths = (paths: string[]) => ["SKILL.md", ...paths.filter(path => path !== "SKILL.md")];
+const origin = "https://skills.cloudcompute.com";
+export const fileUrl = (name: string, path: string) => `/skills/${[name, ...path.split("/")].map(encodeURIComponent).join("/")}`;
+
+export function packagePrompt(name: string, download?: Download): string {
+  validateSkillName(name);
+  return `Install the ${name} skill into your agent's user-level skills directory, preserving existing local changes.
+
+Download: ${origin}${download?.archive ?? `/downloads/${name}/skill.tgz`}
+${download ? `SHA-256: ${download.digest}
+Manifest: ${origin}${download.manifest}
+` : ""}
+Verify the archive digest${download ? " and the extracted files against the manifest" : " against the hosted manifest"}, then install the ${name}/ directory with its paths and permissions intact. Do not execute bundled scripts during installation. If this snapshot is unavailable, report that instead of substituting another version.`;
+}
+
+export function directoryMarkdown(name: string, description: string, paths: string[], download?: Download): string {
+  return `# ${name}
+
+${description}
+
+Read [SKILL.md](${fileUrl(name, "SKILL.md")}) for the skill instructions.
+
+## Files
+
+${orderedPaths(paths).map(path => `- [${path.replace(/[\[\]\\]/g, "\\$&")}](${fileUrl(name, path)})`).join("\n")}
+
+## Install
+
+${packagePrompt(name, download)}
+
+[All skills](/llms.txt)
+`;
+}
+
 export function installPrompt(name: string, markdown: string, paths: string[]): string {
   validateSkillName(name);
   const delimiter = `SKILL_MD_${createHash("sha256").update(markdown).digest("hex").slice(0, 16)}`;
@@ -63,11 +98,14 @@ export function renderMarkdown(markdown: string, name: string): string {
   }, { headings: { ids: true }, noHtmlBlocks: true, noHtmlSpans: true });
 }
 
-export function renderSkillPage(template: string, name: string, description: string, markdown: string, paths: string[]): string {
+export function renderSkillPage(template: string, name: string, description: string, markdown: string, paths: string[], download?: Download): string {
   const values: Record<string, string> = {
     NAME: escapeHtml(name), DESCRIPTION: escapeHtml(description.split(/(?<=[.!?])\s/)[0] ?? description), RAW_URL: `/skills/${encodeURIComponent(name)}/SKILL.md`,
-    CONTENT: renderMarkdown(markdown, name), PROMPT: escapeHtml(installPrompt(name, markdown, paths)),
-    ARCHIVE_URL: `/downloads/${encodeURIComponent(name)}/skill.tgz`,
+    CONTENT: renderMarkdown(markdown, name), PROMPT: escapeHtml(packagePrompt(name, download)),
+    INLINE_PROMPT: escapeHtml(installPrompt(name, markdown, paths)),
+    DIRECTORY_URL: `/skills/${encodeURIComponent(name)}/`, MARKDOWN_URL: `/skill/${encodeURIComponent(name)}.md`,
+    FILES: orderedPaths(paths).map(path => `<li><a href="${fileUrl(name, path)}">${escapeHtml(path)}</a></li>`).join(""),
+    ARCHIVE_URL: download?.archive ?? `/downloads/${encodeURIComponent(name)}/skill.tgz`,
     FILE_COUNT: `${paths.length} ${paths.length === 1 ? "file" : "files"}`,
   };
   return template.replace(/\{\{(\w+)\}\}/g, (token, key) => values[key] ?? token);

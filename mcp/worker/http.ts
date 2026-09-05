@@ -1,8 +1,10 @@
+import type { Download } from "./skill-page.ts";
 import type { StoredSkill } from "../core/store.ts";
 import { negotiate } from "./accept.ts";
 
 export interface Assets { fetch(request: Request): Promise<Response> }
 type Representation = { asset: string; contentType: string; headers?: Record<string, string> };
+type HostedSkill = StoredSkill & { download?: Download };
 type Route = { name: string; path: string; formats: string[] };
 
 const textTypes: Record<string, string> = {
@@ -28,7 +30,8 @@ function fileType(path: string, plain = false): string {
 // Each format owns its asset selection, media type, and custom headers.
 const formats: Record<string, (name: string, path: string) => Representation> = {
   html: name => ({ asset: `/skill/${encoded(name)}.html`, contentType: "text/html; charset=utf-8" }),
-  markdown: name => ({ asset: `/skills/${encoded(name)}/SKILL.md`, contentType: "text/markdown; charset=utf-8" }),
+  markdown: name => ({ asset: `/skill/${encoded(name)}.md`, contentType: "text/markdown; charset=utf-8" }),
+  directoryPlain: name => ({ asset: `/skill/${encoded(name)}.md`, contentType: "text/plain; charset=utf-8" }),
   plain: (name, path) => ({ asset: `/skills/${encoded(name + "/" + path)}`, contentType: fileType(path, true) }),
   raw: (name, path) => ({ asset: `/skills/${encoded(name + "/" + path)}`, contentType: fileType(path) }),
   archive: name => ({
@@ -36,8 +39,8 @@ const formats: Record<string, (name: string, path: string) => Representation> = 
     headers: { "Content-Disposition": `attachment; filename="${name}.tgz"` },
   }),
 };
-const preferred = ["html", "markdown", "plain", "archive"];
-const suffixFormats: Record<string, string> = { html: "html", md: "markdown", txt: "plain", tgz: "archive", "tar.gz": "archive" };
+const preferred = ["html", "markdown", "directoryPlain", "archive"];
+const suffixFormats: Record<string, string> = { html: "html", md: "markdown", txt: "directoryPlain", tgz: "archive", "tar.gz": "archive" };
 const routes: Array<{ pattern: RegExp; resolve: (match: RegExpMatchArray) => Route }> = [
   { pattern: /^\/(?:skill|skills)\/([^/]+)\.(html|md|txt|tgz|tar\.gz)$/, resolve: m => ({ name: m[1]!, path: "SKILL.md", formats: [suffixFormats[m[2]!]!] }) },
   { pattern: /^\/(?:skill|skills)\/([^/]+)\/?$/, resolve: m => ({ name: m[1]!, path: "SKILL.md", formats: preferred }) },
@@ -54,7 +57,7 @@ function pathname(request: Request): string | null {
   } catch { return null; }
 }
 
-export async function serveHttp(request: Request, assets: Assets, skills: () => Promise<StoredSkill[]>): Promise<Response> {
+export async function serveHttp(request: Request, assets: Assets, skills: () => Promise<HostedSkill[]>): Promise<Response> {
   const error = (status: number, message: string, extra: Record<string, string> = {}) => new Response(
     request.method === "HEAD" ? null : message,
     { status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", ...extra } },
@@ -64,17 +67,34 @@ export async function serveHttp(request: Request, assets: Assets, skills: () => 
   if (path === null) return error(400, "Invalid path");
   let candidates: Representation[];
   if (path === "/" || path === "/index.html") {
-    candidates = [{ asset: "/index.html", contentType: "text/html; charset=utf-8" }];
-  } else if (path === "/manifest.json") {
-    candidates = [{ asset: path, contentType: "application/json; charset=utf-8" }];
+    candidates = [
+      { asset: "/index.html", contentType: "text/html; charset=utf-8" },
+      { asset: "/llms.txt", contentType: "text/markdown; charset=utf-8" },
+      { asset: "/llms.txt", contentType: "text/plain; charset=utf-8" },
+    ];
+  } else if (path === "/llms.txt" || path === "/index.md") {
+    candidates = [
+      { asset: "/llms.txt", contentType: "text/markdown; charset=utf-8" },
+      { asset: "/llms.txt", contentType: "text/plain; charset=utf-8" },
+    ];
+  } else if (path === "/manifest.json" || path === "/library.css") {
+    candidates = [{ asset: path, contentType: path.endsWith(".css") ? "text/css; charset=utf-8" : "application/json; charset=utf-8" }];
   } else {
-    const policy = routes.find(route => route.pattern.test(path));
-    if (!policy) return error(404, "Not found");
-    const route = policy.resolve(path.match(policy.pattern)!);
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(route.name)) return error(404, "Unknown skill");
-    const skill = (await skills()).find(s => s.entry.frontmatter.name === route.name);
-    if (!skill || skill.entry.resources === "dynamic" || !skill.entry.resources.some(r => r.uri === `skill://${route.name}/${route.path}`)) return error(404, "Unknown skill or file");
-    candidates = route.formats.map(format => formats[format]!(route.name, route.path));
+    const pinned = path.match(/^\/downloads\/([a-z0-9]+(?:-[a-z0-9]+)*)\/([a-f0-9]{64})\.(tgz|json)$/);
+    if (pinned) {
+      const download = (await skills()).find(s => s.entry.frontmatter.name === pinned[1])?.download;
+      if (!download || ![download.archive, download.manifest].includes(path)) return error(404, "Snapshot unavailable");
+      candidates = [{ asset: path, contentType: pinned[3] === "json" ? "application/json; charset=utf-8" : "application/gzip",
+        headers: pinned[3] === "tgz" ? { "Content-Disposition": `attachment; filename="${pinned[1]}.tgz"` } : undefined }];
+    } else {
+      const policy = routes.find(route => route.pattern.test(path));
+      if (!policy) return error(404, "Not found");
+      const route = policy.resolve(path.match(policy.pattern)!);
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(route.name)) return error(404, "Unknown skill");
+      const skill = (await skills()).find(s => s.entry.frontmatter.name === route.name);
+      if (!skill || skill.entry.resources === "dynamic" || !skill.entry.resources.some(r => r.uri === `skill://${route.name}/${route.path}`)) return error(404, "Unknown skill or file");
+      candidates = route.formats.map(format => formats[format]!(route.name, route.path));
+    }
   }
   const selected = negotiate(request.headers.get("Accept"), candidates);
   // Even explicit paths vary: Accept can change a successful response to 406.
@@ -91,6 +111,9 @@ export async function serveHttp(request: Request, assets: Assets, skills: () => 
   if (response.ok || response.status === 304) {
     headers.set("Content-Type", selected.contentType);
     headers.set("X-Content-Type-Options", "nosniff");
+    const alternate = selected.asset.startsWith("/skill/") ? selected.asset.replace(/\.(html|md)$/, ".md")
+      : ["/index.html", "/llms.txt"].includes(selected.asset) ? "/llms.txt" : null;
+    headers.set("Link", `${alternate ? `<${alternate}>; rel="alternate"; type="text/markdown", ` : ""}</llms.txt>; rel="describedby"`);
     for (const [key, value] of Object.entries(selected.headers ?? {})) headers.set(key, value);
   }
   return new Response(request.method === "HEAD" ? null : response.body, { status: response.status, headers });

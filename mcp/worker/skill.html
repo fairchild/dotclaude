@@ -6,66 +6,36 @@
 <meta name="color-scheme" content="light dark">
 <title>{{NAME}} · dotclaude skills</title>
 <meta name="description" content="{{DESCRIPTION}}">
+<link rel="canonical" href="{{DIRECTORY_URL}}">
+<link rel="alternate" type="text/markdown" href="{{MARKDOWN_URL}}">
+<link rel="describedby" href="/llms.txt">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-:root { color-scheme:light dark; --bg:#f5f3ef; --paper:#faf9f6; --ink:#292722; --muted:#69655e; --line:#dcd7cd; --accent:#806020; }
-@media(prefers-color-scheme:dark) { :root { --bg:#151513; --paper:#1c1c19; --ink:#e8e4d9; --muted:#aaa69b; --line:#393830; --accent:#d4b574; } }
-* { box-sizing:border-box; }
-body { margin:0; padding:0 24px 64px; background:var(--bg); color:var(--ink); font:18px/1.75 "Source Serif 4",Georgia,serif; }
-main { max-width:800px; margin:auto; }
-a { color:var(--accent); text-underline-offset:4px; } a:hover { color:var(--ink); }
-nav,.eyebrow,button,summary,footer,.meta { font:12px/1.6 "JetBrains Mono",monospace; }
-nav { padding:30px 0; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; gap:20px; }
-nav a { text-decoration:none; } nav span,.meta { color:var(--muted); }
-header { padding:52px 0 28px; }
-.eyebrow { color:var(--accent); letter-spacing:.12em; text-transform:uppercase; margin:0 0 14px; }
-h1 { font-weight:500; font-size:clamp(32px,5vw,50px); letter-spacing:-.035em; line-height:1.15; margin:0 0 22px; overflow-wrap:anywhere; }
-.description { font-size:21px; line-height:1.55; color:var(--muted); max-width:65ch; margin:0 0 22px; }
-.install { border-top:1px solid var(--line); border-bottom:1px solid var(--line); padding:18px 0; }
-.install-row { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
-.install p { margin:0; font-size:16px; color:var(--muted); }
-button { border:1px solid var(--line); border-radius:4px; padding:9px 14px; background:var(--paper); color:var(--ink); cursor:pointer; min-height:44px; }
-button:hover { border-color:var(--accent); color:var(--accent); }
-:focus-visible { outline:2px solid var(--accent); outline-offset:4px; }
-details { margin-top:12px; } summary { color:var(--muted); cursor:pointer; width:fit-content; padding:4px 0; }
-textarea { width:100%; height:280px; resize:vertical; margin:16px 0 4px; background:var(--paper); border:1px solid var(--line); padding:16px; color:var(--ink); font:12px/1.6 "JetBrains Mono",monospace; }
-#copy-status { font:12px/1.6 "JetBrains Mono",monospace; color:var(--accent); } #copy-status:empty { display:none; }
-article { padding-top:14px; overflow-wrap:anywhere; }
-article h2,article h3,article h4 { font-weight:600; line-height:1.3; margin:38px 0 16px; letter-spacing:-.02em; }
-article h2 { font-size:30px; } article h3 { font-size:24px; } article h4 { font-size:20px; }
-article p { margin:16px 0; } article li { margin:6px 0; } article ul,article ol { padding-left:25px; }
-code { font:.76em/1.6 "JetBrains Mono",monospace; background:var(--paper); padding:2px 4px; }
-pre { padding:20px; background:var(--paper); border:1px solid var(--line); overflow-x:auto; border-radius:4px; }
-pre code { padding:0; font-size:12px; }
-blockquote { margin:24px 0; border-left:2px solid var(--accent); padding-left:20px; color:var(--muted); }
-hr { border:0; border-top:1px solid var(--line); margin:32px 0; }
-.table-scroll { overflow-x:auto; } table { border-collapse:collapse; font-size:15px; width:100%; } td,th { border-bottom:1px solid var(--line); padding:10px 14px 10px 0; text-align:left; }
-footer { border-top:1px solid var(--line); margin-top:56px; padding-top:20px; color:var(--muted); }
-@media(max-width:520px) { body { padding:0 20px 40px; font-size:17px; } header { padding-top:36px; } nav span { display:none; } .description { font-size:19px; } pre { padding:14px; } }
-</style>
+<link rel="stylesheet" href="/library.css">
 </head>
 <body>
 <main>
 <nav aria-label="Breadcrumb"><a href="/">← All skills</a><span>dotclaude / skill library</span></nav>
-<header><p class="eyebrow">Agent skill</p><h1>{{NAME}}</h1><p class="description">{{DESCRIPTION}}</p><p class="meta">{{FILE_COUNT}} · <a href="{{RAW_URL}}">Raw SKILL.md</a> · <a href="{{ARCHIVE_URL}}" download>Download skill.tgz</a></p></header>
+<header><p class="eyebrow">Agent skill</p><h1>{{NAME}}</h1><p class="description">{{DESCRIPTION}}</p><p class="meta">{{FILE_COUNT}} · <a href="{{RAW_URL}}">Raw SKILL.md</a> · <a href="{{MARKDOWN_URL}}">Markdown directory</a> · <a href="{{ARCHIVE_URL}}" download>Download skill.tgz</a></p></header>
 <section class="install" aria-label="Install this skill">
 <div class="install-row"><p>Copy the prompt. Paste it into your agent.</p><button type="button" id="copy-install">Copy install prompt</button></div>
 <details id="prompt-preview"><summary>Read the install prompt</summary><textarea id="install-prompt" aria-label="Install prompt" readonly spellcheck="false">{{PROMPT}}</textarea></details>
+<details id="inline-preview"><summary>Full inline prompt for offline use</summary><p>Includes SKILL.md. Supporting files still require a download.</p><button type="button" id="copy-inline">Copy full inline prompt</button><textarea id="inline-prompt" aria-label="Full inline install prompt" readonly spellcheck="false">{{INLINE_PROMPT}}</textarea></details>
 <p id="copy-status" role="status" aria-live="polite"></p>
 </section>
+<section aria-label="Files"><h2>Files</h2><ul class="files">{{FILES}}</ul></section>
 <article aria-label="Skill instructions">{{CONTENT}}</article>
 <footer><a href="/">All skills</a> · The complete skill, with supporting files available on install.</footer>
 </main>
 <script>
-document.getElementById('copy-install').addEventListener('click', async () => {
-  const prompt = document.getElementById('install-prompt');
+for (const [button, field, preview] of [['copy-install', 'install-prompt', 'prompt-preview'], ['copy-inline', 'inline-prompt', 'inline-preview']]) document.getElementById(button).addEventListener('click', async () => {
+  const prompt = document.getElementById(field);
   const status = document.getElementById('copy-status');
   try {
     await navigator.clipboard.writeText(prompt.value);
     status.textContent = 'Copied. Paste into your agent to install.';
   } catch {
-    document.getElementById('prompt-preview').open = true;
+    document.getElementById(preview).open = true;
     prompt.focus(); prompt.select();
     status.textContent = 'Copy the selected prompt with ⌘C or Ctrl+C.';
   }

@@ -76,7 +76,7 @@ describe("worker binding", () => {
   test("catalog links to generated reading pages while raw resources stay intact", () => {
     const index = readFileSync(join(PUBLIC, "index.html"), "utf8");
     for (const name of ["git-workflow", "pdf-processing"]) {
-      expect(index).toContain(`href="/skill/${name}"`);
+      expect(index).toContain(`href="/skills/${name}/"`);
       const page = readFileSync(join(PUBLIC, "skill", `${name}.html`), "utf8");
       expect(page).toContain(`href="/skills/${name}/SKILL.md"`);
       expect(page).toContain("Copy install prompt");
@@ -107,7 +107,12 @@ describe("worker binding", () => {
         }
       } finally { rmSync(extracted, { recursive: true, force: true }); }
       const page = readFileSync(join(PUBLIC, "skill", `${name}.html`), "utf8");
-      expect(page).toContain(`href="/downloads/${name}/skill.tgz"`);
+      const digest = createHash("sha256").update(readFileSync(archivePath)).digest("hex");
+      expect(page).toContain(`href="/downloads/${name}/${digest}.tgz"`);
+      expect(readFileSync(join(PUBLIC, "downloads", name, `${digest}.tgz`))).toEqual(readFileSync(archivePath));
+      const pinned = JSON.parse(readFileSync(join(PUBLIC, "downloads", name, `${digest}.json`), "utf8"));
+      expect(pinned.entry).toEqual(entry);
+      expect(pinned.archive.digest).toBe(digest);
     }
     expect(existsSync(join(PUBLIC, "downloads", "bound-skill", "skill.tgz"))).toBe(false);
   });

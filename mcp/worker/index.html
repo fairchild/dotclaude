@@ -1,126 +1,32 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#f5f3ef" media="(prefers-color-scheme: light)">
-<title>skills.cloudcompute.com</title>
-<meta name="description" content="dotclaude's skills served over the MCP Skills Extension (SEP-2640): {{PORTABLE}} skills, one endpoint, verifiable manifests.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Skill library · dotclaude</title>
+<meta name="description" content="Browse {{PORTABLE}} portable agent skills. Read the instructions, explore their files, or download a complete skill.">
+<link rel="alternate" type="text/markdown" href="/llms.txt">
+<link rel="describedby" href="/llms.txt">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Anybody:wght@700;900&display=swap" rel="stylesheet">
-<style>
-  :root {
-    color-scheme: dark;
-    --bg-deep: #0d0d0d; --bg-surface: #161616; --bg-elevated: #1e1e1e;
-    --text-primary: #e8e4d9; --text-secondary: #8a8680; --text-muted: #5a5754;
-    --accent: #d4a04a; --accent-dim: #8b6a32; --accent-glow: rgba(212, 160, 74, 0.15);
-    --border: #2a2a2a; --scanline: rgba(255, 255, 255, 0.025);
-  }
-  @media (prefers-color-scheme: light) {
-    :root {
-      color-scheme: light;
-      --bg-deep: #f5f3ef; --bg-surface: #faf9f7; --bg-elevated: #ffffff;
-      --text-primary: #1a1918; --text-secondary: #5a5754; --text-muted: #8a8680;
-      --accent: #a67c28; --accent-dim: #c49b42; --accent-glow: rgba(166, 124, 40, 0.1);
-      --border: #e5e2dc; --scanline: rgba(0, 0, 0, 0.018);
-    }
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { font-size: 15px; }
-  body {
-    font-family: "JetBrains Mono", monospace; background: var(--bg-deep);
-    color: var(--text-primary); line-height: 1.6; min-height: 100vh;
-    padding: 0 20px 80px;
-  }
-  body::after {
-    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9999;
-    background: repeating-linear-gradient(0deg, transparent, transparent 2px, var(--scanline) 2px, var(--scanline) 4px);
-  }
-  main { max-width: 78ch; margin: 0 auto; }
-  a { color: var(--accent); text-underline-offset: 2px; }
-  a:hover { color: var(--text-primary); }
-  code { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 3px; padding: 1px 6px; font-size: .85em; }
-  pre {
-    background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px;
-    padding: 14px 16px; overflow-x: auto; font-size: .8rem; line-height: 1.55;
-  }
-  pre code { background: none; border: none; padding: 0; }
-  header { padding: 64px 0 28px; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
-  .eyebrow { font-size: .7rem; font-weight: 500; text-transform: uppercase; letter-spacing: .16em; color: var(--accent); margin-bottom: 14px; }
-  h1 {
-    font-family: "Anybody", sans-serif; font-weight: 900; font-size: 2.5rem;
-    letter-spacing: 0; line-height: 1.15; margin-bottom: 12px; text-wrap: balance;
-  }
-  h2 { font-family: "Anybody", sans-serif; font-weight: 700; font-size: 1.25rem; margin: 40px 0 12px; }
-  .lede { color: var(--text-secondary); max-width: 62ch; }
-  .endpoint {
-    font-size: .95rem; background: var(--bg-surface); border: 1px solid var(--accent-dim);
-    border-radius: 6px; padding: 12px 14px; margin-top: 22px;
-    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
-    box-shadow: 0 0 24px var(--accent-glow);
-  }
-  .endpoint b { font-weight: 600; color: var(--accent); }
-  button.copy {
-    font: inherit; font-size: .72rem; background: none; border: 1px solid var(--border);
-    border-radius: 4px; color: var(--text-secondary); padding: 3px 10px; cursor: pointer;
-  }
-  button.copy:hover, button.copy:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
-  table { border-collapse: collapse; width: 100%; font-size: .85rem; }
-  td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
-  td:first-child { font-size: .8rem; white-space: nowrap; color: var(--accent); }
-  td:first-child a { color: var(--accent); text-decoration: none; }
-  td:first-child a:hover { color: var(--text-primary); text-decoration: underline; }
-  td:last-child { color: var(--text-secondary); }
-  .note { font-size: .82rem; color: var(--text-secondary); border-left: 2px solid var(--accent-dim); padding-left: 14px; }
-  footer { margin-top: 56px; border-top: 1px solid var(--border); padding-top: 16px; font-size: .78rem; color: var(--text-muted); }
-  .tablewrap { overflow-x: auto; }
-</style>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/library.css">
 </head>
-<body>
-<main>
-<header>
-  <div class="eyebrow">MCP Skills Extension · SEP-2640 · io.modelcontextprotocol/skills</div>
-  <h1>dotclaude skills, served over MCP</h1>
-  <p class="lede">Every portable skill from <a href="https://github.com/fairchild/dotclaude">fairchild/dotclaude</a> — {{PORTABLE}} of {{TOTAL}} — as one resource per file under <code>skill://</code>, with complete per-skill manifests and SHA-256 digests, so a consuming host can verify every byte it reads.</p>
-  <div class="endpoint"><b>POST</b> https://skills.cloudcompute.com/mcp <button class="copy" onclick="copySnippet(this)">copy .mcp.json</button></div>
-</header>
-
-<h2>Connect</h2>
-<p>From Claude Code or any MCP host. The <code>x-skills-client</code> header is optional — it labels your traffic in the usage metrics.</p>
-<pre id="snippet">{
+<body><main>
+<nav aria-label="Library"><span>dotclaude / skill library</span><a href="/llms.txt">For agents · Markdown</a></nav>
+<header><p class="eyebrow">{{PORTABLE}} portable skills</p><h1>Find a skill.<br>Make it yours.</h1>
+<p class="description">Read the instructions, follow the files, or download the complete directory. Each skill starts with SKILL.md.</p>
+<p class="meta"><a href="/llms.txt">Markdown catalog</a> · <a href="/manifest.json">File manifest</a></p></header>
+<ul class="catalog" aria-label="Skills">{{SKILL_ROWS}}</ul>
+<details><summary>Connect through MCP</summary><p>MCP clients can use the same library at <code>https://skills.cloudcompute.com/mcp</code>.</p>
+<pre>{
   "mcpServers": {
     "dotclaude-skills": {
       "type": "http",
-      "url": "https://skills.cloudcompute.com/mcp",
-      "headers": { "x-skills-client": "your-label" }
+      "url": "https://skills.cloudcompute.com/mcp"
     }
   }
-}</pre>
-<p>Scripts and assets ride the same rails: every file in a skill — <code>scripts/</code>, <code>references/</code>, <code>assets/</code> — is an ordinary resource under its <code>skill://</code> path, enumerated in the skill's manifest with a digest and size, fetched with plain <code>resources/read</code> (binaries arrive base64-encoded). Scripts travel as verified bytes, nothing more — the spec deliberately gives them no execute semantics, so your host materializes them and runs them under its own permission gates.</p>
-
-<p>A host that knows the extension gets <code>skills/list</code>, <code>skills/get</code>, and <code>resources/directory/read</code>; a host that doesn't sees ordinary MCP resources and everything still works. Skills follow the <a href="https://agentskills.io/specification">Agent Skills spec</a>; the transport is <a href="https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640">SEP-2640</a>; the server is a <a href="https://github.com/fairchild/dotclaude/tree/main/mcp">public reference implementation</a>.</p>
-
-<h2>What's served</h2>
-<div class="tablewrap"><table>
-{{SKILL_ROWS}}
-</table></div>
-<p class="note">Machine-bound skills ({{MACHINE_BOUND}}) are excluded from this hosted tier — they assume their author's machine and are served only by the repo's local stdio binding.</p>
-
-<h2>Transparency</h2>
-<p class="note">Requests to this server are logged for operational and usage metrics: JSON-RPC method, skill name, outcome, latency, response size, country, datacenter, user agent, and the optional <code>x-skills-client</code> label. No IP addresses are stored by this service, anonymous requests are not individually tracked, and identification happens only if you label yourself. Don't put personal data in the label. Infrastructure: Cloudflare Workers; usage events: PostHog (US).</p>
-
-<footer>
-  built from <a href="https://github.com/fairchild/dotclaude">fairchild/dotclaude</a> · explore the config at <a href="https://claude.cloudcompute.com">claude.cloudcompute.com</a> · snapshot: {{BUILT_AT}}
-</footer>
-</main>
-<script>
-function copySnippet(btn) {
-  navigator.clipboard.writeText(document.getElementById("snippet").innerText).then(() => {
-    btn.textContent = "copied"; setTimeout(() => (btn.textContent = "copy .mcp.json"), 1500);
-  });
-}
-</script>
-</body>
-</html>
+}</pre><p>Ordinary file downloads need no MCP setup. <a href="https://github.com/fairchild/dotclaude/tree/main/mcp">Protocol documentation</a></p></details>
+<details><summary>About this library</summary><p>Built from <a href="https://github.com/fairchild/dotclaude">fairchild/dotclaude</a>. Machine-bound skills ({{MACHINE_BOUND}}) are available only through the local server.</p>
+<p>MCP usage metrics include method, skill, outcome, latency, response size, country, datacenter, user agent, and an optional client label. This service does not store IP addresses. Infrastructure: Cloudflare Workers; usage events: PostHog.</p></details>
+<footer>dotclaude · snapshot {{BUILT_AT}}</footer>
+</main></body></html>
