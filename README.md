@@ -74,7 +74,7 @@ Claude loads these when the task matches the description.
 
 | Skill | Domain |
 |---|---|
-| `agent-inbox` | File-based messaging between agents across any harness. |
+| `agent-inbox` | File-based messaging between agents across tools. |
 | `analyze-usage` | Analyze local AI coding-assistant activity across Claude Code, Codex, Cursor, and Pi. |
 | `backlog` | Markdown task backlog and project roadmap (backlog/{todo,doing,done,failed}/, backlog/ROADMAP.md) for adding,… |
 | `chronicle` | Session continuity for coding work. |

@@ -33,7 +33,7 @@ EOF
 
 mv "$inbox_root/orchestrator/tmp/${TIMESTAMP}-done.md" "$inbox_root/orchestrator/new/"
 
-bash <agent-inbox base dir>/scripts/wake-parent.sh \
+bash <cmux-orchestrator base dir>/scripts/wake-parent.sh \
   --surface <parent-surface> --agent orchestrator
 ```
 
@@ -50,7 +50,7 @@ bash <agent-inbox base dir>/scripts/wake-parent.sh \
 Bake the wake instruction into the child launch:
 
 ```bash
-cmux send --surface <child> "echo 'Check your inbox. When done, reply to orchestrator inbox and run: bash <agent-inbox base dir>/scripts/wake-parent.sh --surface <parent> --agent orchestrator' | claude -p -n coder --add-dir '$inbox_root' --dangerously-skip-permissions"
+cmux send --surface <child> "echo 'Check your inbox. When done, reply to orchestrator inbox and run: bash <cmux-orchestrator base dir>/scripts/wake-parent.sh --surface <parent> --agent orchestrator' | claude -p -n coder --add-dir '$inbox_root' --dangerously-skip-permissions"
 cmux send-key --surface <child> Enter
 ```
 
