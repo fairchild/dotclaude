@@ -19,19 +19,30 @@ describe("skill reading and installation", () => {
     expect(rendered).not.toContain('&amp;lt;');
   });
   test("escapes page metadata and inline prompt without replacing skill placeholders", () => {
-    const page = renderSkillPage(template, 'example', '\"><img src=x onerror=alert(1)>', '---\nname: example\n---\n\n</textarea><script>bad()</script>\n{{NAME}}\n', 2);
+    const page = renderSkillPage(template, 'example', '\"><img src=x onerror=alert(1)>', '---\nname: example\n---\n\n</textarea><script>bad()</script>\n{{NAME}}\n', ['SKILL.md', 'references/guide.md']);
     expect(page).not.toContain('<img src=x');
     expect(page).not.toContain('<script>bad()');
     expect(page).toContain('&lt;/textarea&gt;');
     expect(page).toContain('{{NAME}}');
     expect(page).toContain('2 files');
   });
+  test("prompt lists archive and every supporting path before the inline skill", () => {
+    const markdown = "# Example\n";
+    const prompt = installPrompt("example", markdown, ["SKILL.md", "scripts/install.sh", "references/a guide.md", "assets/logo.bin"]);
+    expect(prompt).toContain("https://skills.cloudcompute.com/downloads/example/skill.tgz");
+    for (const path of ["scripts/install.sh", "references/a guide.md", "assets/logo.bin"]) {
+      expect(prompt).toContain(`- example/${path}`);
+      expect(prompt.indexOf(`- example/${path}`)).toBeLessThan(prompt.indexOf(markdown));
+    }
+    expect(prompt).toContain("https://skills.cloudcompute.com/skills/example/references/a%20guide.md");
+    expect(installPrompt("example", markdown, ["SKILL.md"])).toContain("No supporting files.");
+  });
   for (const ending of ['\n', '']) {
     test(`copied shell command installs exact bytes ${ending ? 'with' : 'without'} final newline`, () => {
       const root = mkdtempSync(join(tmpdir(), 'skill-install-'));
       try {
         const markdown = '---\nname: example\n---\n\n# Example\n\n$HOME `echo nope` $(echo nope) "quotes" & <tags>' + ending;
-        const prompt = installPrompt('example', markdown);
+        const prompt = installPrompt('example', markdown, ['SKILL.md']);
         expect(prompt).toContain('https://skills.cloudcompute.com/manifest.json');
         expect(prompt).toContain('SHA-256');
         // Substitute only the destination; never change the process HOME.

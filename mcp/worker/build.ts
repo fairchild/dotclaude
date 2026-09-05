@@ -13,6 +13,7 @@
  *
  * Usage: bun worker/build.ts [--root <skills-dir>] [--out <dist-dir>]
  */
+import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -45,8 +46,13 @@ for (const skill of portable) {
     const rel = resource.uri.slice(`skill://${name}/`.length);
     const target = join(publicDir, "skills", name, rel);
     mkdirSync(join(target, ".."), { recursive: true });
-    cpSync(join(skill.dir, rel), target);
+    cpSync(join(skill.dir, rel), target, { dereference: true });
   }
+  const archiveDir = join(publicDir, "downloads", name);
+  mkdirSync(archiveDir, { recursive: true });
+  execFileSync("tar", ["-czf", join(archiveDir, "skill.tgz"), "-C", join(publicDir, "skills"), name], {
+    env: { ...process.env, COPYFILE_DISABLE: "1" },
+  });
 }
 
 writeFileSync(
@@ -66,7 +72,7 @@ for (const { entry, dir } of portable) {
   const markdown = readFileSync(join(dir, "SKILL.md"), "utf-8");
   writeFileSync(join(publicDir, "skill", `${name}.html`), renderSkillPage(
     detailTemplate, name, String(entry.frontmatter.description ?? ""), markdown,
-    entry.resources === "dynamic" ? 1 : entry.resources.length,
+    entry.resources === "dynamic" ? ["SKILL.md"] : entry.resources.map(r => r.uri.slice(`skill://${name}/`.length)),
   ));
 }
 

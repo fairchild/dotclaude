@@ -69,7 +69,7 @@ bunx wrangler deploy -c worker/wrangler.toml   # publish (POST /mcp)
 
 The hosted binding is live at `https://skills.cloudcompute.com/mcp`
 (portable tier, public). The root of that domain is a landing page built
-from the snapshot (`worker/index.html` + build.ts). Each catalog link opens a reading page at `/skill/<name>`, generated with Bun 1.4 or newer. Its copy button includes the installation command, the full `SKILL.md`, and instructions to fetch and verify supporting files from the hosted manifest. Raw files remain under `/skills/<name>/`. Run `bun run typecheck`, `bun run build`, and `bun run test` to verify changes. Claude Code — or any MCP host — connects to either binding:
+from the snapshot (`worker/index.html` + build.ts). Each catalog link opens a reading page at `/skill/<name>`, generated with Bun 1.4 or newer. Its copy button includes a `skill.tgz` download URL, every supporting file path and URL, and an installation command with the full inline `SKILL.md`. Archives at `/downloads/<name>/skill.tgz` contain the complete `<name>/` directory and preserve file permissions. The build uses system `tar`; only files in the hosted manifest are packaged. Raw files remain under `/skills/<name>/`. Run `bun run typecheck`, `bun run build`, and `bun run test` to verify changes. Claude Code — or any MCP host — connects to either binding:
 
 ```json
 {

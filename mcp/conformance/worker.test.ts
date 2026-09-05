@@ -6,7 +6,8 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import worker from "../worker/worker.ts";
@@ -85,6 +86,30 @@ describe("worker binding", () => {
       );
     }
     expect(existsSync(join(PUBLIC, "skill", "bound-skill.html"))).toBe(false);
+  });
+
+  test("download archives contain exactly the manifest files with original bytes and modes", async () => {
+    const { skills } = JSON.parse(readFileSync(join(PUBLIC, "manifest.json"), "utf8"));
+    for (const { entry } of skills) {
+      const name = entry.frontmatter.name;
+      const archivePath = join(PUBLIC, "downloads", name, "skill.tgz");
+      const archive = new Bun.Archive(readFileSync(archivePath));
+      const files = await archive.files();
+      const paths = entry.resources.map((r: { uri: string }) => r.uri.slice("skill://".length));
+      expect([...files.keys()].sort()).toEqual(paths.sort());
+      const extracted = mkdtempSync(join(tmpdir(), "skill-archive-"));
+      try {
+        const result = spawnSync("tar", ["-xzf", archivePath, "-C", extracted]);
+        expect(result.status).toBe(0);
+        for (const path of paths) {
+          expect(readFileSync(join(extracted, path))).toEqual(readFileSync(join(FIXTURES, path)));
+          expect(statSync(join(extracted, path)).mode & 0o777).toBe(statSync(join(FIXTURES, path)).mode & 0o777);
+        }
+      } finally { rmSync(extracted, { recursive: true, force: true }); }
+      const page = readFileSync(join(PUBLIC, "skill", `${name}.html`), "utf8");
+      expect(page).toContain(`href="/downloads/${name}/skill.tgz"`);
+    }
+    expect(existsSync(join(PUBLIC, "downloads", "bound-skill", "skill.tgz"))).toBe(false);
   });
 
   test("serves the portable tier only — the build excluded machine-bound", async () => {

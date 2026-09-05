@@ -48,7 +48,7 @@ footer { border-top:1px solid var(--line); margin-top:56px; padding-top:20px; co
 <body>
 <main>
 <nav aria-label="Breadcrumb"><a href="/">← All skills</a><span>dotclaude / skill library</span></nav>
-<header><p class="eyebrow">Agent skill</p><h1>{{NAME}}</h1><p class="description">{{DESCRIPTION}}</p><p class="meta">{{FILE_COUNT}} · <a href="{{RAW_URL}}">Raw SKILL.md</a></p></header>
+<header><p class="eyebrow">Agent skill</p><h1>{{NAME}}</h1><p class="description">{{DESCRIPTION}}</p><p class="meta">{{FILE_COUNT}} · <a href="{{RAW_URL}}">Raw SKILL.md</a> · <a href="{{ARCHIVE_URL}}" download>Download skill.tgz</a></p></header>
 <section class="install" aria-label="Install this skill">
 <div class="install-row"><p>Copy the prompt. Paste it into your agent.</p><button type="button" id="copy-install">Copy install prompt</button></div>
 <details id="prompt-preview"><summary>Read the install prompt</summary><textarea id="install-prompt" aria-label="Install prompt" readonly spellcheck="false">{{PROMPT}}</textarea></details>
