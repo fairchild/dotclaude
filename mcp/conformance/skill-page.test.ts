@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, existsSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { packagePrompt, directoryMarkdown, installPrompt, renderMarkdown, renderSkillPage } from "../worker/skill-page.ts";
+import { installSafety, packagePrompt, directoryMarkdown, installPrompt, renderMarkdown, renderSkillPage } from "../worker/skill-page.ts";
 
 const template = readFileSync(join(import.meta.dir, "../worker/skill.html"), "utf8");
 describe("skill reading and installation", () => {
@@ -67,7 +67,11 @@ describe("skill reading and installation", () => {
     const prompt = packagePrompt("example", download);
     expect(prompt).toContain("SHA-256: abc");
     expect(prompt).not.toContain("cat >");
-    expect(prompt.length).toBeLessThan(800);
+    expect(prompt.replace(installSafety, "").length).toBeLessThan(800);
+    expect(prompt).toContain(installSafety);
+    const inline = installPrompt("example", "# Example\n", ["SKILL.md"]);
+    expect(inline).toContain(installSafety);
+    expect(inline.indexOf(installSafety)).toBeLessThan(inline.indexOf("# Example"));
     const directory = directoryMarkdown("example", "A useful skill", ["SKILL.md", "references/a guide.md"], download);
     expect(directory).toContain("/skills/example/references/a%20guide.md");
     expect(directory).toContain("## Files");

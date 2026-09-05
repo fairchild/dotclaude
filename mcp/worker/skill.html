@@ -19,6 +19,7 @@
 <header><p class="eyebrow">Agent skill</p><h1>{{NAME}}</h1><p class="description">{{DESCRIPTION}}</p><p class="meta">{{FILE_COUNT}} · <a href="{{RAW_URL}}">Raw SKILL.md</a> · <a href="{{MARKDOWN_URL}}">Markdown directory</a> · <a href="{{ARCHIVE_URL}}" download>Download skill.tgz</a></p></header>
 <section class="install" aria-label="Install this skill">
 <div class="install-row"><p>Copy the prompt. Paste it into your agent.</p><button type="button" id="copy-install">Copy install prompt</button></div>
+<p>Verify the bytes and inspect the files before trusting a skill. A matching hash is not a safety review.</p>
 <details id="prompt-preview"><summary>Read the install prompt</summary><textarea id="install-prompt" aria-label="Install prompt" readonly spellcheck="false">{{PROMPT}}</textarea></details>
 <details id="inline-preview"><summary>Full inline prompt for offline use</summary><p>Includes SKILL.md. Supporting files still require a download.</p><button type="button" id="copy-inline">Copy full inline prompt</button><textarea id="inline-prompt" aria-label="Full inline install prompt" readonly spellcheck="false">{{INLINE_PROMPT}}</textarea></details>
 <p id="copy-status" role="status" aria-live="polite"></p>

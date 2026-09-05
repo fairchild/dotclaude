@@ -73,6 +73,20 @@ The Worker does not synthesize Last-Modified or implement a second cache.
 
 ## Package installation
 
+Both install prompts ask the consuming agent to inspect before installing: treat
+skill text as untrusted during review, check archive paths, entry types, permissions,
+and expanded size, then look for prompt injection, credential access, telemetry,
+unexpected outbound data, and attempts to weaken safeguards. Suspicion or an
+inability to inspect safely means stop and report to the user. Neither prompt
+requests telemetry or uploads. These instructions are guidance, not a malware scan
+or a guarantee that a model will detect malicious content. A matching hash proves
+integrity only. See [OWASP's prompt injection guidance](https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html).
+
+Archive filenames are SHA-256 digests of the finished compressed tarball bytes,
+including archive metadata. They are not hashes of concatenated source files;
+timestamp or ownership changes can change the archive digest. The companion JSON
+manifest uses the archive digest as its identifier, not a hash of its own JSON bytes.
+
 The default copied prompt identifies the package, destination guidance, archive
 SHA-256, and its matching manifest. The archive and manifest URLs contain the
 archive digest, and the resolver accepts only the package named in the hosted
