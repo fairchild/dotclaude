@@ -12,10 +12,23 @@
 
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# The inbox skill is installed beside this orchestration skill.
-# shellcheck source=../../agent-inbox/scripts/lib.sh
-. "$script_dir/../../agent-inbox/scripts/lib.sh"
+# Mirrors agent_inbox_root in the agent-inbox skill: AGENT_INBOX_ROOT, else the
+# clone's common Git directory, else the current directory. Inline so this
+# adapter runs wherever the host installed it, with or without that skill.
+resolve_inbox_root() {
+  local common_dir
+  if [[ -n "${AGENT_INBOX_ROOT:-}" ]]; then
+    case "$AGENT_INBOX_ROOT" in
+      /*) printf '%s\n' "$AGENT_INBOX_ROOT" ;;
+      *) echo 'AGENT_INBOX_ROOT must be an absolute path' >&2; return 1 ;;
+    esac
+  elif common_dir=$(git rev-parse --git-common-dir 2>/dev/null); then
+    common_dir=$(cd "$common_dir" && pwd -P) || return 1
+    printf '%s/.agents/inbox\n' "$(dirname "$common_dir")"
+  else
+    printf '%s/.agents/inbox\n' "$PWD"
+  fi
+}
 
 surface=""
 inbox_path=""
@@ -75,7 +88,7 @@ if $is_active; then
   echo "Active session on $surface — stop hook will surface inbox on next turn"
 
 elif $is_idle; then
-  inbox_root=$(agent_inbox_root)
+  inbox_root=$(resolve_inbox_root)
   inbox_hint=""
   inbox_add_dir="$inbox_root"
   if [[ -n "$inbox_path" ]]; then
