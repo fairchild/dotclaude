@@ -87,12 +87,19 @@ free of concurrent external writers, and it is not an OS sandbox. See the
    [`mcp/README.md`](../mcp/README.md#protocol-and-source-layout) (the pin)
    and [`mcp/README.md`](../mcp/README.md#supported-methods-and-limitations)
    (the table); recheck upstream and bump the pinned SHA at each release
-   candidate. Still needed to close this gate: the architecture walkthrough,
-   security reporting instructions, and a transport-coverage audit —
-   including refresh, errors and shutdown — against that table. Have a second
-   reviewer follow only the packed README. Preserve the
-   [quality review](skill-server-quality-review.md) as historical evidence and
-   explicitly disposition any remaining findings against the candidate commit.
+   candidate. The architecture walkthrough, including the disposition of the
+   [quality review](skill-server-quality-review.md)'s findings against
+   `d2fd7a8a`, and the security reporting instructions are
+   [skill-server-architecture.md](skill-server-architecture.md) and
+   [SECURITY.md](../SECURITY.md) (PR #293). The transport audit — a real SDK
+   client over stdio, `serve` and `wrangler dev` through initialize,
+   discovery, listing with pagination, reads, refresh, errors and shutdown — is
+   recorded on [#277](https://github.com/fairchild/dotclaude/issues/277); it
+   recommends keeping the one-shot transport and led to the `serve` identity
+   and refresh fixes in PR #295. Two independent reviewers followed only the
+   packed README against the `d2fd7a8a` tarball on 2026-09-05; every literal
+   claim held, and the gaps they hit are fixed in the same change as this text.
+   The quality review stays as historical evidence.
 3. Before npm publication, confirm package-name ownership, publishing access,
    license/attribution and candidate acceptance. Complete registry-facing metadata
    such as homepage, issue reporting and publish configuration. Only remove
@@ -128,3 +135,13 @@ remain separate operations.
   `skills-server` name already occupied, and a local npm identity check returning
   401. These are historical observations, not current availability or ownership
   claims. Recheck exact names and credentials at release time.
+- The 2026-09-05 candidate qualification session (#285) opened PRs #291–#296.
+  The deploy jobs had never run for a merge that did not touch `.github/`,
+  because a skipped lane propagated through the always-running gate (#291). The
+  packaged `serve` announced the maintainer's deployment name and kept a stale
+  manifest across a rebuild (#295). The packaged CLI dropped scan diagnostics
+  and gained `--strict` (#296). An adversarial renderer snapshot (#292), the
+  architecture walkthrough and security policy (#293), and the README pin and
+  table (#294) completed gate 2's documentation. The `d2fd7a8a` tarball was
+  byte-identical between CI and a local pack and passed both fresh-install
+  walkthroughs.
