@@ -20,6 +20,7 @@ const PUBLIC = join(DIST, "public");
 /** Serve the built dist/public the way the Workers assets binding would. */
 const datapoints: Array<{ blobs?: string[]; doubles?: number[]; indexes?: string[] }> = [];
 const env = {
+  SERVER_NAME: "dotclaude-skills-hosted",
   ASSETS: {
     async fetch(request: Request): Promise<Response> {
       const path = decodeURIComponent(new URL(request.url).pathname);
@@ -96,8 +97,25 @@ describe("worker binding", () => {
       clientInfo: { name: "worker-conformance", version: "0.0.0" },
     });
     expect(init.result.capabilities.extensions[EXTENSION_ID]).toEqual({ directoryRead: true });
+    expect(init.result.serverInfo.name).toBe("dotclaude-skills-hosted");
     const note = await post({ jsonrpc: "2.0", method: "notifications/initialized" });
     expect(note.status).toBe(202);
+  });
+
+  test("the deployment name is a binding; without it the package names itself", async () => {
+    const response = await worker.fetch(
+      new Request("https://skills.example/mcp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0", id: ++nextId, method: "initialize",
+          params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "unbound", version: "0.0.0" } },
+        }),
+      }),
+      { ASSETS: env.ASSETS },
+    );
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as any).result.serverInfo.name).toBe("skill-server");
   });
 
   test("catalog links to generated reading pages while raw resources stay intact", () => {
