@@ -22,8 +22,9 @@ The filename is the initial candidate version, not a claim that a release alread
 exists. Requires Node 22.14+; CI checks Node 22.14.0 and current Node 22/24.
 PRs qualify Linux/macOS; main and releases also qualify Windows. Dependencies download
 from npm, but this package is distributed through GitHub only. No Bun, TypeScript
-compiler, system tar, or consumer installation script is required. `--root` is
-mandatory. HTTP listens on loopback by default; authentication and reverse proxy
+compiler, system tar, or consumer installation script is required. `stdio` and
+`build` require `--root`; `serve` requires `--snapshot`. HTTP listens on loopback
+by default; authentication and reverse proxy
 configuration are the operator's responsibility for external exposure.
 
 Imports do not scan a directory, listen on a port, or send telemetry:
@@ -169,7 +170,7 @@ raw IPs. `bun metrics.ts` renders a summary (needs
 `CLOUDFLARE_ACCOUNT_ID` and a `CLOUDFLARE_API_TOKEN` with Account
 Analytics read; the script header has details). Worker-level request and
 error metrics also appear in the Cloudflare dashboard under the
-`dotclaude-skills` worker, and `bunx wrangler tail -c worker/wrangler.toml`
+`dotclaude-skills` worker, and `./node_modules/.bin/wrangler tail -c worker/wrangler.toml`
 streams live invocations.
 
 ## Verified materialization example

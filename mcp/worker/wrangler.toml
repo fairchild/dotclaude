@@ -19,7 +19,8 @@ html_handling = "none"
 
 # Product-level usage events (skill_used) go to PostHog when a project key
 # is present. Forks: set your own with
-#   bunx wrangler secret put POSTHOG_API_KEY -c worker/wrangler.toml
+# From mcp/, after installing locked dependencies:
+#   ./node_modules/.bin/wrangler secret put POSTHOG_API_KEY -c worker/wrangler.toml
 # No key means no emission — the worker no-ops it.
 [vars]
 POSTHOG_HOST = "https://us.i.posthog.com"

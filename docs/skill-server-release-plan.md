@@ -1,137 +1,126 @@
 # skill-server release plan
 
-Status: implementation in progress; publication is not authorized. The initial review covered PR #270. PR #272 merged the first hardening slice. Progress and remaining gates are recorded below.
+Status, 2026-09-05: the GitHub-only candidate pipeline and package-backed site
+deployment are implemented. The package version is `0.1.0-rc.1`, but no
+`skill-server-v*` GitHub release has been published. npm publication remains
+unconfigured and requires separate maintainer approval. The repository's older
+`v0.1.0` release is not a skill-server package release.
 
-Publish a small server people can run against their own skills directory, embed in an MCP application, and study as a reference. Keep the connection to [ext-skills](https://github.com/modelcontextprotocol/ext-skills) prominent. Describe it as an independent implementation of the experimental Skills Over MCP extension, with an exact specification revision and a table of supported methods and limitations. The upstream repository explicitly says its exploratory work is not an official MCP specification or recommendation.
+The goal is one small package people can run against their own skills directory,
+embed in an MCP application, and study as an independent implementation of the
+experimental [Skills Over MCP extension](https://github.com/modelcontextprotocol/ext-skills).
+It is not an official MCP reference implementation. Keep the package in `mcp/`;
+no additional repository, plugin framework or package collection is needed.
 
-My recommendation is one npm package, `skill-server`, containing an importable core, a Node-compatible CLI, and HTTP snapshot support. Keep the existing `mcp/` directory for the first release and make the hosted site consume the same public exports. A new repository, plugin framework, or collection of packages would add work without improving the first user's experience.
+## Implemented
 
-## Current readiness
+`mcp/package.json` defines the package name, version, Node engine, executable,
+typed ESM exports, license and file allowlist. The root export provides server
+creation and store types, `/fs` provides filesystem storage, and `/http` provides
+snapshot building and HTTP handling. The package stays `private: true` to prevent
+accidental npm publication; packing and installing a tarball still work.
 
-The existing store boundary already separates protocol handlers from filesystem and snapshot storage. Conformance checks exercise stdio, the Worker, representation negotiation, resource digests, and archives. These are good foundations for a reference implementation. Passing those checks does not yet demonstrate safety with hostile filesystem contents or malformed protocol envelopes.
+The distributed runtime requires Node 22.14 or newer, not Bun, TypeScript or a
+system tar executable. The builder takes explicit root, output and base URL
+arguments, uses the `tar` package for archives and `markdown-it` for rendering,
+and produces reproducible archive bytes. Imports do not scan a home directory,
+start a listener or emit telemetry. The hosted Worker uses the same package
+implementation with a separate, deployment-specific telemetry adapter.
 
-The current package is private, has no version, executable mapping, or published exports, and requires Bun. The builder assumes this repository's layout and system `tar`; rendering uses `Bun.markdown`. Generated prompts point to `skills.cloudcompute.com`. The Worker includes deployment-specific metrics and optional PostHog emission. These choices need explicit package boundaries before third parties can reuse it safely.
+Hardening checks cover malformed HTTP/JSON-RPC input, streamed request limits,
+filesystem budgets, nested symlinks, output overlap including linked skill roots,
+staged-build preservation, safe rendering, negotiation, resource digests and
+archives. These checks establish specific tested behavior, not a general safety
+guarantee for untrusted skill contents.
 
-On 2026-09-05, `GET https://registry.npmjs.org/skill-server` returned 404. Name ownership, permission to publish, and registry acceptance remain unverified. Recheck at release time. If the name cannot be acquired, select a scope owned by the maintainer before changing the documented install command.
+CI tests source conformance, installs the packed artifact into a fresh directory,
+exercises SDK clients over stdio and HTTP, and checks the packaged Worker in the
+real local Cloudflare runtime. PRs run Linux/macOS consumers on Node 22/24 plus
+Linux on Node 22.14.0. Main, tags and manual CI also run Windows on Node 22/24.
+The same read-only verification workflow serves CI and tagged releases.
 
-## Proposed user contract
+Relevant main changes automatically deploy the tested site artifacts after the
+CI gate. A `skill-server-vX.Y.Z-rc.N` tag instead selects a GitHub prerelease after
+tag/version/main-ancestry checks, package verification and artifact attestation.
+It does not publish to npm. See [GitHub Actions and releases](github-actions.md)
+for the operational procedure, environment settings, caching and recovery.
 
-These commands describe the target interface; they do not work yet:
+## Current user contract
+
+Use a locally built or downloaded candidate tarball. The example filename is the
+current package version, not a claim that a public release exists. Build one with
+the [package verification commands](../mcp/README.md#developing-in-this-repository), or
+obtain it from a successful package CI run. In a fresh consumer directory:
 
 ```sh
-npx skill-server@0.1.0 stdio --root ./skills
-npx skill-server@0.1.0 build --root ./skills --out ./dist/skills --base-url https://skills.example.com
-npx skill-server@0.1.0 serve --snapshot ./dist/skills --host 127.0.0.1 --port 3000
+npm install ./skill-server-0.1.0-rc.1.tgz
+npx --no-install skill-server --help
+npx --no-install skill-server stdio --root ./skills
 ```
 
-Require an explicit skills root. Importing the package must not read a home directory, start a listener, or emit telemetry. Stdio logs go to stderr. `--help`, `--version`, invalid arguments, missing roots, and shutdown have predictable behavior. Bind HTTP to loopback by default; document the authentication and proxy requirements for intentional network exposure.
+`stdio` keeps running until stopped. To build and serve a snapshot instead:
 
-Publish compiled ESM and type declarations. Keep Bun for repository development, but make the distributed runtime work without Bun, TypeScript, a repository checkout, or system `tar`. Recommend a Node 22.14+ baseline, checked on Node 22 and 24 at release qualification. Supporting Node adds renderer/archive dependency work; it makes ordinary npm installation useful to a much wider audience.
+```sh
+npx --no-install skill-server build --root ./skills --out ./dist/skills --base-url http://127.0.0.1:3000
+npx --no-install skill-server serve --snapshot ./dist/skills --host 127.0.0.1 --port 3000
+```
 
-Keep public exports small: server creation and store types at the root, filesystem storage under `/fs`, and snapshot build/HTTP functions under `/http`. Cloudflare gets a thin example adapter. Avoid exporting internal parsers and templates until a consumer needs them. Derive reported server version from package metadata.
+Provide your own `./skills` directory. `stdio` and `build` require `--root`;
+`serve` requires `--snapshot`. Stdio diagnostics go to stderr. HTTP defaults to
+loopback; intentional network exposure requires operator-managed authentication
+and proxy configuration. Runtime dependencies still download from npm.
 
-## Delivery sequence
+Digest verification establishes byte identity, not safe behavior. Old hosted
+digest URLs are not retained automatically. The materialization example remains
+source-only and outside the public CLI: its parent directory must be trusted and
+free of concurrent external writers, and it is not an OS sandbox. See the
+[materialization limitations](../mcp/README.md#verified-materialization-example).
 
-### 1. Fix the trust boundaries
+## Remaining release gates
 
-Address the accompanying [quality review](skill-server-quality-review.md) first. Validate JSON-RPC envelopes, bound incoming bytes while streaming, constrain filesystem reads and traversal, and make build output safe and internally consistent. Prefer the SDK's supported stateless HTTP transport if it removes custom protocol behavior; document any adapter retained for Workers.
+1. Select a GitHub candidate explicitly. Verify the chosen commit's full matrix,
+   create its matching RC tag, inspect the resulting release assets and
+   attestation, and install that exact release tarball in a fresh directory.
+   The workflow exists; this first publication has not been exercised yet.
+2. Complete broader reference-implementation qualification. Pin an exact upstream
+   specification revision, publish the supported-method/limitations matrix and
+   architecture walkthrough, and add security reporting instructions. Audit
+   transport coverage, including refresh, errors and shutdown, against that
+   matrix. Have a second reviewer follow only the packed README. Preserve the
+   [quality review](skill-server-quality-review.md) as historical evidence and
+   explicitly disposition any remaining findings against the candidate commit.
+3. Before npm publication, confirm package-name ownership, publishing access,
+   license/attribution and candidate acceptance. Complete registry-facing metadata
+   such as homepage, issue reporting and publish configuration. Only remove
+   `private: true` as part of that approved npm-release change. Do not publish a
+   placeholder to reserve a name.
+4. Add npm-specific release automation after approval. Recheck current
+   [trusted-publisher requirements](https://docs.npmjs.com/trusted-publishers/),
+   configure the publisher and release protections, and prefer short-lived OIDC
+   credentials. Bootstrap with the maintainer's account only if required. Start
+   with an approved RC on `next`; verify registry integrity, files, provenance,
+   dist-tags and a fresh install before considering stable promotion.
 
-Each fix needs a focused regression using the failing input. Keep intended support for explicitly selected top-level skill symlinks separate from nested paths escaping a selected skill. Define that policy before implementation. Treat directories as untrusted inputs even when the operator chooses them. Do not execute skill scripts during scanning, rendering, packaging, or installation review.
+A stable version is a new artifact and needs its own qualification. Reserve 1.0
+for an explicit interface-stability commitment. Correct defective publications
+with a new version and, where appropriate, deprecation or dist-tag changes;
+never overwrite released assets. Site rollback and package-release selection
+remain separate operations.
 
-Exit: reproduced release-blocking failures are closed, malformed input produces bounded protocol responses, and no served or archived resource escapes the selected skill root.
+## Historical decisions and evidence
 
-### 2. Extract the reusable application
-
-Turn the builder into an explicit function accepting root, output, and site configuration. Use a fresh staging directory, verify the staged bytes against the manifest, and promote only complete output. Reject dangerous root/output overlap and accidental replacement of unrelated directories. Build manifests, pages, and archives from the same staged snapshot.
-
-Inject the site's base URL and identity throughout pages, prompts, JSON discovery, and client configuration. Preserve the root-once/relative-supporting-path prompt convention. Keep the installation inspection guidance, including no telemetry or unexpected outbound data, and explain that digest verification establishes integrity rather than safe behavior.
-
-Remove telemetry implementations from the reusable default server. If the hosted deployment still needs metrics, attach them in its adapter with explicit configuration and documentation. A fresh package installation must make no unsolicited outbound requests. It must never send skill contents or credentials to analytics.
-
-Generate archives with stable path ordering and normalized ownership/timestamps while preserving documented executable permissions. Verify compressed-byte digests and reproducibility across fresh builds. State separately that retaining old digest URLs is the deployment operator's responsibility; a digest filename alone does not promise historical storage.
-
-Exit: a neutral fixture site contains no original-host install destinations, and the existing hosted application uses the same exported implementation without duplicating handlers.
-
-### 3. Prepare the npm artifact
-
-Add `name`, prerelease version, description, `bin`, explicit `exports` and declarations, `engines`, repository/directory, homepage, bugs, license, and public registry configuration. Move TypeScript to development dependencies. Use a `files` allowlist for compiled modules, required templates, documentation, and license. The repository has an Apache-2.0 license; verify copied components and notices before packaging.
-
-Ship no private skills, fixture secrets, generated production catalog, credentials, `.env`, metrics exports, or provider account configuration. Include a minimal licensed example skill. Use no consumer install lifecycle scripts. Build and pack in the release job, then inspect the actual tarball, since source-tree tests cannot detect omitted templates or broken export paths. These fields and inclusion rules follow npm's [package.json documentation](https://docs.npmjs.com/cli/v11/configuring-npm/package-json/).
-
-Exit: `npm pack --dry-run --json` has an explainable inventory, and installing the resulting tarball into an empty directory runs every documented public entrypoint without the source checkout.
-
-### 4. Qualify the reference implementation
-
-Extend the existing conformance suite rather than create another test framework. Add an installed-tarball consumer job because the current suite runs against source. Run runtime/CLI coverage on Linux, macOS, and Windows; exercise the Worker adapter in its own supported runtime. Run a real SDK client through initialize, extension discovery, listing, reading, refresh, errors, and shutdown over each supported transport.
-
-Cover hostile paths, symlink swaps, cycles, resource budgets, Unicode byte counts, build/source mutation, output overlap, HTML injection, negotiation, HEAD, validators, binary bytes, archive membership, and reproducibility. Intercept outbound calls to prove the default package emits none. Keep package-code tests distinct from Skill Evals of bundled skill behavior.
-
-Write a quickstart, an architecture walkthrough, the pinned protocol compatibility matrix, and a security policy with reporting instructions. Document stateless behavior, supported authentication/deployment patterns, client limitations, and digest retention. Have a second reviewer follow only the packed README using a fresh directory. Their success is the acceptance criterion for the tutorial.
-
-Exit: the packed artifact passes supported-platform checks, all release-blocking review findings are closed, and examples produce the documented results.
-
-### 5. Publish a candidate, then promote
-
-The maintainer confirms npm ownership, package name, license/attribution, and the reviewed release artifact before any publication. Start with `0.1.0-rc.1` on the `next` tag. Bootstrap the first real candidate using the maintainer's authenticated account if npm requires an existing package for trusted-publisher setup; do not publish a placeholder to reserve the name.
-
-Configure a package-specific GitHub Actions trusted publisher and a protected release environment. Use a GitHub-hosted runner with `id-token: write` and only the other permissions required by the job. npm currently requires npm CLI 11.5.1+ and Node 22.14+ for [trusted publishing](https://docs.npmjs.com/trusted-publishers/). Subsequent releases should use short-lived OIDC credentials. Verify provenance against the public source repository following npm's [provenance guidance](https://docs.npmjs.com/generating-provenance-statements/).
-
-Release jobs validate tag/version/source agreement, build once, pack once, test that tarball, and publish the same tarball with an explicit registry and dist-tag. Inspect the registry's version, integrity, file contents, provenance, and dist-tags after publication. Install the published candidate in a fresh environment and repeat the quickstart and transport checks.
-
-After candidate acceptance, publish `0.1.0` from the reviewed source and verify its packed artifact before moving users to `latest`. A version change creates a new artifact and needs its own pack check. Describe compatibility changes in release notes; reserve 1.0 for a deliberate API stability commitment. If a release is defective, correct the dist-tag, deprecate the affected version when appropriate, and ship a new version. Do not plan to overwrite a published version.
-
-## Release decision
-
-### GitHub-only candidate stage
-
-The repository now implements the candidate stage described in
-[GitHub Actions and releases](github-actions.md). `mcp/` packs compiled Node
-modules, declarations, a CLI and templates; CI installs and exercises the tarball
-on Node 22/24 across Linux, macOS and Windows. The hosted Worker consumes those
-package exports through a separately bundled telemetry adapter. Package-specific
-RC tags select GitHub prereleases with checksums, source metadata and attestations.
-This stage does not publish to npm or establish ownership of an npm name.
-
-The package remains private. A selected candidate tag is the GitHub publication
-action; merging source only produces CI artifacts and applicable site deployments.
-Full npm qualification, registry identity/ownership, trusted publishing, and the
-broader protocol documentation commitments below remain subsequent release work.
-
-Publication is ready when the review blockers, package isolation, clean-install checks, documentation walkthrough, ownership, and release workflow are all complete with evidence for the candidate commit. No npm publication, production deployment, or runtime refactor is part of this planning change.
-
-Start with the trust-boundary fixes. They protect today's hosted server as well as the future package and establish the behavior others should copy.
-
-## First hardening slice, 2026-09-05
-
-Implementation now validates JSON-RPC and request headers, bounds streamed request
-bytes and filesystem reads, rejects nested symlinks, preserves managed output on
-failed builds, verifies staged source digests, and configures generated publisher
-URLs. The independent reviewer found no new blocker in this slice. This does not
-complete package extraction, installer destination safety, archive reproducibility,
-or the full protocol/installed-artifact qualification gates above.
-
-The defensive name `skills-server` was checked directly through npm and is already
-published at version 1.0.0 by another maintainer. Its existence alone is not evidence
-of malicious behavior. `skill-server` still returned 404. The host-authorized npm
-identity check returned 401, so publishing access is not established and no name
-was registered. Use exact package names and pinned versions in release instructions;
-do not claim ownership of the plural name.
-
-## Second hardening slice
-
-The materialization example now validates namespaces, destination paths, response
-identities, and content budgets. It stages a complete verified batch and refuses
-existing output or symlink ancestors. Failures clean up staging. Files remain
-private and non-executable for inspection. Its parent directory must be trusted
-and free of concurrent external writers; this is not an OS sandbox. The example
-still uses local stdio, whose incoming message allocations are outside these
-content checks. It remains outside the proposed public CLI until that interface
-and its transport limits are qualified.
-
-Separate [PR #274](https://github.com/fairchild/dotclaude/pull/274) checks builder
-output overlap against each canonical selected skill root before staging, including
-targets of top-level symlinks outside the catalog. It addresses the follow-up review
-finding where a build could package its own previous output.
-
-The GitHub-only candidate stage above adds reproducible archives and the Node
-package. Broader protocol qualification and npm publication remain subsequent work.
+- The initial review covered PR #270. At that point the package lacked version,
+  executable and export metadata; building depended on Bun-specific rendering and
+  system tar. Those observations are superseded by the implemented state above.
+- PR #272 added the first HTTP/filesystem/build hardening slice. PR #274 added
+  output-overlap checks for canonical linked skill roots. PR #275 hardened the
+  source-only materialization example, staging verified private, non-executable
+  files and refusing existing output or symlink ancestors.
+- PR #284 introduced the Node package, GitHub candidate pipeline and hosted
+  autodeploy. PR #288 consolidated verification and fixed pending-main scheduling.
+  PR #289 reduced PR platform coverage, added minimum-Node qualification and npm
+  download caching, and moved actionlint off the serial startup path.
+- Earlier registry probes recorded `skill-server` returning 404, the distinct
+  `skills-server` name already occupied, and a local npm identity check returning
+  401. These are historical observations, not current availability or ownership
+  claims. Recheck exact names and credentials at release time.
