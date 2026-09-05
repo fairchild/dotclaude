@@ -53,10 +53,13 @@ describe("skill reading and installation", () => {
     const prompt = installPrompt("example", markdown, ["SKILL.md", "scripts/install.sh", "references/a guide.md", "assets/logo.bin"]);
     expect(prompt).toContain("https://skills.cloudcompute.com/downloads/example/skill.tgz");
     for (const path of ["scripts/install.sh", "references/a guide.md", "assets/logo.bin"]) {
-      expect(prompt).toContain(`- example/${path}`);
-      expect(prompt.indexOf(`- example/${path}`)).toBeLessThan(prompt.indexOf(markdown));
+      expect(prompt).toContain(`- ${path}`);
+      expect(prompt.indexOf(`- ${path}`)).toBeLessThan(prompt.indexOf(markdown));
     }
-    expect(prompt).toContain("https://skills.cloudcompute.com/skills/example/references/a%20guide.md");
+    expect(prompt.split("https://skills.cloudcompute.com/skills/example/")).toHaveLength(2);
+    expect(prompt).toContain("URL-encode each path segment when fetching.");
+    expect(prompt).not.toContain("- example/");
+    expect(prompt).not.toContain("https://skills.cloudcompute.com/skills/example/references/");
     expect(installPrompt("example", markdown, ["SKILL.md"])).toContain("No supporting files.");
   });
   for (const ending of ['\n', '']) {

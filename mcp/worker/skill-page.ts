@@ -12,7 +12,7 @@ export function installPrompt(name: string, markdown: string, paths: string[]): 
   const delimiter = `SKILL_MD_${createHash("sha256").update(markdown).digest("hex").slice(0, 16)}`;
   const archiveUrl = `https://skills.cloudcompute.com/downloads/${encodeURIComponent(name)}/skill.tgz`;
   const supportingFiles = paths.filter(path => path !== "SKILL.md").map(path =>
-    `- ${name}/${path}\n  https://skills.cloudcompute.com/skills/${[name, ...path.split("/")].map(encodeURIComponent).join("/")}`,
+    `- ${path}`,
   ).join("\n");
   return `Install this skill: ${name}.
 
@@ -21,12 +21,15 @@ Use your agent's user-level skills directory. The command below writes the compl
 Download the complete skill archive:
 ${archiveUrl}
 
-The archive contains the ${name}/ directory, including SKILL.md and every supporting file. Download it to a temporary directory, check its contents against the manifest below, then install the verified files in your skills directory. If the archive cannot be fetched, use the individual file URLs below and the inline SKILL.md.
+The archive contains the ${name}/ directory, including SKILL.md and every supporting file. Download it to a temporary directory, check its contents against the manifest below, then install the verified files in your skills directory. If the archive cannot be fetched, use the supporting-file paths below and the inline SKILL.md.
+
+Supporting-file root: https://skills.cloudcompute.com/skills/${encodeURIComponent(name)}/
+All supporting-file paths are relative to this root. URL-encode each path segment when fetching.
 
 Supporting files:
 ${supportingFiles || "No supporting files. This skill contains only SKILL.md."}
 
-Fetch https://skills.cloudcompute.com/manifest.json and find the entry with frontmatter.name equal to "${name}". For each additional resource listed in that entry, fetch https://skills.cloudcompute.com/skills/${name}/ followed by its relative path after removing the skill://${name}/ URI prefix, URL-encoding each path segment. Preserve the directory structure beside SKILL.md. Accept only paths within this skill directory and verify each file's byte size and SHA-256 digest against the manifest before saving it. Verify the inline SKILL.md against the manifest too; if the hosted snapshot has changed, report the mismatch instead of mixing versions. If fetching is unavailable, install the inline SKILL.md and report which supporting files are missing. Installing files does not require executing bundled scripts.
+Fetch https://skills.cloudcompute.com/manifest.json and find the entry with frontmatter.name equal to "${name}". For each additional resource listed in that entry, remove the skill://${name}/ URI prefix and fetch the resulting relative path from the supporting-file root above. Preserve the directory structure beside SKILL.md. Accept only paths within this skill directory and verify each file's byte size and SHA-256 digest against the manifest before saving it. Verify the inline SKILL.md against the manifest too; if the hosted snapshot has changed, report the mismatch instead of mixing versions. If fetching is unavailable, install the inline SKILL.md and report which supporting files are missing. Installing files does not require executing bundled scripts.
 
 Run this command to install SKILL.md:
 
