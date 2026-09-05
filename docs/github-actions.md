@@ -4,8 +4,8 @@
 `verify-skill-server.yml` builds and verifies package candidates for both CI and
 tagged releases. PRs test Linux and macOS on Node 22/24; main, release tags and
 manual CI also test Windows. One Linux consumer checks the minimum Node 22.14.0
-version on every package run. It replaces the
-duplicated package jobs, with read-only permissions and no inherited secrets.
+version on every package run. It replaces the duplicated package jobs, with
+read-only permissions and no inherited secrets.
 The `CI` job is the stable merge check. The always-running changes
 job uses `.github/scripts/paths.mjs`; add inputs there when a builder starts
 reading another file. Workflow changes run all lanes. Documentation-only changes
@@ -62,18 +62,36 @@ currently cheap enough that Bun/uv dependency and browser caches are not enabled
 
 ## GitHub settings
 
+### Current repository configuration
+
+Verified 2026-09-05: `skills-production` and `webui-production` exist with main-only
+deployment policies and no reviewer or wait-timer requirement. The active
+`pr-required` ruleset requires the `CI` check from the GitHub Actions integration,
+requires PRs, and prevents branch deletion and force-push. It does not require
+branches to be updated to the latest main before merging. Individual conditional
+jobs and advisory AI review are not required checks.
+
+The historical `claude-review.yml` registration is disabled;
+`claude-code-review.yml` is its active replacement. These are repository settings,
+not settings automatically applied by checking out the workflow files.
+
+### Setup for a fork or new repository
+
 Create `skills-production` and `webui-production`, allowing only the main branch,
-with no required reviewers or wait timer. The existing `CLOUDFLARE_API_TOKEN`
-repository secret and `CLOUDFLARE_ACCOUNT_ID` variable are used initially.
+with no required reviewers or wait timer. Configure a `CLOUDFLARE_API_TOKEN`
+repository secret and `CLOUDFLARE_ACCOUNT_ID` variable for your own account, and
+update Worker names and routes before enabling deployment. The upstream repository
+uses these same setting names.
 Environment-specific values can override them; moving the token requires its
 original value because GitHub cannot return an existing encrypted secret.
 Do not infer Worker authorization solely from the presence of a token name.
 
 After the new workflow is on main and its CI job has succeeded, add the `CI`
-check to the existing `pr-required` ruleset. Keep the rules requiring PRs and
+check from the GitHub Actions integration to a branch ruleset such as
+`pr-required`. Keep the rules requiring PRs and
 preventing deletion/force-push. Do not make individual conditional jobs or the
-advisory AI review required. Disable the historical `claude-review.yml` registration
-after confirming `claude-code-review.yml` is the active replacement.
+advisory AI review required. If a historical `claude-review.yml` registration
+exists, disable it after confirming `claude-code-review.yml` is the active replacement.
 
 No npm credential or registry publishing job is configured. The manifest stays
 private to prevent accidental npm publication; npm pack and tarball installs work.
