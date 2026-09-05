@@ -1,7 +1,10 @@
 # GitHub Actions and releases
 
-`ci.yml` owns deterministic checks, package candidates and the two site
-deployments. Its `CI` job is the stable merge check. The always-running changes
+`ci.yml` owns deterministic checks and the two site deployments.
+`verify-skill-server.yml` builds and verifies package candidates for both CI and
+tagged releases, including the six-platform consumer matrix. It replaces the
+duplicated package jobs, with read-only permissions and no inherited secrets.
+The `CI` job is the stable merge check. The always-running changes
 job uses `.github/scripts/paths.mjs`; add inputs there when a builder starts
 reading another file. Workflow changes run all lanes. Documentation-only changes
 finish without unrelated builds. Renames include both old and new paths.
@@ -24,7 +27,10 @@ remain separate because their triggers and credentials differ from deterministic
 Each site deploys the tested artifact from its workflow run. Deployments use
 separate concurrency groups, run only from main, and reject older inputs when
 newer main commits change that service. Unrelated later commits do not block a
-valid deployment. A manual CI run on main rebuilds both sites for recovery.
+valid deployment. Only PR runs share a workflow concurrency group; main runs have
+unique groups so a docs-only push cannot replace a pending deployment-producing
+run. Site locks still serialize deployments. A manual CI run on main rebuilds
+both sites for recovery.
 
 The final deployment step checks the public commit marker and application
 responses. GitHub's environment deployment status therefore includes these checks.
@@ -84,6 +90,7 @@ prerelease selection independent of site rollback.
 ```sh
 actionlint .github/workflows/*.yml
 node --test .github/scripts/paths.test.mjs
+uv run --script .github/scripts/test-workflows.py
 cd mcp
 bun install --frozen-lockfile
 bun run typecheck
@@ -97,3 +104,5 @@ node scripts/check-worker.mjs
 The installed-consumer harness and existing HTTP suite replace source-only release
 confidence. There is no additional package test framework. Actions linting and
 path-routing regression checks are new because neither was covered previously.
+Workflow-contract tests cover concurrency, shared qualification and artifact
+wiring, replacing manual inspection of those relationships.

@@ -133,16 +133,16 @@ The hosted binding is a Cloudflare Worker serving a build-time snapshot of
 the portable tier over stateless Streamable HTTP (each POST runs one
 JSON-RPC message through a fresh server on a one-shot transport):
 
-```bash
-bun worker/build.ts                            # snapshot ../skills -> worker/dist/public
-bunx wrangler deploy -c worker/wrangler.toml   # publish (POST /mcp)
-```
+Production deploys automatically from main through CI, using the package-backed
+Worker artifact that passed verification. For recovery, manually run CI on main;
+see [GitHub Actions and releases](../docs/github-actions.md#recovery).
+For a local source snapshot without deployment, run `bun worker/build.ts`.
 
 ## Connect
 
 The hosted binding is live at `https://skills.cloudcompute.com/mcp`
 (portable tier, public). The root of that domain is a landing page built
-from the snapshot (`worker/index.html` + build.ts). The homepage links to canonical skill directories at `/skills/<name>/`, with file lists and a short copyable install prompt. `/llms.txt` supplies the Markdown catalog; Markdown directory pages retain navigation and install information. Raw files remain under `/skills/<name>/<path>`. The default prompt pins a complete archive and its manifest by the archive SHA-256. A separate full inline prompt carries SKILL.md for offline use. Archives preserve paths, bytes, and file permissions; historical package retention is not provided. Build with Bun 1.4 or newer and system `tar`. Run `bun run typecheck`, `bun run build`, and `bun run test` to verify changes. Claude Code — or any MCP host — connects to either binding:
+from the snapshot (`worker/index.html` + build.ts). The homepage links to canonical skill directories at `/skills/<name>/`, with file lists and a short copyable install prompt. `/llms.txt` supplies the Markdown catalog; Markdown directory pages retain navigation and install information. Raw files remain under `/skills/<name>/<path>`. The default prompt pins a complete archive and its manifest by the archive SHA-256. A separate full inline prompt carries SKILL.md for offline use. Archives preserve paths, bytes, and file permissions; historical package retention is not provided. Source development uses Bun 1.4 or newer; archive creation uses the installed `tar` package, not a system executable. Run `bun run typecheck`, `bun run build`, and `bun run test` to verify source changes, and the package verification commands above before deployment. Claude Code or any MCP host connects to either binding:
 
 ```json
 {
