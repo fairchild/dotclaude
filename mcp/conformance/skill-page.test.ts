@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -7,6 +7,28 @@ import { installPrompt, renderMarkdown, renderSkillPage } from "../worker/skill-
 
 const template = readFileSync(join(import.meta.dir, "../worker/skill.html"), "utf8");
 describe("skill reading and installation", () => {
+  test("rejects unsafe skill names before generating install commands", () => {
+    for (const name of ['$(touch injected)', '`touch injected`', 'name"; touch injected; "', "$HOME", "../outside", "nested/name", "a\\b", "name\n", "name\r", "name with spaces", "--checkpoint", "a--b", "trailing-", "", "Uppercase"]) {
+      expect(() => installPrompt(name, "# Example\n", ["SKILL.md"])).toThrow("unsafe skill name");
+    }
+    for (const name of ["cmux-orchestrator", "skill-v2", "a", "123"]) {
+      expect(installPrompt(name, "# Example\n", ["SKILL.md"])).toContain(`.agents/skills/${name}`);
+    }
+  });
+  test("hosted build rejects unsafe names before copying resources or creating archives", () => {
+    const root = mkdtempSync(join(tmpdir(), "unsafe-skill-"));
+    try {
+      const name = "$(touch injected)";
+      const skillDir = join(root, "skills", name);
+      mkdirSync(skillDir, { recursive: true });
+      writeFileSync(join(skillDir, "SKILL.md"), `---\nname: ${JSON.stringify(name)}\ndescription: Test skill\n---\n# Example\n`);
+      const build = spawnSync("bun", [join(import.meta.dir, "../worker/build.ts"), "--root", join(root, "skills"), "--out", join(root, "dist")], { encoding: "utf8" });
+      expect(build.status).not.toBe(0);
+      expect(build.stderr).toContain("unsafe skill name");
+      expect(existsSync(join(root, "dist/public/skills", name))).toBe(false);
+      expect(existsSync(join(root, "dist/public/downloads", name))).toBe(false);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
   test("renders headings, code, tables and relative resource links without active HTML", () => {
     const rendered = renderMarkdown('# Read\n\n`a < b`\n\n```sh\ncat < input\n```\n\n<script>alert(1)</script>\n\n[x](javascript:alert(1))\n\n[Guide](references/guide.md)\n\n| A | B |\n| - | - |\n| 1 | 2 |', 'example');
     expect(rendered).toContain('<h2 id="read">Read</h2>');

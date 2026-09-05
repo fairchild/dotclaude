@@ -18,7 +18,7 @@ import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
-import { escapeHtml, renderSkillPage } from "./skill-page.ts";
+import { escapeHtml, renderSkillPage, validateSkillName } from "./skill-page.ts";
 
 import { scanCatalog } from "../core/manifest.ts";
 
@@ -41,6 +41,7 @@ const excluded = catalog.skills.filter((s) => s.tier !== "portable");
 
 for (const skill of portable) {
   const name = String(skill.entry.frontmatter.name);
+  validateSkillName(name);
   if (skill.entry.resources === "dynamic") continue;
   for (const resource of skill.entry.resources) {
     const rel = resource.uri.slice(`skill://${name}/`.length);

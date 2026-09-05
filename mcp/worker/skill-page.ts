@@ -2,7 +2,13 @@ import { createHash } from "node:crypto";
 
 export const escapeHtml = (s: string) => s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 
+export function validateSkillName(name: string): void {
+  const match = name.match(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+  if (match?.[0] !== name) throw new Error(`unsafe skill name: ${JSON.stringify(name)}`);
+}
+
 export function installPrompt(name: string, markdown: string, paths: string[]): string {
+  validateSkillName(name);
   const delimiter = `SKILL_MD_${createHash("sha256").update(markdown).digest("hex").slice(0, 16)}`;
   const archiveUrl = `https://skills.cloudcompute.com/downloads/${encodeURIComponent(name)}/skill.tgz`;
   const supportingFiles = paths.filter(path => path !== "SKILL.md").map(path =>
