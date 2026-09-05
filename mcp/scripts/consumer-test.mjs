@@ -1,7 +1,8 @@
 // Copied into a fresh directory by test-package.mjs. Imports must resolve from the installed tarball.
 import assert from 'node:assert/strict';
 import { spawnSync, spawn } from 'node:child_process';
-import { readFileSync, readdirSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -22,6 +23,26 @@ const { version } = JSON.parse(readFileSync(join(pkg, 'package.json')));
 assert.equal(spawnSync(process.execPath, [cli, '--version'], { encoding: 'utf8' }).stdout.trim(), version);
 assert.equal(spawnSync(process.execPath, [cli, 'stdio'], { encoding: 'utf8' }).status, 1);
 assert.equal(spawnSync(process.execPath, [cli, '--help']).status, 0);
+
+// --strict turns a scan diagnostic into a hard failure: `build` exits before
+// writing anything to --out, and `stdio` exits before opening its transport.
+const strictRoot = mkdtempSync(join(tmpdir(), 'skill-server-strict-'));
+cpSync(join(root, 'hello'), join(strictRoot, 'hello'), { recursive: true });
+mkdirSync(join(strictRoot, 'not-a-skill'));
+writeFileSync(join(strictRoot, 'not-a-skill', 'notes.txt'), 'not a skill\n');
+const strictOut = join(process.cwd(), 'strict-out');
+const strictBuild = spawnSync(process.execPath, [cli, 'build', '--root', strictRoot, '--out', strictOut, '--base-url', 'https://example.org', '--strict'], { encoding: 'utf8' });
+assert.equal(strictBuild.status, 1);
+assert(strictBuild.stderr.includes('[skills] skipped not-a-skill:'));
+assert(strictBuild.stderr.includes('--strict'));
+assert(!existsSync(strictOut));
+const lenientBuild = spawnSync(process.execPath, [cli, 'build', '--root', strictRoot, '--out', strictOut, '--base-url', 'https://example.org'], { encoding: 'utf8' });
+assert.equal(lenientBuild.status, 0);
+assert(lenientBuild.stderr.includes('[skills] skipped not-a-skill:'));
+assert(existsSync(strictOut));
+const strictStdio = spawnSync(process.execPath, [cli, 'stdio', '--root', strictRoot, '--strict'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+assert.equal(strictStdio.status, 1);
+
 const snapshot = join(process.cwd(), 'snapshot');
 buildSnapshot({ root, out: snapshot, baseUrl: 'https://example.org' });
 buildSnapshot({ root, out: join(process.cwd(), 'snapshot-two'), baseUrl: 'https://example.org' });
