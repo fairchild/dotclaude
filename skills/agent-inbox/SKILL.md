@@ -79,7 +79,7 @@ Read and archive only your own mail unless asked to act for another agent. Archi
 
 Run `scripts/check-inbox-hook.sh` at a turn boundary for an unread count, or `scripts/inbox-startup.sh` at session start for a summary. Both are read-only and silent when empty.
 
-Both use `AGENT_INBOX_NAME`, falling back to `CLAUDE_SESSION_NAME` for existing integrations. With no identity set, they report only the shared unread count. Export the name where the hook runs; setting it in a child shell does not configure the parent session.
+Both use `AGENT_INBOX_NAME`, falling back to `CLAUDE_SESSION_NAME` for existing integrations. Safe legacy names, including uppercase letters, underscores, and spaces, retain their inbox identity. Unsafe legacy titles fall back silently to anonymous; invalid explicit inbox names are configuration errors. With no identity set, they report only the shared unread count. Export the name where the hook runs; setting it in a child shell does not configure the parent session.
 
 Attach these scripts through your tool's hook configuration using their absolute install paths. Scheduling and waking agents belong to that tool; the inbox protocol only delivers files.
 

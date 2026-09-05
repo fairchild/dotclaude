@@ -59,6 +59,9 @@ jobs:
             fi
           done
 
+      - name: Verify agent inbox hooks
+        run: bash skills/agent-inbox/scripts/test-hooks.sh
+
       - name: Verify source/runtime participant contract
         run: scripts/test-participant-contract.sh
 

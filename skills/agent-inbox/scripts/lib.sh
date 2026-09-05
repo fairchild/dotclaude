@@ -21,9 +21,13 @@ agent_inbox_name() {
   local agent="${AGENT_INBOX_NAME:-${CLAUDE_SESSION_NAME:-}}"
   case "$agent" in
     '') ;;
-    *[!a-z0-9-]*|-*)
-      echo 'Inbox name must be a lowercase kebab-case slug' >&2
-      return 1 ;;
+    .|..|*[!a-zA-Z0-9_.\ -]*)
+      if [[ -n "${AGENT_INBOX_NAME:-}" ]]; then
+	echo 'AGENT_INBOX_NAME must be a safe directory name' >&2
+	return 1
+      fi
+      # A session title is not necessarily an inbox identity.
+      agent='' ;;
   esac
   printf '%s\n' "$agent"
 }
