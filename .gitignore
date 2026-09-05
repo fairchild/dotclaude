@@ -77,6 +77,8 @@ skills/*/scripts/node_modules/
 skills/*/scripts/test-results/
 skills/*/node_modules/
 skills/*/bun.lock
+!skills/persona-memory/bun.lock
+webui-release/
 .last-run.json
 
 # Vocal skill local preferences

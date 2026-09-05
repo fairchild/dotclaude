@@ -82,6 +82,21 @@ After candidate acceptance, publish `0.1.0` from the reviewed source and verify 
 
 ## Release decision
 
+### GitHub-only candidate stage
+
+The repository now implements the candidate stage described in
+[GitHub Actions and releases](github-actions.md). `mcp/` packs compiled Node
+modules, declarations, a CLI and templates; CI installs and exercises the tarball
+on Node 22/24 across Linux, macOS and Windows. The hosted Worker consumes those
+package exports through a separately bundled telemetry adapter. Package-specific
+RC tags select GitHub prereleases with checksums, source metadata and attestations.
+This stage does not publish to npm or establish ownership of an npm name.
+
+The package remains private. A selected candidate tag is the GitHub publication
+action; merging source only produces CI artifacts and applicable site deployments.
+Full npm qualification, registry identity/ownership, trusted publishing, and the
+broader protocol documentation commitments below remain subsequent release work.
+
 Publication is ready when the review blockers, package isolation, clean-install checks, documentation walkthrough, ownership, and release workflow are all complete with evidence for the candidate commit. No npm publication, production deployment, or runtime refactor is part of this planning change.
 
 Start with the trust-boundary fixes. They protect today's hosted server as well as the future package and establish the behavior others should copy.
@@ -118,5 +133,5 @@ output overlap against each canonical selected skill root before staging, includ
 targets of top-level symlinks outside the catalog. It addresses the follow-up review
 finding where a build could package its own previous output.
 
-Next: reproducible archives with normalized metadata and no system-tar runtime
-dependency, followed by the reusable Node package and protocol qualification.
+The GitHub-only candidate stage above adds reproducible archives and the Node
+package. Broader protocol qualification and npm publication remain subsequent work.

@@ -4,6 +4,8 @@ node_modules
 # output
 out
 dist
+LICENSE
+.worker-package
 *.tgz
 
 # code coverage

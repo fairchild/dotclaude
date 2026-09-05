@@ -1,6 +1,5 @@
 node_modules/
 test-results/
-bun.lock
 .link-cache.json
 data.json
 

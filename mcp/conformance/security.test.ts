@@ -82,10 +82,10 @@ describe("filesystem and build boundaries", () => {
     expect(build(skills, out).status).toBe(0);
     const before = readFileSync(join(out, "public", "manifest.json"));
     // Force the existing archive dependency to fail after staging has started.
-    mkdirSync(join(root, "bin"));
-    writeFileSync(join(root, "bin", "tar"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
-    const failed = spawnSync(process.execPath, [join(import.meta.dir, "../worker/build.ts"), "--root", skills, "--out", out], {
-      encoding: "utf8", env: { ...process.env, PATH: join(root, "bin") },
+    const preload = join(root, "fail-archive.ts");
+    writeFileSync(preload, `import { mock } from "bun:test"; mock.module(${JSON.stringify(import.meta.resolve("tar"))}, () => ({ create() { throw new Error("archive failure"); } }));`);
+    const failed = spawnSync(process.execPath, ["--preload", preload, join(import.meta.dir, "../worker/build.ts"), "--root", skills, "--out", out], {
+      encoding: "utf8", env: process.env,
     });
     expect(failed.status).not.toBe(0);
     expect(readFileSync(join(out, "public", "manifest.json"))).toEqual(before);

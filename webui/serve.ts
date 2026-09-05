@@ -6,6 +6,7 @@
 import { resolve, relative } from "path";
 
 const PORT = process.env.PORT || 7433;
+const ROOT = resolve(process.env.WEBUI_ROOT || import.meta.dir);
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html",
@@ -26,8 +27,8 @@ Bun.serve({
     if (path === "/") path = "/index.html";
 
     // Prevent path traversal attacks
-    const filePath = resolve(import.meta.dir, "." + path);
-    const rel = relative(import.meta.dir, filePath);
+    const filePath = resolve(ROOT, "." + path);
+    const rel = relative(ROOT, filePath);
     if (rel.startsWith("..")) {
       return new Response("Forbidden", { status: 403 });
     }

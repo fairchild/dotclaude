@@ -6,7 +6,7 @@ import { join } from "node:path";
 import type { StoredSkill } from "../core/store.ts";
 
 const origin = process.env.SKILLS_HTTP_ORIGIN;
-const publicDir = join(import.meta.dir, "../worker/dist/public");
+const publicDir = process.env.SKILLS_SNAPSHOT_DIR ?? join(import.meta.dir, "../worker/dist/public");
 const get = (path: string, accept = "*/*", method = "GET", headers: Record<string, string> = {}) =>
   fetch(`${origin}${path}`, { method, headers: { Accept: accept, ...headers }, redirect: "manual" });
 

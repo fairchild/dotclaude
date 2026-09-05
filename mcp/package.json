@@ -1,15 +1,19 @@
 {
-  "name": "dotclaude-skills-mcp",
+  "name": "skill-server",
   "type": "module",
+  "sideEffects": false,
   "private": true,
   "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^7"
+    "typescript": "7.0.2",
+    "@types/bun": "latest",
+    "@types/markdown-it": "^14.2.0",
+    "@types/node": "^26.4.1",
+    "wrangler": "^4.129.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "markdown-it": "^15.0.1",
+    "tar": "^7.5.22",
     "yaml": "^2.9.0",
     "zod": "^4.5.4"
   },
@@ -17,9 +21,41 @@
     "serve": "bun stdio.ts",
     "test": "bun test conformance",
     "typecheck": "tsc --noEmit",
-    "build": "bun worker/build.ts"
+    "build": "bun worker/build.ts",
+    "build:package": "node scripts/build-package.mjs",
+    "test:package": "node scripts/test-package.mjs"
   },
   "engines": {
-    "bun": ">=1.4.0"
+    "node": ">=22.14.0"
+  },
+  "version": "0.1.0-rc.1",
+  "description": "Independent implementation of the experimental Skills over MCP extension",
+  "license": "Apache-2.0",
+  "bin": {
+    "skill-server": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./fs": {
+      "types": "./dist/fs.d.ts",
+      "import": "./dist/fs.js"
+    },
+    "./http": {
+      "types": "./dist/http.d.ts",
+      "import": "./dist/http.js"
+    }
+  },
+  "files": [
+    "dist",
+    "examples",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fairchild/dotclaude.git",
+    "directory": "mcp"
   }
 }
