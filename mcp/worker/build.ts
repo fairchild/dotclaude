@@ -45,6 +45,10 @@ function canonical(path: string): string {
 }
 const out = canonical(requestedOut);
 if (inside(root, out) || inside(out, root) || inside(out, process.cwd())) throw new Error("output overlaps source or working directory");
+const catalog = scanCatalog(root);
+for (const skill of catalog.skills) {
+  if (inside(skill.dir, out) || inside(out, skill.dir)) throw new Error("output overlaps selected skill source");
+}
 const marker = ".skill-server-output";
 if (existsSync(requestedOut) && (lstatSync(requestedOut).isSymbolicLink() || !existsSync(join(out, marker)))) throw new Error("refusing to replace unmanaged output");
 mkdirSync(dirname(out), { recursive: true });
@@ -54,7 +58,6 @@ try {
   mkdirSync(join(publicDir, "skills"), { recursive: true });
   cpSync(join(import.meta.dir, "library.css"), join(publicDir, "library.css"));
 
-  const catalog = scanCatalog(root);
   for (const d of catalog.diagnostics) console.error(`skipped ${d.skill}: ${d.reason}`);
 
   const portable = catalog.skills.filter((s) => s.tier === "portable");

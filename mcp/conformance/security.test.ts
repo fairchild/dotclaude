@@ -61,6 +61,21 @@ describe("filesystem and build boundaries", () => {
     expect(build(skills, join(root, "unmanaged")).status).not.toBe(0);
     expect(readFileSync(join(root, "unmanaged", "keep.txt"), "utf8")).toBe("keep");
   }));
+  test("output cannot overlap an externally linked skill source", () => fixture(root => {
+    const catalog = join(root, "catalog");
+    const source = join(root, "skills", "example");
+    mkdirSync(catalog);
+    symlinkSync(source, join(catalog, "example"));
+    const original = readFileSync(join(source, "SKILL.md"));
+    for (const out of [source, join(source, "generated"), join(root, "skills")]) {
+      const result = build(catalog, out);
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain("output overlaps");
+    }
+    expect(readFileSync(join(source, "SKILL.md"))).toEqual(original);
+    expect(existsSync(join(source, "generated"))).toBe(false);
+    expect(build(catalog, join(root, "safe-output")).status).toBe(0);
+  }));
   test("a failed staged build preserves the previous snapshot", () => fixture(root => {
     const skills = join(root, "skills");
     const out = join(root, "output");
