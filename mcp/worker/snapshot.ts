@@ -9,7 +9,7 @@ import { directoryMarkdown, escapeHtml, renderSkillPage, validateSkillName, type
 import { inside, readSkillFile } from "../core/files.ts";
 import { scanCatalog } from "../core/manifest.ts";
 
-export interface BuildOptions { root: string; out: string; baseUrl: string; sourceSha?: string }
+export interface BuildOptions { root: string; out: string; baseUrl: string; sourceSha?: string; strict?: boolean }
 export function buildSnapshot(options: BuildOptions): void {
 const templateDir = dirname(fileURLToPath(import.meta.url));
 const base = new URL(options.baseUrl);
@@ -26,6 +26,13 @@ function canonical(path: string): string {
 const out = canonical(requestedOut);
 if (inside(root, out) || inside(out, root) || inside(out, process.cwd())) throw new Error("output overlaps source or working directory");
 const catalog = scanCatalog(root);
+// Diagnostics and the --strict gate run before any filesystem write below
+// (including the mkdirSync of dirname(out)) so a strict failure leaves no
+// trace on disk, per the CLI contract: "no output directory is created".
+for (const d of catalog.diagnostics) console.error(`[skills] skipped ${d.skill}: ${d.reason}`);
+if (options.strict && catalog.diagnostics.length > 0) {
+  throw new Error(`${catalog.diagnostics.length} scan diagnostic(s) with --strict; see stderr above`);
+}
 for (const skill of catalog.skills) {
   if (inside(skill.dir, out) || inside(out, skill.dir)) throw new Error("output overlaps selected skill source");
 }
@@ -37,8 +44,6 @@ const publicDir = join(staging, "public");
 try {
   mkdirSync(join(publicDir, "skills"), { recursive: true });
   cpSync(join(templateDir, "library.css"), join(publicDir, "library.css"));
-
-  for (const d of catalog.diagnostics) console.error(`skipped ${d.skill}: ${d.reason}`);
 
   const portable = catalog.skills.filter((s) => s.tier === "portable");
   const excluded = catalog.skills.filter((s) => s.tier !== "portable");

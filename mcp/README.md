@@ -79,6 +79,41 @@ attestation. Verify a downloaded artifact with:
 gh attestation verify skill-server-0.1.0-rc.1.tgz --repo fairchild/dotclaude
 ```
 
+## CLI contract
+
+`skill-server` has three commands. `--help` and `--version` print and exit 0
+without touching the filesystem; a missing required flag exits 1 naming it.
+
+- `stdio --root <dir> [--strict]` — serve `<dir>` over stdio.
+- `build --root <dir> --out <output> --base-url <origin> [--strict]` — write
+  a portable snapshot.
+- `serve --snapshot <output> [--host 127.0.0.1] [--port 3000]` — serve a
+  built snapshot over HTTP.
+
+Scanning a directory under `--root` never executes a skill's scripts: only
+`SKILL.md` is parsed and files are read to compute digests.
+
+A non-hidden directory under `--root` that is not a valid skill — no
+readable `SKILL.md`, no YAML frontmatter, a missing `name`/`description`, a
+frontmatter `name` that does not match the directory name, an unsafe
+directory name, or a skill that exceeds the SEP's per-skill limits — prints
+one diagnostic line to stderr:
+
+```
+[skills] skipped <dir>: <reason>
+```
+
+Hidden (dot-prefixed) directories and the fixed exclusion set
+(`node_modules`, `__pycache__`, `.git`, `.venv`) are never scanned and never
+produce a diagnostic; they are not candidate skills at all.
+
+Without `--strict`, a diagnostic is informational: `stdio` still serves
+every valid skill it found, and `build` still writes the snapshot; both
+exit 0. With `--strict`, any diagnostic is fatal: `stdio` exits 1 before
+opening its transport, and `build` exits 1 before writing anything to
+`--out` (no output directory is created). Diagnostics are printed to
+stderr the same way either way.
+
 ## Developing in this repository
 
 ```sh

@@ -3,7 +3,7 @@
  * assets binding over the built output, and drive the fetch handler with raw
  * Streamable HTTP requests — the same bytes a remote MCP client would send.
  */
-import { beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, mkdtempSync, rmSync, statSync } from "node:fs";
@@ -14,7 +14,12 @@ import worker from "../worker/worker.ts";
 import { EXTENSION_ID } from "../core/types.ts";
 
 const FIXTURES = join(import.meta.dir, "fixtures");
-const DIST = join(import.meta.dir, ".worker-dist");
+// A fresh mkdtemp parent, with DIST itself left uncreated, avoids a fixed
+// conformance/.worker-dist: a leftover from a prior run (or one predating
+// #272's output marker) makes buildSnapshot refuse to replace unmanaged
+// output instead of rebuilding cleanly. buildSnapshot creates DIST itself.
+const TMP_PARENT = mkdtempSync(join(tmpdir(), "skill-server-worker-dist-"));
+const DIST = join(TMP_PARENT, "dist");
 const PUBLIC = join(DIST, "public");
 
 /** Serve the built dist/public the way the Workers assets binding would. */
@@ -59,6 +64,10 @@ beforeAll(() => {
     { encoding: "utf-8" },
   );
   if (build.status !== 0) throw new Error(`build failed: ${build.stderr}`);
+});
+
+afterAll(() => {
+  rmSync(TMP_PARENT, { recursive: true, force: true });
 });
 
 describe("worker binding", () => {
