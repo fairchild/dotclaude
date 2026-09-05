@@ -19,7 +19,8 @@ npx --no-install skill-server serve --snapshot ./snapshot
 ```
 
 The filename is the initial candidate version, not a claim that a release already
-exists. Requires Node 22.14+; CI qualifies Node 22 and 24. Dependencies download
+exists. Requires Node 22.14+; CI checks Node 22.14.0 and current Node 22/24.
+PRs qualify Linux/macOS; main and releases also qualify Windows. Dependencies download
 from npm, but this package is distributed through GitHub only. No Bun, TypeScript
 compiler, system tar, or consumer installation script is required. `--root` is
 mandatory. HTTP listens on loopback by default; authentication and reverse proxy
