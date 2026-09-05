@@ -13,7 +13,19 @@ also creates `package.json` and `package-lock.json` there, since `npm install`
 scaffolds a project when none exists yet. `stdio` and `build` serve a skills
 directory, so create `./my-skills/<name>/SKILL.md` first, with frontmatter
 `name` matching the directory name and a `description` set, per the
-[Agent Skills spec](https://agentskills.io/specification):
+[Agent Skills spec](https://agentskills.io/specification). The smallest
+valid `./my-skills/hello/SKILL.md`:
+
+```markdown
+---
+name: hello
+description: Reply with a one-line greeting; a smoke test for skill-server.
+---
+
+When asked to say hello, answer with a single friendly sentence.
+```
+
+Then, in the project directory:
 
 ```sh
 npm install ./skill-server-0.1.0-rc.1.tgz
