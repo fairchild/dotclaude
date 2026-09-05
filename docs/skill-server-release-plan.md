@@ -82,11 +82,15 @@ free of concurrent external writers, and it is not an OS sandbox. See the
    create its matching RC tag, inspect the resulting release assets and
    attestation, and install that exact release tarball in a fresh directory.
    The workflow exists; this first publication has not been exercised yet.
-2. Complete broader reference-implementation qualification. Pin an exact upstream
-   specification revision, publish the supported-method/limitations matrix and
-   architecture walkthrough, and add security reporting instructions. Audit
-   transport coverage, including refresh, errors and shutdown, against that
-   matrix. Have a second reviewer follow only the packed README. Preserve the
+2. Complete broader reference-implementation qualification. The upstream pin
+   and the supported-methods/limitations table now live in
+   [`mcp/README.md`](../mcp/README.md#protocol-and-source-layout) (the pin)
+   and [`mcp/README.md`](../mcp/README.md#supported-methods-and-limitations)
+   (the table); recheck upstream and bump the pinned SHA at each release
+   candidate. Still needed to close this gate: the architecture walkthrough,
+   security reporting instructions, and a transport-coverage audit —
+   including refresh, errors and shutdown — against that table. Have a second
+   reviewer follow only the packed README. Preserve the
    [quality review](skill-server-quality-review.md) as historical evidence and
    explicitly disposition any remaining findings against the candidate commit.
 3. Before npm publication, confirm package-name ownership, publishing access,
