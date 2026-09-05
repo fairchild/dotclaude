@@ -1,6 +1,6 @@
 # skill-server release plan
 
-Status: proposed, not authorized for publication. Reviewed 2026-09-05 against merged PR #270, commit `81f4189e63edc4d34ac4d463889808782694a3a6`. This plan changes documentation only.
+Status: implementation in progress; publication is not authorized. The initial review covered PR #270. PR #272 merged the first hardening slice. Progress and remaining gates are recorded below.
 
 Publish a small server people can run against their own skills directory, embed in an MCP application, and study as a reference. Keep the connection to [ext-skills](https://github.com/modelcontextprotocol/ext-skills) prominent. Describe it as an independent implementation of the experimental Skills Over MCP extension, with an exact specification revision and a table of supported methods and limitations. The upstream repository explicitly says its exploratory work is not an official MCP specification or recommendation.
 
@@ -101,3 +101,22 @@ of malicious behavior. `skill-server` still returned 404. The host-authorized np
 identity check returned 401, so publishing access is not established and no name
 was registered. Use exact package names and pinned versions in release instructions;
 do not claim ownership of the plural name.
+
+## Second hardening slice
+
+The materialization example now validates namespaces, destination paths, response
+identities, and content budgets. It stages a complete verified batch and refuses
+existing output or symlink ancestors. Failures clean up staging. Files remain
+private and non-executable for inspection. Its parent directory must be trusted
+and free of concurrent external writers; this is not an OS sandbox. The example
+still uses local stdio, whose incoming message allocations are outside these
+content checks. It remains outside the proposed public CLI until that interface
+and its transport limits are qualified.
+
+Separate [PR #274](https://github.com/fairchild/dotclaude/pull/274) checks builder
+output overlap against each canonical selected skill root before staging, including
+targets of top-level symlinks outside the catalog. It addresses the follow-up review
+finding where a build could package its own previous output.
+
+Next: reproducible archives with normalized metadata and no system-tar runtime
+dependency, followed by the reusable Node package and protocol qualification.
