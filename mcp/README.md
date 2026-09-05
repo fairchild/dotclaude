@@ -8,14 +8,19 @@ checkout also includes the Cloudflare adapter for skills.cloudcompute.com.
 ## Install a GitHub candidate
 
 Download the `.tgz` from a published `skill-server-v<VERSION>` GitHub prerelease,
-then install it in a fresh project directory:
+then install it in a fresh project directory. Installing into an empty directory
+also creates `package.json` and `package-lock.json` there, since `npm install`
+scaffolds a project when none exists yet. `stdio` and `build` serve a skills
+directory, so create `./my-skills/<name>/SKILL.md` first, with frontmatter
+`name` matching the directory name and a `description` set, per the
+[Agent Skills spec](https://agentskills.io/specification):
 
 ```sh
 npm install ./skill-server-0.1.0-rc.1.tgz
 npx --no-install skill-server --help
 npx --no-install skill-server stdio --root ./my-skills
 npx --no-install skill-server build --root ./my-skills --out ./snapshot --base-url http://127.0.0.1:3000
-npx --no-install skill-server serve --snapshot ./snapshot
+npx --no-install skill-server serve --snapshot ./snapshot --port 3000
 ```
 
 The filename is the initial candidate version, not a claim that a release already
@@ -23,9 +28,16 @@ exists. Requires Node 22.14+; CI checks Node 22.14.0 and current Node 22/24.
 PRs qualify Linux/macOS; main and releases also qualify Windows. Dependencies download
 from npm, but this package is distributed through GitHub only. No Bun, TypeScript
 compiler, system tar, or consumer installation script is required. `stdio` and
-`build` require `--root`; `serve` requires `--snapshot`. HTTP listens on loopback
-by default; authentication and reverse proxy
-configuration are the operator's responsibility for external exposure.
+`build` require `--root`; `serve` requires `--snapshot` and defaults to
+`127.0.0.1:3000`, overridable with `--host`/`--port`. HTTP listens on loopback
+by default; authentication and reverse proxy configuration are the operator's
+responsibility for external exposure. On startup, `serve` writes one JSON line
+to stderr — `Listening on {"address":"127.0.0.1","family":"IPv4","port":3000}`
+— and stdout stays empty, which a wrapper can use as the readiness signal.
+`build`'s output `index.json` carries a `specification` field pointing at the
+[ext-skills repository](https://github.com/modelcontextprotocol/ext-skills), the
+MCP wire protocol for this extension — a different document from the Agent
+Skills spec linked above, which is the skill-directory format.
 
 Imports do not scan a directory, listen on a port, or send telemetry:
 
@@ -40,11 +52,25 @@ the caller. `buildSnapshot({root, out, baseUrl})` creates a portable snapshot.
 `handleRequest(request, {ASSETS})` accepts a Fetch-compatible asset provider for
 the stateless HTTP binding. The hosting adapter alone supplies usage telemetry.
 
-Build output must be a fresh directory or a previously managed snapshot. Nested
-symlinks are rejected; selected top-level skill links remain supported. Imports
-and scans never execute skill scripts. Archives preserve file modes with fixed
-timestamps and sorted members. Operators must retain old snapshots themselves
-if historical digest URLs need to remain available.
+Build output must be a fresh directory or a previously managed snapshot.
+
+Symlink policy, as implemented: a top-level skill directory may itself be a
+symlink — it is resolved to its real path at scan time and served normally
+from there (`core/manifest.ts` `scanSkill`, via `realpathSync`). A symlink
+found anywhere nested inside a skill's directory tree is rejected outright
+during the scan walk, so the walk never follows one and a symlink loop cannot
+be traversed through it (`core/manifest.ts` `walkFiles`); directory recursion
+is additionally capped at depth 64 and 1,024 entries as a backstop against
+pathological trees. A file that is swapped for a symlink after scanning fails
+closed on the next read: reads reject a symlinked path segment and also open
+the file with `O_NOFOLLOW` (`core/files.ts` `checkedPath`, `readSkillFile`).
+Build output is checked against the resolved, real path of every skill root —
+not just its symlinked entry point — so output cannot overlap a linked root
+either (`worker/snapshot.ts` `buildSnapshot`).
+
+Imports and scans never execute skill scripts. Archives preserve file modes
+with fixed timestamps and sorted members. Operators must retain old snapshots
+themselves if historical digest URLs need to remain available.
 
 The GitHub release includes a SHA-256 checksum, source record and build
 attestation. Verify a downloaded artifact with:
@@ -79,27 +105,58 @@ the corpus. Built on the stock TypeScript SDK: the extension's three methods
 are ordinary custom request handlers, and everything else rides the base
 Resources primitive.
 
+**Upstream pin** (recheck and bump at each release candidate): checked
+against ext-skills commit
+[`f1f8605`](https://github.com/modelcontextprotocol/ext-skills/commit/f1f8605b72274e8ab667b72194103fe8096e9552)
+(2026-09-04, the commit that added `specification/stable/skills.mdx`; the
+repository carries no tags or releases) and
+[SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640)
+head
+[`d6b31a0`](https://github.com/modelcontextprotocol/modelcontextprotocol/commit/d6b31a03504c15677d49b922b6b6ace0ef65728d)
+(2026-09-03, PR still open). Extension id `io.modelcontextprotocol/skills`.
+
+See the [architecture walkthrough](../docs/skill-server-architecture.md) for
+how the store boundary, transports, and build pipeline fit together, and
+[SECURITY.md](../SECURITY.md) to report a vulnerability.
+
 ## What the extension is
 
 A skill — a directory with a `SKILL.md`, per the
 [Agent Skills spec](https://agentskills.io/specification) — is exposed as one
-resource per file under `skill://<name>/<path>`. Three methods carry the
-skill-shaped view:
+resource per file under `skill://<name>/<path>`. `skills/get` also answers
+for a skill that never appears in a listing, and it is the refresh path after
+a digest mismatch. Reading a file is plain `resources/read`; reading a
+`SKILL.md` does not activate anything — activation, approval, and
+origin-tagging are host concerns, and the SEP's security section makes them
+explicit.
 
-- `skills/list` — every served skill as a complete entry: verbatim
-  frontmatter plus `{uri, digest, size}` for every file. Hosts build their
-  registry, bind approvals, and verify each later read against this manifest.
-- `skills/get` — one skill's entry by its `SKILL.md` URI; the refresh path
-  after a digest mismatch, and the way an unlisted skill enters a registry.
-- `resources/directory/read` (optional, declared via `directoryRead: true`) —
-  direct children of a directory resource, for scoped navigation.
+### Supported methods and limitations
+
+| Method | Capability flag | Transports | Pagination | Per-skill limits | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `skills/list` | `io.modelcontextprotocol/skills` (required) | stdio, stateless HTTP | Cursor (base64url index), 50/page; an entry is never split across a page | 512 resources, 16 MiB total | `resultType: "complete"`; no `ttlMs`/`cacheScope` |
+| `skills/get` | `io.modelcontextprotocol/skills` (required) | stdio, stateless HTTP | None | Same | stdio rescans the one skill on every call; the HTTP snapshot's refresh is identity (a deploy is the refresh point); `-32602` for an unknown URI |
+| `resources/directory/read` | `directoryRead: true` (optional) | stdio, stateless HTTP | Cursor, 200 children/page | Manifest-derived only, no live `readdir` | `-32602` for an unknown or non-directory URI |
+| `resources/list` | base `resources` capability | stdio, stateless HTTP | Cursor, 200 entries/page | Same per-skill limits | Flattened across every served skill |
+| `resources/read` | base `resources` capability | stdio, stateless HTTP | None | 16 MiB per skill (scan time) | Text/blob split by extension; `-32602` for an unknown resource or a directory read attempted here |
+
+Every method over the stateless HTTP binding shares one 64 KiB cap on the
+streamed POST body; oversized requests receive 413 before dispatch.
+
+Not implemented: resource subscriptions and `listChanged` (the server
+declares a bare `resources: {}` capability), `resources/templates/list`, the
+`ttlMs`/`cacheScope` list-caching hints, `resources: "dynamic"` skills (the
+wire type is defined but no store here produces one), nested skills as
+separate `skills/list` entries (a nested `SKILL.md` is served as an ordinary
+supporting file of its enclosing skill), `_meta` provenance annotations on
+skill resources, and any URI scheme other than `skill://`. The stateless HTTP
+binding also has no SSE GET stream, no sessions, and no authentication: a
+non-`POST` request to `/mcp` gets a plain `405` with `Allow: POST`, and every
+`POST` runs one JSON-RPC message through a fresh server on a one-shot
+transport.
 
 For HTTP download routes, supported formats, and `Accept` negotiation, see
 [Skill HTTP downloads](worker/HTTP.md).
-
-Reading a file is plain `resources/read`; reading a `SKILL.md` does not
-activate anything — activation, approval, and origin-tagging are host
-concerns, and the SEP's security section makes them explicit.
 
 ## Layout
 
@@ -194,10 +251,12 @@ byte lengths, and SHA-256 digests before writing each file into private staging.
 Only the complete batch becomes the output directory. Files have mode `0600` and
 directories `0700`; reviewing and enabling executable scripts is a separate action.
 
-Limits are 256 catalog pages, 256 skills, 512 files and 16 MiB per skill, and
-256 MiB per selected batch. These checks bound accepted content, not the SDK's
-allocation of an incoming stdio message. The example starts a local server and
-is not a general-purpose transport for hostile remote servers.
+Limits are 256 catalog pages, 256 skills total, the per-skill limits in the
+[supported-methods table](#supported-methods-and-limitations) above (512
+files, 16 MiB), and 256 MiB per selected batch. These checks bound accepted
+content, not the SDK's allocation of an incoming stdio message. The example
+starts a local server and is not a general-purpose transport for hostile
+remote servers.
 
 Digest verification proves that bytes match a manifest, not that either is safe.
 Inspect files for prompt injection, credential access, telemetry, unexpected
