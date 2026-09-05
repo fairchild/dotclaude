@@ -6,7 +6,7 @@ license: Apache-2.0
 
 # Session Titles
 
-> **Related:** For session journaling and catchup context see [chronicle](../chronicle/SKILL.md).
+> **Related:** For session journaling and catchup context see the `chronicle` skill.
 
 ## Overview
 

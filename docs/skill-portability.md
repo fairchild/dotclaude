@@ -25,8 +25,12 @@ Scripts compute their own location (`import.meta.dir`, `$(dirname "$0")`,
 ## Cross-skill references
 
 Name the skill, not its path: "use the `git-worktree` skill", never
-`~/.claude/skills/git-worktree/…`. Install layout is the host's business; over
-MCP another skill may not be installed at all, and naming degrades gracefully.
+`~/.claude/skills/git-worktree/…`, and never a climb out of this skill's own
+directory into a sibling's (`../git-worktree/…`,
+`$(dirname "$0")/../../git-worktree/…`). Install layout is the host's
+business: skills that sit side by side here need not sit side by side there,
+and over MCP another skill may not be installed at all. Naming degrades
+gracefully.
 
 ## Tiers
 
@@ -54,8 +58,10 @@ by the local binding, which reads the live directory.
 `portability: allow` in a comment on the flagged line (`<!-- … -->` in
 markdown, `// …` or `# …` in code) asserts the reference is deliberate. The
 lint also matches programmatic home-path forms (`${process.env.HOME}/.claude`,
-`join(HOME, ".claude", …)`, `Path.home() / ".claude"`), so waivers appear in
-code as well as prose. Three grounds justify one:
+`join(HOME, ".claude", …)`, `Path.home() / ".claude"`) and programmatic climbs
+into a sibling skill (`join(import.meta.dir, "..", "..", "<skill>")`,
+`Path(__file__).parent.parent.parent / "<skill>"`), so waivers appear in code
+as well as prose. Three grounds justify one:
 
 1. **Content, not coupling** — the line's subject matter is a path:
    documentation about the layout itself, not a reference the skill resolves.

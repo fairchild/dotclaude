@@ -35,6 +35,10 @@ description = "Report skill portability tiers and violations (SEP-2640 serving g
 run = "./scripts/portability.py --check"
 description = "Fail if any skill violates its declared portability tier"
 
+[tasks."portability:test"]
+run = "./scripts/test_portability.py"
+description = "Unit cases for the portability lint"
+
 [tasks."mcp:test"]
 run = "bun test conformance"
 dir = "mcp"
