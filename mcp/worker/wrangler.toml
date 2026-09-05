@@ -1,6 +1,6 @@
 # Hosted binding for the SEP-2640 skills server.
-# Build the snapshot first, then deploy:
-#   bun worker/build.ts && bunx wrangler deploy -c worker/wrangler.toml
+# Source configuration for local development and package-backed Worker preparation.
+# Production uses the tested artifact from CI; see docs/github-actions.md.
 name = "dotclaude-skills"
 # The Cloudflare account comes from CLOUDFLARE_ACCOUNT_ID — set it in the
 # environment, in a gitignored mcp/.env (wrangler auto-loads it), or as a
