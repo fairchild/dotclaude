@@ -14,6 +14,7 @@ on:
       - 'skills/**'
       - 'scripts/sync-dotagents.py'
       - 'scripts/portability.py'
+      - 'scripts/test_portability.py'
       - 'scripts/dotclaude.py'
       - 'scripts/test-participant-contract.sh'
       - '.github/schemas/**'
@@ -49,6 +50,9 @@ jobs:
 
       - name: Verify skill portability tiers (SEP-2640 serving gate)
         run: python scripts/portability.py --check
+
+      - name: Verify portability lint unit cases
+        run: python scripts/test_portability.py
 
       - name: Verify invalid settings fixtures are rejected
         run: |

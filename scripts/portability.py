@@ -13,14 +13,18 @@ the skill is portable, and this lint verifies the claim:
 
 - portable + a path anchored into its own directory (`~/.claude/skills/<self>`)
   → FAIL: rewrite the reference relative to the skill's base directory.
-- portable + a path into another skill's directory → FAIL: name the skill, not
-  its install path.
+- portable + a path into another skill's directory, anchored
+  (`~/.claude/skills/<other>`) or climbing out of its own directory
+  (`../<other>/`, `$(dirname "$0")/../../<other>/`) → FAIL: name the skill,
+  not its install path.
 - portable + any other `~/.claude` reference → FAIL: the skill depends on this
   machine's Claude config; declare machine-bound or drop the dependency.
 - `/Users/<name>` → FAIL when portable, WARN when machine-bound.
 
-Programmatic home-path forms count too: `${process.env.HOME}/.claude/...`,
+Programmatic forms count too. Home paths: `${process.env.HOME}/.claude/...`,
 `join(HOME, ".claude", ...)`, `Path.home() / ".claude"`, `${HOME}/.claude`.
+Sibling climbs: `join(import.meta.dir, "..", "..", "<other>")`,
+`Path(__file__).parent.parent.parent / "<other>"`.
 
 A deliberate reference carries `portability: allow` in a comment on that line;
 docs/skill-portability.md defines the three grounds that justify one (content
@@ -32,11 +36,13 @@ about paths, consumer-config access, declared optional integration).
 from __future__ import annotations
 
 import argparse
+import posixpath
 import re
 import subprocess
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import yaml
 
@@ -54,6 +60,17 @@ JOINED_HOME = re.compile(
     r"|Path\.home\(\)\s*/\s*['\"]\.claude['\"](?P<segs>(?:\s*/\s*['\"][^'\"]+['\"])*)"
 )
 USER_HOME = re.compile(r"/Users/[A-Za-z0-9_-]+")
+
+PARENT_PATH = re.compile(r"(?:\.\./)+[^\s`'\")\]]*")
+PATHLIKE_END = re.compile(r"[A-Za-z0-9_.~/-]$")
+SELF_ANCHOR = re.compile(r"""(?:\$[A-Za-z_][A-Za-z0-9_]*|[})"'])/$""")
+JOINED_PARENT = re.compile(
+    r"(?:join|resolve)\(\s*(?:import\.meta\.dir(?:name)?|__dirname|dirname\([^)]*\))\s*,\s*"
+    r"(?P<dots>(?:['\"]\.\.['\"]\s*,\s*)+)['\"](?P<name>[A-Za-z0-9_-]+)['\"]"
+)
+PATHLIB_PARENT = re.compile(
+    r"Path\(__file__\)(?:\.resolve\(\))?(?P<parents>(?:\.parent)+)\s*/\s*['\"](?P<name>[A-Za-z0-9_-]+)['\"]"
+)
 
 
 @dataclass(frozen=True)
@@ -86,6 +103,16 @@ def tracked_files(skill_dir: Path) -> list[Path]:
     return [ROOT / p for p in sorted(out)]
 
 
+def tracked_skill_mds() -> list[Path]:
+    out = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "skills/*/SKILL.md"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    return [ROOT / p for p in sorted(out)]
+
+
 def frontmatter(path: Path) -> dict:
     text = path.read_text(encoding="utf-8")
     if not text.startswith("---"):
@@ -93,8 +120,7 @@ def frontmatter(path: Path) -> dict:
     return yaml.safe_load(text.split("---", 2)[1]) or {}
 
 
-def classify(match: re.Match, skill: str) -> tuple[str, str]:
-    rest = match.group("rest") or ""
+def classify(rest: str, skill: str) -> tuple[str, str]:
     if rest.startswith(f"/skills/{skill}/") or rest == f"/skills/{skill}":
         return "self-path", "reference this skill's files relative to its base directory"
     inner = re.match(r"/skills/([A-Za-z0-9_-]+)", rest)
@@ -103,47 +129,76 @@ def classify(match: re.Match, skill: str) -> tuple[str, str]:
     return "machine-state", "depends on this machine's Claude config"
 
 
-def scan_skill(skill_md: Path) -> Verdict:
+def opens_path(before: str) -> bool:
+    """Whether `../` here begins a path resolved from the file's own directory:
+    nothing path-like precedes it, or a self-location prefix does (`$dir/`,
+    `${dir}/`, `$(dirname …)/`, a string literal opening with `/`)."""
+    return not PATHLIKE_END.search(before) or bool(SELF_ANCHOR.search(before))
+
+
+def relative_paths(line: str) -> Iterator[str]:
+    """Every path on the line that climbs out of the file's own directory."""
+    for m in PARENT_PATH.finditer(line):
+        if opens_path(line[: m.start()]):
+            yield m.group(0)
+    for m in JOINED_PARENT.finditer(line):
+        yield "../" * m.group("dots").count("..") + m.group("name")
+    for m in PATHLIB_PARENT.finditer(line):
+        yield "../" * (m.group("parents").count(".parent") - 1) + m.group("name")
+
+
+def sibling_skill(rel_dir: str, relpath: str, siblings: frozenset[str]) -> str | None:
+    """The sibling skill a relative path lands in, resolved from the file's
+    repo-relative directory; None when it stays home or leaves `skills/`."""
+    parts = PurePosixPath(posixpath.normpath(posixpath.join(rel_dir, relpath))).parts
+    if len(parts) > 1 and parts[0] == "skills" and parts[1] in siblings:
+        return parts[1]
+    return None
+
+
+def line_findings(line: str, skill: str, rel_dir: str, skills: frozenset[str]) -> list[tuple[str, str]]:
+    """(kind, why) for each violation on one line of a file of `skill` living
+    at `rel_dir` (repo-relative); a waiver on the line clears it."""
+    if WAIVER in line:
+        return []
+    found: list[tuple[str, str]] = []
+    for m in DOTCLAUDE.finditer(line):
+        found.append(classify(m.group("rest") or "", skill))
+    for m in JOINED_HOME.finditer(line):
+        parts = re.findall(r"['\"]([^'\"]+)['\"]", m.group("args") or m.group("segs") or "")
+        found.append(classify("/" + "/".join(parts) if parts else "", skill))
+    if not found and USER_HOME.search(line):
+        found.append(("user-home", "hardcodes a user home path"))
+    siblings = skills - {skill}
+    for relpath in relative_paths(line):
+        if other := sibling_skill(rel_dir, relpath, siblings):
+            found.append(("cross-skill-path", f"names skill '{other}' by relative path; use its name"))
+    return found
+
+
+def scan_skill(skill_md: Path, skills: frozenset[str]) -> Verdict:
     skill = skill_md.parent.name
     meta = frontmatter(skill_md).get("metadata") or {}
     tier = meta.get("portability") or "portable"
+    severity = "FAIL" if tier == "portable" else "WARN"
     findings: list[Finding] = []
 
     for path in tracked_files(skill_md.parent):
         if path.suffix.lower() not in TEXT_SUFFIXES:
             continue
-        rel = str(path.relative_to(ROOT))
+        rel = path.relative_to(ROOT).as_posix()
+        rel_dir = posixpath.dirname(rel)
         for lineno, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-            if WAIVER in line:
-                continue
-            matched_dotclaude = False
-            for m in DOTCLAUDE.finditer(line):
-                matched_dotclaude = True
-                kind, why = classify(m, skill)
-                severity = "FAIL" if tier == "portable" else "WARN"
+            for kind, why in line_findings(line, skill, rel_dir, skills):
                 findings.append(Finding(severity, rel, lineno, kind, why))
-            for m in JOINED_HOME.finditer(line):
-                matched_dotclaude = True
-                parts = re.findall(r"['\"]([^'\"]+)['\"]", m.group("args") or m.group("segs") or "")
-                rest = "/" + "/".join(parts) if parts else ""
-                kind, why = classify(re.match(r"(?P<rest>.*)", rest), skill)
-                severity = "FAIL" if tier == "portable" else "WARN"
-                findings.append(Finding(severity, rel, lineno, kind, why))
-            if not matched_dotclaude and USER_HOME.search(line):
-                severity = "FAIL" if tier == "portable" else "WARN"
-                findings.append(Finding(severity, rel, lineno, "user-home", "hardcodes a user home path"))
 
     return Verdict(skill, tier, tuple(findings))
 
 
 def scan_all() -> list[Verdict]:
-    out = subprocess.run(
-        ["git", "-C", str(ROOT), "ls-files", "skills/*/SKILL.md"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.split()
-    return [scan_skill(ROOT / p) for p in sorted(out)]
+    mds = tracked_skill_mds()
+    skills = frozenset(p.parent.name for p in mds)
+    return [scan_skill(p, skills) for p in mds]
 
 
 def report(verdicts: list[Verdict], verbose: bool) -> None:
@@ -171,7 +226,8 @@ def main() -> int:
         if not path.exists():
             print(f"no such skill: {args.skill}", file=sys.stderr)
             return 2
-        verdicts = [scan_skill(path)]
+        skills = frozenset(p.parent.name for p in tracked_skill_mds())
+        verdicts = [scan_skill(path, skills)]
     else:
         verdicts = scan_all()
 
