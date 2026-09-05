@@ -22,6 +22,9 @@ skill-shaped view:
 - `resources/directory/read` (optional, declared via `directoryRead: true`) —
   direct children of a directory resource, for scoped navigation.
 
+For HTTP download routes, supported formats, and `Accept` negotiation, see
+[Skill HTTP downloads](worker/HTTP.md).
+
 Reading a file is plain `resources/read`; reading a `SKILL.md` does not
 activate anything — activation, approval, and origin-tagging are host
 concerns, and the SEP's security section makes them explicit.
@@ -69,7 +72,7 @@ bunx wrangler deploy -c worker/wrangler.toml   # publish (POST /mcp)
 
 The hosted binding is live at `https://skills.cloudcompute.com/mcp`
 (portable tier, public). The root of that domain is a landing page built
-from the snapshot (`worker/index.html` + build.ts). Each catalog link opens a reading page at `/skill/<name>`, generated with Bun 1.4 or newer. Its copy button includes a `skill.tgz` download URL, every supporting file path and URL, and an installation command with the full inline `SKILL.md`. Archives at `/downloads/<name>/skill.tgz` contain the complete `<name>/` directory and preserve file permissions. The build uses system `tar`; only files in the hosted manifest are packaged. Raw files remain under `/skills/<name>/`. Run `bun run typecheck`, `bun run build`, and `bun run test` to verify changes. Claude Code — or any MCP host — connects to either binding:
+from the snapshot (`worker/index.html` + build.ts). The homepage links to canonical skill directories at `/skills/<name>/`, with file lists and a short copyable install prompt. `/llms.txt` supplies the Markdown catalog; Markdown directory pages retain navigation and install information. Raw files remain under `/skills/<name>/<path>`. The default prompt pins a complete archive and its manifest by the archive SHA-256. A separate full inline prompt carries SKILL.md for offline use. Archives preserve paths, bytes, and file permissions; historical package retention is not provided. Build with Bun 1.4 or newer and system `tar`. Run `bun run typecheck`, `bun run build`, and `bun run test` to verify changes. Claude Code — or any MCP host — connects to either binding:
 
 ```json
 {

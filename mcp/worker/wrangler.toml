@@ -14,6 +14,8 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = "dist/public"
 binding = "ASSETS"
+run_worker_first = true
+html_handling = "none"
 
 # Product-level usage events (skill_used) go to PostHog when a project key
 # is present. Forks: set your own with

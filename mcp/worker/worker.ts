@@ -20,6 +20,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { createSkillsServer } from "../core/server.ts";
 import { SnapshotStore, type StoredSkill } from "../core/store.ts";
 import { parseSkillUri } from "../core/types.ts";
+import { serveHttp } from "./http.ts";
 
 interface AnalyticsEngineDataset {
   writeDataPoint(point: { blobs?: string[]; doubles?: number[]; indexes?: string[] }): void;
@@ -210,7 +211,7 @@ export default {
   async fetch(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname !== "/mcp") {
-      return new Response("dotclaude skills over MCP; POST /mcp", { status: 404 });
+      return serveHttp(request, env.ASSETS, async () => (await loadStore(env)).skills());
     }
     const started = Date.now();
     const served = await serve(request, env);
