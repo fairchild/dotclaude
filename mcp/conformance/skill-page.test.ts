@@ -98,3 +98,139 @@ describe("skill reading and installation", () => {
     });
   }
 });
+
+/**
+ * Adversarial rendered-HTML snapshot (issue #281).
+ *
+ * `conformance/fixtures/adversarial.md` is a plain file directly under
+ * `fixtures/`, not a `<name>/SKILL.md` directory, so `scanCatalog` (see
+ * `core/manifest.ts`) filters it out before it ever reaches `scanSkill` —
+ * `readdirSync(...).filter(isDirectory)` runs before any per-entry
+ * diagnostic is produced. It never becomes a skill candidate and never
+ * emits a `[skills] skipped ...` line, so the other conformance and worker
+ * tests that count skills against this same fixtures root are unaffected
+ * (verified: `bun test conformance` reports the same 109 pass / 3 skip / 0
+ * fail before and after adding the file).
+ *
+ * The fixture exercises, one section per case:
+ *   - a raw HTML block and raw inline HTML tags (html: false must inert them)
+ *   - HTML markup inside a heading's own text
+ *   - HTML kept inert inside an inline code span and a fenced code block
+ *   - a plain `javascript:` link and image, and a plain `data:text/html` link
+ *     — markdown-it's own core `validateLink` denylist already refuses these
+ *     before this renderer's link/image rules ever run (see BAD_PROTO_RE in
+ *     markdown-it's source); the fixture documents that as defense-in-depth
+ *   - an `ftp:` link, a `tel:` link, and a `data:image/png;base64,...` image
+ *     — none of these are in markdown-it's own denylist, so they reach real
+ *     link/image tokens; only this renderer's own href allow-list blocks them
+ *   - safe targets that must keep working: mailto:, https:, and relative
+ *     sibling links resolved against the skill's base URL, plus an in-page
+ *     anchor
+ *   - bare autolink-looking text (linkify: false must leave it as plain text)
+ *   - reference-style links: an unsafe (javascript:) reference whose
+ *     definition markdown-it itself refuses to register, a tel: reference
+ *     that registers but is blocked by this renderer's own filter, and a
+ *     safe https: reference
+ *   - Unicode look-alike scheme tricks: a fullwidth colon (U+FF1A) and a
+ *     Cyrillic "а" (U+0430) standing in for the Latin letter in
+ *     "javascript:" — both break ASCII scheme parsing, so `new URL(value,
+ *     base)` treats them as relative references and resolves them safely
+ *     under the skill's own base URL rather than as an absolute javascript:
+ *     target (verified against the actual URL() behavior, not assumed)
+ *   - a level-6 heading, proving the heading-shift clamp (h+1, max 6) holds
+ *     at the boundary instead of overflowing to h7
+ */
+describe("adversarial rendering snapshot", () => {
+  const fixture = readFileSync(join(import.meta.dir, "fixtures/adversarial.md"), "utf8");
+
+  // Attribute-scoped: only flags a protocol inside a real href="..."/src="..."
+  // value, never a plain-text mention (the fixture's own prose and code spans
+  // legitimately contain the literal strings "javascript:" and "data:").
+  const unsafeAttrs = (html: string) => [...html.matchAll(/\b(?:href|src)="([^"]*)"/g)]
+    .map((m) => m[1]!)
+    .filter((value) => /^(javascript|data|vbscript):/i.test(value));
+
+  // Real live attribute only: a literal (unescaped) "<" starting a tag that
+  // carries an on*= attribute. Escaped mentions like "&lt;img ... onerror="
+  // are inert text and must not trip this — the regex requires a raw "<".
+  const liveEventHandlerAttrs = (html: string) => /<[a-z][a-z0-9]*\b[^>]*\son\w+\s*=/i.test(html);
+
+  test("renders every adversarial case to a pinned, inert snapshot", () => {
+    const rendered = renderMarkdown(fixture, "example");
+    expect(rendered).toMatchSnapshot();
+  });
+
+  test("targeted invariants survive a snapshot update", () => {
+    const rendered = renderMarkdown(fixture, "example");
+
+    expect(rendered).not.toContain("<script");
+    expect(rendered).not.toContain("<img"); // images always become <a> or plain text
+    expect(liveEventHandlerAttrs(rendered)).toBe(false);
+    expect(unsafeAttrs(rendered)).toEqual([]);
+
+    // Plain javascript:/data: targets: markdown-it's own core refuses them
+    // outright, so the source syntax never becomes a link/image at all.
+    expect(rendered).toContain("[plain-js](javascript:alert('plain-js'))");
+    expect(rendered).toContain("[plain-data](data:text/html,&lt;script&gt;alert('plain-data')&lt;/script&gt;)");
+    expect(rendered).toContain("![plain-js-img](javascript:alert('plain-js-img'))");
+
+    // Targets outside markdown-it's own denylist: real tokens this renderer
+    // itself must block (empty href, no live target).
+    expect(rendered).toContain('<a href="">ftp-scheme</a>');
+    expect(rendered).toContain('<a href="">tel-scheme</a>');
+    expect(rendered).toContain(">allowed-mime-data-img<"); // alt text only, no <a> wrapper
+    expect(rendered).not.toContain('href="ftp:');
+    expect(rendered).not.toContain('href="tel:');
+    expect(rendered).not.toContain("data:image/png");
+
+    // Safe targets keep working.
+    expect(rendered).toContain('<a href="mailto:security@example.com">safe-mail</a>');
+    expect(rendered).toContain('<a href="https://example.com/safe">safe-https</a>');
+    expect(rendered).toContain('<a href="https://skills.cloudcompute.com/skills/example/references/guide.md">relative-sibling</a>');
+    expect(rendered).toContain('<a href="https://skills.cloudcompute.com/skills/example/scripts/tool.py">relative-script</a>');
+    expect(rendered).toContain('<a href="#level-6-heading-stays-clamped-at-6">anchor</a>');
+
+    // Autolink-looking bare text: linkify is off, so it stays plain text.
+    expect(rendered).toContain("Visit http://example.com/should-not-autolink or write to nobody@example.com");
+    expect(rendered).not.toContain('href="http://example.com/should-not-autolink"');
+    expect(rendered).not.toContain('href="mailto:nobody@example.com"');
+
+    // Reference-style links.
+    expect(rendered).toContain("[reference-unsafe][evil]"); // definition itself refused
+    expect(rendered).toContain('<a href="">reference-tel</a>');
+    expect(rendered).toContain('<a href="https://example.com/reference-ok">reference-safe</a>');
+
+    // Unicode look-alike scheme tricks resolve safely under the base URL —
+    // never as a literal "javascript:" target.
+    expect(rendered).toContain('<a href="https://skills.cloudcompute.com/skills/example/javascript%EF%BC%9Aalert(\'fullwidth\')">fullwidth-colon</a>');
+    expect(rendered).toContain('<a href="https://skills.cloudcompute.com/skills/example/j%D0%B0vascript:alert(\'cyrillic\')">cyrillic-a</a>');
+
+    // Heading shift clamps at 6 instead of overflowing.
+    expect(rendered).toContain('<h6 id="level-6-heading-stays-clamped-at-6">Level 6 heading stays clamped at 6</h6>');
+    expect(rendered).not.toMatch(/<h[7-9]/);
+  });
+
+  test("composed into the full skill page, the same invariants hold", () => {
+    // renderSkillPage's CONTENT value is exactly renderMarkdown's output
+    // substituted once into a static template (see skill-page.ts); this
+    // confirms composition doesn't reintroduce risk at the seam — e.g. the
+    // outer {{TOKEN}} substitution does not re-scan and re-expand content
+    // that happens to contain literal "{{...}}"-shaped text.
+    const page = renderSkillPage(template, "example", "Adversarial fixture", fixture, ["SKILL.md"]);
+
+    // The rendered article is where the fixture's content lands; the page
+    // template itself legitimately carries one <script> for the copy-to-
+    // clipboard button, so the "<script"/"<img" checks are scoped to the
+    // article rather than the whole page.
+    const article = /<article[^>]*>([\s\S]*?)<\/article>/.exec(page)?.[1];
+    expect(article).toBeDefined();
+    expect(article).not.toContain("<script");
+    expect(article).not.toContain("<img");
+    expect(article).toContain('<h6 id="level-6-heading-stays-clamped-at-6">Level 6 heading stays clamped at 6</h6>');
+
+    // href/src allow-list and live event-handler attributes are checked
+    // across the whole page: it must hold everywhere, not just the article.
+    expect(liveEventHandlerAttrs(page)).toBe(false);
+    expect(unsafeAttrs(page)).toEqual([]);
+  });
+});

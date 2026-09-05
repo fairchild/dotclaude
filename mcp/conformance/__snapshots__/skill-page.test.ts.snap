@@ -1,0 +1,59 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`adversarial rendering snapshot renders every adversarial case to a pinned, inert snapshot 1`] = `
+"<h2 id="adversarial-rendering-fixture">Adversarial rendering fixture</h2>
+<h3 id="raw-html-block">Raw HTML block</h3>
+<p>&lt;div onclick=&quot;alert('block')&quot;&gt;
+&lt;p&gt;Raw HTML block: must render as escaped literal text, not a live element.&lt;/p&gt;
+&lt;/div&gt;</p>
+<h3 id="raw-inline-html-tags">Raw inline HTML tags</h3>
+<p>Some &lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt;, and a bare &lt;img src=x onerror=alert('inline')&gt; tag inline.</p>
+<h3 id="html-inside-a-heading-script-alert-heading-script">HTML inside a heading &lt;script&gt;alert('heading')&lt;/script&gt;</h3>
+<p>Heading text itself carries a script tag; it must stay inert.</p>
+<h3 id="html-stays-inert-inside-code">HTML stays inert inside code</h3>
+<p>Inline code: <code>&lt;script&gt;alert('inline-code')&lt;/script&gt;</code></p>
+<pre><code class="language-html">&lt;script&gt;alert('fenced-code')&lt;/script&gt;
+&lt;img src=x onerror=alert('fenced-code-2')&gt;
+</code></pre>
+<h3 id="javascript-and-data-targets-markdown-it-s-own-core-already-refuses">javascript: and data: targets markdown-it's own core already refuses</h3>
+<ul>
+<li>[plain-js](javascript:alert('plain-js'))</li>
+<li>[plain-data](data:text/html,&lt;script&gt;alert('plain-data')&lt;/script&gt;)</li>
+</ul>
+<p>![plain-js-img](javascript:alert('plain-js-img'))</p>
+<h3 id="targets-only-this-renderer-s-own-protocol-filter-blocks">Targets only this renderer's own protocol filter blocks</h3>
+<p>markdown-it's default denylist only covers <code>vbscript:</code>, <code>javascript:</code>, <code>file:</code>,
+and non-image <code>data:</code>; these pass its own core validator and reach this
+renderer's own href allow-list instead.</p>
+<ul>
+<li><a href="">ftp-scheme</a></li>
+<li><a href="">tel-scheme</a></li>
+</ul>
+<p>allowed-mime-data-img</p>
+<h3 id="safe-targets-the-allow-list-keeps-working">Safe targets the allow-list keeps working</h3>
+<ul>
+<li><a href="mailto:security@example.com">safe-mail</a></li>
+<li><a href="https://example.com/safe">safe-https</a></li>
+<li><a href="https://skills.cloudcompute.com/skills/example/references/guide.md">relative-sibling</a></li>
+<li><a href="https://skills.cloudcompute.com/skills/example/scripts/tool.py">relative-script</a></li>
+<li><a href="#level-6-heading-stays-clamped-at-6">anchor</a></li>
+</ul>
+<h3 id="autolink-looking-bare-text-stays-plain">Autolink-looking bare text stays plain</h3>
+<p>Visit http://example.com/should-not-autolink or write to nobody@example.com;
+neither becomes a link because linkify is disabled.</p>
+<h3 id="reference-style-links-unsafe-renderer-only-blocked-and-safe">Reference-style links: unsafe, renderer-only-blocked, and safe</h3>
+<p>Read the [reference-unsafe][evil], the <a href="">reference-tel</a>, and the
+<a href="https://example.com/reference-ok">reference-safe</a>.</p>
+<p>[evil]: javascript:alert('reference')</p>
+<h3 id="unicode-look-alike-scheme-tricks">Unicode look-alike scheme tricks</h3>
+<p>Neither trick below produces an active <code>javascript:</code> navigation; both fall
+back to a safe relative resolution under this skill's own base URL because
+the homoglyph breaks scheme parsing rather than disguising it.</p>
+<ul>
+<li><a href="https://skills.cloudcompute.com/skills/example/javascript%EF%BC%9Aalert('fullwidth')">fullwidth-colon</a></li>
+<li><a href="https://skills.cloudcompute.com/skills/example/j%D0%B0vascript:alert('cyrillic')">cyrillic-a</a></li>
+</ul>
+<h6 id="level-6-heading-stays-clamped-at-6">Level 6 heading stays clamped at 6</h6>
+<p>Nothing below h6 exists; the shift clamps here instead of overflowing to h7.</p>
+"
+`;
