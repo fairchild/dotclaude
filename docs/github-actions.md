@@ -2,7 +2,9 @@
 
 `ci.yml` owns deterministic checks and the two site deployments.
 `verify-skill-server.yml` builds and verifies package candidates for both CI and
-tagged releases, including the six-platform consumer matrix. It replaces the
+tagged releases. PRs test Linux and macOS on Node 22/24; main, release tags and
+manual CI also test Windows. One Linux consumer checks the minimum Node 22.14.0
+version on every package run. It replaces the
 duplicated package jobs, with read-only permissions and no inherited secrets.
 The `CI` job is the stable merge check. The always-running changes
 job uses `.github/scripts/paths.mjs`; add inputs there when a builder starts
@@ -19,7 +21,7 @@ remain separate because their triggers and credentials differ from deterministic
 
 | Output | Build and verification | Destination |
 | --- | --- | --- |
-| skill-server tarball | Node compilation; clean consumer install on Node 22/24, Linux/macOS/Windows | Actions artifact, 14-day retention |
+| skill-server tarball | Node compilation; clean consumer installs, with Windows after merge and before release | Actions artifact, 14-day retention |
 | skills Worker | Install that tarball; build snapshot; bundle adapter; real Wrangler HTTP checks | skills-production, skills.cloudcompute.com |
 | WebUI | Generate data; allowlist static files; browser-test packaged files | webui-production, claude.cloudcompute.com |
 | selected package candidate | Tag/version/main ancestry checks; same package and Worker checks; consumer matrix | GitHub prerelease |
@@ -38,6 +40,25 @@ Skills additionally exposes the installed package version and digest in
 `/version.json`. The tarball includes compiled code and templates, not the hosted
 catalog, telemetry adapter, or account configuration. Its runtime dependencies
 still download from npm.
+
+Windows failures are discovered after merge, but still block deployment and
+package publication. The previous production version remains serving. Path
+filtering applies before the matrix, so unrelated merges do not run these checks.
+
+## CI cost and caching
+
+Actionlint runs in the configuration job alongside other verification, not in the
+changes job that every lane waits for. The aggregate `CI` check still requires it
+whenever configuration verification runs, including all workflow changes.
+
+Package jobs use setup-node's npm download cache, keyed by the runner OS,
+architecture and `mcp/bun.lock` hash. This key groups reusable downloads; it does
+not lock the fresh consumer install, which still resolves the package's declared
+dependency ranges. We never cache `node_modules`, installed candidates or build
+outputs. Candidate installation and consumer checks report separate timings in
+logs and job summaries. Compare warm runs with cold runs before attributing a
+speedup to caching. Bun already caches its executable; dependency installs are
+currently cheap enough that Bun/uv dependency and browser caches are not enabled.
 
 ## GitHub settings
 
@@ -104,5 +125,6 @@ node scripts/check-worker.mjs
 The installed-consumer harness and existing HTTP suite replace source-only release
 confidence. There is no additional package test framework. Actions linting and
 path-routing regression checks are new because neither was covered previously.
-Workflow-contract tests cover concurrency, shared qualification and artifact
-wiring, replacing manual inspection of those relationships.
+The workflow regression protects pending-main concurrency. Matrix values and
+artifact names are not duplicated in tests; actionlint and real CI exercise that
+wiring.

@@ -29,8 +29,6 @@ jobs:
       - id: paths
         run: node .github/scripts/changes.mjs
       - run: node --test .github/scripts/paths.test.mjs
-      - name: Validate Actions syntax
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
   config:
     needs: changes
     if: needs.changes.outputs.config == 'true'
@@ -40,6 +38,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Validate Actions syntax
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: '0.11.14'
