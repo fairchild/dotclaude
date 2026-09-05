@@ -33,6 +33,23 @@ class WorkflowContractTests(unittest.TestCase):
             self.assertEqual(job["concurrency"]["group"], job["environment"]["name"])
             self.assertEqual(job["concurrency"]["cancel-in-progress"], "false")
 
+    def test_deploy_jobs_check_needs_result_not_bare_ref(self) -> None:
+        # gate has `if: always()` and needs every lane, several path-filtered
+        # and often skipped. A skip anywhere in that chain propagates through
+        # gate to any downstream job whose `if` relies on the implicit
+        # success() check, even when gate's own conclusion is "success" — see
+        # docs/github-actions.md and the run evidence for #290 (33952653246),
+        # where deploy-skills and deploy-webui were both skipped despite gate
+        # and package succeeding. Each deploy job must instead name
+        # needs.gate.result and the result of its own artifact-producing lane
+        # explicitly, not just the bare ref/event check.
+        ci = workflow("ci.yml")
+        artifact_lane = {"deploy-skills": "package", "deploy-webui": "webui"}
+        for name, lane in artifact_lane.items():
+            condition = ci["jobs"][name]["if"]
+            self.assertIn("needs.gate.result == 'success'", condition)
+            self.assertIn(f"needs.{lane}.result == 'success'", condition)
+            self.assertNotRegex(condition.strip(), r"^\$\{\{\s*github\.ref\b")
 
 
 if __name__ == "__main__":
