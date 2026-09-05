@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>Skill library · dotclaude</title>
-<meta name="description" content="Browse {{PORTABLE}} portable agent skills. Read the instructions, explore their files, or download a complete skill.">
+<meta name="description" content="A reference implementation of the experimental Skills over MCP extension, expanding into intuitive discovery and downloads for agents.">
 <link rel="alternate" type="text/markdown" href="/llms.txt">
 <link rel="describedby" href="/llms.txt">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,11 +13,14 @@
 </head>
 <body><main>
 <nav aria-label="Library"><span>dotclaude / skill library</span><a href="/llms.txt">For agents · Markdown</a></nav>
-<header><p class="eyebrow">{{PORTABLE}} portable skills</p><h1>Find a skill.<br>Make it yours.</h1>
-<p class="description">Read the instructions, follow the files, or download the complete directory. Each skill starts with SKILL.md.</p>
+<header><p class="eyebrow">MCP Skills Extension · Reference implementation</p><h1>Skills over MCP.</h1>
+<p class="description">This site began as a reference implementation of the experimental <a href="https://github.com/modelcontextprotocol/ext-skills">Skills Over MCP project</a>. That remains its starting point: give agents a straightforward way to discover and use skills.</p>
+<p>We're extending the same library with readable pages, Markdown discovery, and verified downloads, so agents can use the access method that fits their tools.</p>
 <p class="meta"><a href="/llms.txt">Markdown catalog</a> · <a href="/manifest.json">File manifest</a></p></header>
-<ul class="catalog" aria-label="Skills">{{SKILL_ROWS}}</ul>
-<details><summary>Connect through MCP</summary><p>MCP clients can use the same library at <code>https://skills.cloudcompute.com/mcp</code>.</p>
+<section class="mcp-connect" aria-labelledby="connect-mcp"><h2 id="connect-mcp">Connect through MCP</h2>
+<p class="endpoint"><code>https://skills.cloudcompute.com/mcp</code></p>
+<p class="meta"><a href="https://github.com/modelcontextprotocol/ext-skills">Explore modelcontextprotocol/ext-skills ↗</a> · <a href="https://github.com/fairchild/dotclaude/tree/main/mcp">Implementation source ↗</a></p>
+<details><summary>Client configuration</summary>
 <pre>{
   "mcpServers": {
     "dotclaude-skills": {
@@ -25,7 +28,9 @@
       "url": "https://skills.cloudcompute.com/mcp"
     }
   }
-}</pre><p>Ordinary file downloads need no MCP setup. <a href="https://github.com/fairchild/dotclaude/tree/main/mcp">Protocol documentation</a></p></details>
+}</pre></details></section>
+<section aria-labelledby="browse-skills"><h2 id="browse-skills">Browse {{PORTABLE}} skills</h2><p class="meta">Read SKILL.md, explore the files, or download the complete directory.</p>
+<ul class="catalog" aria-label="Skills">{{SKILL_ROWS}}</ul></section>
 <details><summary>About this library</summary><p>Built from <a href="https://github.com/fairchild/dotclaude">fairchild/dotclaude</a>. Machine-bound skills ({{MACHINE_BOUND}}) are available only through the local server.</p>
 <p>MCP usage metrics include method, skill, outcome, latency, response size, country, datacenter, user agent, and an optional client label. This service does not store IP addresses. Infrastructure: Cloudflare Workers; usage events: PostHog.</p></details>
 <footer>dotclaude · snapshot {{BUILT_AT}}</footer>

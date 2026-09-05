@@ -7,10 +7,11 @@ a download format. MCP remains at `POST /mcp`.
 
 ## First visit
 
-The homepage puts skill names and descriptions first, with ordinary links to
+The homepage introduces the Skills Over MCP reference implementation and its
+connection endpoint, then lists skill names and descriptions with ordinary links to
 canonical `/skills/{name}/` directory pages. Each page lists SKILL.md first,
-then its supporting files, and offers a complete package download. MCP setup
-is optional and appears below the catalog.
+then its supporting files, and offers a complete package download. MCP client configuration
+is available beside the endpoint; Markdown discovery and downloads extend the same library.
 
 `/llms.txt` and `/index.md` expose the Markdown catalog. The homepage also
 negotiates Markdown or plain text through Accept. Directory Markdown contains

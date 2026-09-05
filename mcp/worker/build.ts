@@ -87,7 +87,15 @@ for (const { entry, dir } of portable) {
   ));
 }
 
-const catalogMarkdown = `# Skill library
+const catalogMarkdown = `# Skills over MCP
+
+This site began as a reference implementation of the experimental [Skills Over MCP project](https://github.com/modelcontextprotocol/ext-skills). The same library now supports readable pages, Markdown discovery, and verified downloads, intended to make access intuitive and efficient for agents.
+
+## Connect through MCP
+
+Endpoint: https://skills.cloudcompute.com/mcp
+
+[Implementation source](https://github.com/fairchild/dotclaude/tree/main/mcp). HTTP downloads are also available without MCP setup.
 
 Find a skill, read its SKILL.md, and follow relative file references as needed. Each directory page lists every file and a complete installable archive.
 

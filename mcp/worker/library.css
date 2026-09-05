@@ -40,3 +40,9 @@ footer { border-top:1px solid var(--line); margin-top:56px; padding-top:20px; co
 .catalog p { margin:0; color:var(--muted); font-size:16px; line-height:1.55; }
 .catalog a { text-decoration:none; }
 .catalog a:hover { text-decoration:underline; }
+
+.mcp-connect { border:1px solid var(--line); background:var(--paper); padding:20px 24px; margin:0 0 36px; }
+.mcp-connect h2 { font-size:24px; font-weight:500; margin:0 0 12px; }
+.mcp-connect p { margin:10px 0; }
+.endpoint code { padding:0; overflow-wrap:anywhere; }
+#browse-skills { font-size:28px; font-weight:500; margin:0 0 10px; }
