@@ -156,6 +156,8 @@ Existing output is replaced only when it contains the builder's
 choose a new output directory or remove the known generated directory first.
 The builder stages verified source bytes before replacing the previous snapshot.
 Restart local Wrangler after a rebuild so its asset index sees the replacement.
+`skill-server serve` needs no restart: it re-reads the replaced snapshot in place, so a
+rebuilt `manifest.json` advertises the same digests as the bytes it serves.
 
 Explicit top-level skill symlinks are supported. Nested symlinks and special files
 are rejected. Scanning limits directory depth to 64 and included entries to 1,024,
