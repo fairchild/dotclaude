@@ -9,7 +9,7 @@ import { directoryMarkdown, escapeHtml, renderSkillPage, validateSkillName, type
 import { inside, readSkillFile } from "../core/files.ts";
 import { scanCatalog } from "../core/manifest.ts";
 
-export interface BuildOptions { root: string; out: string; baseUrl: string; sourceSha?: string }
+export interface BuildOptions { root: string; out: string; baseUrl: string; sourceSha?: string; strict?: boolean }
 export function buildSnapshot(options: BuildOptions): void {
 const templateDir = dirname(fileURLToPath(import.meta.url));
 const base = new URL(options.baseUrl);
@@ -38,7 +38,10 @@ try {
   mkdirSync(join(publicDir, "skills"), { recursive: true });
   cpSync(join(templateDir, "library.css"), join(publicDir, "library.css"));
 
-  for (const d of catalog.diagnostics) console.error(`skipped ${d.skill}: ${d.reason}`);
+  for (const d of catalog.diagnostics) console.error(`[skills] skipped ${d.skill}: ${d.reason}`);
+  if (options.strict && catalog.diagnostics.length > 0) {
+    throw new Error(`${catalog.diagnostics.length} scan diagnostic(s) with --strict; see stderr above`);
+  }
 
   const portable = catalog.skills.filter((s) => s.tier === "portable");
   const excluded = catalog.skills.filter((s) => s.tier !== "portable");
