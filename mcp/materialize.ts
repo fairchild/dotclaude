@@ -6,21 +6,23 @@
  * The flow is the one the SEP prescribes: take the skill's entry (its
  * complete manifest), fetch each file with `resources/read`, verify byte
  * length and SHA-256 digest against the entry before writing anything, and
- * refuse the whole skill on any mismatch — unverified content is never
- * used. Nothing is fetched that the manifest does not list.
+ * refuse the entire batch on any mismatch. Only a complete verified batch
+ * becomes visible at the destination. Nothing is fetched that the manifest does not list.
  *
  * Usage:
- *   bun materialize.ts --out <dir> [--root <skills-dir>] [skill ...]
+ *   bun materialize.ts --root <skills-dir> --out <dir> [skill ...]
+ *
+ * --out must not exist, and its parent must exist without symlink ancestors.
+ * The output parent must be owned by the operator with no concurrent writers.
+ * Files are private and non-executable. Digest integrity does not establish safety.
  *
  * With no skill names, materializes every skill the server lists. --root
- * selects the corpus the spawned stdio server serves (default: the live
- * ~/.claude/skills).
+ * explicitly selects the corpus the spawned stdio server serves.
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
+import { materializeSkills, MAX_MATERIALIZED_SKILLS } from "./core/materialize.ts";
 import { parseArgs } from "node:util";
 
 import { EXTENSION_ID, SkillsListResultSchema, type SkillEntry } from "./core/types.ts";
@@ -32,76 +34,52 @@ const { values, positionals } = parseArgs({
     root: { type: "string" },
   },
 });
-if (!values.out) {
-  console.error("materialize.ts: --out <dir> is required");
+if (!values.out || !values.root) {
+  console.error("materialize.ts: --root <skills-dir> and --out <dir> are required");
   process.exit(2);
 }
 
-const serverArgs = [join(import.meta.dir, "stdio.ts")];
-if (values.root) serverArgs.push("--root", values.root);
+const serverArgs = [join(import.meta.dir, "stdio.ts"), "--root", values.root];
 
 const client = new Client({ name: "materialize", version: "0.1.0" }, { capabilities: {} });
-await client.connect(new StdioClientTransport({ command: "bun", args: serverArgs }));
+try {
+  await client.connect(new StdioClientTransport({ command: "bun", args: serverArgs }));
 
-if (!client.getServerCapabilities()?.extensions?.[EXTENSION_ID]) {
-  console.error("server does not declare the skills extension");
-  process.exit(1);
-}
-
-const entries: SkillEntry[] = [];
-let cursor: string | undefined;
-do {
-  const page = await client.request(
-    { method: "skills/list", params: cursor ? { cursor } : {} },
-    SkillsListResultSchema,
-  );
-  entries.push(...page.skills);
-  cursor = page.nextCursor;
-} while (cursor);
-
-const wanted = positionals.length
-  ? entries.filter((e) => positionals.includes(String(e.frontmatter.name)))
-  : entries;
-const missing = positionals.filter((n) => !wanted.some((e) => e.frontmatter.name === n));
-if (missing.length) {
-  console.error(`not served: ${missing.join(", ")}`);
-  process.exit(1);
-}
-
-let failures = 0;
-for (const entry of wanted) {
-  const name = String(entry.frontmatter.name);
-  if (entry.resources === "dynamic") {
-    console.error(`skip ${name}: dynamic skills offer no content integrity`);
-    continue;
+  if (!client.getServerCapabilities()?.extensions?.[EXTENSION_ID]) {
+    throw new Error("server does not declare the skills extension");
   }
-  const staged: Array<{ path: string; bytes: Buffer }> = [];
-  let ok = true;
-  for (const resource of entry.resources) {
-    const rel = resource.uri.slice(`skill://${name}/`.length);
-    const read = await client.readResource({ uri: resource.uri });
-    const content = read.contents[0]!;
-    const bytes = "text" in content
-      ? Buffer.from(content.text as string, "utf-8")
-      : Buffer.from(content.blob as string, "base64");
-    const digest = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
-    if (bytes.length !== resource.size || digest !== resource.digest) {
-      console.error(`FAIL ${name}: ${rel} does not match its manifest entry (stale or tampered); skill refused`);
-      ok = false;
-      break;
+
+  const entries: SkillEntry[] = [];
+  let cursor: string | undefined;
+  const cursors = new Set<string>();
+  let pages = 0;
+  do {
+    const page = await client.request(
+      { method: "skills/list", params: cursor !== undefined ? { cursor } : {} },
+      SkillsListResultSchema,
+    );
+    entries.push(...page.skills);
+    if (++pages > 256 || entries.length > MAX_MATERIALIZED_SKILLS) throw new Error("catalog limit exceeded");
+    cursor = page.nextCursor;
+    if (cursor !== undefined) {
+      if (cursors.has(cursor)) throw new Error("repeated catalog cursor");
+      cursors.add(cursor);
     }
-    staged.push({ path: join(values.out!, name, rel), bytes });
-  }
-  if (!ok) {
-    failures++;
-    continue; // nothing of a failed skill is written
-  }
-  for (const file of staged) {
-    mkdirSync(dirname(file.path), { recursive: true });
-    writeFileSync(file.path, file.bytes);
-  }
-  console.error(`ok ${name}: ${staged.length} files verified and written`);
-}
+  } while (cursor !== undefined);
 
-await client.close();
-process.exit(failures ? 1 : 0);
+  const wanted = positionals.length
+    ? entries.filter((e) => positionals.includes(String(e.frontmatter.name)))
+    : entries;
+  const missing = positionals.filter((n) => !wanted.some((e) => e.frontmatter.name === n));
+  if (missing.length) {
+    throw new Error(`not served: ${missing.join(", ")}`);
+  }
+
+  await materializeSkills(wanted, (uri) => client.readResource({ uri }), values.out);
+  console.error(`ok: ${wanted.length} skills verified and written to ${values.out}`);
+} catch (error) {
+  console.error(`materialize: ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = 1;
+} finally {
+  await client.close();
+}

@@ -100,3 +100,34 @@ Analytics read; the script header has details). Worker-level request and
 error metrics also appear in the Cloudflare dashboard under the
 `dotclaude-skills` worker, and `bunx wrangler tail -c worker/wrangler.toml`
 streams live invocations.
+
+## Verified materialization example
+
+From `mcp/`, fetch a local server's manifest-listed files into a new directory:
+
+```sh
+bun materialize.ts --root ./conformance/fixtures --out ./reviewed-skills
+```
+
+The output must not exist. Its parent must already exist, contain no symlink
+ancestors, and be owned by the operator with no concurrent writers. On macOS,
+use a physical path such as `/private/tmp` rather than the `/tmp` symlink.
+Replacement and merging are deliberately unsupported. A failed read or verification
+removes the staging directory and leaves the requested output absent.
+
+The example validates skill namespaces and portable relative paths before fetching.
+It rejects traversal, encoded paths, duplicate or colliding files, Windows device
+names, dynamic manifests, and manifests missing `SKILL.md`. It checks response URIs,
+byte lengths, and SHA-256 digests before writing each file into private staging.
+Only the complete batch becomes the output directory. Files have mode `0600` and
+directories `0700`; reviewing and enabling executable scripts is a separate action.
+
+Limits are 256 catalog pages, 256 skills, 512 files and 16 MiB per skill, and
+256 MiB per selected batch. These checks bound accepted content, not the SDK's
+allocation of an incoming stdio message. The example starts a local server and
+is not a general-purpose transport for hostile remote servers.
+
+Digest verification proves that bytes match a manifest, not that either is safe.
+Inspect files for prompt injection, credential access, telemetry, unexpected
+outbound data, and destructive commands before allowing an agent to use them.
+Scanning, downloading, and writing files never executes their scripts.
