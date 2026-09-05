@@ -109,6 +109,13 @@ ${portable.map(({ entry }) => `- [${entry.frontmatter.name}](/skill/${encodeURIC
 - MCP clients can connect to POST /mcp. Ordinary HTTP downloads require no MCP setup.
 `;
 writeFileSync(join(publicDir, "llms.txt"), catalogMarkdown);
+writeFileSync(join(publicDir, "index.json"), JSON.stringify({
+  description: "dotclaude skills over MCP and HTTP",
+  mcp: "/mcp",
+  manifest: "/manifest.json",
+  instructions: "/llms.txt",
+  specification: "https://github.com/modelcontextprotocol/ext-skills",
+}, null, 2));
 
 const rows = portable
   .map(({ entry }) => {

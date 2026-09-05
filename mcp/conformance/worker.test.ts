@@ -62,6 +62,33 @@ beforeAll(() => {
 });
 
 describe("worker binding", () => {
+  test("JSON discovery returns a compact homepage with usable links", async () => {
+    const get = (path: string, accept = "application/json", method = "GET") => worker.fetch(
+      new Request(`https://skills.example${path}`, { method, headers: { Accept: accept } }), env,
+    );
+    const response = await get("/");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("application/json; charset=utf-8");
+    expect(response.headers.get("Vary")).toContain("Accept");
+    const body = await response.json() as { description: string; mcp: string; manifest: string; instructions: string; specification: string };
+    expect(body).toEqual({
+      description: "dotclaude skills over MCP and HTTP",
+      mcp: "/mcp", manifest: "/manifest.json", instructions: "/llms.txt",
+      specification: "https://github.com/modelcontextprotocol/ext-skills",
+    });
+    expect((await get(body.manifest)).status).toBe(200);
+    expect((await get(body.instructions, "text/markdown")).status).toBe(200);
+    expect(await (await get("/index.json")).json()).toEqual(body);
+    expect(await (await get("/index.html")).json()).toEqual(body);
+    const head = await get("/", "application/json", "HEAD");
+    expect(head.status).toBe(200);
+    expect(await head.text()).toBe("");
+    expect((await get("/", "application/json;q=1, text/html;q=0.5")).headers.get("Content-Type")).toContain("application/json");
+    expect((await get("/", "application/json;q=0, */*;q=1")).headers.get("Content-Type")).toContain("text/html");
+    expect((await get("/", "application/json;q=0")).status).toBe(406);
+    expect((await get("/missing", "application/json")).status).toBe(404);
+  });
+
   test("initialize declares the extension; initialized notification gets 202", async () => {
     const init = await rpc("initialize", {
       protocolVersion: "2025-06-18",

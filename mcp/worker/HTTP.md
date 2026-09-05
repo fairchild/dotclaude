@@ -14,7 +14,10 @@ then its supporting files, and offers a complete package download. MCP client co
 is available beside the endpoint; Markdown discovery and downloads extend the same library.
 
 `/llms.txt` and `/index.md` expose the Markdown catalog. The homepage also
-negotiates Markdown or plain text through Accept. Directory Markdown contains
+negotiates Markdown, plain text, or a short JSON service description through Accept.
+`Accept: application/json` returns 200 with links to MCP, the manifest, agent
+instructions, and the extension specification; `/index.json` exposes it directly.
+Directory Markdown contains
 the description, file links, and install instructions; raw SKILL.md remains a
 separate, byte-exact file. HTML alternate links and HTTP Link headers advertise
 Markdown and the catalog so clients do not have to guess URLs.
@@ -23,7 +26,8 @@ Markdown and the catalog so clients do not have to guess URLs.
 
 | URL | Available representations, in default preference order |
 | --- | --- |
-| `/`, `/index.html` | Catalog HTML, Markdown, plain text |
+| `/`, `/index.html` | Catalog HTML, Markdown, plain text, service JSON |
+| `/index.json` | Short service JSON |
 | `/llms.txt`, `/index.md` | Markdown catalog, plain text |
 | `/manifest.json` | Catalog JSON |
 | `/skill/{name}`, `/skills/{name}` | Directory HTML, directory Markdown, directory plain text, gzip archive |
