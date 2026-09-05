@@ -13,9 +13,10 @@
  * skill — is the refresh path, exactly as the SEP prescribes.
  */
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { opendirSync, readdirSync, lstatSync, realpathSync, statSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import { parse as parseYaml } from "yaml";
+import { checkedPath, readSkillFile } from "./files.ts";
 
 import {
   MAX_RESOURCES_PER_SKILL,
@@ -48,20 +49,30 @@ function isExcluded(name: string): boolean {
   return name.startsWith(".") || EXCLUDED_DIRS.has(name) || EXCLUDED_FILES.has(name);
 }
 
-function walkFiles(dir: string): string[] {
+function walkFiles(root: string): string[] {
   const files: string[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (isExcluded(entry.name)) continue;
-    const path = join(dir, entry.name);
-    let stat;
+  let visited = 0;
+  function walk(dir: string, depth: number): void {
+    if (depth > 64) throw new Error("directory depth limit exceeded");
+    if (dir !== root) checkedPath(root, relative(root, dir).split(sep()).join("/"));
+    const directory = opendirSync(dir);
     try {
-      stat = statSync(path); // follows symlinks; broken ones throw
-    } catch {
-      continue;
-    }
-    if (stat.isDirectory()) files.push(...walkFiles(path));
-    else if (stat.isFile()) files.push(path);
+      let entry;
+      while ((entry = directory.readSync()) !== null) {
+        if (isExcluded(entry.name)) continue;
+        if (++visited > MAX_RESOURCES_PER_SKILL * 2) throw new Error("directory entry limit exceeded");
+        const path = join(dir, entry.name);
+        const stat = lstatSync(path);
+        if (stat.isSymbolicLink()) throw new Error("nested symlinks are not supported");
+        if (stat.isDirectory()) walk(path, depth + 1);
+        else if (stat.isFile()) {
+          if (files.length >= MAX_RESOURCES_PER_SKILL) throw new Error("resource limit exceeded");
+          files.push(path);
+        } else throw new Error("special files are not supported");
+      }
+    } finally { directory.closeSync(); }
   }
+  walk(root, 0);
   return files.sort();
 }
 
@@ -78,51 +89,50 @@ export function parseFrontmatter(source: string): Record<string, unknown> | null
   return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
 }
 
-export function scanSkill(dir: string): ScannedSkill | ScanDiagnostic {
-  const name = basename(dir);
-  const skillMdPath = join(dir, "SKILL.md");
-
-  let raw: string;
+export function scanSkill(dir: string, name = basename(dir)): ScannedSkill | ScanDiagnostic {
+  if (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.exec(name)?.[0] !== name) return { skill: name, reason: "unsafe skill name" };
   try {
-    raw = readFileSync(skillMdPath, "utf-8");
-  } catch {
-    return { skill: name, reason: "no readable SKILL.md" };
-  }
+    dir = realpathSync(dir);
 
-  const frontmatter = parseFrontmatter(raw);
-  if (!frontmatter) return { skill: name, reason: "SKILL.md has no YAML frontmatter" };
-  if (typeof frontmatter.name !== "string" || typeof frontmatter.description !== "string") {
-    return { skill: name, reason: "frontmatter missing required name/description" };
-  }
-  if (frontmatter.name !== name) {
-    return { skill: name, reason: `frontmatter name '${frontmatter.name}' != directory name` };
-  }
+    let raw: string;
+    try {
+      raw = readSkillFile(dir, "SKILL.md").bytes.toString("utf-8");
+    } catch {
+      return { skill: name, reason: "no readable SKILL.md" };
+    }
 
-  const files = walkFiles(dir);
-  if (files.length > MAX_RESOURCES_PER_SKILL) {
-    return { skill: name, reason: `${files.length} files exceeds the ${MAX_RESOURCES_PER_SKILL}-resource limit` };
-  }
+    const frontmatter = parseFrontmatter(raw);
+    if (!frontmatter) return { skill: name, reason: "SKILL.md has no YAML frontmatter" };
+    if (typeof frontmatter.name !== "string" || typeof frontmatter.description !== "string") {
+      return { skill: name, reason: "frontmatter missing required name/description" };
+    }
+    if (frontmatter.name !== name) {
+      return { skill: name, reason: `frontmatter name '${frontmatter.name}' != directory name` };
+    }
 
-  let totalBytes = 0;
-  const resources = files.map((path) => {
-    const bytes = readFileSync(path);
-    totalBytes += bytes.length;
+    const files = walkFiles(dir);
+
+    let totalBytes = 0;
+    const resources = files.map((path) => {
+      const bytes = readSkillFile(dir, relative(dir, path).split(sep()).join("/"), MAX_TOTAL_BYTES_PER_SKILL - totalBytes).bytes;
+      if (path === join(dir, "SKILL.md") && bytes.toString("utf-8") !== raw) throw new Error("SKILL.md changed during scan");
+      totalBytes += bytes.length;
+      return {
+        uri: skillUri(name, relative(dir, path).split(sep()).join("/")),
+        digest: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+        size: bytes.length,
+      };
+    });
+
+    const metadata = (frontmatter.metadata ?? {}) as Record<string, unknown>;
     return {
-      uri: skillUri(name, relative(dir, path).split(sep()).join("/")),
-      digest: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
-      size: bytes.length,
+      dir,
+      tier: metadata.portability === "machine-bound" ? "machine-bound" : "portable",
+      entry: { uri: skillUri(name, "SKILL.md"), frontmatter: frontmatter as SkillEntry["frontmatter"], resources },
     };
-  });
-  if (totalBytes > MAX_TOTAL_BYTES_PER_SKILL) {
-    return { skill: name, reason: `${totalBytes} bytes exceeds the ${MAX_TOTAL_BYTES_PER_SKILL}-byte limit` };
+  } catch (error) {
+    return { skill: name, reason: error instanceof Error ? error.message : "cannot scan skill" };
   }
-
-  const metadata = (frontmatter.metadata ?? {}) as Record<string, unknown>;
-  return {
-    dir,
-    tier: metadata.portability === "machine-bound" ? "machine-bound" : "portable",
-    entry: { uri: skillUri(name, "SKILL.md"), frontmatter: frontmatter as SkillEntry["frontmatter"], resources },
-  };
 }
 
 function sep(): string {

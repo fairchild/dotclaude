@@ -85,3 +85,19 @@ After candidate acceptance, publish `0.1.0` from the reviewed source and verify 
 Publication is ready when the review blockers, package isolation, clean-install checks, documentation walkthrough, ownership, and release workflow are all complete with evidence for the candidate commit. No npm publication, production deployment, or runtime refactor is part of this planning change.
 
 Start with the trust-boundary fixes. They protect today's hosted server as well as the future package and establish the behavior others should copy.
+
+## First hardening slice, 2026-09-05
+
+Implementation now validates JSON-RPC and request headers, bounds streamed request
+bytes and filesystem reads, rejects nested symlinks, preserves managed output on
+failed builds, verifies staged source digests, and configures generated publisher
+URLs. The independent reviewer found no new blocker in this slice. This does not
+complete package extraction, installer destination safety, archive reproducibility,
+or the full protocol/installed-artifact qualification gates above.
+
+The defensive name `skills-server` was checked directly through npm and is already
+published at version 1.0.0 by another maintainer. Its existence alone is not evidence
+of malicious behavior. `skill-server` still returned 404. The host-authorized npm
+identity check returned 401, so publishing access is not established and no name
+was registered. Use exact package names and pinned versions in release instructions;
+do not claim ownership of the plural name.

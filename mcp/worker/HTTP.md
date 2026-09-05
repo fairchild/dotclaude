@@ -145,3 +145,31 @@ Sources: [RFC 9110 Accept](https://www.rfc-editor.org/rfc/rfc9110.html#section-1
 [Cloudflare Worker-first dispatch](https://developers.cloudflare.com/workers/static-assets/routing/worker-script/),
 [asset headers and ETags](https://developers.cloudflare.com/workers/static-assets/headers/),
 and [HTML handling](https://developers.cloudflare.com/workers/static-assets/routing/advanced/html-handling/).
+
+## Build and request boundaries
+
+`bun worker/build.ts --root <skills-dir> --out <snapshot-dir> --base-url https://skills.example.com`
+sets the publisher origin used by generated pages and install instructions.
+The output must be outside the source and working directory's ancestors.
+Existing output is replaced only when it contains the builder's
+`.skill-server-output` marker. For older generated output without a marker,
+choose a new output directory or remove the known generated directory first.
+The builder stages verified source bytes before replacing the previous snapshot.
+Restart local Wrangler after a rebuild so its asset index sees the replacement.
+
+Explicit top-level skill symlinks are supported. Nested symlinks and special files
+are rejected. Scanning limits directory depth to 64 and included entries to 1,024,
+in addition to the extension's 512-resource and 16 MiB per-skill limits. Live reads
+check paths and opened-file identity. Operators should keep source and output
+parents under trusted ownership; portable path checks are not an OS sandbox
+against a process concurrently mutating the filesystem with the same privileges.
+
+MCP POST bodies require JSON and are limited to 64 KiB of streamed bytes. Invalid
+envelopes receive 400, oversized bodies 413, incompatible media types 415/406,
+and unsupported protocol-version headers 400. Missing Accept remains accepted;
+MCP clients should send the protocol-required supported response types. Requests
+with an Origin header must match the endpoint origin or an exact entry in the
+optional comma-separated `ALLOWED_ORIGINS` binding. An invalid Origin receives
+403. Clients without Origin remain supported. No authentication scheme is added
+by this public read-only deployment; private or local deployments must establish
+their own access policy before network exposure.
