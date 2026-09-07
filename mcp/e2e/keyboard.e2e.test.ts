@@ -104,6 +104,23 @@ test("arrows walk the results and / comes back to the filter", async ({ page }) 
   await expect(filter(page)).toBeFocused();
 });
 
+test("Enter and the arrows follow the order on screen, not the catalog order", async ({ page }) => {
+  await page.goto("/");
+  // "git" ranks a name match above description-only matches that sort earlier
+  // alphabetically, so screen order and catalog order disagree here.
+  await page.keyboard.type("git", typing);
+  await expect(matches(page)).not.toHaveCount(1);
+  const top = await matches(page).first().innerText();
+
+  await page.keyboard.press("ArrowDown");
+  await expect(matches(page).first()).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(filter(page)).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(new RegExp(`/skills/${top}/$`));
+});
+
 test("Enter on an empty filter opens nothing", async ({ page }) => {
   await page.goto("/");
   await expect(filter(page)).toBeFocused();

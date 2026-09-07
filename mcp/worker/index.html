@@ -103,7 +103,10 @@
     element.replaceChildren(parts);
   }
 
-  const visible = () => rows.filter((row) => !row.li.hidden);
+  // Read the order off the DOM: apply() reorders the list by rank, so the
+  // static array no longer says what the reader is looking at.
+  const byElement = new Map(rows.map((row) => [row.li, row]));
+  const visible = () => [...list.children].filter((li) => !li.hidden).map((li) => byElement.get(li));
 
   function apply(query) {
     const wanted = terms(query);
