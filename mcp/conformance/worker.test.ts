@@ -142,6 +142,18 @@ describe("worker binding", () => {
     expect(existsSync(join(PUBLIC, "skill", "bound-skill.html"))).toBe(false);
   });
 
+  test("the catalog ships its filter as an enhancement over the plain list", () => {
+    const index = readFileSync(join(PUBLIC, "index.html"), "utf8");
+    // Hidden until the script unhides it: without scripting the list stays
+    // complete and no dead field invites typing into it.
+    expect(index).toMatch(/<form class="search" id="search"[^>]*\shidden>/);
+    expect(index).toContain('<ul class="catalog" id="catalog"');
+    expect(index).toContain('id="search-status"');
+    const page = readFileSync(join(PUBLIC, "skill", "git-workflow.html"), "utf8");
+    expect(page).toContain('id="copy-install"');
+    expect(page).toContain("copy.focus()");
+  });
+
   test("download archives contain exactly the manifest files with original bytes and modes", async () => {
     const { skills } = JSON.parse(readFileSync(join(PUBLIC, "manifest.json"), "utf8"));
     for (const { entry } of skills) {

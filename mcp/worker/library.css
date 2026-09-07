@@ -46,3 +46,17 @@ footer { border-top:1px solid var(--line); margin-top:56px; padding-top:20px; co
 .mcp-connect p { margin:10px 0; }
 .endpoint code { padding:0; overflow-wrap:anywhere; }
 #browse-skills { font-size:28px; font-weight:500; margin:0 0 10px; }
+
+.search { margin:20px 0 0; }
+.search label { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.search input { width:100%; min-height:48px; padding:12px 14px; border:1px solid var(--line); border-radius:4px; background:var(--paper); color:var(--ink); font:15px/1.5 "JetBrains Mono",monospace; }
+.search input::placeholder { color:var(--muted); }
+.search input:focus { border-color:var(--accent); }
+p.hint { margin:10px 0 0; display:flex; flex-wrap:wrap; gap:6px; align-items:center; font:12px/1.6 "JetBrains Mono",monospace; }
+kbd { font:11px/1 "JetBrains Mono",monospace; border:1px solid var(--line); border-bottom-width:2px; border-radius:3px; padding:3px 5px; background:var(--paper); color:var(--ink); }
+#search-status { margin:14px 0 0; } #search-status:empty { display:none; }
+.catalog li[hidden] { display:none; }
+mark { background:var(--line); color:inherit; border-radius:2px; padding:0 1px; }
+/* Same guard as the landing focus: a coarse pointer has no Tab, Esc or "/"
+   to press, so the shortcut line is help nobody there can use. */
+@media(pointer:coarse) { p.hint { display:none; } }
