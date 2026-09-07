@@ -162,8 +162,8 @@ and the clipboard. It builds the snapshot and starts its own `wrangler dev`, the
 leaves a recording of every test under `mcp/e2e/artifacts/`.
 
 ```sh
-cd mcp/e2e
-bun install
+cd mcp && bun install --frozen-lockfile   # the suite drives this Worker
+cd e2e && bun install --frozen-lockfile
 bun run typecheck
 ./node_modules/.bin/playwright install chromium   # once
 bun run test
