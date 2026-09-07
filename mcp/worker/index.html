@@ -146,8 +146,12 @@
   });
   input.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      // Nothing to clear means nothing to do — blurring here would only hand
+      // the event to the document listener, which focuses the field again.
+      if (!input.value) return;
       event.preventDefault();
-      if (input.value) { input.value = ""; apply(""); } else input.blur();
+      input.value = "";
+      apply("");
     } else if (event.key === "ArrowDown") {
       const first = visible()[0];
       if (first) { event.preventDefault(); first.link.focus(); }

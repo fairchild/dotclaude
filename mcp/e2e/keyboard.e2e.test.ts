@@ -76,6 +76,10 @@ test("an empty result says so, and Escape restores the full catalog", async ({ p
   await expect(matches(page)).toHaveCount(total);
   await expect(page.locator("#search-status")).toBeHidden();
   await expect(page).not.toHaveURL(/\?q=/);
+
+  // Escape on an already-empty field is a no-op, not a blur-then-refocus.
+  await page.keyboard.press("Escape");
+  await expect(filter(page)).toBeFocused();
 });
 
 test("arrows walk the results and / comes back to the filter", async ({ page }) => {
