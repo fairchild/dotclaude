@@ -123,15 +123,25 @@
     status.textContent = !wanted.length ? ""
       : matched.length ? matched.length + " of " + total + " skills · Tab to the first match"
       : "No skills match " + JSON.stringify(query.trim()) + " · Esc clears the filter";
-    const url = new URL(location.href);
-    if (query.trim()) url.searchParams.set("q", query.trim()); else url.searchParams.delete("q");
-    history.replaceState(null, "", url.pathname + url.search + url.hash);
+    remember(query.trim());
+  }
+
+  // Browsers rate-limit replaceState, so the address bar trails the keystrokes
+  // by a beat and a refusal never reaches the filtering above.
+  let pending;
+  function remember(query) {
+    clearTimeout(pending);
+    pending = setTimeout(() => {
+      const url = new URL(location.href);
+      if (query) url.searchParams.set("q", query); else url.searchParams.delete("q");
+      try { history.replaceState(null, "", url.pathname + url.search + url.hash); } catch {}
+    }, 150);
   }
 
   input.addEventListener("input", () => apply(input.value));
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    const first = visible()[0];
+    const first = input.value.trim() ? visible()[0] : null;
     if (first) first.link.click();
   });
   input.addEventListener("keydown", (event) => {
@@ -153,9 +163,11 @@
     else links[Math.min(at + (event.key === "ArrowDown" ? 1 : -1), links.length - 1)].focus();
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
     const active = document.activeElement;
-    if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) return;
+    const typing = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
+    if (event.key === "Escape" && !typing) { event.preventDefault(); input.focus(); return; }
+    if (event.key !== "/" || typing) return;
     event.preventDefault();
     input.focus();
     input.select();
@@ -165,7 +177,11 @@
   input.value = new URLSearchParams(location.search).get("q") ?? "";
   apply(input.value);
   // Landing focus is for keyboards; a touch keyboard opening unasked is not help.
-  if (!location.hash && !matchMedia("(pointer: coarse)").matches) { input.focus(); input.select(); }
+  if (!location.hash && !matchMedia("(pointer: coarse)").matches) {
+    const back = performance.getEntriesByType("navigation")[0]?.type === "back_forward";
+    input.focus({ preventScroll: back });
+    input.select();
+  }
 })();
 </script>
 </body></html>

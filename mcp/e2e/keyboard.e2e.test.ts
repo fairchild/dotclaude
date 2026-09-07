@@ -55,7 +55,8 @@ test("descriptions are searchable and the filtered view survives a reload", asyn
   await page.keyboard.type(word!, typing);
   await expect(first).toBeVisible();
   await expect(first.locator("mark").first()).toBeVisible();
-  expect(new URL(page.url()).searchParams.get("q")).toBe(word);
+  // The address bar trails the keystrokes by a debounce.
+  await expect(page).toHaveURL(new RegExp(`\\?q=${word}$`));
 
   await page.reload();
   await expect(filter(page)).toHaveValue(word!);
@@ -74,7 +75,7 @@ test("an empty result says so, and Escape restores the full catalog", async ({ p
   await expect(filter(page)).toHaveValue("");
   await expect(matches(page)).toHaveCount(total);
   await expect(page.locator("#search-status")).toBeHidden();
-  expect(new URL(page.url()).searchParams.get("q")).toBeNull();
+  await expect(page).not.toHaveURL(/\?q=/);
 });
 
 test("arrows walk the results and / comes back to the filter", async ({ page }) => {
@@ -89,8 +90,22 @@ test("arrows walk the results and / comes back to the filter", async ({ page }) 
   await page.keyboard.press("ArrowUp");
   await expect(filter(page)).toBeFocused();
 
+  await page.keyboard.press("ArrowDown");
+  await expect(matches(page).nth(0)).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(filter(page)).toBeFocused();
+
   await filter(page).blur();
   await page.keyboard.press("/");
+  await expect(filter(page)).toBeFocused();
+});
+
+test("Enter on an empty filter opens nothing", async ({ page }) => {
+  await page.goto("/");
+  await expect(filter(page)).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/$/);
   await expect(filter(page)).toBeFocused();
 });
 
@@ -100,6 +115,13 @@ test("Escape on a skill page hands the keyboard back to the filtered list", asyn
 
   await page.keyboard.press("Tab");
   await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/skills\/git-worktree\/$/);
+
+  // An open prompt is the first thing Escape unwinds, before the page itself.
+  await page.locator("#prompt-preview summary").click();
+  await expect(page.locator("#install-prompt")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#install-prompt")).toBeHidden();
   await expect(page).toHaveURL(/\/skills\/git-worktree\/$/);
 
   await page.keyboard.press("Escape");

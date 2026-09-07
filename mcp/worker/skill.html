@@ -51,9 +51,15 @@ for (const [button, field, preview] of [['copy-install', 'install-prompt', 'prom
   if (copy && !location.hash) copy.focus();
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || event.metaKey || event.ctrlKey || event.altKey) return;
-    const active = document.activeElement;
-    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
+    if (document.activeElement?.isContentEditable) return;
     event.preventDefault();
+    // Escape unwinds one step at a time: an open prompt first, the library next.
+    const opened = document.querySelectorAll('details[open]');
+    if (opened.length) {
+      for (const details of opened) details.open = false;
+      copy?.focus();
+      return;
+    }
     let sameSite = false;
     try { sameSite = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch { sameSite = false; }
     if (sameSite) history.back(); else location.href = '/';
