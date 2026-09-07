@@ -22,7 +22,7 @@ remain separate because their triggers and credentials differ from deterministic
 | Output | Build and verification | Destination |
 | --- | --- | --- |
 | skill-server tarball | Node compilation; clean consumer installs, with Windows after merge and before release | Actions artifact, 14-day retention |
-| skills Worker | Install that tarball; build snapshot; bundle adapter; real Wrangler HTTP checks | skills-production, skills.cloudcompute.com |
+| skills Worker | Install that tarball; build snapshot; bundle adapter; real Wrangler HTTP checks; Chromium run of the library's keyboard flow | skills-production, skills.cloudcompute.com |
 | WebUI | Generate data; allowlist static files; browser-test packaged files | webui-production, claude.cloudcompute.com |
 | selected package candidate | Tag/version/main ancestry checks; same package and Worker checks; consumer matrix | GitHub prerelease |
 
@@ -138,7 +138,13 @@ bun run build:package
 PACKAGE_OUTPUT_DIR=out bun run test:package
 node scripts/prepare-worker.mjs out/skill-server-0.1.0-rc.1.tgz
 node scripts/check-worker.mjs
+cd e2e && bun install --frozen-lockfile && bun run test
 ```
+
+The `browser` job in `verify-skill-server.yml` runs that last suite: the library
+page's focus, filtering and clipboard behaviour, which request-level tests cannot
+see. It builds its own snapshot, starts `wrangler dev` against it, and uploads
+each run's video as `skill-library-keyboard-video-<sha>`.
 
 The installed-consumer harness and existing HTTP suite replace source-only release
 confidence. There is no additional package test framework. Actions linting and
