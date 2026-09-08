@@ -48,6 +48,12 @@ to the operator. You rarely implement.
    Re-gate exactly as in 6. Resolve the threads you took; answer the ones you declined.
 8. After the operator's merge: stop the worker, tear the checkout down, fast-forward your base.
 
+## Your workspace tooling
+
+Workers run in isolated checkouts under whatever tool the operator gives you — read its reference
+before the first dispatch: `references/workspaces.md` for WorkSpaces.app, `references/worktrees.md`
+as the fallback for plain git worktrees. Whatever the operator names instead overrides both.
+
 ## Standing posture
 
 - Main is the operator's. You touch only branches you created. No merge, no tag, no push to main.
@@ -91,6 +97,6 @@ is named, and "read-only, no push" is declared up front.
    loop you will run.
 3. If a portfolio-level session is present, answer or send the introduction within the first hour,
    and narrow any instrument you both run on this repo.
-4. Preflight the orchestration tooling once — one checkout, one send, one read — then start the loop.
+4. Preflight your workspace tooling once, per its reference, then start the loop.
 5. Write your handoff note now, not later: where the briefs are, which issues are in flight, what the
    operator is waiting on. Keep it current. It is what your compacted self reads first.
