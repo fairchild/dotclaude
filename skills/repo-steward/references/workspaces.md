@@ -21,32 +21,53 @@ instance — a second instance and this session's automation calls will collide 
 Create through the automation route, not the bare CLI create command: the route accepts `fromRef` and
 `select:false`, so the workspace branches from `origin/main` and doesn't steal the operator's tile
 selection. The bare CLI form branches from the base clone's local HEAD instead, which is not what a
-fresh-from-main worker checkout needs.
+fresh-from-main worker checkout needs. `$WSOP` below is the app's own operator script, wherever it's
+installed for this app.
 
-Each workspace gets its own branch and worktree path, and a terminal is attached even with
-`select:false`. Prefix workspace names with the coordinator's own tag (e.g. `claude-<issue>-<slug>`)
-so two coordinators running concurrently never collide on a name.
+```bash
+uv run --script $WSOP POST /v1/workspace/create \
+  '{"repoID":"<repoID>","name":"claude-<issue>-<slug>","providerID":"local","select":false,"fromRef":"origin/main"}'
+```
+
+The response carries the workspace ID, its checkout path, and the ID of the surface (tile) already
+attached to it. Prefix workspace names with the coordinator's own tag (`claude-<issue>-<slug>`) so
+two coordinators running concurrently never collide on a name.
 
 ## Launch a worker into it
 
 Creating via the route already attaches a terminal — a tmux session under the app's own socket. The
 plain "launch" command refuses on an attached tile because the session name is already taken; send
-into the existing session instead of trying to launch a new one. Read the tile first to confirm a
-bare shell prompt, send the agent's start command, read again to confirm it's live, then send the
-brief pointer as a second message: read the brief at this path and carry it out; decide and record
-deviations rather than asking.
+into the existing session instead of trying to launch a new one.
 
-Sending into a tile from outside is the cross-tile write; a command run from inside the caller's own
-tile only writes there. A workspace's row note (queued, running, gated) is set with a dedicated note
-command and shows under the row in the sidebar — set it at each stage of the loop so the operator's
-sidebar view stays current without asking them to read a tile.
+```bash
+workspaces ws read <handle> --lines 5           # confirm a bare shell prompt
+workspaces ws send <handle> --text "<agent start command>" --enter
+workspaces ws read <handle> --lines 12          # confirm the agent is live
+workspaces ws send <handle> --text "Read <brief path> and carry it out. Do not ask questions; decide and record deviations." --enter
+workspaces ws read <handle> --lines 12          # confirm the brief is being read
+```
+
+`ws send` is the cross-tile write, usable from outside the tile it targets; a command run from inside
+the caller's own tile only writes there. `ws launch <repo>/<name> --cmd ...` is for a workspace with
+no terminal already attached.
 
 ## Monitor
 
 Read a tile's text directly, or use a typed wait for a prompt to return or for the tile's text to
 match a pattern (a PR number, a `status: done` marker). Wait outcomes are typed — satisfied,
-timed out, not applicable — never a bare boolean, so branch on the type rather than truthiness. A
-window snapshot gives a composited, focus-safe screenshot for pixel evidence.
+timed out, not applicable — never a bare boolean, so branch on the type rather than truthiness. Set
+the row note at each stage of the loop (queued, running, gated) so the sidebar stays current without
+asking the operator to read a tile. A window snapshot gives a composited, focus-safe screenshot for
+pixel evidence.
+
+```bash
+workspaces ws read <handle|repo/name> --lines 40
+workspaces automation wait --for prompt_ready --surface-id <surfaceID> --timeout-ms 5000 --json
+workspaces automation wait --for surface_text_matches --surface-id <surfaceID> \
+  --pattern 'PR #[0-9]+|status: (done|blocked)' --timeout-ms 60000 --json
+workspaces automation workspace note <workspaceID> --text "gate: tests green, flipping ready"
+uv run --script $WSOP POST /v1/window/snapshot '{"windowID":"<windowID>"}' --png out.png
+```
 
 Durable state — git, PRs, report files — survives an app restart or a coordinator compaction; a
 coordinator's own memory of what's running in a tile does not. Resume from those, not from what you

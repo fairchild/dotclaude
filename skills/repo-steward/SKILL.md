@@ -4,7 +4,7 @@ description: The repo steward role — one long-running session that owns the wo
 license: Apache-2.0
 metadata:
   status: experimental
-  experimental_reason: "One real run so far (one repository, 2026-09-07) and no eval in this repo. The boot sequence and the loop are an experiment in keeping a long-running session's context in the repo rather than in its head."
+  experimental_reason: "Two real runs so far (two repositories, 2026-09-07 and 09-08) and no eval in this repo. The boot sequence and the loop are an experiment in keeping a long-running session's context in the repo rather than in its head."
   origin: written 2026-09-08 by a portfolio-steward session from the first repo steward's run and that session's own advice
 ---
 
