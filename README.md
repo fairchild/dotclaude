@@ -87,7 +87,6 @@ Claude loads these when the task matches the description.
 | `git-worktree` | Manage Git worktrees for concurrent local development. |
 | `image-gen` | Generate images from prompts using AI APIs (OpenAI GPT Image, Google Gemini/Nano Banana, Google Imagen, fal.ai Flux). |
 | `project-scripts` | Standardize project lifecycle scripts (setup, run, stop, archive) in scripts/ so agents can manage workspaces through a… |
-| `repo-steward` | The repo steward role — the one session Michael goes to for work in a single repository. |
 | `session-titles` | Session title generation, evaluation, and optimization. |
 | `signoz-log` | Send structured logs to SigNoz observability platform. |
 | `skills-manager` | Use when the user wants to list, search, install, remove, inspect, validate, audit, or update skills. |
@@ -122,6 +121,7 @@ Claude loads these when the task matches the description.
 | `cloudflare-workers-deploy` | Set up Cloudflare Workers deployment for web applications with GitHub Actions CI/CD. | Deployment patterns are useful but not yet validated across enough project shapes and Cloudflare account setups. |
 | `ios-simulator` | Automate iOS Simulator tasks — capture screenshots, interact with apps, generate screen flow galleries. | Simulator automation remains sensitive to local device state, timing, window focus, and Xcode version differences. |
 | `persona-memory` | Build and operate a persistent persona and memory framework for Claude Code. | Healthy framework, intentionally experimental until background memory agents and full interactive-session CI coverage exist. |
+| `repo-steward` | The repo steward role — one long-running session that owns the work in a single repository. | One real run so far (one repository, 2026-09-07) and no eval in this repo. The boot sequence and the loop are an experiment in keeping a long-running session's context in the repo rather than in its head. |
 | `skill-seeker` | Generate Claude Code skills from docs sites, GitHub repos, or local codebases using Skill Seekers. | Generated skill quality varies by source corpus and still requires explicit human review before installation. |
 | `vocal` | Speak text aloud (TTS) and transcribe speech (STT). | Voice workflows depend on local audio devices and optional ElevenLabs credentials, so reliability is environment-sensitive. |
 
