@@ -9,20 +9,23 @@ confirmed to be WorkSpaces.app; it does not apply to a plain terminal or worktre
 ```bash
 workspaces automation health                  # experiments must include automationAPI,automationOperator
 workspaces automation workspace list --json   # repoIDs and workspaceIDs
+workspaces automation window list --json      # windowIDs, needed later for the snapshot command
 workspaces ws list                            # app-visible vs CLI-local workspaces
+export WSOP=$(find ~ -name ws-op.py 2>/dev/null | head -1)   # locate the app's own operator script once
 ```
 
 An operator credential file next to the automation socket enables operator scope; its absence means
 that scope is off and needs enabling before automation calls will work. Never launch a second app
 instance — a second instance and this session's automation calls will collide over the same socket.
+`$WSOP` is used below for the raw automation routes; if the `find` above returns nothing, the app's
+own docs name where it ships the script.
 
 ## Create a workspace per issue
 
 Create through the automation route, not the bare CLI create command: the route accepts `fromRef` and
 `select:false`, so the workspace branches from `origin/main` and doesn't steal the operator's tile
 selection. The bare CLI form branches from the base clone's local HEAD instead, which is not what a
-fresh-from-main worker checkout needs. `$WSOP` below is the app's own operator script, wherever it's
-installed for this app.
+fresh-from-main worker checkout needs.
 
 ```bash
 uv run --script $WSOP POST /v1/workspace/create \
@@ -37,7 +40,9 @@ two coordinators running concurrently never collide on a name.
 
 Creating via the route already attaches a terminal — a tmux session under the app's own socket. The
 plain "launch" command refuses on an attached tile because the session name is already taken; send
-into the existing session instead of trying to launch a new one.
+into the existing session instead of trying to launch a new one. The `<handle>` the commands below
+take is that tmux session's name, not the surface ID the create response returned — read it back with
+`workspaces ws list` once the workspace exists; the new workspace's row names its handle.
 
 ```bash
 workspaces ws read <handle> --lines 5           # confirm a bare shell prompt
@@ -69,6 +74,9 @@ workspaces automation workspace note <workspaceID> --text "gate: tests green, fl
 uv run --script $WSOP POST /v1/window/snapshot '{"windowID":"<windowID>"}' --png out.png
 ```
 
+`<windowID>` comes from the `workspaces automation window list --json` run in preflight; re-run it if
+the workspace's window wasn't open yet at that point.
+
 Durable state — git, PRs, report files — survives an app restart or a coordinator compaction; a
 coordinator's own memory of what's running in a tile does not. Resume from those, not from what you
 last remember sending.
@@ -78,12 +86,14 @@ still running, and the mergeability read has to happen after that push, not befo
 
 ## Gate, ship, tear down
 
-Read the full diff in the worker's checkout; rebase the branch onto the current `origin/main` at
-review time, not just at spawn — this can surface a transient `index.lock` from the worker's own
-shell hooks mid-rebase, which clears on retry. Re-run every gate bare in the worktree and read the
-output directly; don't trust a worker's own claim that a gate passed, since a worker can misread its
-own tool output or write a test that passes for the wrong reason. Post the gate result as a short PR
-comment, not folded into the body — a gate section inside the body is what makes bodies long. Then:
+Read the full diff in the worker's checkout; `git fetch origin` and rebase the branch onto the
+current `origin/main` at review time, not just at spawn — the workspace's own `fromRef` fetch is
+already stale by then if the worker ran for any real time. The rebase can surface a transient
+`index.lock` from the worker's own shell hooks mid-rebase, which clears on retry. Re-run every gate
+bare in the worktree and read the output directly; don't trust a worker's own claim that a gate
+passed, since a worker can misread its own tool output or write a test that passes for the wrong
+reason. Post the gate result as a short PR comment, not folded into the body — a gate section inside
+the body is what makes bodies long. Then:
 
 ```bash
 # exit the agent first (send "/exit"), then end the tmux session, then archive

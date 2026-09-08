@@ -23,10 +23,11 @@ preserve across a compaction or a pane getting closed.
 
 ## Gate and tear down
 
-Gate exactly as the loop describes: read the diff, rebase onto `origin/main`, run every gate bare,
-read mergeability after the last push. After the merge:
+Gate exactly as the loop describes: read the diff, `git fetch origin` and rebase onto the current
+`origin/main`, run every gate bare, read mergeability after the last push. After the merge:
 
 ```bash
 git worktree remove ../worktrees/<repo>/<issue>-<slug>
-git branch -d workspace/<issue>-<slug>   # only after the merge; the remote branch is already gone
+git branch -d workspace/<issue>-<slug>
+git push origin --delete workspace/<issue>-<slug>   # skip if the host already deletes merged branches
 ```
