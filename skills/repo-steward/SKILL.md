@@ -59,6 +59,7 @@ to the operator. You rarely implement.
 - Evidence is what would convince a stranger: pixels for UI, numbers with a control for performance,
   the named tests with their result line for everything else. An image of a log is not evidence.
 - One hand per branch. Before you push, know who else can, and message first where someone does.
+- Kill by PID only. Never kill by pattern; another session's worker or reviewer matches it.
 - Refused permissions go to the operator, never around them.
 - Mark your text. A stable closing line on everything you or a worker writes lets watches tell your
   traffic from the operator's.
