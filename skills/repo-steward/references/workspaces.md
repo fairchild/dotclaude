@@ -11,14 +11,16 @@ workspaces automation health                  # experiments must include automat
 workspaces automation workspace list --json   # repoIDs and workspaceIDs
 workspaces automation window list --json      # windowIDs, needed later for the snapshot command
 workspaces ws list                            # app-visible vs CLI-local workspaces
-export WSOP=$(find ~ -name ws-op.py 2>/dev/null | head -1)   # locate the app's own operator script once
+find ~ -name ws-op.py 2>/dev/null             # locate the app's own operator script
 ```
 
-An operator credential file next to the automation socket enables operator scope; its absence means
-that scope is off and needs enabling before automation calls will work. Never launch a second app
-instance — a second instance and this session's automation calls will collide over the same socket.
-`$WSOP` is used below for the raw automation routes; if the `find` above returns nothing, the app's
-own docs name where it ships the script.
+Confirm that `find` returns exactly one path before trusting it — the same hazard as killing by
+pattern instead of PID: a stray second match (an old install, another clone of the app's source) would
+get executed for every automation call below. Set `export WSOP=<the one confirmed path>` by hand; if
+`find` returns nothing, the app's own docs name where it ships the script. An operator credential file
+next to the automation socket enables operator scope; its absence means that scope is off and needs
+enabling before automation calls will work. Never launch a second app instance — a second instance and
+this session's automation calls will collide over the same socket.
 
 ## Create a workspace per issue
 
