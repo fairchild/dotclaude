@@ -87,6 +87,7 @@ Claude loads these when the task matches the description.
 | `git-worktree` | Manage Git worktrees for concurrent local development. |
 | `image-gen` | Generate images from prompts using AI APIs (OpenAI GPT Image, Google Gemini/Nano Banana, Google Imagen, fal.ai Flux). |
 | `project-scripts` | Standardize project lifecycle scripts (setup, run, stop, archive) in scripts/ so agents can manage workspaces through a… |
+| `repo-steward` | The repo steward role — the one session Michael goes to for work in a single repository. |
 | `session-titles` | Session title generation, evaluation, and optimization. |
 | `signoz-log` | Send structured logs to SigNoz observability platform. |
 | `skills-manager` | Use when the user wants to list, search, install, remove, inspect, validate, audit, or update skills. |
