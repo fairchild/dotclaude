@@ -1,0 +1,79 @@
+# WorkSpaces.app
+
+Mechanics for running the repo-steward loop through WorkSpaces.app: tiles over tmux, one workspace
+per issue, a sidebar row the operator can click into. Use this reference once a workspace tool is
+confirmed to be WorkSpaces.app; it does not apply to a plain terminal or worktree setup.
+
+## Preflight (once per session)
+
+```bash
+workspaces automation health                  # experiments must include automationAPI,automationOperator
+workspaces automation workspace list --json   # repoIDs and workspaceIDs
+workspaces ws list                            # app-visible vs CLI-local workspaces
+```
+
+An operator credential file next to the automation socket enables operator scope; its absence means
+that scope is off and needs enabling before automation calls will work. Never launch a second app
+instance — a second instance and this session's automation calls will collide over the same socket.
+
+## Create a workspace per issue
+
+Create through the automation route, not the bare CLI create command: the route accepts `fromRef` and
+`select:false`, so the workspace branches from `origin/main` and doesn't steal the operator's tile
+selection. The bare CLI form branches from the base clone's local HEAD instead, which is not what a
+fresh-from-main worker checkout needs.
+
+Each workspace gets its own branch and worktree path, and a terminal is attached even with
+`select:false`. Prefix workspace names with the coordinator's own tag (e.g. `claude-<issue>-<slug>`)
+so two coordinators running concurrently never collide on a name.
+
+## Launch a worker into it
+
+Creating via the route already attaches a terminal — a tmux session under the app's own socket. The
+plain "launch" command refuses on an attached tile because the session name is already taken; send
+into the existing session instead of trying to launch a new one. Read the tile first to confirm a
+bare shell prompt, send the agent's start command, read again to confirm it's live, then send the
+brief pointer as a second message: read the brief at this path and carry it out; decide and record
+deviations rather than asking.
+
+Sending into a tile from outside is the cross-tile write; a command run from inside the caller's own
+tile only writes there. A workspace's row note (queued, running, gated) is set with a dedicated note
+command and shows under the row in the sidebar — set it at each stage of the loop so the operator's
+sidebar view stays current without asking them to read a tile.
+
+## Monitor
+
+Read a tile's text directly, or use a typed wait for a prompt to return or for the tile's text to
+match a pattern (a PR number, a `status: done` marker). Wait outcomes are typed — satisfied,
+timed out, not applicable — never a bare boolean, so branch on the type rather than truthiness. A
+window snapshot gives a composited, focus-safe screenshot for pixel evidence.
+
+Durable state — git, PRs, report files — survives an app restart or a coordinator compaction; a
+coordinator's own memory of what's running in a tile does not. Resume from those, not from what you
+last remember sending.
+
+Also run a second, standing monitor on `origin/main` itself: it can move while a worker's gate is
+still running, and the mergeability read has to happen after that push, not before it.
+
+## Gate, ship, tear down
+
+Read the full diff in the worker's checkout; rebase the branch onto the current `origin/main` at
+review time, not just at spawn — this can surface a transient `index.lock` from the worker's own
+shell hooks mid-rebase, which clears on retry. Re-run every gate bare in the worktree and read the
+output directly; don't trust a worker's own claim that a gate passed, since a worker can misread its
+own tool output or write a test that passes for the wrong reason. Post the gate result as a short PR
+comment, not folded into the body — a gate section inside the body is what makes bodies long. Then:
+
+```bash
+# exit the agent first (send "/exit"), then end the tmux session, then archive
+tmux -L workspaces kill-session -t <handle>
+workspaces automation workspace archive <workspaceID> --teardown --json
+```
+
+Teardown refuses while any process — the bare shell included — is still alive in the tile, because
+the app's own close-confirmation dialog can't be answered headlessly; ending the tmux session first
+clears that. If a fleet-wide monitor is also watching for the tile going quiet, stop that monitor
+before sending `/exit` — otherwise the intentional exit reads as the failure the monitor was built to
+catch. The archived workspace keeps its branch and worktree under the app's own archive location, so
+leave the base repo's own worktree list and local branches alone; the app owns that lifecycle, and a
+merged remote branch is already gone once the operator merges.
