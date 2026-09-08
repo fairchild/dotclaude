@@ -16,7 +16,15 @@
 <header><p class="eyebrow">MCP Skills Extension · Reference implementation</p><h1>Skills over MCP.</h1>
 <p class="description">This site began as a reference implementation of the experimental <a href="https://github.com/modelcontextprotocol/ext-skills">Skills Over MCP project</a>. That remains its starting point: give agents a straightforward way to discover and use skills.</p>
 <p>This extends the same library with readable pages, Markdown discovery, and verified downloads, so agents can use the access method that fits their tools.</p>
-<p class="meta"><a href="/llms.txt">Markdown catalog</a> · <a href="/manifest.json">File manifest</a></p></header>
+<p class="meta"><a href="/llms.txt">Markdown catalog</a> · <a href="/manifest.json">File manifest</a> · <a href="#connect-mcp">MCP endpoint</a></p></header>
+<section aria-labelledby="browse-skills"><h2 id="browse-skills">Browse {{PORTABLE}} skills</h2><p class="meta">Read SKILL.md, explore the files, or download the complete directory.</p>
+<form class="search" id="search" role="search" action="/" method="get" hidden>
+<label for="q">Filter skills</label>
+<input id="q" name="q" type="search" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="Filter by name or description">
+<p class="meta hint"><kbd>Tab</kbd> to the first match · <kbd>Enter</kbd> to open it · <kbd>Esc</kbd> to clear · <kbd>/</kbd> to come back here</p>
+</form>
+<p class="meta" id="search-status" role="status" aria-live="polite"></p>
+<ul class="catalog" id="catalog" aria-label="Skills">{{SKILL_ROWS}}</ul></section>
 <section class="mcp-connect" aria-labelledby="connect-mcp"><h2 id="connect-mcp">Connect through MCP</h2>
 <p class="endpoint"><code>https://skills.cloudcompute.com/mcp</code></p>
 <p class="meta"><a href="https://github.com/modelcontextprotocol/ext-skills">Explore modelcontextprotocol/ext-skills ↗</a> · <a href="https://github.com/fairchild/dotclaude/tree/main/mcp">Implementation source ↗</a></p>
@@ -29,9 +37,158 @@
     }
   }
 }</pre></details></section>
-<section aria-labelledby="browse-skills"><h2 id="browse-skills">Browse {{PORTABLE}} skills</h2><p class="meta">Read SKILL.md, explore the files, or download the complete directory.</p>
-<ul class="catalog" aria-label="Skills">{{SKILL_ROWS}}</ul></section>
 <details><summary>About this library</summary><p>Built from <a href="https://github.com/fairchild/dotclaude">fairchild/dotclaude</a>. Machine-bound skills ({{MACHINE_BOUND}}) are available only through the local server.</p>
 <p>MCP usage metrics include method, skill, outcome, latency, response size, country, datacenter, user agent, and an optional client label. This service does not store IP addresses. Infrastructure: Cloudflare Workers; usage events: PostHog.</p></details>
 <footer>dotclaude · snapshot {{BUILT_AT}}</footer>
-</main></body></html>
+</main>
+<script>
+/* Filtering is an enhancement over the rendered list: the form stays hidden
+   until this runs, so a client without scripting keeps the full catalog. */
+(() => {
+  const form = document.getElementById("search");
+  const input = document.getElementById("q");
+  const list = document.getElementById("catalog");
+  const status = document.getElementById("search-status");
+  if (!form || !input || !list || !status) return;
+
+  const rows = [...list.children].map((li) => {
+    const link = li.querySelector("a");
+    const summary = li.querySelector("p");
+    const name = link ? link.textContent : "";
+    const description = summary ? summary.textContent : "";
+    return { li, link, summary, name, description, haystack: (name + " " + description).toLowerCase() };
+  }).filter((row) => row.link);
+  const total = rows.length;
+
+  const terms = (query) => query.toLowerCase().split(/\s+/).filter(Boolean);
+
+  /** Every term must match somewhere; name matches outrank description matches. */
+  function rank(row, wanted) {
+    let score = 0;
+    const name = row.name.toLowerCase();
+    for (const term of wanted) {
+      if (name.startsWith(term)) score += 4;
+      else if (name.includes(term)) score += 2;
+      else if (row.haystack.includes(term)) score += 1;
+      else return 0;
+    }
+    return score;
+  }
+
+  /** Rewrite text with <mark> around matches, through nodes so text stays text. */
+  function paint(element, text, wanted) {
+    const lower = text.toLowerCase();
+    const spans = [];
+    for (const term of wanted) {
+      for (let at = lower.indexOf(term); at !== -1; at = lower.indexOf(term, at + term.length)) spans.push([at, at + term.length]);
+    }
+    if (!spans.length) { element.textContent = text; return; }
+    spans.sort((a, b) => a[0] - b[0]);
+    const merged = [spans[0]];
+    for (const span of spans.slice(1)) {
+      const last = merged[merged.length - 1];
+      if (span[0] <= last[1]) last[1] = Math.max(last[1], span[1]);
+      else merged.push(span);
+    }
+    const parts = document.createDocumentFragment();
+    let at = 0;
+    for (const [start, end] of merged) {
+      if (start > at) parts.append(text.slice(at, start));
+      const hit = document.createElement("mark");
+      hit.textContent = text.slice(start, end);
+      parts.append(hit);
+      at = end;
+    }
+    if (at < text.length) parts.append(text.slice(at));
+    element.replaceChildren(parts);
+  }
+
+  // Read the order off the DOM: apply() reorders the list by rank, so the
+  // static array no longer says what the reader is looking at.
+  const byElement = new Map(rows.map((row) => [row.li, row]));
+  const visible = () => [...list.children].filter((li) => !li.hidden).map((li) => byElement.get(li));
+
+  function apply(query) {
+    const wanted = terms(query);
+    const matched = [];
+    rows.forEach((row, index) => {
+      const score = wanted.length ? rank(row, wanted) : 1;
+      row.li.hidden = score === 0;
+      if (score) matched.push({ row, score, index });
+      paint(row.link, row.name, wanted);
+      if (row.summary) paint(row.summary, row.description, wanted);
+    });
+    // Best match first, so Tab lands on the row the query most likely means.
+    matched.sort((a, b) => b.score - a.score || a.index - b.index);
+    list.append(...matched.map((match) => match.row.li), ...rows.filter((row) => row.li.hidden).map((row) => row.li));
+    // Idle needs no count: the heading already carries it, and an empty
+    // status collapses instead of repeating itself under the heading.
+    status.textContent = !wanted.length ? ""
+      : matched.length ? matched.length + " of " + total + " skills · Tab to the first match"
+      : "No skills match " + JSON.stringify(query.trim()) + " · Esc clears the filter";
+    remember(query.trim());
+  }
+
+  // Browsers rate-limit replaceState, so the address bar trails the keystrokes
+  // by a beat and a refusal never reaches the filtering above.
+  let pending;
+  function remember(query) {
+    clearTimeout(pending);
+    pending = setTimeout(() => {
+      const url = new URL(location.href);
+      if (query) url.searchParams.set("q", query); else url.searchParams.delete("q");
+      try { history.replaceState(null, "", url.pathname + url.search + url.hash); } catch {}
+    }, 150);
+  }
+
+  input.addEventListener("input", () => apply(input.value));
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const first = input.value.trim() ? visible()[0] : null;
+    if (first) first.link.click();
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      // Nothing to clear means nothing to do — blurring here would only hand
+      // the event to the document listener, which focuses the field again.
+      if (!input.value) return;
+      event.preventDefault();
+      input.value = "";
+      apply("");
+    } else if (event.key === "ArrowDown") {
+      const first = visible()[0];
+      if (first) { event.preventDefault(); first.link.focus(); }
+    }
+  });
+  list.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    const links = visible().map((row) => row.link);
+    const at = links.indexOf(document.activeElement);
+    if (at === -1) return;
+    event.preventDefault();
+    if (event.key === "ArrowUp" && at === 0) input.focus();
+    else links[Math.min(at + (event.key === "ArrowDown" ? 1 : -1), links.length - 1)].focus();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    const active = document.activeElement;
+    const typing = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
+    if (event.key === "Escape" && !typing) { event.preventDefault(); input.focus(); return; }
+    if (event.key !== "/" || typing) return;
+    event.preventDefault();
+    input.focus();
+    input.select();
+  });
+
+  form.hidden = false;
+  input.value = new URLSearchParams(location.search).get("q") ?? "";
+  apply(input.value);
+  // Landing focus is for keyboards; a touch keyboard opening unasked is not help.
+  if (!location.hash && !matchMedia("(pointer: coarse)").matches) {
+    const back = performance.getEntriesByType("navigation")[0]?.type === "back_forward";
+    input.focus({ preventScroll: back });
+    input.select();
+  }
+})();
+</script>
+</body></html>

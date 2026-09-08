@@ -7,11 +7,28 @@ a download format. MCP remains at `POST /mcp`.
 
 ## First visit
 
-The homepage introduces the Skills Over MCP reference implementation and its
-connection endpoint, then lists skill names and descriptions with ordinary links to
-canonical `/skills/{name}/` directory pages. Each page lists SKILL.md first,
-then its supporting files, and offers a complete package download. MCP client configuration
-is available beside the endpoint; Markdown discovery and downloads extend the same library.
+The homepage introduces the Skills Over MCP reference implementation, then lists
+skill names and descriptions with ordinary links to canonical `/skills/{name}/`
+directory pages. The connection endpoint and MCP client configuration follow that
+list, so browsing leads and the endpoint stays one anchor away. Each skill page
+lists SKILL.md first, then its supporting files, and offers a complete package
+download. Markdown discovery and downloads extend the same library.
+
+## Keyboard flow
+
+Someone arriving with a keyboard lands in a filter field above the list. Typing
+narrows the catalog by name and description with the best match first, Tab reaches
+that match, Enter opens it, and the skill page puts the cursor on its install
+button so a second Enter copies the prompt. Escape clears the filter, or on a
+skill page returns to the list with the filter intact; `/` comes back to the
+field; arrows walk the results. `?q=` makes a filtered view linkable and survives
+a reload.
+
+Each of those is a shortcut over the plain page rather than a replacement for it.
+The field stays hidden until its script runs, so a client without scripting keeps
+the whole catalog as ordinary links, and a coarse pointer keeps the landing focus
+— and the on-screen keyboard it would summon — out of the way. `mcp/e2e/` drives
+the flow through a real Worker in Chromium and records video of each run.
 
 `/llms.txt` and `/index.md` expose the Markdown catalog. The homepage also
 negotiates Markdown, plain text, or a short JSON service description through Accept.
@@ -138,6 +155,18 @@ bun run test
 # Separate terminal:
 bunx wrangler dev -c worker/wrangler.toml --local --port 8792
 SKILLS_HTTP_ORIGIN=http://localhost:8792 bun test conformance/http-live.test.ts
+```
+
+The browser suite covers what a request-level test cannot see: focus, filtering,
+and the clipboard. It builds the snapshot and starts its own `wrangler dev`, then
+leaves a recording of every test under `mcp/e2e/artifacts/`.
+
+```sh
+cd mcp && bun install --frozen-lockfile   # the suite drives this Worker
+cd e2e && bun install --frozen-lockfile
+bun run typecheck
+./node_modules/.bin/playwright install chromium   # once
+bun run test
 ```
 
 Sources: [RFC 9110 Accept](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1),
