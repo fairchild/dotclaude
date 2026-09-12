@@ -1613,6 +1613,68 @@ def test_report_generation_contract() -> None:
         assert report_path.read_text() == first_render
 
 
+@test("claude loaders survive wide corpora and string-only content")
+def test_claude_content_shapes_survive_wide_corpus() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        write_fixture(home)
+
+        # Enough distinct top-level keys across files to push DuckDB's JSON
+        # auto-detection past map_inference_threshold, which would otherwise
+        # collapse every row to MAP(VARCHAR, JSON) and drop the message column.
+        wide_dir = home / ".claude" / "projects" / "wide"
+        wide_dir.mkdir(parents=True, exist_ok=True)
+        for file_index in range(40):
+            entry: dict[str, object] = {
+                "uuid": f"wide-u{file_index}",
+                "sessionId": f"wide-s{file_index}",
+                "type": "system",
+                "subtype": "turn_duration",
+                "timestamp": "2026-04-19T02:00:00Z",
+                "cwd": "/code/wide",
+                "gitBranch": "main",
+                "durationMs": 1,
+                "version": "1.0.0",
+                "isSidechain": False,
+            }
+            entry.update({f"widefield{file_index}x{key}": key for key in range(8)})
+            (wide_dir / f"wide{file_index}.jsonl").write_text(json.dumps(entry) + "\n")
+
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        assert duckdb_query(
+            db_path, "SELECT COUNT(*) FROM messages WHERE session_id='s1';"
+        ) == ["2"]
+
+        # An incremental batch whose only content is a plain string: DuckDB
+        # infers message.content as VARCHAR rather than JSON for this batch.
+        string_dir = home / ".claude" / "projects" / "stringonly"
+        string_dir.mkdir(parents=True, exist_ok=True)
+        (string_dir / "stringonly.jsonl").write_text(
+            json.dumps(
+                {
+                    "uuid": "string-u1",
+                    "parentUuid": None,
+                    "sessionId": "string-session",
+                    "type": "user",
+                    "timestamp": "2026-04-19T03:00:00Z",
+                    "cwd": "/code/stringonly",
+                    "entrypoint": "cli",
+                    "isSidechain": False,
+                    "message": {"role": "user", "content": "plain string turn"},
+                }
+            )
+            + "\n"
+        )
+        assert_ok(run([str(SCRIPT_PATH), "update"], env=env))
+        assert duckdb_query(
+            db_path,
+            "SELECT content FROM messages WHERE session_id='string-session';",
+        ) == ["plain string turn"]
+
+
 def main() -> None:
     tests = [
         test_reload_bootstraps_schema,
@@ -1631,6 +1693,7 @@ def main() -> None:
         test_codex_managed_worktree_attribution,
         test_calendar_views_use_local_timezone,
         test_incremental_sparse_claude_file,
+        test_claude_content_shapes_survive_wide_corpus,
         test_repository_attribution_provenance,
         test_codex_incremental_session_scope,
         test_reload_ingests_nested_subagent_transcripts,

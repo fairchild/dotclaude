@@ -1223,7 +1223,7 @@ EOF
 # Claude Code Loaders
 # ============================================================================
 
-# Returns SQL expression for read_json_auto's file argument.
+# Returns SQL expression for a JSON reader's file argument.
 # List literals (starting with '[') pass through; glob strings get quoted.
 sql_file_arg() {
     local pattern="$1"
@@ -1272,18 +1272,18 @@ INSERT INTO claude_tools (
     repo_name, worktree_branch, is_worktree, interface, source_file
 )
 WITH raw_logs AS (
-    SELECT * FROM read_json_auto(${pattern_sql},
+    SELECT json, filename
+    FROM read_ndjson_objects(${pattern_sql},
+        filename=true,
         ignore_errors=true,
-        maximum_object_size=104857600,
-        union_by_name=true,
-        filename=true)
+        maximum_object_size=104857600)
 ),
 expanded AS (
     SELECT
-        logs.timestamp,
-        logs.sessionId as session_id,
-        logs.cwd as project_dir,
-        logs.message.model as model,
+        TRY_CAST(json_extract_string(logs.json, '\$.timestamp') AS TIMESTAMP) as timestamp,
+        json_extract_string(logs.json, '\$.sessionId') as session_id,
+        json_extract_string(logs.json, '\$.cwd') as project_dir,
+        json_extract_string(logs.json, '\$.message.model') as model,
         json_extract_string(c.value, '\$.name') as tool_name,
         COALESCE(
             json_extract_string(json_extract(c.value, '\$.input'), '\$.command'),
@@ -1298,17 +1298,17 @@ expanded AS (
         NULL::INTEGER as output_tokens,
         NULL::INTEGER as cache_write_tokens,
         NULL::INTEGER as cache_read_tokens,
-        logs.entrypoint as entrypoint,
+        json_extract_string(logs.json, '\$.entrypoint') as entrypoint,
         logs.filename as source_file
     FROM raw_logs logs,
     LATERAL UNNEST(
         CASE
-            WHEN json_type(logs.message.content) = 'ARRAY'
-            THEN from_json(logs.message.content::VARCHAR, '["JSON"]')
+            WHEN json_type(json_extract(logs.json, '\$.message.content')) = 'ARRAY'
+            THEN from_json(json_extract(logs.json, '\$.message.content')::VARCHAR, '["JSON"]')
             ELSE ['{}']::JSON[]
         END
     ) as c(value)
-    WHERE logs.type IN ('user', 'assistant')
+    WHERE json_extract_string(logs.json, '\$.type') IN ('user', 'assistant')
     AND json_extract_string(c.value, '\$.type') = 'tool_use'
 ),
 with_worktree AS (
@@ -1381,28 +1381,28 @@ INSERT INTO messages (
     cache_write_tokens, cache_read_tokens, tool_use_count, source_file
 )
 WITH raw_logs AS (
-    SELECT * FROM read_json_auto(${pattern_sql},
+    SELECT json, filename
+    FROM read_ndjson_objects(${pattern_sql},
+        filename=true,
         ignore_errors=true,
-        maximum_object_size=104857600,
-        union_by_name=true,
-        filename=true)
+        maximum_object_size=104857600)
 ),
 -- User messages where content is a plain string
 user_string AS (
     SELECT
-        logs.uuid,
-        logs.parentUuid as parent_uuid,
-        logs.sessionId as session_id,
+        json_extract_string(logs.json, '\$.uuid') as uuid,
+        json_extract_string(logs.json, '\$.parentUuid') as parent_uuid,
+        json_extract_string(logs.json, '\$.sessionId') as session_id,
         'user' as role,
         'claude_code' as harness,
-        logs.entrypoint as entrypoint,
+        json_extract_string(logs.json, '\$.entrypoint') as entrypoint,
         NULL as model,
-        json_extract_string(logs.message, '\$.content') as content,
+        json_extract_string(logs.json, '\$.message.content') as content,
         NULL as thinking,
-        logs.timestamp,
-        logs.cwd as project_dir,
+        TRY_CAST(json_extract_string(logs.json, '\$.timestamp') AS TIMESTAMP) as timestamp,
+        json_extract_string(logs.json, '\$.cwd') as project_dir,
         NULL as git_branch,
-        logs.isSidechain as is_sidechain,
+        TRY_CAST(json_extract_string(logs.json, '\$.isSidechain') AS BOOLEAN) as is_sidechain,
         NULL as input_tokens,
         NULL as output_tokens,
         NULL as cache_write_tokens,
@@ -1410,20 +1410,19 @@ user_string AS (
         0 as tool_use_count,
         logs.filename as source_file
     FROM raw_logs logs
-    WHERE logs.type = 'user'
-    AND json_type(logs.message.content) = 'VARCHAR'
-    AND logs.message.content IS NOT NULL
-    AND LENGTH(json_extract_string(logs.message, '\$.content')) > 0
+    WHERE json_extract_string(logs.json, '\$.type') = 'user'
+    AND json_type(json_extract(logs.json, '\$.message.content')) = 'VARCHAR'
+    AND LENGTH(json_extract_string(logs.json, '\$.message.content')) > 0
 ),
 -- User messages where content is an array of blocks
 user_array AS (
     SELECT
-        logs.uuid,
-        logs.parentUuid as parent_uuid,
-        logs.sessionId as session_id,
+        json_extract_string(logs.json, '\$.uuid') as uuid,
+        json_extract_string(logs.json, '\$.parentUuid') as parent_uuid,
+        json_extract_string(logs.json, '\$.sessionId') as session_id,
         'user' as role,
         'claude_code' as harness,
-        logs.entrypoint as entrypoint,
+        json_extract_string(logs.json, '\$.entrypoint') as entrypoint,
         NULL as model,
         STRING_AGG(
             CASE WHEN json_extract_string(c.value, '\$.type') = 'text'
@@ -1431,10 +1430,10 @@ user_array AS (
             END, E'\n'
         ) as content,
         NULL as thinking,
-        logs.timestamp,
-        logs.cwd as project_dir,
+        TRY_CAST(json_extract_string(logs.json, '\$.timestamp') AS TIMESTAMP) as timestamp,
+        json_extract_string(logs.json, '\$.cwd') as project_dir,
         NULL as git_branch,
-        logs.isSidechain as is_sidechain,
+        TRY_CAST(json_extract_string(logs.json, '\$.isSidechain') AS BOOLEAN) as is_sidechain,
         NULL as input_tokens,
         NULL as output_tokens,
         NULL as cache_write_tokens,
@@ -1444,33 +1443,33 @@ user_array AS (
     FROM raw_logs logs,
     LATERAL UNNEST(
         CASE
-            WHEN json_type(logs.message.content) = 'ARRAY'
-            THEN from_json(logs.message.content::VARCHAR, '["JSON"]')
+            WHEN json_type(json_extract(logs.json, '\$.message.content')) = 'ARRAY'
+            THEN from_json(json_extract(logs.json, '\$.message.content')::VARCHAR, '["JSON"]')
             ELSE ['{}']::JSON[]
         END
     ) as c(value)
-    WHERE logs.type = 'user'
-    AND json_type(logs.message.content) = 'ARRAY'
+    WHERE json_extract_string(logs.json, '\$.type') = 'user'
+    AND json_type(json_extract(logs.json, '\$.message.content')) = 'ARRAY'
     AND EXISTS (
         SELECT 1 FROM UNNEST(
-            from_json(logs.message.content::VARCHAR, '["JSON"]')
+            from_json(json_extract(logs.json, '\$.message.content')::VARCHAR, '["JSON"]')
         ) as chk(v)
         WHERE json_extract_string(chk.v, '\$.type') = 'text'
     )
-    GROUP BY logs.uuid, logs.parentUuid, logs.sessionId, logs.timestamp,
-             logs.cwd, logs.isSidechain, logs.entrypoint, logs.filename
+    GROUP BY uuid, parent_uuid, session_id, timestamp,
+             project_dir, is_sidechain, entrypoint, source_file
     HAVING content IS NOT NULL
 ),
 -- Assistant messages
 assistant_msgs AS (
     SELECT
-        logs.uuid,
-        logs.parentUuid as parent_uuid,
-        logs.sessionId as session_id,
+        json_extract_string(logs.json, '\$.uuid') as uuid,
+        json_extract_string(logs.json, '\$.parentUuid') as parent_uuid,
+        json_extract_string(logs.json, '\$.sessionId') as session_id,
         'assistant' as role,
         'claude_code' as harness,
-        logs.entrypoint as entrypoint,
-        logs.message.model as model,
+        json_extract_string(logs.json, '\$.entrypoint') as entrypoint,
+        json_extract_string(logs.json, '\$.message.model') as model,
         STRING_AGG(
             CASE WHEN json_extract_string(c.value, '\$.type') = 'text'
                  THEN json_extract_string(c.value, '\$.text')
@@ -1481,18 +1480,18 @@ assistant_msgs AS (
                  THEN json_extract_string(c.value, '\$.thinking')
             END, E'\n'
         ) as thinking,
-        logs.timestamp,
-        logs.cwd as project_dir,
+        TRY_CAST(json_extract_string(logs.json, '\$.timestamp') AS TIMESTAMP) as timestamp,
+        json_extract_string(logs.json, '\$.cwd') as project_dir,
         NULL as git_branch,
-        logs.isSidechain as is_sidechain,
-        TRY_CAST(json_extract_string(to_json(logs.message.usage), '\$.input_tokens') AS INTEGER) as input_tokens,
-        TRY_CAST(json_extract_string(to_json(logs.message.usage), '\$.output_tokens') AS INTEGER) as output_tokens,
+        TRY_CAST(json_extract_string(logs.json, '\$.isSidechain') AS BOOLEAN) as is_sidechain,
+        TRY_CAST(json_extract_string(logs.json, '\$.message.usage.input_tokens') AS INTEGER) as input_tokens,
+        TRY_CAST(json_extract_string(logs.json, '\$.message.usage.output_tokens') AS INTEGER) as output_tokens,
         COALESCE(
-            TRY_CAST(json_extract_string(to_json(logs.message.usage), '\$.cache_creation_input_tokens') AS INTEGER),
+            TRY_CAST(json_extract_string(logs.json, '\$.message.usage.cache_creation_input_tokens') AS INTEGER),
             0
         ) as cache_write_tokens,
         COALESCE(
-            TRY_CAST(json_extract_string(to_json(logs.message.usage), '\$.cache_read_input_tokens') AS INTEGER),
+            TRY_CAST(json_extract_string(logs.json, '\$.message.usage.cache_read_input_tokens') AS INTEGER),
             0
         ) as cache_read_tokens,
         COUNT(CASE WHEN json_extract_string(c.value, '\$.type') = 'tool_use' THEN 1 END) as tool_use_count,
@@ -1500,15 +1499,16 @@ assistant_msgs AS (
     FROM raw_logs logs,
     LATERAL UNNEST(
         CASE
-            WHEN json_type(logs.message.content) = 'ARRAY'
-            THEN from_json(logs.message.content::VARCHAR, '["JSON"]')
+            WHEN json_type(json_extract(logs.json, '\$.message.content')) = 'ARRAY'
+            THEN from_json(json_extract(logs.json, '\$.message.content')::VARCHAR, '["JSON"]')
             ELSE ['{}']::JSON[]
         END
     ) as c(value)
-    WHERE logs.type = 'assistant'
-    GROUP BY logs.uuid, logs.parentUuid, logs.sessionId, logs.message.model,
-             logs.timestamp, logs.cwd, logs.isSidechain, logs.entrypoint,
-             to_json(logs.message.usage), logs.filename
+    WHERE json_extract_string(logs.json, '\$.type') = 'assistant'
+    GROUP BY uuid, parent_uuid, session_id, model,
+             timestamp, project_dir, is_sidechain, entrypoint,
+             input_tokens, output_tokens, cache_write_tokens, cache_read_tokens,
+             source_file
 ),
 all_messages AS (
     SELECT * FROM user_string
