@@ -1508,7 +1508,7 @@ assistant_msgs AS (
     GROUP BY uuid, parent_uuid, session_id, model,
              timestamp, project_dir, is_sidechain, entrypoint,
              input_tokens, output_tokens, cache_write_tokens, cache_read_tokens,
-             source_file
+             json_extract(logs.json, '\$.message.usage'), source_file
 ),
 all_messages AS (
     SELECT * FROM user_string
