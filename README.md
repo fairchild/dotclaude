@@ -106,7 +106,6 @@ Claude loads these when the task matches the description.
 | `/excalidraw-diagrams` | Create diagrams and visual artifacts using Excalidraw with real-time canvas preview. |
 | `/fork` | Fork the current session with context carried over. |
 | `/release` | Create semantic versioned releases with AI-generated changelogs, for repos that do not already have a release pipeline… |
-| `/runner-optin` | Run one reviewed commit of one pull request on this laptop while hosted runners are blocked. |
 | `/skill-building` | Guide for creating, editing, and evaluating skills. |
 | `/tidyup` | Proof-based sweep of a repo's accumulated worktrees, stale local branches, and in-flight PRs — reduces open threads to… |
 | `/web-artifacts-builder` | Suite of tools for creating elaborate, multi-component claude.ai HTML artifacts using modern frontend web technologies… |
@@ -123,6 +122,7 @@ Claude loads these when the task matches the description.
 | `ios-simulator` | Automate iOS Simulator tasks — capture screenshots, interact with apps, generate screen flow galleries. | Simulator automation remains sensitive to local device state, timing, window focus, and Xcode version differences. |
 | `persona-memory` | Build and operate a persistent persona and memory framework for Claude Code. | Healthy framework, intentionally experimental until background memory agents and full interactive-session CI coverage exist. |
 | `repo-steward` | The repo steward role — one long-running session that owns the work in a single repository. | Two real runs so far (two repositories, 2026-09-07 and 09-08) and no eval in this repo. The boot sequence and the loop are an experiment in keeping a long-running session's context in the repo rather than in its head. |
+| `runner-optin` | Run one reviewed commit of one pull request on this laptop while hosted runners are blocked. | No eval and no invocations yet; the machinery it drives lands in services |
 | `skill-seeker` | Generate Claude Code skills from docs sites, GitHub repos, or local codebases using Skill Seekers. | Generated skill quality varies by source corpus and still requires explicit human review before installation. |
 | `vocal` | Speak text aloud (TTS) and transcribe speech (STT). | Voice workflows depend on local audio devices and optional ElevenLabs credentials, so reliability is environment-sensitive. |
 
