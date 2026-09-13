@@ -87,7 +87,6 @@ Claude loads these when the task matches the description.
 | `git-worktree` | Manage Git worktrees for concurrent local development. |
 | `image-gen` | Generate images from prompts using AI APIs (OpenAI GPT Image, Google Gemini/Nano Banana, Google Imagen, fal.ai Flux). |
 | `project-scripts` | Standardize project lifecycle scripts (setup, run, stop, archive) in scripts/ so agents can manage workspaces through a… |
-| `runner-optin` | Run one pull request's CI on this laptop when hosted runners are blocked. |
 | `session-titles` | Session title generation, evaluation, and optimization. |
 | `signoz-log` | Send structured logs to SigNoz observability platform. |
 | `skills-manager` | Use when the user wants to list, search, install, remove, inspect, validate, audit, or update skills. |
@@ -107,6 +106,7 @@ Claude loads these when the task matches the description.
 | `/excalidraw-diagrams` | Create diagrams and visual artifacts using Excalidraw with real-time canvas preview. |
 | `/fork` | Fork the current session with context carried over. |
 | `/release` | Create semantic versioned releases with AI-generated changelogs, for repos that do not already have a release pipeline… |
+| `/runner-optin` | Run one reviewed commit of one pull request on this laptop while hosted runners are blocked. |
 | `/skill-building` | Guide for creating, editing, and evaluating skills. |
 | `/tidyup` | Proof-based sweep of a repo's accumulated worktrees, stale local branches, and in-flight PRs — reduces open threads to… |
 | `/web-artifacts-builder` | Suite of tools for creating elaborate, multi-component claude.ai HTML artifacts using modern frontend web technologies… |
