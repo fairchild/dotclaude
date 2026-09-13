@@ -63,17 +63,22 @@ opt in <owner>/<repo> <N>
 ### 1. Read the pull request
 
 ```bash
-gh pr view <N> --repo <owner>/<repo> --json number,title,headRefOid,isCrossRepository,state
+gh pr view <N> --repo <owner>/<repo> --json number,title,author,headRefOid,isCrossRepository,state
 gh pr diff <N> --repo <owner>/<repo>
 ```
 
-Show him the head sha and the diff. Author is not a signal here — every agent
-in this fleet writes as his own login, so a pull request's author tells you
-nothing about whether anyone read it. The gate is his reading, at that sha,
-now.
+Show him the head sha and the diff. The author separates our own pull requests
+from everyone else's: a bot, an app identity, a fork, any login that is not
+`fairchild` is refused outright, and `app/dependabot` is the case that matters
+most, because a dependency bump's diff is a version string rather than the code
+inside the new version, so reading it proves almost nothing. Among our own pull
+requests the author proves nothing either, since every agent in this fleet
+writes as his login — there the gate is his reading, at that sha, now.
 
 Refuse and say which check failed:
 
+- `author.login` is not `fairchild`, or `author.is_bot` is true, or the login
+  ends in `[bot]` or starts with `app/`.
 - He has not said he read the diff, or he names a sha that is not `headRefOid`.
 - `isCrossRepository` is true. GitHub does not send fork pull requests to
   self-hosted runners, so the opt-in would hang rather than fail.
