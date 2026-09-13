@@ -7,14 +7,21 @@ license: Apache-2.0
 
 # Runner opt-in
 
-Opting in runs the pull request's own code on this laptop as this user, with
-this user's SSH agent, Docker socket and tailnet. Not once: a pull request
-touching `auth/` reaches eighteen opted-in jobs, and they run here one after
-another, each installing that pull request's dependencies and running its
-scripts, for as long as the run takes. Nothing in this skill bounds what any
-of that code can do while it runs. The hardening plan's non-admin runner user
-is what closes it; until then the only real gate is that Michael has read the
-diff at the commit he names.
+Opting in runs the pull request's own code on this laptop as this user, and it
+can read everything this user can: `~/.config/github-runner/config` and the
+GitHub App private key it names, which mints runner registration tokens for
+the repository and belongs to an App holding `Administration: write`; the
+per-repo App credentials under `~/.config/gh-apps/`; the `gh` token; the SSH
+agent; the Docker socket; the tailnet.
+
+Not once, either. A pull request touching `auth/` reaches twenty routed jobs,
+and they run here one after another, each installing that pull request's
+dependencies and running its scripts, for as long as the run takes. Nothing
+here bounds any of that, and on this host nothing can: the hooks beside the
+runner are owned by the user the job runs as, so the gate routes jobs rather
+than containing them. The hardening plan's non-admin runner user is the
+structural fix. Until it lands, opt in only to pull requests written here, and
+the only real gate is that Michael has read the diff at the commit he names.
 
 Never opt in on your own initiative. A red pull request is not a request. Wait
 for his words.
@@ -71,18 +78,20 @@ Refuse and say which check failed:
 - `isCrossRepository` is true. GitHub does not send fork pull requests to
   self-hosted runners, so the opt-in would hang rather than fail.
 - `state` is not `OPEN`.
-- An opt-in is already live. These are the reads, and refusing is also correct
-  when any of them cannot be read:
+- This pull request is already opted in. These are the reads, and refusing is
+  also correct when any of them cannot be read:
 
 ```bash
 gh pr list --repo <owner>/<repo> --label ci:optin --state open
 ./scripts/runners.sh <owner>/<repo>
-cat ~/.config/github-runner/optin/<owner>/<repo>
+cat ~/.config/github-runner/optin/<owner>/<repo>/<N>
 ```
 
-One record exists per repository, because the gate has to find it without
-knowing the number it is about to check. A second opt-in on the same
-repository is refused, not merged.
+The record, the supervisor and the work tree are keyed by pull request, so two
+can be opted in at once and opting out of one leaves the other alone. The gate
+finds the record by the number the job claims, which is not circular: the
+record's existence is the authorisation, and a job for a pull request nobody
+opted in finds nothing.
 
 ### 2. Preflight, then label, then register
 
@@ -104,8 +113,10 @@ If anything after the label fails, remove the label before reporting:
 gh pr edit <N> --repo <owner>/<repo> --remove-label ci:optin
 ```
 
-Report back the runner name, the head sha, the labels, the record path, the
-gate path, the supervisor's PID, and how many jobs the run has — that last is
+`optin` waits for a listener the supervisor actually started and fails rather
+than reporting a supervisor that cannot register. Report back the runner name,
+the head sha, the labels, the record path, the gate path, the supervisor's
+PID, and how many jobs the run has — that last is
 how long the laptop is committed for.
 
 A push to the pull request after this closes the opt-in. The gate compares the
@@ -123,7 +134,7 @@ watch
 gh run list --repo <owner>/<repo> --commit <sha> --limit 5   # take the run id
 gh run watch <run-id> --repo <owner>/<repo>
 ./scripts/runners.sh <owner>/<repo>
-tail -n 5 ~/.local/share/actions-runner-optin/<owner>-<repo>/runner.log
+tail -n 5 ~/.local/share/actions-runner-optin/<owner>-<repo>-pr<N>/runner.log
 ```
 
 Select the run by the opted-in sha, not by branch; a branch-scoped list returns
@@ -145,7 +156,7 @@ opt out <owner>/<repo> <N>
 ```bash
 gh pr edit <N> --repo <owner>/<repo> --remove-label ci:optin
 ./scripts/runner.sh optout <owner>/<repo> <N>
-cat ~/.config/github-runner/optin/<owner>/<repo>   # expect: no such file
+cat ~/.config/github-runner/optin/<owner>/<repo>/<N>  # expect: no such file
 ./scripts/runners.sh <owner>/<repo>                # expect: no optin-pr runner
 ```
 
@@ -159,8 +170,9 @@ gh run cancel <run-id> --repo <owner>/<repo>
 
 `optout` refuses a number the record does not name, so a typo stops nothing
 rather than tearing down the wrong opt-in. It removes the record first, then
-the supervisor, then any process under that runner's directory, then
-deregisters. Run the two reads afterwards and report both, because a network
+signals the supervisor's whole process group, which reaches the listener, the
+worker and anything the job started, then deregisters and deletes the work
+tree. Run the two reads afterwards and report both, because a network
 failure mid-teardown can leave a runner registered with the record already
 gone.
 
