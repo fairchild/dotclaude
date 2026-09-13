@@ -17,11 +17,17 @@ gate.
 
 Hosted runners refuse to start when the account's billing is blocked, so every
 pull-request job goes red before a step exists. The label `ci:optin` routes a
-pull request's jobs to a runner registered on this machine for that pull
-request alone. The runner is ephemeral: GitHub hands it one job and deregisters
-it. The label carries the pull request number, so a job on another pull request
-cannot match it. With no label and no runner, the workflows fall back to hosted
-capacity and behave as they do today.
+pull request's jobs to runners registered on this machine for that pull
+request alone. Each runner is ephemeral: GitHub hands it one job and
+deregisters it, and a supervisor registers the next one, so a workflow's jobs
+run here in sequence until the opt-out. The label carries the pull request
+number, so a job on another pull request cannot match. With no label and no
+runner, the workflows fall back to hosted capacity and behave as they do
+today — Linux jobs to `ubuntu-latest`, the Swift job to `macos-26`.
+
+Sequence is the cost worth naming before he starts. A pull request touching
+`auth/` can reach eighteen opted-in jobs, and on hosted capacity they would
+run in parallel. Here they queue behind each other.
 
 Three pieces have to agree, and all three live in the target repository:
 
@@ -72,8 +78,9 @@ collaborator-only. `runner.sh optin` installs the gate, registers the runner,
 writes the opt-in record at `~/.config/github-runner/optin/<owner>/<repo>` with
 mode 600, and starts the listener.
 
-Report back: the runner name, the labels, the record path, the gate path, and
-the run to watch.
+Report back: the runner name, the labels, the record path, the gate path, the
+supervisor's PID, and the run to watch. Say how many jobs the run has, because
+that is how long the laptop is committed for.
 
 ```bash
 gh run list --repo <owner>/<repo> --branch "$(gh pr view <N> --repo <owner>/<repo> --json headRefName --jq .headRefName)" --limit 5
@@ -94,10 +101,10 @@ gh run watch <run-id> --repo <owner>/<repo>
 ./scripts/runners.sh <owner>/<repo>
 ```
 
-The first follows the jobs. The second shows whether the opt-in runner is still
-registered and whether it is busy; an ephemeral runner disappears from that
-list once its job finishes, which is the signal that the window closed on its
-own.
+The first follows the jobs. The second shows whether an opt-in runner is
+registered and whether it is busy. A runner appearing and disappearing between
+two calls is the supervisor doing its work, not a fault; the window closes
+only on `opt out`.
 
 ## Opt out
 
@@ -117,8 +124,9 @@ still registered, removes the local runner configuration, and deletes the
 opt-in record. Report what was stopped and what was deleted.
 
 Opt out when the run finishes, when the reading is stale, or when stepping
-away from the laptop. An ephemeral runner that took its job is already gone;
-`optout` is still worth running, because the record and the label outlive it.
+away from the laptop. It is not optional housekeeping: the supervisor keeps
+registering runners until the record is gone, so an opt-in left open serves
+every later push to that pull request.
 
 ## When it will not work
 
