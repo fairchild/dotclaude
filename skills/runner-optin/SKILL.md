@@ -107,9 +107,12 @@ files, a running supervisor and a conflicting record, and prints the current
 head. A label applied over a failed preflight queues a job against a runner
 that will never exist, and a queued job does not fall back to hosted capacity.
 
-If anything after the label fails, remove the label before reporting:
+If anything after the label fails, roll the whole opt-in back before reporting,
+not just the label. `optin` traps its own failures and does this itself, so
+this is for a failure of the label step or anything outside the script:
 
 ```bash
+./scripts/runner.sh optout <owner>/<repo> <N>
 gh pr edit <N> --repo <owner>/<repo> --remove-label ci:optin
 ```
 
@@ -119,10 +122,24 @@ the head sha, the labels, the record path, the gate path, the supervisor's
 PID, and how many jobs the run has — that last is
 how long the laptop is committed for.
 
-A push to the pull request after this closes the opt-in. The gate compares the
-payload's head sha to the recorded one, refuses the job, and deletes the
-record, which stops the supervisor. A new head needs a new reading and a new
-gesture; never reopen one on his behalf.
+### How an opt-in ends
+
+Three ways, and each one takes the `ci:optin` label off the pull request by
+itself. The label is the routing: left on an opt-in that has ended, it sends
+every later job to a `pr-<N>` runner that no longer exists, and a queued job
+has no hosted fallback.
+
+| Ending | What happened |
+|---|---|
+| `opt out` | The gesture below. |
+| A push | The gate saw a head that is not the reviewed commit, refused the job and deleted the record. A new head needs a new reading and a new gesture; never reopen one on his behalf. |
+| No job served | Registrations kept succeeding and listeners kept exiting at once, so the supervisor stopped rather than looping. |
+
+The heartbeat is how the third is told from the first: its last line names the
+ending. The only case the label has to come off by hand is a supervisor that
+was killed outright, since nothing ran to remove it — `./scripts/runners.sh`
+showing no runner with the record already gone is that case, and the opt-out
+gesture below is still the right thing to run.
 
 ## Watch
 
@@ -144,8 +161,8 @@ it names the time and the runner it is listening as, and it stops advancing
 when the supervisor stops.
 
 The supervisor runs under `nohup` and outlives the session that started it. If
-this session ends, those four reads are how the next one picks it up, and
-`opt out` is how it ends.
+this session ends, those four reads are how the next one picks it up; the three
+endings above are how it stops.
 
 ## Opt out
 
@@ -177,8 +194,10 @@ failure mid-teardown can leave a runner registered with the record already
 gone.
 
 Opt out when the run finishes, when the reading is stale, or when stepping
-away from the laptop. It is not housekeeping. The supervisor registers a new
-runner after every job until the record is gone.
+away from the laptop. It is not housekeeping: until one of the three endings
+above happens, the supervisor registers a new runner after every job. Running
+it after an ending that already cleaned up is safe and worth doing, because it
+also deregisters a runner a network failure may have left behind.
 
 ## When it will not work
 
