@@ -124,6 +124,10 @@ this is for a failure of the label step or anything outside the script:
 gh pr edit <N> --repo <owner>/<repo> --remove-label ci:optin
 ```
 
+`optout` removes the label itself, so the second line only covers an `optout`
+that could not reach `gh`. Order does not matter here, because nothing is
+running yet that a label could route to.
+
 `optin` waits for a listener the supervisor actually started and fails rather
 than reporting a supervisor that cannot register. Report back the runner name,
 the head sha, the labels, the record path, the gate path, the supervisor's
@@ -139,13 +143,17 @@ has no hosted fallback.
 
 | Ending | What happened | What removes the label |
 |---|---|---|
-| `opt out` | The gesture below. | `runner.sh optout`, before it signals the supervisor. |
+| `opt out` | The gesture below. | `runner.sh optout` itself, by calling `gh` as its second step, after deleting the record and before signalling the supervisor. It does not leave this to the supervisor's handler, which it is about to kill three seconds later. |
 | A push | The gate saw a head that is not the reviewed commit, refused the job and deleted the record. A new head needs a new reading and a new gesture; never reopen one on his behalf. | The supervisor, on the next pass round its loop, when the record it needs is gone. |
 | No job served | Five attempts in a row served no job, counting a failed registration and a failed token fetch, so the supervisor stopped rather than looping. An offline laptop reaches this. | The supervisor, in the same exit handler. |
 
 Both supervisor cases run through one exit handler, so a supervisor that ends
 on its own terms tries to remove the label; the cases below are where that try
-does not land. The heartbeat is how the third ending is told from
+does not land. The `gh pr edit --remove-label` in the gestures is therefore
+defensive rather than load-bearing: `runner.sh optout` removes the label on its
+own, and `--remove-label` on a pull request that no longer carries it is a
+no-op. Keep it, because it is the one step that does not depend on the script
+getting that far. The heartbeat is how the third ending is told from
 the first: the last line the supervisor writes names it.
 
 Three cases leave the label on, and all of them are visible rather than silent.
@@ -190,6 +198,9 @@ gh pr edit <N> --repo <owner>/<repo> --remove-label ci:optin
 cat ~/.config/github-runner/optin/<owner>/<repo>/<N>  # expect: no such file
 ./scripts/runners.sh <owner>/<repo>                # expect: no optin-pr runner
 ```
+
+The first line is belt and braces: `optout` removes the label itself. Run it
+first anyway, so the routing closes even if the script cannot start.
 
 Removing the label stops future routing only. It does not touch a job already
 dispatched: the gate reads the record, never the labels. Cancel a run in
