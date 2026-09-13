@@ -137,17 +137,22 @@ itself. The label is the routing: left on an opt-in that has ended, it sends
 every later job to a `pr-<N>` runner that no longer exists, and a queued job
 has no hosted fallback.
 
-| Ending | What happened |
-|---|---|
-| `opt out` | The gesture below. |
-| A push | The gate saw a head that is not the reviewed commit, refused the job and deleted the record. A new head needs a new reading and a new gesture; never reopen one on his behalf. |
-| No job served | Registrations kept succeeding and listeners kept exiting at once, so the supervisor stopped rather than looping. |
+| Ending | What happened | What removes the label |
+|---|---|---|
+| `opt out` | The gesture below. | `runner.sh optout`, before it signals the supervisor. |
+| A push | The gate saw a head that is not the reviewed commit, refused the job and deleted the record. A new head needs a new reading and a new gesture; never reopen one on his behalf. | The supervisor, on the next pass round its loop, when the record it needs is gone. |
+| No job served | Five attempts in a row served no job, counting a failed registration and a failed token fetch, so the supervisor stopped rather than looping. An offline laptop reaches this. | The supervisor, in the same exit handler. |
 
-The heartbeat is how the third is told from the first: its last line names the
-ending. The only case the label has to come off by hand is a supervisor that
-was killed outright, since nothing ran to remove it — `./scripts/runners.sh`
-showing no runner with the record already gone is that case, and the opt-out
-gesture below is still the right thing to run.
+Both supervisor cases run through one exit handler, so a supervisor that ends
+at all removes the label. The heartbeat is how the third ending is told from
+the first: the last line the supervisor writes names it.
+
+Three cases leave the label on, and all of them are visible rather than silent.
+The supervisor was killed outright, so nothing ran. `gh` is missing or its call
+failed, which the log says in as many words. Or `runner.sh optout` was never
+run at all. `./scripts/runners.sh` showing no runner while the label is still
+on the pull request is the signal for each, and the opt-out gesture below is
+what to run.
 
 ## Watch
 
