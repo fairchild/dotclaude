@@ -2,6 +2,9 @@
 name: runner-optin
 description: Run one reviewed commit of one pull request on this laptop while hosted runners are blocked. User-invoked only — Michael asks for it by name ("opt in", "opt out", "run this PR on my laptop"); never start it because a pull request looks red.
 disable-model-invocation: true
+metadata:
+  status: experimental
+  experimental_reason: No eval and no invocations yet; the machinery it drives lands in services #1749 and has never run against a real pull request.
 license: Apache-2.0
 ---
 
