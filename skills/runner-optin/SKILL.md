@@ -144,7 +144,8 @@ has no hosted fallback.
 | No job served | Five attempts in a row served no job, counting a failed registration and a failed token fetch, so the supervisor stopped rather than looping. An offline laptop reaches this. | The supervisor, in the same exit handler. |
 
 Both supervisor cases run through one exit handler, so a supervisor that ends
-at all removes the label. The heartbeat is how the third ending is told from
+on its own terms tries to remove the label; the cases below are where that try
+does not land. The heartbeat is how the third ending is told from
 the first: the last line the supervisor writes names it.
 
 Three cases leave the label on, and all of them are visible rather than silent.
