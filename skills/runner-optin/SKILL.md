@@ -222,9 +222,11 @@ tail -n 5 ~/.local/share/actions-runner-optin/<owner>-<repo>-pr<N>/runner.log
 ```
 
 Select the run by workflow and take the newest, not by commit: the run rides
-`refs/heads/main`, so its commit is Main's and not the pull request's. The lint
-job writes `Ran pull request <N> at <sha>` into the run summary, which is how a
-run is tied back to what it was dispatched for.
+`refs/heads/main`, so its commit is Main's and not the pull request's. The
+`lint` job writes `Ran pull request <N> at <sha>` into the run summary, which
+is how a run is tied back to what it was dispatched for — a dispatch whose
+`suites` leaves `lint` out has no such line, so note the run id when you
+dispatch it.
 
 A runner appearing and disappearing between two calls to `runners.sh` is the
 supervisor doing its work — five jobs means five registrations. The log's last
