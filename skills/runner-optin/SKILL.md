@@ -162,9 +162,13 @@ gh workflow run pr-optin-run.yml --repo <owner>/<repo> --ref main \
 ```
 
 In that order, and the order is the safety. Preflight checks the dependencies,
-the GitHub App configuration and its key by path, the three hook files, a
-running supervisor and a conflicting record, and prints the current head.
-`optin` installs the gate, registers the first ephemeral runner and waits for a
+the GitHub App configuration and its key by path, the three hook files, `mise`
+and the checkout's `mise.toml`, a running supervisor and a conflicting record,
+and prints the current head and any pinned tool not yet installed. `optin`
+installs the gate, installs any missing pins, starts the supervisor with that
+toolchain first on its PATH (every job inherits it; the pull request's own
+`mise.toml` and the operator's global mise config are never read), registers
+the first ephemeral runner and waits for a
 listener the supervisor actually started, failing rather than reporting a
 supervisor that cannot register. Only then does the dispatch have capacity to
 land on. A dispatch over a failed opt-in queues its jobs against a runner that
@@ -292,3 +296,7 @@ uv run --script .github/scripts/verify_pr_runner_routing.py
   points at.
 - A hook file is missing from the checkout. `optin` refuses to register rather
   than register without a gate, which is the intended failure.
+- `mise` is not installed, cannot read the checkout's `mise.toml`, or a pinned
+  tool will not install. Preflight or `optin` refuses and names it; nothing is
+  recorded or registered. A job that finds the wrong interpreter means the
+  supervisor was started by a `runner.sh` older than services #1774.
