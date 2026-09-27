@@ -1,9 +1,16 @@
+# VERSION UPDATES ARE OFF: every entry sets `open-pull-requests-limit: 0`,
+# which GitHub documents as disabling version-update PRs for that package
+# manager. Security-update PRs are not subject to that limit, and they still
+# read the directories, groups and `ignore` rules below, so every entry stays.
+# Decision record: https://github.com/fairchild/services/pull/1882
+
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 0
     groups:
       actions:
         patterns: ['*']
