@@ -1,6 +1,6 @@
 ---
 name: gondolin-ci
-description: Run one of services' CI suites for a pull request inside a disposable gondolin VM on this laptop, and watch the steps land. User-invoked only — Michael asks for it by name ("run CI on my laptop", "gondolin ci"); never start a run because a pull request looks red.
+description: Run one of services' CI suites for a pull request inside a disposable gondolin VM on this laptop, and watch the steps land. User-invoked only — the user asks for it by name ("run CI on my laptop", "gondolin ci"); never start a run because a pull request looks red.
 disable-model-invocation: true
 metadata:
   portability: machine-bound
@@ -23,7 +23,7 @@ Paths below are relative to this skill's base directory.
 
 ## Before a run
 
-The VM borrows Michael's laptop, and a busy host makes the run slow and its timeouts
+The VM borrows the user's laptop, and a busy host makes the run slow and its timeouts
 meaningless. Check, in this order:
 
 - **Idle CPU** — `top -l 2 -n 0 | grep "CPU usage" | tail -1`. Below about 40% idle, wait. The
