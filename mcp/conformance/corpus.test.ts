@@ -57,6 +57,6 @@ describe("repo corpus", () => {
       .filter((s) => s.tier === "machine-bound")
       .map((s) => String(s.entry.frontmatter.name))
       .sort();
-    expect(bound).toEqual(["canon-printer", "signoz-log"]);
+    expect(bound).toEqual(["canon-printer", "claude-as", "signoz-log"]);
   });
 });
