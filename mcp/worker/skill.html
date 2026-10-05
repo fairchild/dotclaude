@@ -7,6 +7,13 @@
 <title>{{NAME}} · dotclaude skills</title>
 <meta name="description" content="{{DESCRIPTION}}">
 <link rel="canonical" href="{{DIRECTORY_URL}}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="dotclaude skill library">
+<meta property="og:title" content="{{NAME}} · dotclaude skills">
+<meta property="og:description" content="{{DESCRIPTION}}">
+<meta property="og:url" content="{{PAGE_URL}}">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23806020'/%3E%3Cpath d='M10 10h12M10 16h12M10 22h7' stroke='%23faf9f6' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="alternate" type="text/markdown" href="{{MARKDOWN_URL}}">
 <link rel="describedby" href="/llms.txt">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,17 +23,17 @@
 <body>
 <main>
 <nav aria-label="Breadcrumb"><a href="/">← All skills</a><span>dotclaude / skill library</span></nav>
-<header><p class="eyebrow">Agent skill</p><h1>{{NAME}}</h1><p class="description">{{DESCRIPTION}}</p><p class="meta">{{FILE_COUNT}} · <a href="{{RAW_URL}}">Raw SKILL.md</a> · <a href="{{MARKDOWN_URL}}">Markdown directory</a> · <a href="{{ARCHIVE_URL}}" download>Download skill.tgz</a></p></header>
+<header><p class="eyebrow">Agent skill</p><h1>{{NAME}}</h1><p class="description">{{DESCRIPTION}}</p><p class="meta">{{FILE_SUMMARY}}{{SOURCE_LINK}} · <a href="{{RAW_URL}}">Raw SKILL.md</a> · <a href="{{MARKDOWN_URL}}">Markdown directory</a> · <a href="{{ARCHIVE_URL}}" download>Download skill.tgz</a></p></header>
 <section class="install" aria-label="Install this skill">
 <div class="install-row"><p>Copy the prompt. Paste it into your agent.</p><button type="button" id="copy-install">Copy install prompt</button></div>
 <p class="meta hint" id="install-hint" hidden><kbd>Enter</kbd> copies · <kbd>Esc</kbd> goes back to the library</p>
-<p>Verify the bytes and inspect the files before trusting a skill. A matching hash is not a safety review.</p>
+<p class="caution">Verify the bytes and inspect the files before trusting a skill. A matching hash is not a safety review.</p>
 <details id="prompt-preview"><summary>Read the install prompt</summary><textarea id="install-prompt" aria-label="Install prompt" readonly spellcheck="false">{{PROMPT}}</textarea></details>
 <details id="inline-preview"><summary>Full inline prompt for offline use</summary><p>Includes SKILL.md. Supporting files still require a download.</p><button type="button" id="copy-inline">Copy full inline prompt</button><textarea id="inline-prompt" aria-label="Full inline install prompt" readonly spellcheck="false">{{INLINE_PROMPT}}</textarea></details>
 <p id="copy-status" role="status" aria-live="polite"></p>
 </section>
-<section aria-label="Files"><h2>Files</h2><ul class="files">{{FILES}}</ul></section>
 <article aria-label="Skill instructions">{{CONTENT}}</article>
+<section class="skill-files" aria-label="Files"><h2>Files</h2>{{FILES}}</section>
 <footer><a href="/">All skills</a> · The complete skill, with supporting files available on install.</footer>
 </main>
 <script>
@@ -43,12 +50,13 @@ for (const [button, field, preview] of [['copy-install', 'install-prompt', 'prom
   }
 });
 /* Arriving from the library, the next thing to do is copy — so the button is
-   already under the cursor, and Escape hands the keyboard back to the list. */
+   already under the cursor, and Escape hands the keyboard back to the list.
+   A touch screen gets no focus: there is no Enter key to press it with. */
 (() => {
   const copy = document.getElementById('copy-install');
   const hint = document.getElementById('install-hint');
   if (hint) hint.hidden = false;
-  if (copy && !location.hash) copy.focus();
+  if (copy && !location.hash && !matchMedia('(pointer: coarse)').matches) copy.focus();
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || event.metaKey || event.ctrlKey || event.altKey) return;
     if (document.activeElement?.isContentEditable) return;

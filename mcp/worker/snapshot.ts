@@ -9,12 +9,19 @@ import { directoryMarkdown, escapeHtml, renderSkillPage, validateSkillName, type
 import { inside, readSkillFile } from "../core/files.ts";
 import { scanCatalog } from "../core/manifest.ts";
 
-export interface BuildOptions { root: string; out: string; baseUrl: string; sourceSha?: string; strict?: boolean }
+/**
+ * `sourceRepository` is the repository's web URL, laid out like this one: skills
+ * under `skills/`, the server under `mcp/`. Source links need `sourceSha` too.
+ * `sourceDate` is the source commit's ISO date, shown in place of build time.
+ */
+export interface BuildOptions { root: string; out: string; baseUrl: string; sourceSha?: string; sourceRepository?: string; sourceDate?: string; strict?: boolean }
 export function buildSnapshot(options: BuildOptions): void {
 const templateDir = dirname(fileURLToPath(import.meta.url));
 const base = new URL(options.baseUrl);
 if (!["https:", "http:"].includes(base.protocol) || base.username || base.password || base.pathname !== "/" || base.search || base.hash) throw new Error("base-url must be an HTTP(S) origin");
 const origin = base.origin;
+const source = sourceLinks(options);
+const sourceDate = snapshotDate(options.sourceDate);
 const root = realpathSync(options.root);
 const requestedOut = resolve(options.out);
 // Canonicalize the nearest existing ancestor before creating any directories.
@@ -90,22 +97,26 @@ try {
     const name = String(entry.frontmatter.name);
     const markdown = readFileSync(join(publicDir, "skills", name, "SKILL.md"), "utf-8");
     const paths = entry.resources === "dynamic" ? ["SKILL.md"] : entry.resources.map(r => r.uri.slice(`skill://${name}/`.length));
+    const bytes = entry.resources === "dynamic" ? undefined : entry.resources.reduce((n, r) => n + r.size, 0);
     writeFileSync(join(publicDir, "skill", `${name}.md`), directoryMarkdown(name, String(entry.frontmatter.description ?? ""), paths, downloads[name], origin));
     writeFileSync(join(publicDir, "skill", `${name}.html`), renderSkillPage(
       detailTemplate, name, String(entry.frontmatter.description ?? ""), markdown,
-      paths, downloads[name], origin,
+      paths, downloads[name], origin, { bytes, source: source?.skill(name) },
     ));
   }
 
-  const catalogMarkdown = `# Skills over MCP
+  const intro = libraryIntro(portable.length);
+  const catalogMarkdown = `# ${intro.title}
 
-This site began as a reference implementation of the experimental [Skills Over MCP project](https://github.com/modelcontextprotocol/ext-skills). The same library now supports readable pages, Markdown discovery, and verified downloads, intended to make access intuitive and efficient for agents.
+> ${asMarkdown(intro.lead)}
+
+${asMarkdown(intro.body)}
 
 ## Connect through MCP
 
 Endpoint: ${origin}/mcp
 
-[Implementation source](https://github.com/fairchild/dotclaude/tree/main/mcp). HTTP downloads are also available without MCP setup.
+${source?.implementation ? `[Implementation source](${source.implementation}). ` : ""}HTTP downloads are also available without MCP setup.
 
 Find a skill, read its SKILL.md, and follow relative file references as needed. Each directory page lists every file and a complete installable archive.
 
@@ -132,19 +143,26 @@ ${portable.map(({ entry }) => `- [${entry.frontmatter.name}](/skill/${encodeURIC
       const name = String(entry.frontmatter.name);
       const description = String(entry.frontmatter.description ?? "").split(/(?<=[.!?])\s/)[0] ?? "";
       const cell = `<a href="/skills/${encodeURIComponent(name)}/">${escapeHtml(name)}</a>`;
-      return `<li><h2>${cell}</h2><p>${escapeHtml(description)}</p></li>`;
+      return `<li><h3>${cell}</h3><p>${escapeHtml(description)}</p></li>`;
     })
     .join("\n");
+  const shortSha = options.sourceSha?.slice(0, 7);
   const template = readFileSync(join(templateDir, "index.html"), "utf-8");
   writeFileSync(
     join(publicDir, "index.html"),
     template
       .replaceAll("https://skills.cloudcompute.com", escapeHtml(origin))
+      .replaceAll("{{TITLE}}", escapeHtml(intro.title))
+      .replaceAll("{{LEAD}}", asHtml(intro.lead))
+      .replaceAll("{{LEAD_TEXT}}", escapeHtml(asText(intro.lead)))
+      .replaceAll("{{BODY}}", asHtml(intro.body))
       .replaceAll("{{PORTABLE}}", String(portable.length))
       .replaceAll("{{TOTAL}}", String(catalog.skills.length))
       .replaceAll("{{MACHINE_BOUND}}", excluded.map((s) => String(s.entry.frontmatter.name)).join(", ") || "none")
       .replaceAll("{{SKILL_ROWS}}", rows)
-      .replaceAll("{{BUILT_AT}}", new Date().toISOString().slice(0, 10)),
+      .replaceAll("{{IMPLEMENTATION}}", source?.implementation ? ` · <a href="${escapeHtml(source.implementation)}">Implementation source ↗</a>` : "")
+      .replaceAll("{{BUILT_FROM}}", source ? `Built from <a href="${escapeHtml(source.repository)}">${escapeHtml(source.label)}</a>. ` : "")
+      .replaceAll("{{SNAPSHOT}}", `snapshot${sourceDate ? ` ${sourceDate}` : ""}${shortSha ? ` · ${source?.commit ? `<a href="${escapeHtml(source.commit)}">${escapeHtml(shortSha)}</a>` : escapeHtml(shortSha)}` : ""}`),
   );
 
   writeFileSync(join(publicDir, "version.json"), JSON.stringify({ sourceSha: options.sourceSha ?? null }));
@@ -169,3 +187,44 @@ ${portable.map(({ entry }) => `- [${entry.frontmatter.name}](/skill/${encodeURIC
 } finally { rmSync(staging, { recursive: true, force: true }); }
 
 }
+
+interface Source { repository: string; label: string; commit?: string; implementation?: string; skill(name: string): string | undefined }
+function sourceLinks({ sourceRepository, sourceSha }: BuildOptions): Source | undefined {
+  if (!sourceRepository) return undefined;
+  const url = new URL(sourceRepository);
+  if (!["https:", "http:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error("source-repository must be an HTTP(S) URL");
+  if (sourceSha !== undefined && !/^[0-9a-f]{7,64}$/i.test(sourceSha)) throw new Error("source-sha must be a hex commit id");
+  const repository = url.href.replace(/\/+$/, "");
+  // A link to a moving branch would describe files this snapshot may not hold.
+  const tree = (path: string) => sourceSha ? `${repository}/tree/${sourceSha}/${path}` : undefined;
+  return {
+    repository, label: url.pathname.replace(/^\/+|\/+$/g, "") || url.host,
+    commit: sourceSha && `${repository}/commit/${sourceSha}`, implementation: tree("mcp"),
+    skill: (name) => tree(`skills/${encodeURIComponent(name)}`),
+  };
+}
+
+function snapshotDate(value?: string): string | undefined {
+  if (value === undefined) return undefined;
+  const time = Date.parse(value);
+  if (Number.isNaN(time)) throw new Error("source-date must be an ISO 8601 date");
+  // The calendar date as the committer wrote it, which is what `git log` shows.
+  return /^\d{4}-\d{2}-\d{2}/.exec(value)?.[0] ?? new Date(time).toISOString().slice(0, 10);
+}
+
+type Copy = Array<string | { text: string; href: string }>;
+/** The landing page and llms.txt both open with this copy, differing only in format. */
+export function libraryIntro(count: number): { title: string; lead: Copy; body: Copy } {
+  return {
+    title: "Agent skills to read and install",
+    lead: [`A library of ${count} agent ${count === 1 ? "skill" : "skills"}: folders of instructions and supporting files that teach an AI agent a specific task.`],
+    body: [
+      "Read each skill here, then install it by pasting a prompt into your agent or by downloading a verified archive. ",
+      "MCP (Model Context Protocol) clients can also connect and load skills through the experimental ",
+      { text: "Skills over MCP extension", href: "https://github.com/modelcontextprotocol/ext-skills" }, ".",
+    ],
+  };
+}
+const asText = (copy: Copy) => copy.map((part) => typeof part === "string" ? part : part.text).join("");
+const asMarkdown = (copy: Copy) => copy.map((part) => typeof part === "string" ? part : `[${part.text}](${part.href})`).join("");
+const asHtml = (copy: Copy) => copy.map((part) => typeof part === "string" ? escapeHtml(part) : `<a href="${escapeHtml(part.href)}">${escapeHtml(part.text)}</a>`).join("");

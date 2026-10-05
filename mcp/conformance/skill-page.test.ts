@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { installSafety, packagePrompt, directoryMarkdown, installPrompt, renderMarkdown, renderSkillPage } from "../worker/skill-page.ts";
+import { buildSnapshot, libraryIntro } from "../worker/snapshot.ts";
 
 const template = readFileSync(join(import.meta.dir, "../worker/skill.html"), "utf8");
 describe("skill reading and installation", () => {
@@ -47,6 +48,44 @@ describe("skill reading and installation", () => {
     expect(page).toContain('&lt;/textarea&gt;');
     expect(page).toContain('{{NAME}}');
     expect(page).toContain('2 files');
+    expect(page).toContain('<meta property="og:description" content="&quot;&gt;&lt;img src=x onerror=alert(1)&gt;">');
+  });
+  test("instructions come before the file list, which folds away past ten files", () => {
+    const few = Array.from({ length: 10 }, (_, i) => i ? `references/${i}.md` : "SKILL.md");
+    const small = renderSkillPage(template, "example", "A useful skill.", "# Example\n", few, undefined, "https://example.org", { bytes: 2_600_000, source: "https://example.org/repo/tree/abc1234/skills/example" });
+    expect(small).toContain('<p class="meta">10 files · 2.6 MB · <a href="https://example.org/repo/tree/abc1234/skills/example">Source ↗</a>');
+    expect(small).toContain('<meta property="og:url" content="https://example.org/skills/example/">');
+    expect(small.indexOf("<article")).toBeLessThan(small.indexOf('<ul class="files">'));
+    expect(small).not.toContain('<details class="file-list">');
+    const large = renderSkillPage(template, "example", "A useful skill.", "# Example\n", [...few, "references/10.md"], undefined, undefined, { bytes: 1234 });
+    expect(large).toContain('<details class="file-list"><summary>11 files · 1.2 KB</summary><ul class="files">');
+    expect(large).not.toContain("Source ↗");
+  });
+  test("the landing page and llms.txt share one intro and pin source links to the commit", () => {
+    const root = mkdtempSync(join(tmpdir(), "intro-"));
+    try {
+      const fixtures = join(import.meta.dir, "fixtures");
+      const sha = "0123456789abcdef0123456789abcdef01234567";
+      buildSnapshot({ root: fixtures, out: join(root, "pinned"), baseUrl: "https://example.org", sourceSha: sha, sourceRepository: "https://github.com/owner/repo/", sourceDate: "2026-10-05T09:30:00Z" });
+      const index = readFileSync(join(root, "pinned/public/index.html"), "utf8");
+      const llms = readFileSync(join(root, "pinned/public/llms.txt"), "utf8");
+      const intro = libraryIntro(2);
+      expect(llms).toStartWith(`# ${intro.title}\n\n> ${intro.lead[0]}\n\n${intro.body[0]}${intro.body[1]}[Skills over MCP extension](https://github.com/modelcontextprotocol/ext-skills).`);
+      expect(index).toContain(`<p class="description">${intro.lead[0]}</p>`);
+      expect(index).toContain(`${intro.body[0]}${intro.body[1]}<a href="https://github.com/modelcontextprotocol/ext-skills">`);
+      expect(llms).toContain(`[Implementation source](https://github.com/owner/repo/tree/${sha}/mcp)`);
+      expect(index).toContain(`href="https://github.com/owner/repo/tree/${sha}/mcp"`);
+      expect(index).toContain(`<footer>dotclaude · snapshot 2026-10-05 · <a href="https://github.com/owner/repo/commit/${sha}">0123456</a></footer>`);
+      expect(readFileSync(join(root, "pinned/public/skill/git-workflow.html"), "utf8")).toContain(`href="https://github.com/owner/repo/tree/${sha}/skills/git-workflow"`);
+
+      buildSnapshot({ root: fixtures, out: join(root, "bare"), baseUrl: "https://example.org", sourceRepository: "https://github.com/owner/repo" });
+      for (const path of ["index.html", "llms.txt", "skill/git-workflow.html"]) expect(readFileSync(join(root, "bare/public", path), "utf8")).not.toContain("/tree/");
+      expect(readFileSync(join(root, "bare/public/index.html"), "utf8")).toContain("<footer>dotclaude · snapshot</footer>");
+
+      expect(() => buildSnapshot({ root: fixtures, out: join(root, "bad"), baseUrl: "https://example.org", sourceDate: "yesterday" })).toThrow("source-date");
+      expect(() => buildSnapshot({ root: fixtures, out: join(root, "bad"), baseUrl: "https://example.org", sourceRepository: "javascript:alert(1)" })).toThrow("source-repository");
+      expect(existsSync(join(root, "bad"))).toBe(false);
+    } finally { rmSync(root, { recursive: true, force: true }); }
   });
   test("prompt lists archive and every supporting path before the inline skill", () => {
     const markdown = "# Example\n";
@@ -232,7 +271,10 @@ describe("adversarial rendering snapshot", () => {
 
     // href/src allow-list and live event-handler attributes are checked
     // across the whole page: it must hold everywhere, not just the article.
+    // The one exception is the template's own inline SVG favicon, so the page
+    // may carry exactly the template's data: attributes and nothing more.
     expect(liveEventHandlerAttrs(page)).toBe(false);
-    expect(unsafeAttrs(page)).toEqual([]);
+    expect(unsafeAttrs(template)).toEqual([expect.stringMatching(/^data:image\/svg\+xml,/)]);
+    expect(unsafeAttrs(page)).toEqual(unsafeAttrs(template));
   });
 });
