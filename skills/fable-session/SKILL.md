@@ -31,11 +31,13 @@ A commit plus a demonstrated run — an e2e recording where there's a UI.
 
 ## Brief
 
-A written plan the session can read, committed before launch and pointed at
-rather than pasted, plus a short who-does-what naming the split above. Point at
-whatever already holds the plan — a plan file, a PRD, a backlog task. Absent
-one, `docs/plans/<name>.handoff.md` is the default, and the first place to look
-when a handoff arrives without a path.
+A written plan the session can read, pointed at rather than pasted, plus a
+short who-does-what naming the split above. Point at whatever already holds the
+plan — a backlog map, a PRD, the tracking issue. The handoff itself is not
+committed: post it as a "Session handoff" comment on the
+arc's tracking issue and have the first prompt say "read the session handoff
+comment on #N", or keep it as a local untracked file. Durable findings go to
+`docs/research/<topic>/`.
 
 ## Host
 

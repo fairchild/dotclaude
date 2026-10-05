@@ -207,3 +207,8 @@ agents/foundation.md
 # defensive: never track key material
 *.pem
 *.key
+
+# Written by the app into the runtime
+policy-limits.json.stamp.json
+state/
+skills/synced/

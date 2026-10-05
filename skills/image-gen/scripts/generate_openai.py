@@ -184,8 +184,13 @@ def main() -> None:
         "-m",
         default="gpt-image-2",
         help=(
-            "Model to use (default: gpt-image-2; common alternatives: "
-            "gpt-image-1.5, gpt-image-1, gpt-image-1-mini)"
+            "Model to use (default: gpt-image-2. The 2.5 family ships as two named "
+            "variants rather than a bare '2.5' -- gpt-image-2.5-sunburst and "
+            "gpt-image-2.5-flare, each also pinnable as ...-2026-09-08. Older: "
+            "gpt-image-1.5, gpt-image-1, gpt-image-1-mini. 'chatgpt-image-latest' "
+            "follows whatever ChatGPT uses. Ask the API for the truth: GET /v1/models "
+            "and filter on 'image' -- a 400 on a guessed id proves only that the id is "
+            "wrong, never that the model is absent.)"
         ),
     )
     parser.add_argument(
