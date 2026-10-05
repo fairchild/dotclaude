@@ -24,6 +24,7 @@ function emitPosthog(env: Env, ctx: ExecutionContext | undefined, request: Reque
       event: "skill_used",
       distinct_id: label || "public",
       properties: {
+        $process_person_profile: false,
         skill: served.skill,
         method: served.method,
         outcome: served.outcome,

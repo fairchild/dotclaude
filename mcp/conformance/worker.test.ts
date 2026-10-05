@@ -335,6 +335,7 @@ describe("posthog emission", () => {
       expect(captured[0].distinct_id).toBe("michael");
       expect(captured[0].properties.skill).toBe("git-workflow");
       expect(captured[0].properties.transport).toBe("hosted-worker");
+      expect(captured[0].properties.$process_person_profile).toBe(false);
 
       await worker.fetch(request(), phEnv, ctx); // unlabeled -> distinct_id public
       await Promise.all(waited);
