@@ -47,6 +47,7 @@ Markdown and the catalog so clients do not have to guess URLs.
 | `/index.json` | Short service JSON |
 | `/llms.txt`, `/index.md` | Markdown catalog, plain text |
 | `/manifest.json` | Catalog JSON |
+| `/sitemap.xml` | Sitemap of the landing page and each skill's directory page (`application/xml`) |
 | `/library.css` | Shared stylesheet |
 | `/fonts/<name>.woff2` | Self-hosted fonts (`font/woff2`), referenced by `library.css` |
 | `/skill/{name}`, `/skills/{name}` | Directory HTML, directory Markdown, directory plain text, gzip archive |

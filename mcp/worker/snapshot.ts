@@ -106,6 +106,15 @@ try {
     ));
   }
 
+  const xml = (text: string) => text.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+  const lastmod = sourceDate ? `<lastmod>${sourceDate}</lastmod>` : "";
+  const sitemapUrls = [`${origin}/`, ...portable.map(({ entry }) => `${origin}/skills/${encodeURIComponent(String(entry.frontmatter.name))}/`)];
+  writeFileSync(join(publicDir, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${sitemapUrls.map(loc => `<url><loc>${xml(loc)}</loc>${lastmod}</url>`).join("\n")}
+</urlset>
+`);
+
   const intro = libraryIntro(portable.length);
   const catalogMarkdown = `# ${intro.title}
 
