@@ -1,19 +1,21 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { spawnSync } from "node:child_process";
-import { installSafety, packagePrompt, directoryMarkdown, installPrompt, renderMarkdown, renderSkillPage } from "../worker/skill-page.ts";
+import { escapeHtml, installSafety, packagePrompt, directoryMarkdown, installPrompt, renderMarkdown, renderSkillPage, shellInstall } from "../worker/skill-page.ts";
 import { buildSnapshot, libraryIntro } from "../worker/snapshot.ts";
 
 const template = readFileSync(join(import.meta.dir, "../worker/skill.html"), "utf8");
 describe("skill reading and installation", () => {
+  const digest = "0123456789abcdef".repeat(4);
+  const pinned = { archive: `/downloads/example/${digest}.tgz`, manifest: `/downloads/example/${digest}.json`, digest };
   test("rejects unsafe skill names before generating install commands", () => {
     for (const name of ['$(touch injected)', '`touch injected`', 'name"; touch injected; "', "$HOME", "../outside", "nested/name", "a\\b", "name\n", "name\r", "name with spaces", "--checkpoint", "a--b", "trailing-", "", "Uppercase"]) {
       expect(() => installPrompt(name, "# Example\n", ["SKILL.md"])).toThrow("unsafe skill name");
     }
     for (const name of ["cmux-orchestrator", "skill-v2", "a", "123"]) {
-      expect(installPrompt(name, "# Example\n", ["SKILL.md"])).toContain(`.agents/skills/${name}`);
+      expect(installPrompt(name, "# Example\n", ["SKILL.md"])).toContain(`.claude/skills/${name}`);
     }
   });
   test("hosted build rejects unsafe names before copying resources or creating archives", () => {
@@ -111,14 +113,96 @@ describe("skill reading and installation", () => {
     const inline = installPrompt("example", "# Example\n", ["SKILL.md"]);
     expect(inline).toContain(installSafety);
     expect(inline.indexOf(installSafety)).toBeLessThan(inline.indexOf("# Example"));
-    const directory = directoryMarkdown("example", "A useful skill", ["SKILL.md", "references/a guide.md"], download);
+    const directory = directoryMarkdown("example", "A useful skill", ["SKILL.md", "references/a guide.md"], pinned);
     expect(directory).toContain("/skills/example/references/a%20guide.md");
     expect(directory).toContain("## Files");
-    expect(directory).toContain(prompt);
-    const page = renderSkillPage(template, "example", "A useful skill", "# Example\n", ["SKILL.md"], download);
+    expect(directory).toContain(packagePrompt("example", pinned));
+    const page = renderSkillPage(template, "example", "A useful skill", "# Example\n", ["SKILL.md"], pinned);
     expect(page).toContain('id="copy-inline"');
     expect(page).toContain('rel="canonical" href="/skills/example/"');
     expect(page).toContain('rel="alternate" type="text/markdown"');
+  });
+  test("both prompts name Claude Code's skills directory and the shared .agents one", () => {
+    const download = { archive: "/downloads/example/abc.tgz", manifest: "/downloads/example/abc.json", digest: "abc" };
+    const inline = installPrompt("example", "# Example\n", ["SKILL.md"]);
+    for (const prompt of [packagePrompt("example", download), packagePrompt("example"), inline]) {
+      expect(prompt).toContain("Claude Code loads skills from ~/.claude/skills/example.");
+      expect(prompt).toContain("~/.agents/skills/example");
+      expect(prompt).toContain("ask the user instead of guessing");
+    }
+    const command = inline.split("Run this command to install SKILL.md:\n\n")[1]!;
+    expect(command).toStartWith('# Claude Code reads this directory.');
+    expect(command).toContain('\nSKILLS_DIR="$HOME/.claude/skills"\nmkdir -p "$SKILLS_DIR/example"\ncat > "$SKILLS_DIR/example/SKILL.md"');
+    expect(command).not.toContain("$HOME/.agents/skills/example");
+  });
+  test("the shell command pins the archive and digest, and the page escapes it", () => {
+    const command = shellInstall("example", pinned, "https://example.org");
+    expect(command).toContain(`\nurl=https://example.org/downloads/example/${digest}.tgz\n`);
+    expect(command).toContain(`\nsha256=${digest}\n`);
+    expect(command).toContain('\nSKILLS_DIR="$HOME/.claude/skills"\n');
+    expect(command.split("'")).toHaveLength(3); // one single-quoted sh -c body
+    const page = renderSkillPage(template, "example", "A useful skill", "# Example\n", ["SKILL.md"], pinned, "https://example.org");
+    const field = /<textarea id="shell-command"[^>]*>([^<]*)<\/textarea>/.exec(page)?.[1];
+    expect(field).toBe(escapeHtml(command));
+    expect(field).toContain("SKILLS_DIR=&quot;$HOME/.claude/skills&quot;");
+    expect(page.indexOf('class="caution"')).toBeLessThan(page.indexOf('id="shell-command"'));
+    expect(page).toContain('id="copy-shell"');
+    expect(directoryMarkdown("example", "A useful skill", ["SKILL.md"], pinned, "https://example.org")).toContain("### Install from a shell\n\nRun this in a terminal.");
+    expect(directoryMarkdown("example", "A useful skill", ["SKILL.md"], pinned, "https://example.org")).toContain("```sh\n" + command + "\n```");
+    expect(renderSkillPage(template, "example", "A useful skill", "# Example\n", ["SKILL.md"])).not.toContain('id="shell-command"');
+    expect(directoryMarkdown("example", "A useful skill", ["SKILL.md"])).not.toContain("Install from a shell");
+    expect(() => shellInstall("example", { ...pinned, archive: "/downloads/example/skill.tgz" })).toThrow("unpinned");
+    expect(() => shellInstall("example", { ...pinned, digest: "abc" })).toThrow("unpinned");
+    expect(() => shellInstall("$(x)", pinned)).toThrow("unsafe skill name");
+    expect(() => shellInstall("example", pinned, "https://example.org'; rm -rf ~; '")).toThrow("unsafe origin");
+  });
+  test.skipIf(process.platform === "win32")("the shell command installs a built archive once, then refuses to overwrite", async () => {
+    const root = mkdtempSync(join(tmpdir(), "shell-install-"));
+    const server = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: req => {
+      const path = join(root, "site/public", decodeURIComponent(new URL(req.url).pathname));
+      return existsSync(path) && statSync(path).isFile() ? new Response(Bun.file(path)) : new Response("not found", { status: 404 });
+    } });
+    const files = (dir: string): string[] => readdirSync(dir, { recursive: true, encoding: "utf8" }).filter(path => statSync(join(dir, path)).isFile()).sort();
+    const run = async (command: string, home: string) => {
+      const proc = Bun.spawn(["sh", "-c", command], { env: { ...process.env, HOME: home }, stdout: "pipe", stderr: "pipe" });
+      const [status, stdout, stderr] = await Promise.all([proc.exited, new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+      return { status, stdout, stderr };
+    };
+    try {
+      const fixtures = join(import.meta.dir, "fixtures");
+      buildSnapshot({ root: fixtures, out: join(root, "site"), baseUrl: server.url.origin });
+      const command = /```sh\n([\s\S]*?)\n```/.exec(readFileSync(join(root, "site/public/skill/pdf-processing.md"), "utf8"))![1]!;
+      const home = join(root, "home");
+      mkdirSync(home);
+      const installed = join(home, ".claude/skills/pdf-processing");
+      const source = join(fixtures, "pdf-processing");
+
+      const first = await run(command, home);
+      expect(first.stderr).toBe("");
+      expect(first.status).toBe(0);
+      expect(first.stdout).toBe(`Installed pdf-processing in ${installed}\n`);
+      expect(files(installed)).toEqual(files(source));
+      for (const path of files(source)) expect(readFileSync(join(installed, path))).toEqual(readFileSync(join(source, path)));
+
+      writeFileSync(join(installed, "SKILL.md"), "local change\n");
+      const second = await run(command, home);
+      expect(second.status).not.toBe(0);
+      expect(second.stderr).toContain("already exists");
+      expect(readFileSync(join(installed, "SKILL.md"), "utf8")).toBe("local change\n");
+      expect(files(installed)).toEqual(files(source));
+
+      const elsewhere = join(root, "elsewhere");
+      mkdirSync(elsewhere);
+      const corrupt = await run(command.replace(/\nsha256=[a-f0-9]{64}\n/, `\nsha256=${"0".repeat(64)}\n`), elsewhere);
+      expect(corrupt.status).not.toBe(0);
+      expect(corrupt.stderr).toContain("SHA-256 mismatch");
+      expect(existsSync(join(elsewhere, ".claude"))).toBe(false);
+
+      const gone = await run(command.replace(/\/downloads\/pdf-processing\/[a-f0-9]{64}\.tgz/, `/downloads/pdf-processing/${"0".repeat(64)}.tgz`), elsewhere);
+      expect(gone.status).not.toBe(0);
+      expect(gone.stderr).toContain("Download failed");
+      expect(existsSync(join(elsewhere, ".claude"))).toBe(false);
+    } finally { server.stop(true); rmSync(root, { recursive: true, force: true }); }
   });
   for (const ending of ['\n', '']) {
     test(`copied shell command installs exact bytes ${ending ? 'with' : 'without'} final newline`, () => {
@@ -129,7 +213,7 @@ describe("skill reading and installation", () => {
         expect(prompt).toContain('https://skills.cloudcompute.com/manifest.json');
         expect(prompt).toContain('SHA-256');
         // Substitute only the destination; never change the process HOME.
-        const command = prompt.split('Run this command to install SKILL.md:\n\n')[1]!.replaceAll('"$HOME/.agents/skills/example', `"${root}/example`);
+        const command = prompt.split('Run this command to install SKILL.md:\n\n')[1]!.replace('SKILLS_DIR="$HOME/.claude/skills"', `SKILLS_DIR="${root}"`);
         const result = spawnSync('sh', ['-c', command], { encoding: 'utf8' });
         expect(result.status).toBe(0);
         expect(readFileSync(join(root, 'example/SKILL.md'), 'utf8')).toBe(markdown);

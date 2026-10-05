@@ -29,6 +29,7 @@
 <p class="caution">Verify the bytes and inspect the files before trusting a skill. A matching hash is not a safety review.</p>
 <details id="prompt-preview"><summary>Read the install prompt</summary><textarea id="install-prompt" aria-label="Install prompt" readonly spellcheck="false">{{PROMPT}}</textarea></details>
 <details id="inline-preview"><summary>Full inline prompt for offline use</summary><p>Includes SKILL.md. Supporting files still require a download.</p><button type="button" id="copy-inline">Copy full inline prompt</button><textarea id="inline-prompt" aria-label="Full inline install prompt" readonly spellcheck="false">{{INLINE_PROMPT}}</textarea></details>
+{{SHELL_INSTALL}}
 <p id="copy-status" role="status" aria-live="polite"></p>
 </section>
 <article aria-label="Skill instructions">{{CONTENT}}</article>
@@ -36,16 +37,16 @@
 <footer><a href="/">All skills</a> · The complete skill, with supporting files available on install.</footer>
 </main>
 <script>
-for (const [button, field, preview] of [['copy-install', 'install-prompt', 'prompt-preview'], ['copy-inline', 'inline-prompt', 'inline-preview']]) document.getElementById(button).addEventListener('click', async () => {
+for (const [button, field, preview, target] of [['copy-install', 'install-prompt', 'prompt-preview', 'your agent'], ['copy-inline', 'inline-prompt', 'inline-preview', 'your agent'], ['copy-shell', 'shell-command', 'shell-preview', 'a terminal']]) document.getElementById(button)?.addEventListener('click', async () => {
   const prompt = document.getElementById(field);
   const status = document.getElementById('copy-status');
   try {
     await navigator.clipboard.writeText(prompt.value);
-    status.textContent = 'Copied. Paste into your agent to install.';
+    status.textContent = `Copied. Paste into ${target} to install.`;
   } catch {
     document.getElementById(preview).open = true;
     prompt.focus(); prompt.select();
-    status.textContent = 'Copy the selected prompt with ⌘C or Ctrl+C.';
+    status.textContent = 'Copy the selected text with ⌘C or Ctrl+C.';
   }
 });
 /* Arriving from the library, the next thing to do is copy — so the button is

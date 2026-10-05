@@ -125,15 +125,32 @@ timestamp or ownership changes can change the archive digest. The companion JSON
 manifest uses the archive digest as its identifier, not a hash of its own JSON bytes.
 
 The default copied prompt identifies the package, destination guidance, archive
-SHA-256, and its matching manifest. The archive and manifest URLs contain the
+SHA-256, and its matching manifest. Both prompts name the destinations: Claude Code
+loads user-level skills from `~/.claude/skills/<name>`, while Codex and other agents
+that follow the shared convention load them from `~/.agents/skills/<name>`. The
+agent should use the directory it actually loads from and ask the user when unsure.
+The inline prompt's command sets `SKILLS_DIR="$HOME/.claude/skills"` on its own
+line so it is right for Claude Code and has one place to change. The archive and manifest URLs contain the
 archive digest, and the resolver accepts only the package named in the hosted
 catalog. This prevents silent substitution when the snapshot changes. The full
 inline prompt is a separate option; it includes SKILL.md but supporting files
 still need downloading.
 
+For people who want a terminal command instead of a prompt, each skill page and
+Markdown directory also carries a shell install. It runs in a child `sh -eu` so a
+failure cannot exit the user's shell, downloads the pinned archive with `curl -f`,
+compares its SHA-256 (`sha256sum`, falling back to `shasum -a 256`), extracts into a
+fresh temporary directory, and moves the `<name>/` directory into
+`$SKILLS_DIR` (default `~/.claude/skills`). It stops before downloading if
+`$SKILLS_DIR/<name>` exists, so local changes survive, and it removes its
+temporary directory on exit. It verifies integrity only; it does not inspect the
+skill.
+
 Content addressing does not promise historical retention. This static deployment
 contains the current build only: an older package URL can return 404 after a new
-deployment. Clients must report that result rather than silently fetch latest.
+deployment. Clients must report that result rather than silently fetch latest. The shell
+install fails with a message to reload the page and never falls back to an
+unpinned URL.
 Persisting historical packages would need a separate storage/retention decision.
 The existing `/downloads/{name}/skill.tgz` URL continues to mean the latest build.
 
