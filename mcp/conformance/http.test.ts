@@ -7,7 +7,8 @@ const files: Record<string, Uint8Array> = {
   "SKILL.md": new TextEncoder().encode("# Example\r\nExact bytes, no final newline"),
   "scripts/run.py": new TextEncoder().encode("print('hello')\n"),
   "references/a b.md": new TextEncoder().encode("# Space\n"),
-  "example.html": new TextEncoder().encode("<!doctype html><title>Supporting file</title>"),
+  "example.html": new TextEncoder().encode("<!doctype html><title>Supporting file</title><script>parent.alert(1)</script>"),
+  "diagram.svg": new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
   "image.png": new Uint8Array([137, 80, 78, 71, 0, 255, 128]),
 };
 const skills: StoredSkill[] = [{ tier: "portable", entry: {
@@ -77,6 +78,39 @@ describe("HTTP route and representation contract", () => {
     expect(response.headers.get("Content-Type")).toStartWith(type!);
     expect(Array.from(new Uint8Array(await response.arrayBuffer()))).toEqual(Array.from(files[file!]!));
     expect((await get(path!, "application/unavailable")).status).toBe(406);
+  });
+
+  test.each([
+    ["/skills/example/example.html", "text/html; charset=utf-8", "example.html"],
+    ["/skill/example/diagram.svg", "image/svg+xml; charset=utf-8", "diagram.svg"],
+    ["/txt/example/example.html", "text/plain; charset=utf-8", "example.html"],
+    ["/skills/example/SKILL.md", "text/markdown; charset=utf-8", "SKILL.md"],
+  ])("skill-authored %s runs sandboxed with unchanged bytes and type", async (path, type, file) => {
+    for (const response of [await get(path!), await get(path!, undefined, "HEAD")]) {
+      expect(response.headers.get("Content-Security-Policy")).toBe("sandbox; frame-ancestors 'none'");
+      expect(response.headers.get("Content-Type")).toBe(type!);
+      expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    }
+    expect(Array.from(new Uint8Array(await (await get(path!)).arrayBuffer()))).toEqual(Array.from(files[file!]!));
+    const cached = await get(path!, undefined, "GET", { "If-None-Match": `"/skills/example/${file}"` });
+    expect(cached.status).toBe(304);
+    expect(cached.headers.get("Content-Security-Policy")).toBe("sandbox; frame-ancestors 'none'");
+  });
+
+  test("generated pages keep their scripts but refuse framing; errors carry the same policy", async () => {
+    for (const path of ["/skill/example", "/skill/example.html", "/skills/example.md", "/downloads/example/skill.tgz"]) {
+      const response = await get(path);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Security-Policy")).toBe("frame-ancestors 'none'");
+      expect(response.headers.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
+    }
+    for (const [path, method, accept, status] of [["/skills/missing", "GET", undefined, 404], ["/txt/example/%GG", "GET", undefined, 400],
+      ["/skills/example", "POST", undefined, 405], ["/skills/example/example.html", "GET", "application/json", 406]] as const) {
+      const response = await get(path, accept, method);
+      expect(response.status).toBe(status);
+      expect(response.headers.get("Content-Security-Policy")).toBe("frame-ancestors 'none'");
+      expect(response.headers.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
+    }
   });
 
   test("directory representations retain navigation while SKILL.md stays pristine", async () => {

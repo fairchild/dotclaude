@@ -3,7 +3,7 @@ import type { StoredSkill } from "../core/store.ts";
 import { negotiate } from "./accept.ts";
 
 export interface Assets { fetch(request: Request): Promise<Response> }
-type Representation = { asset: string; contentType: string; headers?: Record<string, string> };
+type Representation = { asset: string; contentType: string; headers?: Record<string, string>; skillAuthored?: true };
 type HostedSkill = StoredSkill & { download?: Download };
 type Route = { name: string; path: string; formats: string[] };
 
@@ -27,13 +27,18 @@ function fileType(path: string, plain = false): string {
     : binaryTypes[ext] ?? "application/octet-stream";
 }
 
+// Every response refuses framing and trims referrers. Skill-authored bytes also
+// run sandboxed, so a bundled HTML or SVG file cannot script this origin.
+const framing = "frame-ancestors 'none'";
+const policy = { "Content-Security-Policy": framing, "Referrer-Policy": "strict-origin-when-cross-origin" };
+
 // Each format owns its asset selection, media type, and custom headers.
 const formats: Record<string, (name: string, path: string) => Representation> = {
   html: name => ({ asset: `/skill/${encoded(name)}.html`, contentType: "text/html; charset=utf-8" }),
   markdown: name => ({ asset: `/skill/${encoded(name)}.md`, contentType: "text/markdown; charset=utf-8" }),
   directoryPlain: name => ({ asset: `/skill/${encoded(name)}.md`, contentType: "text/plain; charset=utf-8" }),
-  plain: (name, path) => ({ asset: `/skills/${encoded(name + "/" + path)}`, contentType: fileType(path, true) }),
-  raw: (name, path) => ({ asset: `/skills/${encoded(name + "/" + path)}`, contentType: fileType(path) }),
+  plain: (name, path) => ({ asset: `/skills/${encoded(name + "/" + path)}`, contentType: fileType(path, true), skillAuthored: true }),
+  raw: (name, path) => ({ asset: `/skills/${encoded(name + "/" + path)}`, contentType: fileType(path), skillAuthored: true }),
   archive: name => ({
     asset: `/downloads/${encoded(name)}/skill.tgz`, contentType: "application/gzip",
     headers: { "Content-Disposition": `attachment; filename="${name}.tgz"` },
@@ -60,7 +65,7 @@ function pathname(request: Request): string | null {
 export async function serveHttp(request: Request, assets: Assets, skills: () => Promise<HostedSkill[]>): Promise<Response> {
   const error = (status: number, message: string, extra: Record<string, string> = {}) => new Response(
     request.method === "HEAD" ? null : message,
-    { status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", ...extra } },
+    { status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", ...policy, ...extra } },
   );
   if (!["GET", "HEAD"].includes(request.method)) return error(405, "Use GET or HEAD", { Allow: "GET, HEAD" });
   const path = pathname(request);
@@ -107,11 +112,13 @@ export async function serveHttp(request: Request, assets: Assets, skills: () => 
   // selected bytes. Forward conditional headers and the original GET/HEAD.
   const response = await assets.fetch(new Request(url.toString(), request));
   const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(policy)) headers.set(key, value);
   const vary = headers.get("Vary");
   if (vary !== "*" && !vary?.split(",").some(v => v.trim().toLowerCase() === "accept")) headers.set("Vary", vary ? `${vary}, Accept` : "Accept");
   if (response.ok || response.status === 304) {
     headers.set("Content-Type", selected.contentType);
     headers.set("X-Content-Type-Options", "nosniff");
+    if (selected.skillAuthored) headers.set("Content-Security-Policy", `sandbox; ${framing}`);
     const alternate = selected.asset.startsWith("/skill/") ? selected.asset.replace(/\.(html|md)$/, ".md")
       : ["/index.html", "/llms.txt"].includes(selected.asset) ? "/llms.txt" : null;
     headers.set("Link", `${alternate ? `<${alternate}>; rel="alternate"; type="text/markdown", ` : ""}</llms.txt>; rel="describedby"`);

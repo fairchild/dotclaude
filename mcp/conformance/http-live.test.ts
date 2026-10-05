@@ -26,7 +26,10 @@ describe.skipIf(!origin)("local Worker HTTP integration", () => {
     expect(skill).toStartWith("---");
     const supporting = fileLinks.find(path => !path.endsWith("/SKILL.md"));
     expect(supporting).toBeTruthy();
-    expect((await get(supporting!)).status).toBe(200);
+    const file = await get(supporting!);
+    expect(file.status).toBe(200);
+    expect(file.headers.get("Content-Security-Policy")).toBe("sandbox; frame-ancestors 'none'");
+    await file.arrayBuffer();
     const archiveUrl = new URL(directory.match(/^Download: (.+)$/m)![1]!);
     const manifestUrl = new URL(directory.match(/^Manifest: (.+)$/m)![1]!);
     const digest = directory.match(/^SHA-256: ([a-f0-9]{64})$/m)![1]!;
@@ -79,10 +82,17 @@ describe.skipIf(!origin)("local Worker HTTP integration", () => {
     expect((await get(`/txt/${name}/missing`)).status).toBe(404);
     expect((await get(`/txt/${name}/%252e%252e/manifest.json`)).status).toBe(400);
     expect((await get(`/txt/${name}/a%2fb`)).status).toBe(400);
-    expect((await get("/", "text/html")).status).toBe(200);
+    const landing = await get("/", "text/html");
+    expect(landing.status).toBe(200);
+    expect(landing.headers.get("Content-Security-Policy")).toBe("frame-ancestors 'none'");
+    expect(landing.headers.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
+    await landing.arrayBuffer();
     expect((await get("/mcp")).status).toBe(405);
     const rpc = await fetch(`${origin}/mcp`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "skills/list", params: {} }) });
     expect(rpc.status).toBe(200);
+    // RFC 6797: the deployment sends HSTS over HTTPS only, so a local http origin sees none.
+    const hsts = origin!.startsWith("https:") ? "max-age=31536000" : null;
+    for (const response of [landing, rpc]) expect(response.headers.get("Strict-Transport-Security")).toBe(hsts);
     expect((await rpc.json() as any).result.skills.length).toBeGreaterThan(0);
   });
 

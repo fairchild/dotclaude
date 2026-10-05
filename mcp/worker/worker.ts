@@ -61,17 +61,25 @@ function record(env: Env, request: Request, served: Served, latencyMs: number): 
   }
 }
 
+/** TLS policy is this deployment's call; RFC 6797 sends HSTS only over HTTPS. */
+function transportSecurity(url: URL, response: Response): Response {
+  if (url.protocol !== "https:") return response;
+  const headers = new Headers(response.headers);
+  headers.set("Strict-Transport-Security", "max-age=31536000");
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname !== "/mcp") {
-      return handleRequest(request, env);
+      return transportSecurity(url, await handleRequest(request, env));
     }
     const started = Date.now();
     const served = await serve(request, env);
     const latencyMs = Date.now() - started;
     record(env, request, served, latencyMs);
     emitPosthog(env, ctx, request, served, latencyMs);
-    return served.response;
+    return transportSecurity(url, served.response);
   },
 };

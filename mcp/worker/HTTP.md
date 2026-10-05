@@ -85,6 +85,18 @@ change success to 406. Errors use `Cache-Control: no-store`. Successful response
 include `X-Content-Type-Options: nosniff`. Archives use `application/gzip`, not a
 `Content-Encoding` transformation.
 
+Every download-route response, errors included, carries
+`Content-Security-Policy: frame-ancestors 'none'` and
+`Referrer-Policy: strict-origin-when-cross-origin`. Skill files are untrusted, so the
+`/skills/{name}/{path}` and `/txt/` routes, whose bytes come straight from a skill,
+send `Content-Security-Policy: sandbox; frame-ancestors 'none'` on success and 304: a
+bundled `.html` or `.svg` file renders with an opaque origin and no scripts instead of
+running as a page on the catalog's origin. Bytes and `Content-Type` are unchanged.
+Generated pages, directory Markdown, and archives are not sandboxed; the HTML pages
+need their own scripts, and the others are never rendered as active documents. The
+Cloudflare deployment adds `Strict-Transport-Security: max-age=31536000` to HTTPS
+responses in `worker.ts`; the package leaves transport policy to whoever hosts it.
+
 The Worker forwards the original method, range, and conditional headers to the
 selected asset. Cloudflare supplies asset ETags, cache policy, and conditional
 responses; this layer preserves them and merges `Vary`. Plain text and Markdown

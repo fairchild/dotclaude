@@ -95,7 +95,9 @@ adapter: it delegates every non-`/mcp` path straight to `handleRequest`, and on
 `/mcp` it measures latency, writes one Analytics Engine datapoint
 ([worker.ts](../mcp/worker/worker.ts#L43)) and fires a PostHog event when a key is
 configured ([worker.ts](../mcp/worker/worker.ts#L15)). Telemetry emission lives only in
-that file — the reusable package has none.
+that file — the reusable package has none. The same goes for transport policy: `worker.ts`
+adds `Strict-Transport-Security` to every HTTPS response, `/mcp` included
+([worker.ts](../mcp/worker/worker.ts#L65)).
 
 ## Building a snapshot
 
@@ -142,23 +144,26 @@ skill files byte-exact ([snapshot.ts](../mcp/worker/snapshot.ts#L81)).
 
 `serveHttp` resolves a path to a set of candidate representations, then lets
 `Accept` choose among them. The route table is five patterns
-([http.ts](../mcp/worker/http.ts#L44)); each format owns its asset selection,
+([http.ts](../mcp/worker/http.ts#L49)); each format owns its asset selection,
 media type and extra headers in one place
-([http.ts](../mcp/worker/http.ts#L31)), and the default preference order is HTML,
-Markdown, plain text, archive ([http.ts](../mcp/worker/http.ts#L42)). Paths are
+([http.ts](../mcp/worker/http.ts#L36)), and the default preference order is HTML,
+Markdown, plain text, archive ([http.ts](../mcp/worker/http.ts#L47)). Paths are
 decoded segment-by-segment and rejected on separators, dot segments, control
-characters or residual `%` ([http.ts](../mcp/worker/http.ts#L52)). Selection runs
+characters or residual `%` ([http.ts](../mcp/worker/http.ts#L57)). Selection runs
 through an RFC 9110 media-range implementation where specificity picks each
 candidate's quality and candidate order breaks ties
 ([accept.ts](../mcp/worker/accept.ts#L29),
 [accept.ts](../mcp/worker/accept.ts#L50)). Chosen bytes are fetched from the asset
 binding with the original method and conditional headers
-([http.ts](../mcp/worker/http.ts#L108)), `Vary: Accept` is merged into whatever
-the binding returned ([http.ts](../mcp/worker/http.ts#L111)), and successful
+([http.ts](../mcp/worker/http.ts#L113)), `Vary: Accept` is merged into whatever
+the binding returned ([http.ts](../mcp/worker/http.ts#L117)), and successful
 responses get `X-Content-Type-Options: nosniff`
-([http.ts](../mcp/worker/http.ts#L114)). The full URL table, negotiation rules and
-caching behavior are in [worker/HTTP.md](../mcp/worker/HTTP.md); this section does
-not restate them.
+([http.ts](../mcp/worker/http.ts#L120)). Every response refuses framing, and the raw
+and `/txt/` formats, whose bytes a skill wrote, add a CSP `sandbox` so a bundled HTML
+or SVG file cannot run script on the catalog's origin
+([http.ts](../mcp/worker/http.ts#L40), [http.ts](../mcp/worker/http.ts#L121)). The
+full URL table, negotiation rules, caching and header behavior are in
+[worker/HTTP.md](../mcp/worker/HTTP.md); this section does not restate them.
 
 ## Digests and archives
 
@@ -183,7 +188,7 @@ That digest is then the address. Each skill gets
 archive record and the skill entry
 ([snapshot.ts](../mcp/worker/snapshot.ts#L67)), and the pinned route serves them
 only when the digest matches the current manifest's download record
-([http.ts](../mcp/worker/http.ts#L84)). Old digests are not retained: a snapshot
+([http.ts](../mcp/worker/http.ts#L89)). Old digests are not retained: a snapshot
 holds the current build only, so a previously published digest URL returns 404
 after a rebuild. `/downloads/{name}/skill.tgz` always means the latest build.
 
@@ -282,6 +287,6 @@ in the scanner, so stdio and hosted builds reject the same names
 ([manifest.ts](../mcp/core/manifest.ts#L93)). One residue: the same name regex is
 written out separately in the scanner, the page generator, the HTTP resolver and
 the materializer ([skill-page.ts](../mcp/worker/skill-page.ts#L7),
-[http.ts](../mcp/worker/http.ts#L94),
+[http.ts](../mcp/worker/http.ts#L99),
 [materialize.ts](../mcp/core/materialize.ts#L41)) rather than shared from one
 place.
