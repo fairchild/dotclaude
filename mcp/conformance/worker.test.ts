@@ -216,6 +216,24 @@ describe("worker binding", () => {
     expect(result.resources.map((r: any) => r.name)).toEqual(["invoice.md", "regional"]);
   });
 
+  test("the deployment adds HSTS over HTTPS to pages, files, errors, and MCP", async () => {
+    const hsts = (response: Response) => response.headers.get("Strict-Transport-Security");
+    const page = await worker.fetch(new Request("https://skills.example/skill/git-workflow.html"), env);
+    expect(page.status).toBe(200);
+    expect(hsts(page)).toBe("max-age=31536000");
+    expect(page.headers.get("Content-Security-Policy")).toBe("frame-ancestors 'none'");
+    const file = await worker.fetch(new Request("https://skills.example/skills/pdf-processing/scripts/extract.py"), env);
+    expect(file.headers.get("Content-Security-Policy")).toBe("sandbox; frame-ancestors 'none'");
+    expect(Buffer.from(await file.arrayBuffer())).toEqual(readFileSync(join(FIXTURES, "pdf-processing/scripts/extract.py")));
+    expect(hsts(file)).toBe("max-age=31536000");
+    expect(hsts(await worker.fetch(new Request("https://skills.example/missing"), env))).toBe("max-age=31536000");
+    const mcp = await post({ jsonrpc: "2.0", id: ++nextId, method: "skills/list", params: {} });
+    expect(mcp.status).toBe(200);
+    expect(hsts(mcp)).toBe("max-age=31536000");
+    expect(hsts(await worker.fetch(new Request("https://skills.example/mcp"), env))).toBe("max-age=31536000");
+    expect(hsts(await worker.fetch(new Request("http://skills.example/"), env))).toBeNull();
+  });
+
   test("GET is 405 and batches are rejected", async () => {
     const get = await worker.fetch(new Request("https://skills.example/mcp"), env);
     expect(get.status).toBe(405);
