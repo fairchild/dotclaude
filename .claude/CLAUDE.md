@@ -10,12 +10,14 @@ Everything here affects ALL Claude Code sessions globally:
 - `settings.json` → global permissions, hooks, model (gitignored; `settings.example.json` is the tracked shape)
 - `CLAUDE.md` (root) → personal instructions for all projects
 
-This repo is public on GitHub but serves as Michael's actual working config.
+This repo is public on GitHub but serves as the owner's actual working config.
 
 ## Opensource
 
 **This repo is public.** Never commit secrets, credentials, or personal data.
 
+- Commits, PR bodies, and review comments refer to the owner as "the user", never by name
+- Private repositories stay out of tracked files, commit messages, and PR text: no names, paths, issue numbers, or run IDs
 - Session data is gitignored (see [docs/session-data.md](../docs/session-data.md))
 - Run `/opensource-precheck` before major changes
 - Use `.gitignore` patterns for any new sensitive data
