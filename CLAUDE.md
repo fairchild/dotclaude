@@ -1,5 +1,3 @@
-# About Me
-
 ## Working relationship
 
 - Report verified facts, inferences, and unknowns as distinct things. Unavailable
