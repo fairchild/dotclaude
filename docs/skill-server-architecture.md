@@ -101,44 +101,61 @@ adds `Strict-Transport-Security` to every HTTPS response, `/mcp` included
 
 ## Building a snapshot
 
-`buildSnapshot({root, out, baseUrl, sourceSha})`
-([snapshot.ts](../mcp/worker/snapshot.ts#L12)) turns a live skills directory into
+`buildSnapshot({root, out, baseUrl, sourceSha, sourceRepository, sourceDate})`
+([snapshot.ts](../mcp/worker/snapshot.ts#L17)) turns a live skills directory into
 a static tree. It validates `baseUrl` as a bare HTTP(S) origin — no credentials,
-path, query or fragment ([snapshot.ts](../mcp/worker/snapshot.ts#L16)) — and
+path, query or fragment ([snapshot.ts](../mcp/worker/snapshot.ts#L21)) — and
 threads that origin through every generated page, install prompt and endpoint
-reference ([snapshot.ts](../mcp/worker/snapshot.ts#L88),
-[snapshot.ts](../mcp/worker/snapshot.ts#L101)).
+reference ([snapshot.ts](../mcp/worker/snapshot.ts#L104),
+[snapshot.ts](../mcp/worker/snapshot.ts#L117)).
+
+The three source inputs are optional and describe the commit the snapshot came
+from. `sourceRepository` is the repository's web URL, validated like `baseUrl`
+but allowed a path ([snapshot.ts](../mcp/worker/snapshot.ts#L192)). With
+`sourceSha` it yields links pinned to that commit: each skill page's Source link
+to `<repository>/tree/<sha>/skills/<name>`, and the implementation link in
+`llms.txt` and on the landing page to `<repository>/tree/<sha>/mcp`
+([snapshot.ts](../mcp/worker/snapshot.ts#L199)). Without a sha those links are
+left out rather than pointed at a branch. `sourceDate`, the commit's ISO 8601
+date, is the date in the landing page footer
+([snapshot.ts](../mcp/worker/snapshot.ts#L207)); without it the footer shows no
+date, so two builds of the same commit produce the same page. The deployment
+build passes all three from the CI checkout
+([prepare-worker.mjs](../mcp/scripts/prepare-worker.mjs#L21)).
+
+The landing page and `llms.txt` open with the same intro, written once and
+rendered as HTML or Markdown ([snapshot.ts](../mcp/worker/snapshot.ts#L217)).
 
 Output validation runs before anything is created. The requested output is
 canonicalized through its nearest existing ancestor
-([snapshot.ts](../mcp/worker/snapshot.ts#L21)), then rejected if it contains, or
+([snapshot.ts](../mcp/worker/snapshot.ts#L28)), then rejected if it contains, or
 is contained by, the source root, or if it contains the working directory
-([snapshot.ts](../mcp/worker/snapshot.ts#L27)). Because a top-level skill may be a
+([snapshot.ts](../mcp/worker/snapshot.ts#L34)). Because a top-level skill may be a
 symlink pointing outside the root, the same containment test runs again against
 each scanned skill's resolved directory
-([snapshot.ts](../mcp/worker/snapshot.ts#L30)). An existing output is replaced
+([snapshot.ts](../mcp/worker/snapshot.ts#L43)). An existing output is replaced
 only when it is not a symlink and carries the builder's own
-`.skill-server-output` marker ([snapshot.ts](../mcp/worker/snapshot.ts#L33)).
+`.skill-server-output` marker ([snapshot.ts](../mcp/worker/snapshot.ts#L47)).
 
 The build then writes into a fresh `mkdtemp` staging directory
-([snapshot.ts](../mcp/worker/snapshot.ts#L35)). Copying re-hashes each source file
+([snapshot.ts](../mcp/worker/snapshot.ts#L49)). Copying re-hashes each source file
 and aborts if size or digest disagrees with the scan
-([snapshot.ts](../mcp/worker/snapshot.ts#L56)), so a manifest never describes
+([snapshot.ts](../mcp/worker/snapshot.ts#L68)), so a manifest never describes
 bytes the snapshot does not hold. Staging receives `public/skills/<name>/<path>`
-with modes preserved ([snapshot.ts](../mcp/worker/snapshot.ts#L57)), one archive
+with modes preserved ([snapshot.ts](../mcp/worker/snapshot.ts#L69)), one archive
 and one pinned manifest per skill
-([snapshot.ts](../mcp/worker/snapshot.ts#L60)), the catalog `manifest.json`
-([snapshot.ts](../mcp/worker/snapshot.ts#L73)), generated `.md` and `.html`
-detail pages ([snapshot.ts](../mcp/worker/snapshot.ts#L88)), `llms.txt` and
-`index.json` ([snapshot.ts](../mcp/worker/snapshot.ts#L116)), the landing page,
-and `version.json` ([snapshot.ts](../mcp/worker/snapshot.ts#L145)). Only after all
+([snapshot.ts](../mcp/worker/snapshot.ts#L74)), the catalog `manifest.json`
+([snapshot.ts](../mcp/worker/snapshot.ts#L84)), generated `.md` and `.html`
+detail pages ([snapshot.ts](../mcp/worker/snapshot.ts#L101)), `llms.txt` and
+`index.json` ([snapshot.ts](../mcp/worker/snapshot.ts#L132)), the landing page,
+and `version.json` ([snapshot.ts](../mcp/worker/snapshot.ts#L168)). Only after all
 of that does the marker get written, the previous output get renamed aside, and
 staging get renamed into place — with the old snapshot restored if the rename
-fails ([snapshot.ts](../mcp/worker/snapshot.ts#L155)). Staging is removed in a
-`finally` either way ([snapshot.ts](../mcp/worker/snapshot.ts#L164)).
+fails ([snapshot.ts](../mcp/worker/snapshot.ts#L178)). Staging is removed in a
+`finally` either way ([snapshot.ts](../mcp/worker/snapshot.ts#L187)).
 
 Detail pages are separate assets from resource paths, which is what keeps served
-skill files byte-exact ([snapshot.ts](../mcp/worker/snapshot.ts#L81)).
+skill files byte-exact ([snapshot.ts](../mcp/worker/snapshot.ts#L93)).
 
 ## HTTP representations
 
@@ -174,11 +191,11 @@ Manifest digests are per-file SHA-256 over the exact bytes read, formatted
 
 An archive digest is a different thing: it is the SHA-256 of the finished gzip
 bytes, not a hash over the member files
-([snapshot.ts](../mcp/worker/snapshot.ts#L66)). Those bytes are reproducible
+([snapshot.ts](../mcp/worker/snapshot.ts#L78)). Those bytes are reproducible
 because the tar is created with `portable: true`, a fixed `mtime` of the epoch and
-no directory recursion ([snapshot.ts](../mcp/worker/snapshot.ts#L62)) over a
-sorted member list ([snapshot.ts](../mcp/worker/snapshot.ts#L64)), while file
-modes survive the copy ([snapshot.ts](../mcp/worker/snapshot.ts#L57)). Two builds
+no directory recursion ([snapshot.ts](../mcp/worker/snapshot.ts#L74)) over a
+sorted member list ([snapshot.ts](../mcp/worker/snapshot.ts#L76)), while file
+modes survive the copy ([snapshot.ts](../mcp/worker/snapshot.ts#L70)). Two builds
 of the same source produce identical archive bytes; the packaged consumer check
 asserts exactly that
 ([consumer-test.mjs](../mcp/scripts/consumer-test.mjs#L29)).
@@ -186,7 +203,7 @@ asserts exactly that
 That digest is then the address. Each skill gets
 `/downloads/{name}/{sha256}.tgz` and a companion `{sha256}.json` carrying the
 archive record and the skill entry
-([snapshot.ts](../mcp/worker/snapshot.ts#L67)), and the pinned route serves them
+([snapshot.ts](../mcp/worker/snapshot.ts#L79)), and the pinned route serves them
 only when the digest matches the current manifest's download record
 ([http.ts](../mcp/worker/http.ts#L89)). Old digests are not retained: a snapshot
 holds the current build only, so a previously published digest URL returns 404
@@ -268,12 +285,12 @@ where the candidate commit stands and what was read to say so.
 
 | Review finding | Status | Evidence at `d2fd7a8a` |
 | --- | --- | --- |
-| P1 — nested symlinks escape a selected skill | Closed | `checkedPath` throws on any symlink component and on a resolved path outside the root ([files.ts](../mcp/core/files.ts#L17), [files.ts](../mcp/core/files.ts#L19)); the scan walk throws on symlinks and special files ([manifest.ts](../mcp/core/manifest.ts#L66)); reads open `O_NOFOLLOW` and compare inode/device across the open ([files.ts](../mcp/core/files.ts#L25)); the build copies through the same checked read ([snapshot.ts](../mcp/worker/snapshot.ts#L55)). Regression tests cover external links, cycles, and a listed file replaced by a symlink ([security.test.ts](../mcp/conformance/security.test.ts#L21), [security.test.ts](../mcp/conformance/security.test.ts#L30)). |
+| P1 — nested symlinks escape a selected skill | Closed | `checkedPath` throws on any symlink component and on a resolved path outside the root ([files.ts](../mcp/core/files.ts#L17), [files.ts](../mcp/core/files.ts#L19)); the scan walk throws on symlinks and special files ([manifest.ts](../mcp/core/manifest.ts#L66)); reads open `O_NOFOLLOW` and compare inode/device across the open ([files.ts](../mcp/core/files.ts#L25)); the build copies through the same checked read ([snapshot.ts](../mcp/worker/snapshot.ts#L67)). Regression tests cover external links, cycles, and a listed file replaced by a symlink ([security.test.ts](../mcp/conformance/security.test.ts#L21), [security.test.ts](../mcp/conformance/security.test.ts#L30)). |
 | P1 — parsed JSON cast to a message without envelope validation | Closed | `JSONRPCMessageSchema.safeParse` runs before dispatch and a failure answers 400 ([handler.ts](../mcp/worker/handler.ts#L123)); notifications answer 202 rather than waiting ([handler.ts](../mcp/worker/handler.ts#L139)); the timeout handle is cleared on every exit ([handler.ts](../mcp/worker/handler.ts#L151)). Covered by [security.test.ts](../mcp/conformance/security.test.ts#L110). |
 | P1 — no Origin or protocol-version validation | Closed | A present `Origin` must match the request origin or an exact `ALLOWED_ORIGINS` entry, else 403 ([handler.ts](../mcp/worker/handler.ts#L79)); an unsupported `MCP-Protocol-Version` answers 400 ([handler.ts](../mcp/worker/handler.ts#L81)); non-POST answers 405 with `Allow`, the spec-permitted stateless behavior ([handler.ts](../mcp/worker/handler.ts#L82)). `serve` fixes the origin to the bound listener ([node-server.ts](../mcp/node-server.ts#L20)). Covered by [security.test.ts](../mcp/conformance/security.test.ts#L123). |
 | P1 — whole body read before length check; scanner budgets checked after traversal | Closed | `Content-Length` is rejected above 64 KiB before reading, and the stream is bounded per chunk with the reader cancelled on overflow ([handler.ts](../mcp/worker/handler.ts#L98), [handler.ts](../mcp/worker/handler.ts#L108)); the walk bounds depth and visited entries during traversal ([manifest.ts](../mcp/core/manifest.ts#L56), [manifest.ts](../mcp/core/manifest.ts#L63)); the file limit is checked before the path is recorded ([manifest.ts](../mcp/core/manifest.ts#L69)); size is checked against `stat` before allocation and the remaining budget is passed per file ([files.ts](../mcp/core/files.ts#L30), [manifest.ts](../mcp/core/manifest.ts#L117)). Covered by [security.test.ts](../mcp/conformance/security.test.ts#L49), [security.test.ts](../mcp/conformance/security.test.ts#L116). |
-| P1 — output deleted before validation; representations derived at different times | Closed | Every overlap check, including against each resolved skill directory, runs before any directory is created ([snapshot.ts](../mcp/worker/snapshot.ts#L27), [snapshot.ts](../mcp/worker/snapshot.ts#L30)); replacement requires the `.skill-server-output` marker ([snapshot.ts](../mcp/worker/snapshot.ts#L33)); the build stages, re-verifies each file against the scan ([snapshot.ts](../mcp/worker/snapshot.ts#L56)), and swaps with a restorable rename ([snapshot.ts](../mcp/worker/snapshot.ts#L155)). Covered by [security.test.ts](../mcp/conformance/security.test.ts#L55), [security.test.ts](../mcp/conformance/security.test.ts#L64), [security.test.ts](../mcp/conformance/security.test.ts#L79). |
-| P1 — generated instructions embed the original service origin | Partially | The publisher origin is an explicit, validated build input threaded through pages, prompts, JSON discovery and the MCP endpoint line ([snapshot.ts](../mcp/worker/snapshot.ts#L16), [snapshot.ts](../mcp/worker/snapshot.ts#L88), [snapshot.ts](../mcp/worker/snapshot.ts#L101)), the landing template's literal origin is substituted ([snapshot.ts](../mcp/worker/snapshot.ts#L137)), and a second-origin build is asserted ([security.test.ts](../mcp/conformance/security.test.ts#L93), [consumer-test.mjs](../mcp/scripts/consumer-test.mjs#L30)). Two residues remain: `skill-page.ts` still defaults `origin` to `https://skills.cloudcompute.com` for library callers that omit it ([skill-page.ts](../mcp/worker/skill-page.ts#L14)), and generated `llms.txt` hardcodes this repository as the implementation source ([snapshot.ts](../mcp/worker/snapshot.ts#L103)). Neither is reachable through `buildSnapshot`, which always passes an origin. |
+| P1 — output deleted before validation; representations derived at different times | Closed | Every overlap check, including against each resolved skill directory, runs before any directory is created ([snapshot.ts](../mcp/worker/snapshot.ts#L34), [snapshot.ts](../mcp/worker/snapshot.ts#L43)); replacement requires the `.skill-server-output` marker ([snapshot.ts](../mcp/worker/snapshot.ts#L47)); the build stages, re-verifies each file against the scan ([snapshot.ts](../mcp/worker/snapshot.ts#L68)), and swaps with a restorable rename ([snapshot.ts](../mcp/worker/snapshot.ts#L178)). Covered by [security.test.ts](../mcp/conformance/security.test.ts#L55), [security.test.ts](../mcp/conformance/security.test.ts#L64), [security.test.ts](../mcp/conformance/security.test.ts#L79). |
+| P1 — generated instructions embed the original service origin | Partially | The publisher origin is an explicit, validated build input threaded through pages, prompts, JSON discovery and the MCP endpoint line ([snapshot.ts](../mcp/worker/snapshot.ts#L21), [snapshot.ts](../mcp/worker/snapshot.ts#L104), [snapshot.ts](../mcp/worker/snapshot.ts#L117)), the landing template's literal origin is substituted ([snapshot.ts](../mcp/worker/snapshot.ts#L154)), and a second-origin build is asserted ([security.test.ts](../mcp/conformance/security.test.ts#L93), [consumer-test.mjs](../mcp/scripts/consumer-test.mjs#L30)). One residue remains: `skill-page.ts` still defaults `origin` to `https://skills.cloudcompute.com` for library callers that omit it ([skill-page.ts](../mcp/worker/skill-page.ts#L14)); it is not reachable through `buildSnapshot`, which always passes an origin. A second residue, a hardcoded implementation-source link in `llms.txt` and on the landing page, closed after this review: both now come from the optional `sourceRepository` build input and are omitted without it ([snapshot.ts](../mcp/worker/snapshot.ts#L119), [snapshot.ts](../mcp/worker/snapshot.ts#L163)). |
 | Conditional blocker — `materialize.ts` joins resource-derived paths | Closed, and still out of the package | Namespaces, portable paths, path collisions, dynamic manifests and a missing `SKILL.md` are all validated before any fetch ([materialize.ts](../mcp/core/materialize.ts#L41), [materialize.ts](../mcp/core/materialize.ts#L19), [materialize.ts](../mcp/core/materialize.ts#L60), [materialize.ts](../mcp/core/materialize.ts#L67)); every existing destination ancestor is checked for symlinks ([materialize.ts](../mcp/core/materialize.ts#L77)); writes go to a fresh `mkdtemp` staging as `0600`/`0700` with `wx`, and only a complete verified batch is renamed into place ([materialize.ts](../mcp/core/materialize.ts#L104), [materialize.ts](../mcp/core/materialize.ts#L107)). It stays outside the public CLI: `tsconfig.package.json` does not compile it ([tsconfig.package.json](../mcp/tsconfig.package.json#L12)). |
 
 The review's follow-up paragraph is also closed. The package now has compiled
@@ -282,7 +299,7 @@ exports, a CLI mapping, a version, a file allowlist and clean-install tests
 [test-package.mjs](../mcp/scripts/test-package.mjs#L38)); analytics are confined
 to the deployment adapter ([worker.ts](../mcp/worker/worker.ts#L43)); archive
 metadata is normalized before any reproducibility claim
-([snapshot.ts](../mcp/worker/snapshot.ts#L62)); and skill-name validation happens
+([snapshot.ts](../mcp/worker/snapshot.ts#L74)); and skill-name validation happens
 in the scanner, so stdio and hosted builds reject the same names
 ([manifest.ts](../mcp/core/manifest.ts#L93)). One residue: the same name regex is
 written out separately in the scanner, the page generator, the HTTP resolver and
