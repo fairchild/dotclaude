@@ -55,7 +55,7 @@ Worktrees are created at `~/.worktrees/<repo>/<branch>` where `<repo>` is the **
 
 ```
 ~/.claude  (remote: dotclaude.git)  →  ~/.worktrees/dotclaude/<branch>  <!-- portability: allow -->
-~/code/services  (remote: services.git)  →  ~/.worktrees/services/<branch>
+~/code/myapp  (remote: myapp.git)  →  ~/.worktrees/myapp/<branch>
 ```
 
 ## Environment
