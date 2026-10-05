@@ -12,8 +12,9 @@
 A `SessionStart` hook runs `hooks/dotclaude-deploy.sh`, which delegates to `scripts/deploy.sh`. On every session start it:
 
 1. Removes dev symlinks (skills pointing back to `~/code/dotclaude`)
-2. Fetches and fast-forwards `~/.claude` to `origin/main`
-3. Reports what changed (silent when nothing did)
+2. Installs a `pre-commit` hook in `~/.claude` that refuses commits, and warns about local commits or tracked files edited in place
+3. Fetches and fast-forwards `~/.claude` to `origin/main`
+4. Reports what changed (silent when nothing did)
 
 After merging a PR, the next session start picks it up automatically.
 

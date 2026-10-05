@@ -6,8 +6,9 @@
 #
 # What it does:
 #   1. Removes dev symlinks (~/code/dotclaude → ~/.claude/skills/) before pull
-#   2. Fetches and fast-forwards ~/.claude to origin/main
-#   3. Reports what changed (silent when nothing did)
+#   2. Guards ~/.claude against commits and reports changes made there in place
+#   3. Fetches and fast-forwards ~/.claude to origin/main
+#   4. Reports what changed (silent when nothing did)
 
 set -euo pipefail
 
@@ -44,6 +45,30 @@ done
 
 if [ ${#cleaned[@]} -gt 0 ]; then
   echo "cleaned dev symlinks: ${cleaned[*]}"
+fi
+
+# --- Guard: ~/.claude is deploy-only ---
+# A local commit leaves HEAD ahead of origin/main, where `merge --ff-only`
+# succeeds as a no-op, so nothing below would ever notice it.
+
+guard=$(git -C "$RUNTIME" rev-parse --git-path hooks/pre-commit 2>/dev/null) || guard=".git/hooks/pre-commit"
+[[ "$guard" = /* ]] || guard="$RUNTIME/$guard"
+if [ ! -e "$guard" ]; then
+  {
+    mkdir -p "$(dirname "$guard")"
+    printf '#!/bin/sh\n# Installed by scripts/deploy.sh\necho "~/.claude is deploy-only; commit in ~/code/dotclaude" >&2\nexit 1\n' > "$guard"
+    chmod +x "$guard"
+  } 2>/dev/null || true
+fi
+
+ahead=$(git -C "$RUNTIME" rev-list --count origin/main..HEAD 2>/dev/null) || ahead=0
+if [ "$ahead" -gt 0 ]; then
+  echo "⚠ ~/.claude has ${ahead} local commit(s) not on origin/main: $(git -C "$RUNTIME" log --format=%h origin/main..HEAD | paste -sd' ' -)"
+fi
+
+edited=$(git -C "$RUNTIME" diff --name-only HEAD 2>/dev/null | paste -sd' ' -) || edited=""
+if [ -n "$edited" ]; then
+  echo "⚠ ~/.claude has tracked files edited in place: ${edited}"
 fi
 
 # --- Fetch and fast-forward ---
