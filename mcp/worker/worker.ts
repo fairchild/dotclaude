@@ -70,9 +70,19 @@ function transportSecurity(url: URL, response: Response): Response {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+/** Crawl policy is this deployment's call. `ai-train` is left unstated for the operator to decide. */
+function robots(request: Request, url: URL): Response {
+  if (!["GET", "HEAD"].includes(request.method)) {
+    return new Response(request.method === "HEAD" ? null : "Use GET or HEAD", { status: 405, headers: { "Content-Type": "text/plain; charset=utf-8", Allow: "GET, HEAD" } });
+  }
+  const body = `User-agent: *\nContent-Signal: search=yes, ai-input=yes\nAllow: /\n\nSitemap: ${url.origin}/sitemap.xml\n`;
+  return new Response(request.method === "HEAD" ? null : body, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === "/robots.txt") return transportSecurity(url, robots(request, url));
     if (url.pathname !== "/mcp") {
       return transportSecurity(url, await handleRequest(request, env));
     }

@@ -18,6 +18,7 @@ if (service === 'skills') {
   assert.equal(home.headers.get('strict-transport-security'), 'max-age=31536000', '/: HSTS');
   assert.match(home.headers.get('content-security-policy') ?? '', /^frame-ancestors 'none'$/, '/: framing policy');
   await get('/llms.txt');
+  assert.match(await (await get('/robots.txt')).text(), /^Content-Signal:/m, '/robots.txt: Content-Signal (zone-managed robots.txt may be overriding the Worker)');
   const catalog = await (await get('/manifest.json')).json();
   const skill = catalog.skills[0];
   assert(skill?.download);

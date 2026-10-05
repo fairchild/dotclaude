@@ -91,7 +91,7 @@ listening, and pins the request origin to the listener's own bound address so an
 attacker-controlled `Host` header cannot slip past the origin check
 ([node-server.ts](../mcp/node-server.ts#L9),
 [node-server.ts](../mcp/node-server.ts#L20)). `worker.ts` is the Cloudflare
-adapter: it delegates every non-`/mcp` path straight to `handleRequest`, and on
+adapter: it serves `/robots.txt` itself (crawl policy is a deployment decision), delegates every other non-`/mcp` path straight to `handleRequest`, and on
 `/mcp` it measures latency, writes one Analytics Engine datapoint
 ([worker.ts](../mcp/worker/worker.ts#L43)) and fires a PostHog event when a key is
 configured ([worker.ts](../mcp/worker/worker.ts#L15)). Telemetry emission lives only in
@@ -146,7 +146,7 @@ with modes preserved ([snapshot.ts](../mcp/worker/snapshot.ts#L70)), one archive
 and one pinned manifest per skill
 ([snapshot.ts](../mcp/worker/snapshot.ts#L75)), the catalog `manifest.json`
 ([snapshot.ts](../mcp/worker/snapshot.ts#L85)), generated `.md` and `.html`
-detail pages ([snapshot.ts](../mcp/worker/snapshot.ts#L102)), `llms.txt` and
+detail pages ([snapshot.ts](../mcp/worker/snapshot.ts#L102)), a `sitemap.xml` of the landing page and each skill's directory page, `llms.txt` and
 `index.json` ([snapshot.ts](../mcp/worker/snapshot.ts#L133)), the landing page,
 the self-hosted `library.css` and `fonts/` (Source Serif 4 and JetBrains Mono as
 WOFF2, so pages make no third-party requests), and `version.json` ([snapshot.ts](../mcp/worker/snapshot.ts#L169)). Only after all

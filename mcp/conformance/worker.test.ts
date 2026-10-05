@@ -12,6 +12,7 @@ import { join } from "node:path";
 
 import worker from "../worker/worker.ts";
 import { EXTENSION_ID } from "../core/types.ts";
+import { buildSnapshot } from "../worker/snapshot.ts";
 
 const FIXTURES = join(import.meta.dir, "fixtures");
 // A fresh mkdtemp parent, with DIST itself left uncreated, avoids a fixed
@@ -302,6 +303,56 @@ describe("usage metrics", () => {
       bare,
     );
     expect(response.status).toBe(200);
+  });
+});
+
+describe("crawler discovery", () => {
+  test("sitemap lists the landing page and exactly the portable skills, with no lastmod absent a source date", async () => {
+    const { skills } = JSON.parse(readFileSync(join(PUBLIC, "manifest.json"), "utf8"));
+    const sitemap = readFileSync(join(PUBLIC, "sitemap.xml"), "utf8");
+    const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1]!);
+    const origin = new URL(locs[0]!).origin;
+    expect(locs).toEqual([`${origin}/`, ...skills.map((s: any) => `${origin}/skills/${s.entry.frontmatter.name}/`)]);
+    expect(skills.length).toBeGreaterThan(0);
+    expect(sitemap).not.toContain("lastmod");
+  });
+
+  test("sitemap carries the source date as lastmod", () => {
+    const out = join(TMP_PARENT, "dated");
+    buildSnapshot({ root: FIXTURES, out, baseUrl: "https://example.org", sourceDate: "2026-10-05T23:30:00-07:00" });
+    const sitemap = readFileSync(join(out, "public", "sitemap.xml"), "utf8");
+    expect(sitemap).toContain("<url><loc>https://example.org/</loc><lastmod>2026-10-05</lastmod></url>");
+    expect(sitemap.match(/<lastmod>/g)!.length).toBe(sitemap.match(/<loc>/g)!.length);
+  });
+
+  test("robots.txt is served by the adapter from the request origin, over GET and HEAD only", async () => {
+    const res = await worker.fetch(new Request("https://skills.example/robots.txt"), env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
+    expect(res.headers.get("Strict-Transport-Security")).toBe("max-age=31536000");
+    const body = await res.text();
+    expect(body).toContain("Content-Signal: search=yes, ai-input=yes\n");
+    expect(body).not.toContain("ai-train");
+    expect(body).toContain("Allow: /\n");
+    expect(body.trimEnd().endsWith("Sitemap: https://skills.example/sitemap.xml")).toBe(true);
+
+    const head = await worker.fetch(new Request("https://skills.example/robots.txt", { method: "HEAD" }), env);
+    expect(head.status).toBe(200);
+    expect(await head.text()).toBe("");
+    const post = await worker.fetch(new Request("https://skills.example/robots.txt", { method: "POST" }), env);
+    expect(post.status).toBe(405);
+    expect(post.headers.get("Allow")).toBe("GET, HEAD");
+
+    const local = await worker.fetch(new Request("http://localhost:8787/robots.txt"), env);
+    expect(local.headers.has("Strict-Transport-Security")).toBe(false);
+    expect(await local.text()).toContain("Sitemap: http://localhost:8787/sitemap.xml");
+  });
+
+  test("the built sitemap is served through the worker as XML", async () => {
+    const res = await worker.fetch(new Request("https://skills.example/sitemap.xml"), env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/xml; charset=utf-8");
+    expect(await res.text()).toContain("<urlset");
   });
 });
 
