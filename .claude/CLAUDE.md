@@ -1,8 +1,6 @@
 # dotclaude
 
-**THIS IS ~/.claude** — the global Claude Code configuration directory.
-
-Everything here affects ALL Claude Code sessions globally:
+This repo is the source of `~/.claude`, the global Claude Code configuration directory. What merges to `main` deploys there and reaches every Claude Code session:
 
 - `skills/` → available in every session
 - `commands/` → slash commands everywhere
@@ -18,7 +16,7 @@ This repo is public on GitHub but serves as the owner's actual working config.
 
 - Commits, PR bodies, and review comments refer to the owner as "the user", never by name
 - Private repositories stay out of tracked files, commit messages, and PR text: no names, paths, issue numbers, or run IDs
-- Session data is gitignored (see [docs/session-data.md](../docs/session-data.md))
+- Session data is gitignored (see [session-data.md](../skills/chronicle/assets/docs/session-data.md))
 - Run `/opensource-precheck` before major changes
 - Use `.gitignore` patterns for any new sensitive data
 
@@ -102,8 +100,8 @@ ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
 (`/model`, `/config`), other apps rewrite their own hooks in it, and it is the only
 place an `autoMode.environment` description of this machine's infrastructure can live — the
 classifier reads `autoMode` from user or managed settings, never from a repository. Keeping
-that out of a public repo is why the file is gitignored, and it also means app drift no longer
-dirties the tree, so `deploy.sh` can fast-forward.
+that out of a public repo is why the file is gitignored; it also keeps app drift out of the
+tree, so `deploy.sh` can fast-forward.
 
 `settings.example.json` is the shareable shape: this repo's own hooks, permissions, plugins,
 and defaults, with machine-specific forwarders and the environment block removed. Change it
@@ -122,7 +120,7 @@ PRs in `~/code/dotclaude` the same way.
 ### Key Rules
 
 - **All development happens in `~/code/dotclaude`** — feature branches, PRs, code review
-- **`~/.claude` is deploy-only** — read and fast-forward only; never commit there. `settings.json` is gitignored, so runtime drift no longer needs codifying; change `settings.example.json` when the shareable shape changes
+- **`~/.claude` is deploy-only** — read and fast-forward only; never commit there. `settings.json` is gitignored; change `settings.example.json` when the shareable shape changes
 - **Symlink direction**: `~/.claude/skills/<name>` → `~/code/dotclaude/skills/<name>`
 - **Ecosystem installs**: `npx skills add <repo>` places content at `~/.agents/skills/<name>/`, symlinked into `~/.claude/skills/<name>`. Provenance (origin URL, commit hash, install timestamps) is tracked by the CLI in `~/.agents/.skill-lock.json`. This repo does not vendor third-party skill content; the lockfile is the source of truth.
 - **Full workflow docs**: `skills/dotclaude-config/references/development-workflow.md`
@@ -141,4 +139,4 @@ The five canonical triage roles map to position in the pipeline + `priority:` fr
 
 ### Domain docs
 
-Single-context — `CONTEXT.md` + `docs/adr/` at the repo root, created lazily by `/grill-with-docs`. See `docs/agents/domain.md`.
+Single-context — `GLOSSARY.md` + `docs/adr/` at the repo root, created lazily by `/grill-with-docs`; `CONTEXT.md` is a redirect stub. See `docs/agents/domain.md`.
