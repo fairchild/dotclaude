@@ -430,7 +430,7 @@ bun scripts/consolidate.ts                    # Dry run
 bun scripts/consolidate.ts --apply            # Execute
 bun scripts/consolidate.ts --apply --drop-pending  # Execute + clear stale pending
 bun scripts/consolidate.ts --older-than=30    # Only blocks >30 days old (default: 14)
-bun scripts/consolidate.ts --project=services # Single project
+bun scripts/consolidate.ts --project=myapp # Single project
 ```
 
 Consolidation:

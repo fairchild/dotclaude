@@ -1,10 +1,10 @@
 ---
 name: runner-optin
-description: Run one reviewed commit of one pull request on this laptop while hosted runners are blocked. User-invoked only — Michael asks for it by name ("opt in", "opt out", "run this PR on my laptop"); never start it because a pull request looks red.
+description: Run one reviewed commit of one pull request on this laptop while hosted runners are blocked. User-invoked only — the user asks for it by name ("opt in", "opt out", "run this PR on my laptop"); never start it because a pull request looks red.
 disable-model-invocation: true
 metadata:
   status: experimental
-  experimental_reason: "No eval and no invocations yet; the machinery it drives lands in services #1749 and has never run against a real pull request."
+  experimental_reason: "No eval and no invocations yet; the machinery it drives has never run against a real pull request."
 license: Apache-2.0
 ---
 
@@ -24,11 +24,11 @@ its scripts. Nothing here bounds any of that, and on this host nothing can: the
 hooks beside the runner are mode 755 and owned by the user the job runs as, so
 the gate routes jobs rather than containing them. The hardening plan's
 non-admin runner user is the structural fix. Until it lands, opt in only to
-pull requests written here, and the only real gate is that Michael has read the
-diff at the commit he names.
+pull requests written here, and the only real gate is that the user has read the
+diff at the commit they name.
 
 Never opt in on your own initiative. A red pull request is not a request. Wait
-for his words.
+for their words.
 
 ## What this is
 
@@ -58,13 +58,13 @@ Four pieces have to agree, and they do not all live in the same place:
 
 | Piece | Where it lives, and who supplies it |
 |---|---|
-| `.github/workflows/pr-optin-run.yml` — five jobs, `workflow_dispatch` alone, `runs-on` built by `format()` from the dispatched number, `ref: ${{ inputs.head_sha }}` with `persist-credentials: false` | The target repository's own default branch. Only `fairchild/services` carries it today. |
-| `trust-optin-job.sh`, `pre-job-optin.sh` and `clean-workspace.sh`, the pre-job gate | The services checkout. `runner.sh` copies all three into the runner directory from a path relative to itself, so whichever checkout you run the gesture from supplies the gate. |
-| `scripts/runner.sh` — preflight, registration, the supervisor, teardown | The same services checkout. |
+| `.github/workflows/pr-optin-run.yml` — five jobs, `workflow_dispatch` alone, `runs-on` built by `format()` from the dispatched number, `ref: ${{ inputs.head_sha }}` with `persist-credentials: false` | The target repository's own default branch. Only the runner repository carries it today. |
+| `trust-optin-job.sh`, `pre-job-optin.sh` and `clean-workspace.sh`, the pre-job gate | The runner repository's checkout. `runner.sh` copies all three into the runner directory from a path relative to itself, so whichever checkout you run the gesture from supplies the gate. |
+| `scripts/runner.sh` — preflight, registration, the supervisor, teardown | The same checkout. |
 | The dispatch | You. `gh workflow run` needs write access, so the gesture is collaborator-only by construction, and the pull request carries no state of ours. |
 
-So the gestures below always run services' copy of `runner.sh`, whatever
-repository is being opted in. Run them from a trusted checkout of services'
+So the gestures below always run the runner repository's copy of `runner.sh`,
+whatever repository is being opted in. Run them from a trusted checkout of its
 default branch, never from a worktree of the pull request under review.
 
 The pull request number reaches the runner twice, by different routes. The
@@ -85,7 +85,7 @@ step asserts that `git rev-parse HEAD` equals it. The gate compares that same
 input against the `head_sha=` line in the record. And a dispatch naming any
 other commit is not merely refused: the gate deletes the record, which is the
 supervisor's only permission to register another runner. The window closes, and
-Michael opts in again against what he has read.
+the user opts in again against what they have read.
 
 ### Where the boundary sits now
 
@@ -123,9 +123,9 @@ gh pr view <N> --repo <owner>/<repo> --json number,title,author,headRefOid,isCro
 gh pr diff <N> --repo <owner>/<repo>
 ```
 
-Show him the head sha and the diff. Among our own pull requests the author
-proves nothing, since every agent in this fleet writes as his login — there the
-gate is his reading, at that sha, now. What the author still separates is our
+Show the user the head sha and the diff. Among our own pull requests the author
+proves nothing, since every agent in this fleet writes as their login — there the
+gate is their reading, at that sha, now. What the author still separates is our
 own pull requests from everyone else's, and `app/dependabot` is the case that
 matters most, because a dependency bump's diff is a version string rather than
 the code inside the new version, so reading it proves almost nothing.
@@ -134,7 +134,7 @@ Refuse and say which check failed:
 
 - `author.login` is not `fairchild`, or `author.is_bot` is true, or the login
   ends in `[bot]` or starts with `app/`.
-- He has not said he read the diff, or he names a sha that is not `headRefOid`.
+- The user has not said they read the diff, or they name a sha that is not `headRefOid`.
 - `isCrossRepository` is true. This refusal is now load-bearing rather than
   academic: the old one rested on GitHub declining to send fork pull requests
   to self-hosted runners, and a dispatch on Main is not a fork pull request, so
@@ -176,7 +176,7 @@ will never exist, and a dispatched job has no hosted fallback — the fallback
 branch is unreachable for a dispatch on Main, so the run waits until somebody
 cancels it.
 
-`optin` refuses if the pull request has moved: pass the sha he read as the
+`optin` refuses if the pull request has moved: pass the sha they read as the
 third argument and the script compares it against the current head rather than
 silently binding a newer commit.
 
@@ -205,7 +205,7 @@ runner.
 | Ending | What happened |
 |---|---|
 | `opt out` | The gesture below. It deletes the record, signals the supervisor's process group, deregisters and removes the work tree. |
-| A push | The dispatch named a commit the record does not hold. The gate refused the job with exit 78 and deleted the record, so the supervisor's loop ends on its next pass. A new head needs a new reading and a new gesture; never reopen one on his behalf. |
+| A push | The dispatch named a commit the record does not hold. The gate refused the job with exit 78 and deleted the record, so the supervisor's loop ends on its next pass. A new head needs a new reading and a new gesture; never reopen one on their behalf. |
 | No job served | Five attempts in a row served no job, counting a failed registration and a failed token fetch, so the supervisor stopped rather than looping. An offline laptop reaches this. |
 
 The heartbeat is how the second and third are told apart from the first: the
@@ -278,7 +278,7 @@ also deregisters a runner a network failure may have left behind.
 ## When it will not work
 
 - The target repository has no `.github/workflows/pr-optin-run.yml` on its
-  default branch. Today only `fairchild/services` does. The verifier admits the
+  default branch. Today only the runner repository does. The verifier admits the
   opt-in selector in that file and nowhere else, and admits no other `runs-on`
   inside it:
 
@@ -299,4 +299,5 @@ uv run --script .github/scripts/verify_pr_runner_routing.py
 - `mise` is not installed, cannot read the checkout's `mise.toml`, or a pinned
   tool will not install. Preflight or `optin` refuses and names it; nothing is
   recorded or registered. A job that finds the wrong interpreter means the
-  supervisor was started by a `runner.sh` older than services #1774.
+  supervisor was started by a `runner.sh` that predates reading the checkout's
+  `mise.toml`.
