@@ -4,7 +4,7 @@ description: Run one reviewed commit of one pull request on this laptop while ho
 disable-model-invocation: true
 metadata:
   status: experimental
-  experimental_reason: "No eval and no invocations yet; the machinery it drives lands in services #1749 and has never run against a real pull request."
+  experimental_reason: "No eval and no invocations yet; the machinery it drives has never run against a real pull request."
 license: Apache-2.0
 ---
 
@@ -299,4 +299,4 @@ uv run --script .github/scripts/verify_pr_runner_routing.py
 - `mise` is not installed, cannot read the checkout's `mise.toml`, or a pinned
   tool will not install. Preflight or `optin` refuses and names it; nothing is
   recorded or registered. A job that finds the wrong interpreter means the
-  supervisor was started by a `runner.sh` older than services #1774.
+  supervisor was started by a `runner.sh` that predates mise toolchain support.
