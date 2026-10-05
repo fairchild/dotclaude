@@ -1,9 +1,62 @@
 # skill-server
 
-An independent implementation of the experimental Skills over MCP extension.
+skill-server is an independent implementation of the experimental
+[Skills over MCP extension](https://github.com/modelcontextprotocol/ext-skills),
+which lets an MCP (Model Context Protocol) server offer agent skills to hosts.
+A skill — a directory with a `SKILL.md`, per the
+[Agent Skills spec](https://agentskills.io/specification) — is exposed as one
+resource per file under `skill://<name>/<path>`, listed with a manifest of every
+file's SHA-256 digest and size. skill-server serves a skills directory over stdio,
+or builds it into a static snapshot that it serves over stateless HTTP.
+
 GitHub candidates contain a Node CLI, importable modules, and snapshot templates.
 This is not an official MCP specification implementation endorsement. The source
 checkout also includes the Cloudflare adapter for skills.cloudcompute.com.
+
+## Connect
+
+The hosted binding is live at `https://skills.cloudcompute.com/mcp`
+(portable tier, public). It is a Cloudflare Worker serving a build-time snapshot
+of the portable tier over stateless Streamable HTTP: each POST runs one JSON-RPC
+message through a fresh server on a one-shot transport. Claude Code or any MCP
+host connects to either the hosted binding or the local stdio binding:
+
+```json
+{
+  "mcpServers": {
+    "dotclaude-skills-local": { "command": "bun", "args": ["<repo>/mcp/stdio.ts"] },
+    "dotclaude-skills": {
+      "type": "http",
+      "url": "https://skills.cloudcompute.com/mcp",
+      "headers": { "x-skills-client": "<your-label>" }
+    }
+  }
+}
+```
+
+`x-skills-client` is optional; it labels your traffic in the usage metrics.
+
+The root of that domain is a landing page built from the snapshot
+(`worker/index.html` + build.ts). The homepage links to canonical skill
+directories at `/skills/<name>/`, with file lists and a short copyable install
+prompt. A filter above the list narrows it as you type — Tab reaches the best
+match, Enter opens it, and Enter again copies that skill's install prompt; the
+field hides itself when scripting is unavailable, leaving the plain list.
+`/llms.txt` supplies the Markdown catalog; Markdown directory pages retain
+navigation and install information. Raw files remain under
+`/skills/<name>/<path>`.
+
+The default prompt pins a complete archive and its manifest by the archive
+SHA-256. A separate full inline prompt carries SKILL.md for offline use. Both
+prompts name `~/.claude/skills/<name>` for Claude Code and `~/.agents/skills/<name>`
+for Codex and other agents that follow that convention. Skill pages and Markdown
+directories also carry a shell command that downloads the pinned archive, checks
+its SHA-256, refuses to replace an existing install, and extracts into
+`~/.claude/skills`. Archives preserve paths, bytes, and file permissions;
+historical package retention is not provided.
+
+For HTTP download routes, supported formats, and `Accept` negotiation, see
+[Skill HTTP downloads](worker/HTTP.md).
 
 ## Install a GitHub candidate
 
@@ -126,7 +179,38 @@ opening its transport, and `build` exits 1 before writing anything to
 `--out` (no output directory is created). Diagnostics are printed to
 stderr the same way either way.
 
+## Run
+
+From a source checkout, the Bun entry points serve without a package build:
+
+```bash
+bun stdio.ts                  # serve ~/.claude/skills
+bun stdio.ts --root ../skills # serve the repo corpus
+bun run test                  # conformance + corpus + worker integration
+```
+
+`stdio.ts` serves the live skills directory (default `~/.claude/skills`) —
+first-party, local, and ecosystem skills alike; `--portable-only` narrows to the
+portable tier.
+
+For a local source snapshot without deployment, run `bun worker/build.ts`.
+To see the full site output on a small corpus, build the conformance fixtures:
+`bun worker/build.ts --root conformance/fixtures --out /tmp/skills-demo`.
+The build skips `bad-name` with a diagnostic and excludes the machine-bound
+`bound-skill`, so the snapshot holds the two portable fixtures.
+
+## Serving tiers
+
+`scripts/portability.py` (repo root) gates what may be served where:
+portable skills (the default tier, verified by lint) are meaningful on any
+machine with their stated prerequisites; skills declaring
+`metadata.portability: machine-bound` are served only by this local binding.
+See `docs/skill-portability.md`.
+
 ## Developing in this repository
+
+Source development uses Bun 1.4 or newer; archive creation uses the installed
+`tar` package, not a system executable.
 
 ```sh
 cd mcp
@@ -142,6 +226,15 @@ node scripts/check-worker.mjs
 The last two commands install the package into an isolated Worker consumer,
 bundle the deployment adapter, and verify the real local Cloudflare runtime.
 They replace source-only verification as the hosted release acceptance check.
+
+Run `bun run typecheck`, `bun run build`, and `bun run test` to verify source
+changes, `bun run test` in `mcp/e2e` for the browser flow, and the package
+verification commands above before deployment. `mcp/e2e/` records the
+homepage filter flow in Chromium against a real Worker.
+
+Production deploys automatically from main through CI, using the package-backed
+Worker artifact that passed verification. For recovery, manually run CI on main;
+see [GitHub Actions and releases](../docs/github-actions.md#recovery).
 
 ## Protocol and source layout
 
@@ -160,22 +253,17 @@ repository carries no tags or releases) and
 [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640)
 head
 [`d6b31a0`](https://github.com/modelcontextprotocol/modelcontextprotocol/commit/d6b31a03504c15677d49b922b6b6ace0ef65728d)
-(2026-09-03, PR still open). Extension id `io.modelcontextprotocol/skills`.
+(2026-09-03, PR still open).
+
+`skills/get` also answers for a skill that never appears in a listing, and it
+is the refresh path after a digest mismatch. Reading a file is plain
+`resources/read`; reading a `SKILL.md` does not activate anything — activation,
+approval, and origin-tagging are host concerns, and the SEP's security section
+makes them explicit.
 
 See the [architecture walkthrough](../docs/skill-server-architecture.md) for
 how the store boundary, transports, and build pipeline fit together, and
 [SECURITY.md](../SECURITY.md) to report a vulnerability.
-
-## What the extension is
-
-A skill — a directory with a `SKILL.md`, per the
-[Agent Skills spec](https://agentskills.io/specification) — is exposed as one
-resource per file under `skill://<name>/<path>`. `skills/get` also answers
-for a skill that never appears in a listing, and it is the refresh path after
-a digest mismatch. Reading a file is plain `resources/read`; reading a
-`SKILL.md` does not activate anything — activation, approval, and
-origin-tagging are host concerns, and the SEP's security section makes them
-explicit.
 
 ### Supported methods and limitations
 
@@ -202,72 +290,17 @@ non-`POST` request to `/mcp` gets a plain `405` with `Allow: POST`, and every
 `POST` runs one JSON-RPC message through a fresh server on a one-shot
 transport.
 
-For HTTP download routes, supported formats, and `Accept` negotiation, see
-[Skill HTTP downloads](worker/HTTP.md).
-
-## Layout
+### Source layout
 
 - `core/manifest.ts` — scan a skills directory into entries: frontmatter
   (name must equal the directory name), SHA-256 digests, SEP limits;
   malformed or oversize skills become diagnostics, not malformed entries.
 - `core/server.ts` — the SDK server: the three methods plus
   `resources/list`/`resources/read`, pagination, `-32602` semantics.
-- `stdio.ts` — local binding. Serves the live skills directory (default
-  `~/.claude/skills`) — first-party, local, and ecosystem skills alike;
-  `--portable-only` narrows to the portable tier.
+- `stdio.ts` — local binding over the live skills directory; see [Run](#run).
 - `conformance/` — the suite doubles as an executable reading of the SEP:
   entry completeness, digest/frontmatter identity, pagination atomicity,
   directory semantics, error codes, end-to-end stdio.
-
-## Serving tiers
-
-`scripts/portability.py` (repo root) gates what may be served where:
-portable skills (the default tier, verified by lint) are meaningful on any
-machine with their stated prerequisites; skills declaring
-`metadata.portability: machine-bound` are served only by this local binding.
-See `docs/skill-portability.md`.
-
-## Run
-
-```bash
-bun stdio.ts                  # serve ~/.claude/skills
-bun stdio.ts --root ../skills # serve the repo corpus
-bun run test                  # conformance + corpus + worker integration
-```
-
-The hosted binding is a Cloudflare Worker serving a build-time snapshot of
-the portable tier over stateless Streamable HTTP (each POST runs one
-JSON-RPC message through a fresh server on a one-shot transport):
-
-Production deploys automatically from main through CI, using the package-backed
-Worker artifact that passed verification. For recovery, manually run CI on main;
-see [GitHub Actions and releases](../docs/github-actions.md#recovery).
-For a local source snapshot without deployment, run `bun worker/build.ts`.
-To see the full site output on a small corpus, build the conformance fixtures:
-`bun worker/build.ts --root conformance/fixtures --out /tmp/skills-demo`.
-The build skips `bad-name` with a diagnostic and excludes the machine-bound
-`bound-skill`, so the snapshot holds the two portable fixtures.
-
-## Connect
-
-The hosted binding is live at `https://skills.cloudcompute.com/mcp`
-(portable tier, public). The root of that domain is a landing page built
-from the snapshot (`worker/index.html` + build.ts). The homepage links to canonical skill directories at `/skills/<name>/`, with file lists and a short copyable install prompt. A filter above the list narrows it as you type — Tab reaches the best match, Enter opens it, and Enter again copies that skill's install prompt; the field hides itself when scripting is unavailable, leaving the plain list. `mcp/e2e/` records that flow in Chromium against a real Worker. `/llms.txt` supplies the Markdown catalog; Markdown directory pages retain navigation and install information. Raw files remain under `/skills/<name>/<path>`. The default prompt pins a complete archive and its manifest by the archive SHA-256. A separate full inline prompt carries SKILL.md for offline use. Both prompts name `~/.claude/skills/<name>` for Claude Code and `~/.agents/skills/<name>` for Codex and other agents that follow that convention. Skill pages and Markdown directories also carry a shell command that downloads the pinned archive, checks its SHA-256, refuses to replace an existing install, and extracts into `~/.claude/skills`. Archives preserve paths, bytes, and file permissions; historical package retention is not provided. Source development uses Bun 1.4 or newer; archive creation uses the installed `tar` package, not a system executable. Run `bun run typecheck`, `bun run build`, and `bun run test` to verify source changes, `bun run test` in `mcp/e2e` for the browser flow, and the package verification commands above before deployment. Claude Code or any MCP host connects to either binding:
-
-```json
-{
-  "mcpServers": {
-    "dotclaude-skills-local": { "command": "bun", "args": ["<repo>/mcp/stdio.ts"] },
-    "dotclaude-skills": {
-      "type": "http",
-      "url": "https://skills.cloudcompute.com/mcp",
-      "headers": { "x-skills-client": "<your-label>" }
-    }
-  }
-}
-```
-
-`x-skills-client` is optional; it labels your traffic in the usage metrics.
 
 ## Usage metrics
 

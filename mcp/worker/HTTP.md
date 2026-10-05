@@ -141,7 +141,9 @@ Markdown directory also carries a shell install. It runs in a child `sh -eu` so 
 failure cannot exit the user's shell, downloads the pinned archive with `curl -f`,
 compares its SHA-256 (`sha256sum`, falling back to `shasum -a 256`), extracts into a
 fresh temporary directory, and moves the `<name>/` directory into
-`$SKILLS_DIR` (default `~/.claude/skills`). It stops before downloading if
+`~/.claude/skills`, where Claude Code loads skills. The command sets
+`SKILLS_DIR="$HOME/.claude/skills"` on its own line; for Codex and other agents
+that read `~/.agents/skills`, the user edits that line. It stops before downloading if
 `$SKILLS_DIR/<name>` exists, so local changes survive, and it removes its
 temporary directory on exit. It verifies integrity only; it does not inspect the
 skill.
