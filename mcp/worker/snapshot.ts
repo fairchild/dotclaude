@@ -51,6 +51,7 @@ const publicDir = join(staging, "public");
 try {
   mkdirSync(join(publicDir, "skills"), { recursive: true });
   cpSync(join(templateDir, "library.css"), join(publicDir, "library.css"));
+  cpSync(join(templateDir, "fonts"), join(publicDir, "fonts"), { recursive: true });
 
   const portable = catalog.skills.filter((s) => s.tier === "portable");
   const excluded = catalog.skills.filter((s) => s.tier !== "portable");

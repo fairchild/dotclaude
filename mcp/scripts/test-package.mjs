@@ -35,6 +35,8 @@ try {
     archive = join(scratch, pack.filename);
     assert(pack.files.some(file => file.path === 'dist/cli.js'));
     assert(pack.files.some(file => file.path === 'LICENSE'));
+    assert.equal(pack.files.filter(file => /^dist\/worker\/fonts\/.+\.woff2$/.test(file.path)).length, 2, 'package must carry both font files');
+    assert(pack.files.some(file => file.path === 'dist/worker/fonts/LICENSE'));
     assert(pack.files.every(file => /^(dist\/|examples\/|LICENSE$|README.md$|package.json$)/.test(file.path)), 'unexpected package member');
   }
   writeFileSync(join(scratch, 'package.json'), JSON.stringify({ private: true, type: 'module' }));

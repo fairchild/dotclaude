@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { serveHttp } from "../worker/http.ts";
 import type { StoredSkill } from "../core/store.ts";
 
@@ -11,6 +13,8 @@ const files: Record<string, Uint8Array> = {
   "diagram.svg": new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
   "image.png": new Uint8Array([137, 80, 78, 71, 0, 255, 128]),
 };
+const fontDir = join(import.meta.dir, "../worker/fonts");
+const fontFiles = readdirSync(fontDir).filter(f => f.endsWith(".woff2"));
 const skills: StoredSkill[] = [{ tier: "portable", entry: {
   uri: "skill://example/SKILL.md", frontmatter: { name: "example", description: "Example" },
   resources: Object.entries(files).map(([path, bytes]) => ({ uri: `skill://example/${path}`, size: bytes.length, digest: `sha256:${"0".repeat(64)}` })),
@@ -22,6 +26,7 @@ const assets = { async fetch(request: Request) {
   const body = path === "/skill/example.html" ? new TextEncoder().encode("<h1>Example</h1>")
     : path === "/skill/example.md" ? directoryBytes
     : path === "/downloads/example/skill.tgz" ? new Uint8Array([31, 139, 8, 0, 255])
+    : path.startsWith("/fonts/") && fontFiles.includes(path.slice(7)) ? readFileSync(join(fontDir, path.slice(7)))
     : files[path.replace("/skills/example/", "")];
   if (!body) return new Response(null, { status: 404 });
   const headers = { ETag: `"${path}"`, "Cache-Control": "public, max-age=0, must-revalidate", Vary: "Accept-Encoding" };
@@ -34,6 +39,17 @@ const get = (path: string, accept?: string, method = "GET", headers: Record<stri
 );
 
 describe("HTTP route and representation contract", () => {
+  test("self-hosted fonts serve as font/woff2 with the source bytes", async () => {
+    expect(fontFiles.length).toBe(2);
+    for (const file of fontFiles) {
+      const response = await get(`/fonts/${file}`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Type")).toBe("font/woff2");
+      expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array(readFileSync(join(fontDir, file))));
+    }
+    for (const path of ["/fonts/", "/fonts/LICENSE", "/fonts/a/b.woff2", "/fonts/x.woff"]) expect((await get(path)).status).toBe(404);
+  });
+
   test.each([
     [undefined, "text/html"], ["*/*", "text/html"], ["text/*", "text/html"],
     ["text/plain", "text/plain"], ["text/markdown", "text/markdown"], ["application/gzip", "application/gzip"],
