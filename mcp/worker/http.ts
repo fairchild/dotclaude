@@ -85,8 +85,9 @@ export async function serveHttp(request: Request, assets: Assets, skills: () => 
     ];
   } else if (/^\/fonts\/[a-z0-9-]+\.woff2$/.test(path)) {
     candidates = [{ asset: path, contentType: "font/woff2" }];
-  } else if (path === "/version.json" || path === "/index.json" || path === "/manifest.json" || path === "/library.css") {
-    candidates = [{ asset: path, contentType: path.endsWith(".css") ? "text/css; charset=utf-8" : "application/json; charset=utf-8" }];
+  } else if (path === "/version.json" || path === "/index.json" || path === "/manifest.json" || path === "/library.css" || path === "/sitemap.xml") {
+    const contentType = path.endsWith(".css") ? "text/css" : path.endsWith(".xml") ? "application/xml" : "application/json";
+    candidates = [{ asset: path, contentType: `${contentType}; charset=utf-8` }];
   } else {
     const pinned = path.match(/^\/downloads\/([a-z0-9]+(?:-[a-z0-9]+)*)\/([a-f0-9]{64})\.(tgz|json)$/);
     if (pinned) {

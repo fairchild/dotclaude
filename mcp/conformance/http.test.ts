@@ -25,6 +25,7 @@ const assets = { async fetch(request: Request) {
   const path = decodeURIComponent(new URL(request.url).pathname);
   const body = path === "/skill/example.html" ? new TextEncoder().encode("<h1>Example</h1>")
     : path === "/skill/example.md" ? directoryBytes
+    : path === "/sitemap.xml" ? new TextEncoder().encode("<urlset/>")
     : path === "/downloads/example/skill.tgz" ? new Uint8Array([31, 139, 8, 0, 255])
     : path.startsWith("/fonts/") && fontFiles.includes(path.slice(7)) ? readFileSync(join(fontDir, path.slice(7)))
     : files[path.replace("/skills/example/", "")];
@@ -48,6 +49,14 @@ describe("HTTP route and representation contract", () => {
       expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array(readFileSync(join(fontDir, file))));
     }
     for (const path of ["/fonts/", "/fonts/LICENSE", "/fonts/a/b.woff2", "/fonts/x.woff"]) expect((await get(path)).status).toBe(404);
+  });
+
+  test("sitemap.xml serves as application/xml and is refused for other methods", async () => {
+    const response = await get("/sitemap.xml");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("application/xml; charset=utf-8");
+    expect(await response.text()).toBe("<urlset/>");
+    expect((await get("/sitemap.xml", undefined, "POST")).status).toBe(405);
   });
 
   test.each([
