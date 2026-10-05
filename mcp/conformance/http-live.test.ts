@@ -1,7 +1,7 @@
 /** Opt-in integration check against `wrangler dev`, using the real asset binding. */
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { StoredSkill } from "../core/store.ts";
 
@@ -48,6 +48,17 @@ describe.skipIf(!origin)("local Worker HTTP integration", () => {
     }
     const missing = archiveUrl.pathname.replace(digest, "0".repeat(64));
     expect((await get(missing)).status).toBe(404);
+  });
+
+  test("real assets serve self-hosted fonts as font/woff2", async () => {
+    const fonts = readdirSync(join(publicDir, "fonts")).filter(f => f.endsWith(".woff2"));
+    expect(fonts.length).toBeGreaterThan(0);
+    for (const font of fonts) {
+      const response = await get(`/fonts/${font}`, "*/*");
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Type")).toBe("font/woff2");
+      expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array(readFileSync(join(publicDir, "fonts", font))));
+    }
   });
 
   test("real assets honor negotiation, explicit paths, HEAD, validators, and MCP", async () => {

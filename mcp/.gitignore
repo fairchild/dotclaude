@@ -5,6 +5,7 @@ node_modules
 out
 dist
 LICENSE
+!worker/fonts/LICENSE
 .worker-package
 *.tgz
 

@@ -6,7 +6,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -140,6 +140,18 @@ describe("worker binding", () => {
       );
     }
     expect(existsSync(join(PUBLIC, "skill", "bound-skill.html"))).toBe(false);
+  });
+
+  test("pages and stylesheet use only same-origin fonts that the snapshot ships byte for byte", () => {
+    const fontDir = join(import.meta.dir, "..", "worker", "fonts");
+    const fonts = readdirSync(fontDir).filter((f) => f.endsWith(".woff2"));
+    expect(fonts.length).toBe(2);
+    for (const font of fonts) expect(readFileSync(join(PUBLIC, "fonts", font))).toEqual(readFileSync(join(fontDir, font)));
+    const css = readFileSync(join(PUBLIC, "library.css"), "utf8");
+    for (const [, font] of css.matchAll(/url\(\/fonts\/([^)]+)\)/g)) expect(fonts).toContain(font!);
+    const pages = [join(PUBLIC, "index.html"), ...readdirSync(join(PUBLIC, "skill")).map((f) => join(PUBLIC, "skill", f))];
+    for (const file of [...pages, join(PUBLIC, "library.css")]) expect(readFileSync(file, "utf8")).not.toMatch(/fonts\.(googleapis|gstatic)\.com/);
+    expect(readFileSync(join(PUBLIC, "index.html"), "utf8")).toContain(`rel="preload" href="/fonts/${fonts.find((f) => f.startsWith("source-serif"))}"`);
   });
 
   test("the catalog ships its filter as an enhancement over the plain list", () => {
