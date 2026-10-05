@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>claude-as</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one narrow reading column; a two-panel folder diagram is the centrepiece. */
+:root {
+  --bg: #f5f6f8; --surface: #ffffff; --fg: #1d2330; --muted: #5d6676;
+  --line: #d9dde5; --accent: #2f5fd0; --own: #a3580f; --own-bg: #fbf1e6; --link-bg: #eaf0fc;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #13161c; --surface: #1b1f27; --fg: #e4e7ee; --muted: #9aa3b3;
+  --line: #2c323d; --accent: #7fa2f0; --own: #e9a35e; --own-bg: #2a2119; --link-bg: #1c2638; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #13161c; --surface: #1b1f27; --fg: #e4e7ee; --muted: #9aa3b3;
+  --line: #2c323d; --accent: #7fa2f0; --own: #e9a35e; --own-bg: #2a2119; --link-bg: #1c2638; color-scheme: dark }
+
+html { color-scheme: light; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 var(--sans); padding: 40px 16px 64px; }
+main { max-width: 720px; margin: 0 auto; display: grid; gap: 40px; }
+h1 { font: 500 2.2rem/1.1 var(--mono); margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+p { margin: 0; max-width: 65ch; }
+.lede { font-size: 1.15rem; margin-top: 10px; text-wrap: balance; }
+code, .mono { font-family: var(--mono); font-size: 0.92em; }
+section { display: grid; gap: 12px; }
+
+.cmds { display: grid; gap: 8px; }
+.cmd { display: grid; grid-template-columns: minmax(0, 15rem) 1fr; gap: 4px 16px; align-items: baseline;
+  padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.cmd code { color: var(--accent); overflow-wrap: anywhere; }
+.cmd span { color: var(--muted); min-width: 0; }
+@media (max-width: 560px) { .cmd { grid-template-columns: 1fr; } }
+
+.diagram { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: stretch; }
+.box { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 14px 16px; min-width: 0; display: grid; gap: 10px; align-content: start; }
+.box h3 { margin: 0; font: 500 0.95rem var(--mono); }
+.box .sub { font-size: 0.85rem; color: var(--muted); }
+.group { border-radius: 6px; padding: 8px 10px; font-family: var(--mono); font-size: 0.82rem; line-height: 1.7; }
+.group b { display: block; font-family: var(--sans); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.own { background: var(--own-bg); } .own b { color: var(--own); }
+.linked { background: var(--link-bg); } .linked b { color: var(--accent); }
+.arrow { align-self: center; font: 500 1.4rem var(--mono); color: var(--accent); text-align: center; }
+.arrow small { display: block; font: 0.7rem var(--sans); color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+@media (max-width: 600px) { .diagram { grid-template-columns: 1fr; } .arrow { transform: rotate(90deg); padding: 4px 0; } .arrow small { transform: rotate(-90deg); } }
+
+dl { margin: 0; display: grid; gap: 14px; }
+dt { font-weight: 600; }
+dd { margin: 2px 0 0; color: var(--fg); }
+dd code { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+.note { border-left: 3px solid var(--own); padding: 4px 0 4px 14px; }
+footer { color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>claude-as</h1>
+    <p class="lede">One Claude, several logins. Each profile signs in to its own account and shares everything else: instructions, skills, settings, hooks, memory and transcripts.</p>
+  </header>
+
+  <section>
+    <h2>Commands</h2>
+    <div class="cmds">
+      <div class="cmd"><code>claude-as work</code><span>Start Claude signed in as the <i>work</i> profile.</span></div>
+      <div class="cmd"><code>claude-as Work -c</code><span>Case doesn't matter. Anything after the name goes to <code>claude</code>.</span></div>
+      <div class="cmd"><code>claude-as -p "task"</code><span>No name: use <code>$CLAUDE_AS_PROFILE</code>, or plain <code>claude</code> when it isn't set. A first argument starting with <code>-</code> means no name.</span></div>
+      <div class="cmd"><code>claude-as -- "task"</code><span>No name, when the first thing for <code>claude</code> isn't a flag.</span></div>
+      <div class="cmd"><code>claude-as work --link-only</code><span>Create or repair the profile folder without starting Claude.</span></div>
+      <div class="cmd"><code>claude-as --list</code><span>The profiles on this machine. <code>*</code> marks the default.</span></div>
+      <div class="cmd"><code>claude-as --guide</code><span>Open this page.</span></div>
+      <div class="cmd"><code>claude-as --help</code><span>The same explanation in the terminal.</span></div>
+      <div class="cmd"><code>echo $CLAUDE_PROFILE</code><span>Run inside a session to see which profile it is. Empty means plain <code>claude</code>.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What a profile is</h2>
+    <p>A profile is a folder named <code>~/.claude-&lt;name&gt;</code>. <code>claude-as</code> sets <code>CLAUDE_CONFIG_DIR</code> to that folder and runs <code>claude</code>. Claude Code keeps its login and account state there. Everything else in the folder is a symlink back into <code>~/.claude</code>.</p>
+    <div class="diagram" aria-label="Diagram: a profile folder keeps its own login and links everything else to ~/.claude">
+      <div class="box">
+        <h3>~/.claude-work</h3>
+        <div class="sub">The profile folder</div>
+        <div class="group own"><b>Its own</b>login (macOS keychain)<br>CLAUDE.md (built, layered)<br>.claude.json<br>history.jsonl<br>sessions, tasks, caches</div>
+        <div class="group linked"><b>Symlinks</b>settings.json<br>skills, agents, commands<br>hooks, plugins, scripts<br>projects/ (memory, transcripts)<br>chronicle, plans, handoffs</div>
+      </div>
+      <div class="arrow">→<small>points to</small></div>
+      <div class="box">
+        <h3>~/.claude</h3>
+        <div class="sub">The one real copy</div>
+        <div class="group linked"><b>Shared by every profile</b>Edit a skill, a setting or CLAUDE.md here and every profile picks it up. Plain <code>claude</code> uses this folder directly.</div>
+      </div>
+    </div>
+    <p>Because <code>projects/</code> is shared, every profile's transcripts and auto-memory land in the same place. Anything that reads them sees every session, whichever account ran it.</p>
+  </section>
+
+  <section>
+    <h2>Layers on top of the shared Claude</h2>
+    <p>Two files in the profile folder are built on every run instead of linked, so a profile can add to the shared Claude without changing it. Edit the sources, never the built files.</p>
+    <dl>
+      <div><dt><code>CLAUDE.md</code></dt>
+        <dd>Imports <code>~/.claude/CLAUDE.md</code>, then the tooling's <code>profile.md</code> (how profiles work), then your <code>profile.md</code> (your rules for every profile), then <code>&lt;name&gt;/CLAUDE.md</code> (this profile's own). The last two are optional.</dd></div>
+      <div><dt>Settings</dt>
+        <dd>The shared settings, plus <code>&lt;name&gt;/settings.json</code>, plus the browser profiles found for this profile, passed to <code>claude</code> with <code>--settings</code>. A profile can use this to deny tools or set its own environment.</dd></div>
+    </dl>
+  </section>
+
+  <section>
+    <h2>Browsers</h2>
+    <p>Each Claude profile drives its own Chrome and Safari profile. By default that is the browser profile with the same name, in any case, so <code>claude-as work</code> uses the Chrome profile <i>Work</i>. To use a different one, set <code>CLAUDE_CHROME_PROFILE</code> or <code>CLAUDE_SAFARI_PROFILE</code> under <code>env</code> in <code>&lt;name&gt;/settings.json</code>.</p>
+    <p>Chrome profiles live in folders like <code>Profile 3</code>, and <code>claude-as</code> looks the folder up from the name. A name Chrome doesn't have prints a warning. Safari has no command-line switch for profiles, so Claude opens <i>File › New Window › New Work Window</i> from the menu.</p>
+  </section>
+
+  <section>
+    <h2>Common jobs</h2>
+    <dl>
+      <div><dt>Add a profile</dt>
+        <dd>Run <code>claude-as &lt;name&gt;</code>, then type <code>/login</code> once and sign in with that account. The folder and links are created on first run. For its own rules or settings, add a <code>&lt;name&gt;/</code> folder to your config.</dd></div>
+      <div><dt>Rename a profile</dt>
+        <dd>Quit every session using it, run <code>mv ~/.claude-old ~/.claude-new</code> and rename its config folder too, start <code>claude-as new</code> and <code>/login</code> again. Also update anything else that names the old folder path.</dd></div>
+      <div><dt>Remove a profile</dt>
+        <dd><code>rm -rf ~/.claude-&lt;name&gt;</code> deletes the links themselves. It does not touch what they point to in <code>~/.claude</code>.</dd></div>
+      <div><dt>Repair links</dt>
+        <dd>Run <code>claude-as &lt;name&gt; --link-only</code>. It adds missing links, rebuilds the two layered files, and warns about anything else in the folder it didn't make. It never overwrites those.</dd></div>
+    </dl>
+  </section>
+
+  <section>
+    <h2>Good to know</h2>
+    <p class="note">The keychain stores a login under a name built from the folder's path (<code>Claude Code-credentials-&lt;hash&gt;</code>). A new folder name means a new keychain entry, so renaming a profile signs you out of it.</p>
+    <p>Profile names use letters, digits and dashes, and are lowercased. <code>Work</code> and <code>work</code> are the same profile.</p>
+    <p>Per-project MCP servers and trust prompts live in <code>.claude.json</code>, so each profile keeps its own.</p>
+  </section>
+
+  <footer>Tooling and config live apart. The tooling is the <span class="mono">claude-as</span> skill in <span class="mono">~/.claude/skills/claude-as/</span>: the script (<span class="mono">scripts/claude-as</span>, linked onto your PATH, e.g. from <span class="mono">~/.local/bin</span>), <span class="mono">profile.md</span> and this page. Your config is <span class="mono">$CLAUDE_PROFILES</span>, default <span class="mono">~/.config/claude-profiles/</span>: an optional <span class="mono">profile.md</span> and one folder per profile, outside the repo.</footer>
+</main>
+</body>
+</html>

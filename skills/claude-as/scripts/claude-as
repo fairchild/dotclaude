@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+# claude-as: one Claude, several logins
+#
+#   claude-as work                    start Claude signed in as the "work" profile
+#   claude-as Work -c                 case doesn't matter; anything after the name goes to claude
+#   claude-as -p "task"               no name: $CLAUDE_AS_PROFILE, or plain claude when it's unset
+#   claude-as -- "task"               no name, when the first thing for claude isn't a flag
+#   claude-as work --link-only        build or repair the profile folder, don't start
+#   claude-as --list                  the profiles on this machine; * marks $CLAUDE_AS_PROFILE
+#   claude-as --guide                 open the illustrated guide in your browser
+#   claude-as --help                  print this
+#   echo $CLAUDE_PROFILE              inside a session: which profile am I? (empty = plain claude)
+#
+# A profile is a folder, ~/.claude-<name>. This script points CLAUDE_CONFIG_DIR at it and runs
+# claude, so the login and account state live there. Most of the folder is symlinks back to
+# ~/.claude, so every profile is the same Claude. Two files are built on every run, layering
+# the profile's own settings over the shared ones:
+#
+#   ~/.claude-work/
+#   ├── its own        login (keychain on macOS), .claude.json, history, sessions, caches
+#   ├── symlinks ────► ~/.claude/  settings.json, skills, agents, hooks, plugins,
+#   │                              projects/ (memory, transcripts), chronicle, plans ...
+#   └── built ───────► CLAUDE.md            = ~/.claude/CLAUDE.md
+#                                           + <skill>/profile.md                (how profiles work)
+#                                           + $CLAUDE_PROFILES/profile.md       (your rules, every profile)
+#                                           + $CLAUDE_PROFILES/work/CLAUDE.md
+#                      settings.local.json  = ~/.claude/settings.local.json
+#                                           + $CLAUDE_PROFILES/work/settings.json
+#                                           + browser profiles found for work
+#                                           (passed as --settings; Claude doesn't read a
+#                                           settings.local.json from CLAUDE_CONFIG_DIR)
+#
+# Tooling and config are kept apart. The tooling is the claude-as skill (~/.claude/skills/claude-as/:
+# this script, profile.md, guide.html); link the script onto your PATH. Your own layers live in
+# $CLAUDE_PROFILES (default ~/.config/claude-profiles/), one folder per profile, outside the repo.
+# Every file there is optional.
+#
+# Default profile: with no name, claude-as uses $CLAUDE_AS_PROFILE. A first argument starting with
+# "-" means no name was given. Unset or empty (CLAUDE_AS_PROFILE= claude-as ...), it runs plain
+# claude on ~/.claude. Every launch first drops the profile variables it inherited, so a session
+# started from inside another profile's session doesn't carry that profile's folder or browser.
+#
+# Browsers (macOS): the Chrome and Safari profiles named like the Claude profile, any case.
+# Override in the profile's settings.json: {"env": {"CLAUDE_CHROME_PROFILE": "Work",
+# "CLAUDE_SAFARI_PROFILE": "Work"}}. Chrome's name is resolved to its folder ("Profile 3") and
+# exported as CLAUDE_CHROME_PROFILE_DIR. An override Chrome doesn't have is a warning; without
+# an override, a missing match is silent.
+#
+# Needs bash, jq and claude on PATH. Built and used on macOS; profiles and side agents also run
+# on Linux, where the browser mapping does nothing.
+#
+# New profile     claude-as <name>, then /login once. Layers: mkdir $CLAUDE_PROFILES/<name>.
+# Rename          quit its sessions; mv ~/.claude-old ~/.claude-new and its config folder too;
+#                 claude-as new; /login again. The keychain names the login after the folder
+#                 path, so a new path signs you out (macOS). Update anything else naming the old path.
+# Remove          rm -rf ~/.claude-<name> deletes the links, not what they point to.
+# Repair          --link-only. Links into ~/.claude or $CLAUDE_PROFILES are repointed; anything
+#                 else already in the folder is left alone with a warning. The two built files
+#                 are rewritten every run, so edit their sources, not them.
+#
+# Profile names are letters, digits and dashes, lowercased.
+set -euo pipefail
+
+skill="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
+config="${CLAUDE_PROFILES:-$HOME/.config/claude-profiles}"
+
+usage() { sed -n '2,/^set -euo/p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//'; }
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+  --guide)
+    for opener in open xdg-open; do command -v "$opener" >/dev/null && exec "$opener" "$skill/guide.html"; done
+    echo "$skill/guide.html"; exit 0 ;;
+  --list)
+    for d in "$HOME"/.claude-*/; do
+      if head -1 "$d/CLAUDE.md" 2>/dev/null | grep -q 'Built by claude-as'; then
+        name="$(basename "$d")"; name="${name#.claude-}"
+        if [ "$name" = "${CLAUDE_AS_PROFILE:-}" ]; then echo "$name *"; else echo "$name"; fi
+      fi
+    done
+    exit 0 ;;
+  --) shift; profile="${CLAUDE_AS_PROFILE:-}" ;;
+  ""|-*) profile="${CLAUDE_AS_PROFILE:-}" ;;
+  *) profile="$1"; shift ;;
+esac
+
+unset CLAUDE_CONFIG_DIR CLAUDE_PROFILE CLAUDE_CHROME_PROFILE CLAUDE_CHROME_PROFILE_DIR CLAUDE_SAFARI_PROFILE
+if [ -z "$profile" ]; then
+  [ "${1:-}" = "--link-only" ] && { echo "claude-as: --link-only needs a profile name" >&2; exit 2; }
+  exec claude "$@"
+fi
+command -v jq >/dev/null || { echo "claude-as: needs jq (https://jqlang.org)" >&2; exit 1; }
+
+profile="$(printf '%s' "$profile" | tr '[:upper:]' '[:lower:]')"
+[[ "$profile" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "claude-as: profile must be letters, digits, dashes" >&2; exit 2; }
+
+home="$HOME/.claude"
+dir="$HOME/.claude-$profile"
+overlay="$config/$profile"
+shared=(GLOSSARY.md CONTEXT.md settings.json
+        skills agents commands hooks plugins scripts
+        projects chronicle memory knowledge plans handoffs session-titles title-feedback)
+warn() { echo "claude-as: $*" >&2; }
+
+mkdir -p "$dir"
+for name in "${shared[@]}"; do
+  src="$home/$name" dst="$dir/$name"
+  [ -e "$src" ] || continue
+  if [ -L "$dst" ]; then
+    target="$(readlink "$dst")"
+    [ "$target" = "$src" ] && continue
+    case "$target" in "$home"/*|"$config"/*) ln -sfn "$src" "$dst" ;; *) warn "$dst points elsewhere; leaving it" ;; esac
+  elif [ -e "$dst" ]; then
+    warn "$dst is a real file or directory; leaving it"
+  else
+    ln -s "$src" "$dst"
+  fi
+done
+
+built() { [ -L "$1" ] && rm "$1"; mv "$2" "$1"; }
+
+tmp="$(mktemp)"
+{
+  printf '<!-- Built by claude-as from the files below; edit those, not this. -->\n'
+  printf '@~/.claude/CLAUDE.md\n'
+  for f in "$skill/profile.md" "$config/profile.md" "$overlay/CLAUDE.md"; do
+    if [ -f "$f" ]; then printf '@%s\n' "${f/#$HOME/~}"; fi
+  done
+} > "$tmp"
+built "$dir/CLAUDE.md" "$tmp"
+
+json_or_empty() { if [ -f "$1" ]; then cat "$1"; else echo '{}'; fi; }
+override() { json_or_empty "$overlay/settings.json" | jq -r --arg k "$1" '.env[$k] // empty'; }
+
+chrome_set="$(override CLAUDE_CHROME_PROFILE)"; chrome_want="${chrome_set:-$profile}"
+safari_want="$(override CLAUDE_SAFARI_PROFILE)"; safari_want="${safari_want:-$profile}"
+chrome_name="$chrome_want" chrome_dir=""
+local_state="$HOME/Library/Application Support/Google/Chrome/Local State"
+if [ ! -f "$local_state" ]; then
+  [ -z "$chrome_set" ] || warn "no Chrome profile list at $local_state; CLAUDE_CHROME_PROFILE_DIR stays unset"
+elif found="$(jq -r --arg n "$chrome_want" '.profile.info_cache | to_entries[]
+      | select(.value.name | ascii_downcase == ($n | ascii_downcase)) | "\(.key)\t\(.value.name)"' \
+      "$local_state" 2>/dev/null | head -1)"; then
+  if [ -n "$found" ]; then
+    chrome_dir="${found%%$'\t'*}" chrome_name="${found#*$'\t'}"
+  elif [ -n "$chrome_set" ]; then
+    warn "no Chrome profile named '$chrome_want' (any case); fix env.CLAUDE_CHROME_PROFILE in $overlay/settings.json"
+  fi
+else
+  chrome_dir="$(json_or_empty "$dir/settings.local.json" | jq -r '.env.CLAUDE_CHROME_PROFILE_DIR // empty' 2>/dev/null || true)"
+  warn "couldn't read Chrome's profile list; keeping CLAUDE_CHROME_PROFILE_DIR='$chrome_dir'"
+fi
+
+tmp="$(mktemp)"
+jq -n --argjson base "$(json_or_empty "$home/settings.local.json")" \
+      --argjson over "$(json_or_empty "$overlay/settings.json")" \
+      --arg profile "$profile" --arg cn "$chrome_name" --arg cd "$chrome_dir" --arg sn "$safari_want" '
+  def merge(a; b):
+    if (a | type) == "object" and (b | type) == "object" then
+      reduce ((a + b) | keys_unsorted[]) as $k ({};
+        .[$k] = if (a | has($k)) and (b | has($k)) then merge(a[$k]; b[$k])
+                elif (b | has($k)) then b[$k] else a[$k] end)
+    elif (a | type) == "array" and (b | type) == "array" then a + b | unique
+    else b end;
+  merge(merge($base; $over); {env: ({CLAUDE_PROFILE: $profile, CLAUDE_CHROME_PROFILE: $cn,
+    CLAUDE_SAFARI_PROFILE: $sn} + (if $cd == "" then {} else {CLAUDE_CHROME_PROFILE_DIR: $cd} end))})
+' > "$tmp"
+built "$dir/settings.local.json" "$tmp"
+
+[ "${1:-}" = "--link-only" ] && { echo "claude-as: $dir built (chrome: ${chrome_name}${chrome_dir:+ → $chrome_dir}, safari: $safari_want)"; exit 0; }
+CLAUDE_CONFIG_DIR="$dir" CLAUDE_PROFILE="$profile" exec claude --settings "$dir/settings.local.json" "$@"

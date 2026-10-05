@@ -118,6 +118,7 @@ Claude loads these when the task matches the description.
 | Skill | Domain | Why experimental |
 |---|---|---|
 | `ascii-art-fix` | Fix misaligned right borders in ASCII art diagrams | Prompt-only repair is useful but still has edge cases around nested diagrams, tables, and mixed markdown content. |
+| `claude-as` | Run Claude Code under a different account with claude-as profiles. | New in this form: the profile layering has run on one machine with two accounts; side-agent launches are tested headless only. |
 | `cloudflare-workers-deploy` | Set up Cloudflare Workers deployment for web applications with GitHub Actions CI/CD. | Deployment patterns are useful but not yet validated across enough project shapes and Cloudflare account setups. |
 | `ios-simulator` | Automate iOS Simulator tasks — capture screenshots, interact with apps, generate screen flow galleries. | Simulator automation remains sensitive to local device state, timing, window focus, and Xcode version differences. |
 | `persona-memory` | Build and operate a persistent persona and memory framework for Claude Code. | Healthy framework, intentionally experimental until background memory agents and full interactive-session CI coverage exist. |

@@ -58,6 +58,7 @@ jobs:
           done
           scripts/test-participant-contract.sh
           bash skills/agent-inbox/scripts/test-hooks.sh
+          bash skills/claude-as/tests/test.sh
           python skills/image-gen/scripts/check_protocol.py
   package:
     needs: changes
