@@ -243,6 +243,10 @@ Production deploys automatically from main through CI, using the package-backed
 Worker artifact that passed verification. For recovery, manually run CI on main;
 see [GitHub Actions and releases](../docs/github-actions.md#recovery).
 For a local source snapshot without deployment, run `bun worker/build.ts`.
+To see the full site output on a small corpus, build the conformance fixtures:
+`bun worker/build.ts --root conformance/fixtures --out /tmp/skills-demo`.
+The build skips `bad-name` with a diagnostic and excludes the machine-bound
+`bound-skill`, so the snapshot holds the two portable fixtures.
 
 ## Connect
 
