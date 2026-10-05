@@ -114,15 +114,25 @@ export function renderMarkdown(markdown: string, name: string, origin = defaultO
   return md.render(markdown.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, ""));
 }
 
-export function renderSkillPage(template: string, name: string, description: string, markdown: string, paths: string[], download?: Download, origin = defaultOrigin): string {
+const formatBytes = (bytes: number) =>
+  bytes < 1e3 ? `${bytes} B` : bytes < 1e6 ? `${(bytes / 1e3).toFixed(1)} KB` : `${(bytes / 1e6).toFixed(1)} MB`;
+/** Beyond this many files the list folds away so the instructions stay near the top. */
+const openFileLimit = 10;
+
+export interface PageDetails { bytes?: number; source?: string }
+export function renderSkillPage(template: string, name: string, description: string, markdown: string, paths: string[], download?: Download, origin = defaultOrigin, details: PageDetails = {}): string {
+  const summary = [`${paths.length} ${paths.length === 1 ? "file" : "files"}`, details.bytes === undefined ? "" : formatBytes(details.bytes)].filter(Boolean).join(" · ");
+  const files = `<ul class="files">${orderedPaths(paths).map(path => `<li><a href="${fileUrl(name, path)}">${escapeHtml(path)}</a></li>`).join("")}</ul>`;
   const values: Record<string, string> = {
     NAME: escapeHtml(name), DESCRIPTION: escapeHtml(description.split(/(?<=[.!?])\s/)[0] ?? description), RAW_URL: `/skills/${encodeURIComponent(name)}/SKILL.md`,
     CONTENT: renderMarkdown(markdown, name, origin), PROMPT: escapeHtml(packagePrompt(name, download, origin)),
     INLINE_PROMPT: escapeHtml(installPrompt(name, markdown, paths, origin)),
     DIRECTORY_URL: `/skills/${encodeURIComponent(name)}/`, MARKDOWN_URL: `/skill/${encodeURIComponent(name)}.md`,
-    FILES: orderedPaths(paths).map(path => `<li><a href="${fileUrl(name, path)}">${escapeHtml(path)}</a></li>`).join(""),
+    PAGE_URL: escapeHtml(`${origin}/skills/${encodeURIComponent(name)}/`),
+    FILES: paths.length > openFileLimit ? `<details class="file-list"><summary>${escapeHtml(summary)}</summary>${files}</details>` : files,
     ARCHIVE_URL: download?.archive ?? `/downloads/${encodeURIComponent(name)}/skill.tgz`,
-    FILE_COUNT: `${paths.length} ${paths.length === 1 ? "file" : "files"}`,
+    FILE_SUMMARY: escapeHtml(summary),
+    SOURCE_LINK: details.source ? ` · <a href="${escapeHtml(details.source)}">Source ↗</a>` : "",
   };
   return template.replace(/\{\{(\w+)\}\}/g, (token, key) => values[key] ?? token);
 }

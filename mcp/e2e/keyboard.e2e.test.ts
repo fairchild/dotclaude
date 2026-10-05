@@ -8,7 +8,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const filter = (page: Page) => page.getByRole("searchbox", { name: "Filter skills" });
-const matches = (page: Page) => page.locator("#catalog li:not([hidden]) h2 a");
+const matches = (page: Page) => page.locator("#catalog li:not([hidden]) h3 a");
 const everyRow = (page: Page) => page.locator("#catalog li");
 const copyButton = (page: Page) => page.getByRole("button", { name: "Copy install prompt" });
 // Slow enough to watch in the recording, fast enough to stay a test.
@@ -188,5 +188,11 @@ test.describe("on a touch device", () => {
 
     await filter(page).fill("git-work");
     await expect(matches(page).first()).toHaveText("git-worktree");
+  });
+
+  test("a skill page leaves the copy button unfocused", async ({ page }) => {
+    await page.goto("/skills/git-worktree/");
+    await expect(copyButton(page)).toBeVisible();
+    await expect(copyButton(page)).not.toBeFocused();
   });
 });

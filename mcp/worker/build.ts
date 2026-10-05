@@ -6,5 +6,10 @@ const { values } = parseArgs({ options: {
   root: { type: "string", default: join(import.meta.dir, "../../skills") },
   out: { type: "string", default: join(import.meta.dir, "dist") },
   "base-url": { type: "string", default: "https://skills.cloudcompute.com" },
+  "source-repository": { type: "string" },
+  "source-date": { type: "string" },
 } });
-buildSnapshot({ root: values.root!, out: values.out!, baseUrl: values["base-url"]!, sourceSha: process.env.GITHUB_SHA });
+buildSnapshot({
+  root: values.root!, out: values.out!, baseUrl: values["base-url"]!, sourceSha: process.env.GITHUB_SHA,
+  sourceRepository: values["source-repository"], sourceDate: values["source-date"],
+});

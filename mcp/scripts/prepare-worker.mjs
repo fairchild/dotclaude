@@ -18,7 +18,13 @@ try {
   writeFileSync(join(scratch, 'worker.ts'), adapter);
   const config = readFileSync(join(root, 'worker/wrangler.toml'), 'utf8');
   writeFileSync(join(scratch, 'wrangler.toml'), config);
-  buildSnapshot({ root: join(root, '../skills'), out: join(scratch, 'dist'), baseUrl: 'https://skills.cloudcompute.com', sourceSha: process.env.GITHUB_SHA });
+  const { GITHUB_SHA, GITHUB_REPOSITORY, GITHUB_SERVER_URL = 'https://github.com' } = process.env;
+  // The commit's own date keeps two builds of one commit identical; a depth-1 checkout has it.
+  const sourceDate = execFileSync('git', ['log', '-1', '--format=%cI', GITHUB_SHA ?? 'HEAD'], { cwd: root, encoding: 'utf8' }).trim() || undefined;
+  buildSnapshot({
+    root: join(root, '../skills'), out: join(scratch, 'dist'), baseUrl: 'https://skills.cloudcompute.com',
+    sourceSha: GITHUB_SHA, sourceRepository: GITHUB_REPOSITORY && `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}`, sourceDate,
+  });
   const packageDigest = createHash('sha256').update(readFileSync(archive)).digest('hex');
   const { version } = JSON.parse(readFileSync(join(scratch, 'node_modules/skill-server/package.json')));
   writeFileSync(join(scratch, 'dist/public/version.json'), JSON.stringify({ sourceSha: process.env.GITHUB_SHA ?? null, packageVersion: version, packageDigest }));
