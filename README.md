@@ -78,8 +78,6 @@ Claude loads these when the task matches the description.
 | `analyze-usage` | Analyze local AI coding-assistant activity across Claude Code, Codex, Cursor, and Pi. |
 | `backlog` | Markdown task backlog and project roadmap (backlog/{todo,doing,done,failed}/, backlog/ROADMAP.md) for adding,… |
 | `chronicle` | Session continuity for coding work. |
-| `cmux-orchestrator` | Orchestrate the cmux terminal — named layouts (workshop, ops-deck), sidebar dashboarding (status, progress, logs),… |
-| `codespaces` | Manage GitHub Codespaces lifecycle via gh CLI. |
 | `dotclaude-config` | Work with Claude Code configuration at global (~/.claude) or project (.claude/) level. |
 | `fable-session` | Hand off long-arc work to a fable session — Fable orchestrates and verifies while delegating the implementation. |
 | `frontend-design` | Create distinctive, production-grade frontend interfaces with high design quality. |
@@ -91,7 +89,6 @@ Claude loads these when the task matches the description.
 | `signoz-log` | Send structured logs to SigNoz observability platform. |
 | `skills-manager` | Use when the user wants to list, search, install, remove, inspect, validate, audit, or update skills. |
 | `swiftui-expert` | Write, review, or improve SwiftUI code. |
-| `team-memory` | Persistent AI teammate memory framework. |
 | `update-dependencies` | Smart dependency updates across ecosystems (npm/bun/pnpm, uv/poetry, cargo). |
 | `webapp-testing` | Interact with and test web applications using Playwright. |
 
@@ -103,10 +100,13 @@ Claude loads these when the task matches the description.
 |---|---|
 | `/brainstorm-to-brief` | Wide→Narrow design workflow taking UI/UX concepts from exploration to polished design brief. |
 | `/canon-printer` | Check status, ink levels, job queue, cancel stuck jobs, print files and rendered documents, track loaded paper, and… |
+| `/cmux-orchestrator` | Orchestrate the cmux terminal — named layouts (workshop, ops-deck), sidebar dashboarding (status, progress, logs),… |
+| `/codespaces` | Manage GitHub Codespaces lifecycle via gh CLI. |
 | `/excalidraw-diagrams` | Create diagrams and visual artifacts using Excalidraw with real-time canvas preview. |
 | `/fork` | Fork the current session with context carried over. |
 | `/release` | Create semantic versioned releases with AI-generated changelogs, for repos that do not already have a release pipeline… |
 | `/skill-building` | Guide for creating, editing, and evaluating skills. |
+| `/team-memory` | Persistent AI teammate memory framework. |
 | `/tidyup` | Proof-based sweep of a repo's accumulated worktrees, stale local branches, and in-flight PRs — reduces open threads to… |
 | `/web-artifacts-builder` | Suite of tools for creating elaborate, multi-component claude.ai HTML artifacts using modern frontend web technologies… |
 | `/youtube-content` | Extract and analyze YouTube video content (transcripts + metadata). |

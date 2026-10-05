@@ -18,7 +18,7 @@ After generation, return the absolute output path and, when the client supports 
 
 | Use case | Provider/script | Notes |
 |----------|-----------------|-------|
-| General prompt-to-image default | `generate_openai.py` | Defaults to `gpt-image-2`; strong output controls. |
+| General prompt-to-image default | `generate_openai.py` | Defaults to `gpt-image-2`; strong output controls. The 2.5 family is `gpt-image-2.5-sunburst` and `gpt-image-2.5-flare` (no bare `gpt-image-2.5`); `chatgpt-image-latest` tracks ChatGPT. List what the key can actually see with `GET /v1/models`. |
 | Gemini/Nano Banana output | `generate_gemini.py` | Defaults to Nano Banana 2 (`gemini-3.1-flash-image-preview`). |
 | Complex Gemini or text-heavy visual work | `generate_gemini.py --model gemini-3-pro-image-preview` | Nano Banana Pro; supports 1K/2K/4K size controls. |
 | Specific Imagen requirement | `generate_imagen.py` | Imagen 4 GA models are listed by Google with a 2026-06-30 discontinuation date; prefer Gemini for new work unless Imagen is requested. |

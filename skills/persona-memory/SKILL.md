@@ -5,6 +5,7 @@ license: Apache-2.0
 metadata:
   status: experimental
   experimental_reason: "Healthy framework, intentionally experimental until background memory agents and full interactive-session CI coverage exist."
+disable-model-invocation: true
 ---
 
 # Persona Memory

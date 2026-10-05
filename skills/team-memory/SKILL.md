@@ -2,6 +2,7 @@
 name: team-memory
 description: "Persistent AI teammate memory framework. Gives Claude Code agents persistent memory, evolving personality, and teammate-like behavior across sessions. Use when setting up personality.md injection, durable memory blocks in ~/.ai-memory, session start/end memory workflows, journal/remember/consolidate scripts, or packaging a distributable memory skill profile."
 license: Apache-2.0
+disable-model-invocation: true
 ---
 
 # Team Memory
