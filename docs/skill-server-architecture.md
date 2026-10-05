@@ -229,7 +229,9 @@ The explicit non-guarantees matter as much as the limits.
 
 A digest establishes byte identity, not safe behavior. Both install prompts say
 so and ask the consuming agent to inspect before installing
-([skill-page.ts](../mcp/worker/skill-page.ts#L12)).
+([skill-page.ts](../mcp/worker/skill-page.ts#L12)). The shell install on each
+skill page checks the archive digest and nothing more; the caution line above it
+says so.
 
 Filesystem staging assumes an operator-owned parent with no concurrent hostile
 writers. `checkedPath` rejects nested symlinks and paths that escape the skill

@@ -14,9 +14,14 @@ const orderedPaths = (paths: string[]) => ["SKILL.md", ...paths.filter(path => p
 const defaultOrigin = "https://skills.cloudcompute.com";
 export const fileUrl = (name: string, path: string) => `/skills/${[name, ...path.split("/")].map(encodeURIComponent).join("/")}`;
 
+const skillsDirectory = (name: string) =>
+  `Claude Code loads skills from ~/.claude/skills/${name}. Codex and other agents that follow the shared ~/.agents/skills convention load them from ~/.agents/skills/${name}. Use the directory your agent actually loads skills from; if you are not sure, ask the user instead of guessing.`;
+
 export function packagePrompt(name: string, download?: Download, origin = defaultOrigin): string {
   validateSkillName(name);
   return `Install the ${name} skill into your agent's user-level skills directory, preserving existing local changes.
+
+${skillsDirectory(name)}
 
 Download: ${origin}${download?.archive ?? `/downloads/${name}/skill.tgz`}
 ${download ? `SHA-256: ${download.digest}
@@ -25,6 +30,40 @@ Manifest: ${origin}${download.manifest}
 Verify the archive digest${download ? " and the extracted files against the manifest" : " against the hosted manifest"}, then install the ${name}/ directory with its paths and safe file permissions intact. If this snapshot is unavailable, report that instead of substituting another version.
 
 ${installSafety}`;
+}
+
+export const shellIntro = `Run this in a terminal. It downloads the pinned archive, checks its SHA-256 digest, and extracts it into ~/.claude/skills, where Claude Code loads skills. For Codex and other agents that read ~/.agents/skills, edit the SKILLS_DIR line. If the skill is already installed, the command stops and changes nothing.`;
+
+/** A POSIX sh command run in a child shell, so set -eu and exit never reach the user's own shell. */
+export function shellInstall(name: string, download: Download, origin = defaultOrigin): string {
+  validateSkillName(name);
+  if (!/^[a-f0-9]{64}$/.test(download.digest) || download.archive !== `/downloads/${name}/${download.digest}.tgz`) throw new Error(`unpinned archive for ${name}`);
+  if (!/^https?:\/\/[A-Za-z0-9.:[\]-]+$/.test(origin)) throw new Error(`unsafe origin: ${JSON.stringify(origin)}`);
+  return `sh -eu -c '
+# Claude Code reads ~/.claude/skills.
+# Codex and other agents that read ~/.agents/skills: use "$HOME/.agents/skills".
+SKILLS_DIR="$HOME/.claude/skills"
+name=${name}
+url=${origin}${download.archive}
+sha256=${download.digest}
+dest="$SKILLS_DIR/$name"
+fail() { echo "$*" >&2; exit 1; }
+if [ -e "$dest" ] || [ -L "$dest" ]; then
+  fail "$dest already exists. Move it aside to reinstall."
+fi
+tmp=$(mktemp -d)
+trap "rm -rf \\"\\$tmp\\"" EXIT
+curl -fsSL "$url" -o "$tmp/skill.tgz" ||
+  fail "Download failed. This snapshot may have been replaced; reload the skill page."
+sum=$(sha256sum "$tmp/skill.tgz" 2>/dev/null || shasum -a 256 "$tmp/skill.tgz")
+[ "\${sum%% *}" = "$sha256" ] ||
+  fail "SHA-256 mismatch: expected $sha256, got \${sum%% *}. Nothing was installed."
+mkdir "$tmp/out"
+tar -xzf "$tmp/skill.tgz" -C "$tmp/out"
+mkdir -p "$SKILLS_DIR"
+mv "$tmp/out/$name" "$dest"
+echo "Installed $name in $dest"
+'`;
 }
 
 export function directoryMarkdown(name: string, description: string, paths: string[], download?: Download, origin = defaultOrigin): string {
@@ -41,7 +80,15 @@ ${orderedPaths(paths).map(path => `- [${path.replace(/[\[\]\\]/g, "\\$&")}](${fi
 ## Install
 
 ${packagePrompt(name, download, origin)}
+${download ? `
+### Install from a shell
 
+${shellIntro}
+
+\`\`\`sh
+${shellInstall(name, download, origin)}
+\`\`\`
+` : ""}
 [All skills](/llms.txt)
 `;
 }
@@ -55,7 +102,7 @@ export function installPrompt(name: string, markdown: string, paths: string[], o
   ).join("\n");
   return `Install this skill: ${name}.
 
-Use your agent's user-level skills directory. The command below writes the complete SKILL.md to ~/.agents/skills/${name}; adapt that directory if your agent uses another location. Preserve existing local changes before replacing an installed skill.
+Install into your agent's user-level skills directory. ${skillsDirectory(name)} The command below sets SKILLS_DIR to ~/.claude/skills; change that line if your agent loads skills from another directory. Preserve existing local changes before replacing an installed skill.
 
 ${installSafety}
 
@@ -74,9 +121,11 @@ Fetch ${origin}/manifest.json and find the entry with frontmatter.name equal to 
 
 Run this command to install SKILL.md:
 
-mkdir -p "$HOME/.agents/skills/${name}"
-cat > "$HOME/.agents/skills/${name}/SKILL.md" <<'${delimiter}'
-${markdown}${markdown.endsWith("\n") ? "" : "\n"}${delimiter}${markdown.endsWith("\n") ? "" : `\n# Remove the heredoc's added newline to match the source.\nperl -pi -e 'chomp if eof' "$HOME/.agents/skills/${name}/SKILL.md"`}
+# Claude Code reads this directory. Codex and other agents that follow the ~/.agents/skills convention read "$HOME/.agents/skills".
+SKILLS_DIR="$HOME/.claude/skills"
+mkdir -p "$SKILLS_DIR/${name}"
+cat > "$SKILLS_DIR/${name}/SKILL.md" <<'${delimiter}'
+${markdown}${markdown.endsWith("\n") ? "" : "\n"}${delimiter}${markdown.endsWith("\n") ? "" : `\n# Remove the heredoc's added newline to match the source.\nperl -pi -e 'chomp if eof' "$SKILLS_DIR/${name}/SKILL.md"`}
 `;
 }
 
@@ -119,6 +168,8 @@ const formatBytes = (bytes: number) =>
 /** Beyond this many files the list folds away so the instructions stay near the top. */
 const openFileLimit = 10;
 
+const shellDetails = (command: string) => `<details id="shell-preview"><summary>Install from a shell</summary><p>${escapeHtml(shellIntro).replace(/~\/\.\w+\/skills|SKILLS_DIR/g, path => `<code>${path}</code>`)}</p><button type="button" id="copy-shell">Copy shell command</button><textarea id="shell-command" aria-label="Shell install command" readonly spellcheck="false" wrap="off" rows="${command.split("\n").length}">${escapeHtml(command)}</textarea></details>`;
+
 export interface PageDetails { bytes?: number; source?: string }
 export function renderSkillPage(template: string, name: string, description: string, markdown: string, paths: string[], download?: Download, origin = defaultOrigin, details: PageDetails = {}): string {
   const summary = [`${paths.length} ${paths.length === 1 ? "file" : "files"}`, details.bytes === undefined ? "" : formatBytes(details.bytes)].filter(Boolean).join(" · ");
@@ -127,6 +178,7 @@ export function renderSkillPage(template: string, name: string, description: str
     NAME: escapeHtml(name), DESCRIPTION: escapeHtml(description.split(/(?<=[.!?])\s/)[0] ?? description), RAW_URL: `/skills/${encodeURIComponent(name)}/SKILL.md`,
     CONTENT: renderMarkdown(markdown, name, origin), PROMPT: escapeHtml(packagePrompt(name, download, origin)),
     INLINE_PROMPT: escapeHtml(installPrompt(name, markdown, paths, origin)),
+    SHELL_INSTALL: download ? shellDetails(shellInstall(name, download, origin)) : "",
     DIRECTORY_URL: `/skills/${encodeURIComponent(name)}/`, MARKDOWN_URL: `/skill/${encodeURIComponent(name)}.md`,
     PAGE_URL: escapeHtml(`${origin}/skills/${encodeURIComponent(name)}/`),
     FILES: paths.length > openFileLimit ? `<details class="file-list"><summary>${escapeHtml(summary)}</summary>${files}</details>` : files,
