@@ -51,9 +51,11 @@ fi
 # A local commit leaves HEAD ahead of origin/main, where `merge --ff-only`
 # succeeds as a no-op, so nothing below would ever notice it.
 
-guard=$(git -C "$RUNTIME" rev-parse --git-path hooks/pre-commit 2>/dev/null) || guard=".git/hooks/pre-commit"
-[[ "$guard" = /* ]] || guard="$RUNTIME/$guard"
-if [ ! -e "$guard" ]; then
+# With core.hooksPath set, hooks live in a directory other repos may share,
+# so the guard stays out and the warnings below carry the job alone.
+hooks_path=$(git -C "$RUNTIME" config --get core.hooksPath 2>/dev/null) || hooks_path=""
+guard="$RUNTIME/.git/hooks/pre-commit"
+if [ -z "$hooks_path" ] && [ -d "$RUNTIME/.git" ] && [ ! -e "$guard" ]; then
   {
     mkdir -p "$(dirname "$guard")"
     printf '#!/bin/sh\n# Installed by scripts/deploy.sh\necho "~/.claude is deploy-only; commit in ~/code/dotclaude" >&2\nexit 1\n' > "$guard"
