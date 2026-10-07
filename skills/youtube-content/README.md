@@ -30,11 +30,11 @@ The skill does **not** auto-trigger when you simply paste a YouTube URL. You nee
 
 | Mode | Trigger Phrases |
 |------|-----------------|
-| Wisdom | "extract wisdom", "key insights", "what can I learn" |
-| Summary | "summarize", "TLDR", "overview", "main points" |
-| Q&A | "questions", "discussion topics", "what to ask" |
-| Quotes | "notable quotes", "key statements" |
-| Custom | Any specific request ("list the tools mentioned", "find statistics") |
+| **Wisdom** | "extract wisdom", "key insights", "what can I learn" |
+| **Summary** | "summarize", "TLDR", "overview", "main points" |
+| **Q&A** | "questions", "discussion topics", "what to ask" |
+| **Quotes** | "notable quotes", "key statements" |
+| **Custom** | Any specific request ("list the tools mentioned", "find statistics") |
 
 ## Supported URL Formats
 
@@ -45,17 +45,18 @@ The skill does **not** auto-trigger when you simply paste a YouTube URL. You nee
 
 ## Requirements
 
-The skill uses two Python libraries (installed automatically via `uv`):
+The skill uses one Python library, installed automatically via `uv`:
 
-- `youtube-transcript-api` - fetches transcripts
-- `yt-dlp` - fetches video metadata
+- `yt-dlp[default]` - fetches both video metadata and captions. The `[default]` extra installs `yt-dlp-ejs`, which combined with a JS runtime already on your PATH (Deno, Node, or Bun) lets yt-dlp solve YouTube's signature/n-challenges. Without one, metadata generally still works but captions may fail on some videos with a "SABR streaming" error - install Deno (https://deno.land) to fix this.
+
+(An earlier version of this skill also used `youtube-transcript-api` for captions; that's been dropped in favor of fetching captions through yt-dlp itself, which handles YouTube's current anti-bot measures far more reliably.)
 
 ## Limitations
 
 - **No transcript available**: Some videos have captions disabled. The skill will still return metadata.
 - **Private/unlisted videos**: Cannot access these without authentication.
 - **Age-restricted content**: May fail to fetch metadata.
-- **Rate limiting**: If you analyze many videos quickly, YouTube may temporarily block requests.
+- **Rate limiting**: The caption endpoint intermittently returns HTTP 429 regardless of how many videos you've fetched; the script retries this automatically a few times before giving up.
 
 ## Testing
 
@@ -81,6 +82,9 @@ uv run scripts/fetch_youtube.py "https://youtube.com/watch?v=dQw4w9WgXcQ" --tran
 
 # Include timestamped segments (for quote extraction)
 uv run scripts/fetch_youtube.py "https://youtube.com/watch?v=dQw4w9WgXcQ" --with-segments
+
+# Prefer a specific subtitle language (falls back to original/auto if unavailable)
+uv run scripts/fetch_youtube.py "https://youtube.com/watch?v=dQw4w9WgXcQ" --lang ar
 ```
 
 Output is JSON with `video_id`, `metadata`, `transcript`, and `errors` fields.

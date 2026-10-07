@@ -2,9 +2,9 @@
 name: youtube-content
 description: Extract and analyze YouTube video content (transcripts + metadata). Use when the user explicitly requests to analyze, summarize, extract wisdom from, or get context from a YouTube video. Supports wisdom extraction, summary, Q&A prep, key quotes, and custom analysis. Does NOT auto-trigger on YouTube URLs - only when analysis is explicitly requested.
 license: Apache-2.0
-disable-model-invocation: true
+metadata:
+  mcpmarket-version: 1.0.0
 ---
-
 # YouTube Content
 
 Extract transcripts and metadata from YouTube videos for analysis.
@@ -19,20 +19,27 @@ Extract transcripts and metadata from YouTube videos for analysis.
 
 ## Fetch Script
 
-Paths below are relative to this skill's base directory.
+Run from the skill directory (`~/.claude/skills/youtube-content/`):
 
 ```bash
-uv run scripts/fetch_youtube.py "https://youtube.com/watch?v=VIDEO_ID"
+uv run ~/.claude/skills/youtube-content/scripts/fetch_youtube.py "https://youtube.com/watch?v=VIDEO_ID"
 ```
 
 Options:
 - `--metadata-only` - Skip transcript extraction
 - `--transcript-only` - Skip metadata extraction
 - `--with-segments` - Include timestamped segments (for quote extraction)
+- `--lang LANG` - Preferred subtitle language code (e.g. `ar`, `en`). Defaults to the video's original language, falling back to any available track.
 
 Output: JSON with `{video_id, metadata, transcript, errors}`
 
 By default, transcript contains only `text` and `language`. Use `--with-segments` when timestamps are needed (e.g., Quotes mode).
+
+### Dependencies and JS runtime
+
+The script depends only on `yt-dlp[default]` (uv installs this automatically per PEP 723 header - no separate `youtube-transcript-api` dependency anymore). The `[default]` extra pulls in `yt-dlp-ejs`, which - together with a JS runtime already on PATH (Deno, Node, or Bun) - lets yt-dlp solve YouTube's signature/n-challenges. Without a JS runtime, metadata usually still works but captions may fail on some videos with a "SABR streaming" error. If that happens, install Deno (https://deno.land) and re-run; `check_environment()` in the script surfaces this as a non-fatal warning in `errors` when no JS runtime is found.
+
+Captions are now fetched via yt-dlp itself (json3 format) rather than `youtube-transcript-api`, since yt-dlp's request handling is far more resilient against YouTube's current anti-bot measures.
 
 ## Supported URL Formats
 
@@ -61,7 +68,8 @@ The script returns partial results when possible:
 - **Transcripts disabled**: Returns metadata only, notes error
 - **Private video**: Clear error message with video ID
 - **No transcript found**: Returns metadata, suggests alternatives
-- **Rate limiting**: Retry after 30-60 seconds
+- **Rate limiting (HTTP 429 on caption fetch)**: The script already retries internally (4 attempts, ~8s apart) since this is a known intermittent YouTube-side throttle on the caption endpoint, unrelated to yt-dlp version. If it still fails after that, wait a minute and retry the whole command.
+- **"forcing SABR streaming" / "No supported JavaScript runtime"**: A JS runtime (Deno/Node/Bun) is missing or `yt-dlp-ejs` isn't installed. Re-running `uv run` should self-heal `yt-dlp-ejs` (declared as a dependency), but a JS runtime must be installed separately - see the Dependencies section above.
 
 Check the `errors` array in output for any issues.
 
@@ -72,7 +80,8 @@ For video analysis that shouldn't block the main conversation, spawn a backgroun
 ```
 Task(
   subagent_type: "general-purpose",
-  prompt: "Use the youtube-content skill to analyze this YouTube video: {url}
+  prompt: "Read ~/.claude/skills/youtube-content/SKILL.md and follow the workflow.
+    Analyze this YouTube video: {url}
     Mode: {wisdom|summary|qa|quotes}
     Save to knowledge base: {yes|no}"
 )
@@ -84,7 +93,7 @@ Analyses and raw transcripts are automatically saved to a knowledge base for fut
 
 ### Configuration
 
-Set `CLAUDE_KNOWLEDGE_DIR` to customize storage location (default: `~/.claude/knowledge`). <!-- portability: allow -->
+Set `CLAUDE_KNOWLEDGE_DIR` to customize storage location (default: `~/.claude/knowledge`).
 
 ### Save Analysis
 
