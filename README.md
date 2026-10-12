@@ -80,7 +80,6 @@ Claude loads these when the task matches the description.
 | `chronicle` | Session continuity for coding work. |
 | `dotclaude-config` | Work with Claude Code configuration at global (~/.claude) or project (.claude/) level. |
 | `fable-session` | Hand off long-arc work to a fable session — Fable orchestrates and verifies while delegating the implementation. |
-| `frontend-design` | Create distinctive, production-grade frontend interfaces with high design quality. |
 | `gh-apps` | Create, authenticate, and manage GitHub Apps. |
 | `git-worktree` | Manage Git worktrees for concurrent local development. |
 | `image-gen` | Generate images from prompts using AI APIs (OpenAI GPT Image, Google Gemini/Nano Banana, Google Imagen, fal.ai Flux). |
