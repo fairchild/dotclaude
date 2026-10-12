@@ -1,8 +1,9 @@
 # VERSION UPDATES ARE OFF: every entry sets `open-pull-requests-limit: 0`,
 # which GitHub documents as disabling version-update PRs for that package
-# manager. Security-update PRs are not subject to that limit, and they still
-# read the directories, groups and `ignore` rules below, so every entry stays.
-# Decision record: https://github.com/fairchild/services/pull/1882
+# manager. Dependabot alerts and security updates are off in this
+# repository's settings too, and every action under .github/workflows is
+# pinned to a commit SHA, so nothing here moves an action automatically:
+# a pin changes only when someone changes it.
 
 version: 2
 updates:
