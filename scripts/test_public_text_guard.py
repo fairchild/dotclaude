@@ -12,7 +12,7 @@ import os
 import subprocess
 import sys
 import tempfile
-import textwrap
+import time
 import unittest
 from pathlib import Path
 from typing import Optional
@@ -22,6 +22,7 @@ DIRTY = "Follows acme/secretproj#12 closely."
 
 FAKE_GH = r"""#!/usr/bin/env bash
 [ -n "${FAKE_GH_DOWN:-}" ] && exit 1
+[ -n "${FAKE_GH_HANG:-}" ] && { sleep 120; exit 1; }
 case "$*" in
   "api user "*) echo acme ;;
   "repo list acme --visibility private"*) printf 'secretproj\nhush-svc\nhome\n' ;;
@@ -66,7 +67,7 @@ class Guard(unittest.TestCase):
     def hook(self, command: str, cwd: Optional[Path] = None, **env: str) -> dict:
         event = {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(cwd or self.repo)}
         out = subprocess.run([sys.executable, str(GUARD), "hook"], input=json.dumps(event),
-                             env={**self.env, **env}, capture_output=True, text=True)
+                             env={**self.env, **env}, capture_output=True, text=True, timeout=60)
         self.assertEqual(out.returncode, 0, out.stderr)
         return json.loads(out.stdout) if out.stdout.strip() else {}
 
@@ -167,6 +168,61 @@ class Guard(unittest.TestCase):
         self.assertEqual(self.decision('git commit -m "fix: x"', FAKE_GH_DOWN="1"), "warn")
         self.assertEqual(self.decision('gh pr create --title x --body y', FAKE_GH_DOWN="1"), "ask")
         self.assertEqual(self.decision("ls -la", FAKE_GH_DOWN="1"), "pass")
+
+
+    # --- codex pass on 3ed4b1f: shapes agents type, and ways it failed quietly ---------------
+
+    def test_a_bad_pattern_fails_loud(self) -> None:
+        (self.tmp / "patterns").write_text("[\n")
+        self.assertEqual(self.decision('git commit -m "fix: x"'), "warn")
+        self.assertEqual(self.decision('gh pr create --title x --body y'), "ask")
+
+    def test_a_crash_warns_and_asks_before_a_github_write(self) -> None:
+        state = self.tmp / "state-is-a-file"
+        state.write_text("")
+        self.assertEqual(self.decision('git commit -m "fix: x"', PUBLIC_TEXT_STATE=str(state)), "warn")
+        self.assertEqual(self.decision('gh pr create --title x --body y', PUBLIC_TEXT_STATE=str(state)), "ask")
+
+    def test_a_hanging_gh_stays_inside_the_hook_timeout(self) -> None:
+        started = time.monotonic()
+        got = self.decision('gh pr comment 4 -b "clean"', FAKE_GH_HANG="1", PUBLIC_TEXT_GH_TIMEOUT="2")
+        self.assertEqual(got, "ask")
+        self.assertLess(time.monotonic() - started, 10)
+
+    def test_boolean_and_attached_short_options(self) -> None:
+        private = self.git_repo("secretproj")
+        (self.tmp / "msg.txt").write_text(DIRTY)
+        for cmd in (f'gh pr review 4 -r -b "{DIRTY}"', f'gh pr review 4 -a -b "{DIRTY}"',
+                    f'gh release create v1 -p -n "{DIRTY}"', f"git commit -F- <<'EOF'\n{DIRTY}\nEOF",
+                    f"git commit -F{self.tmp / 'msg.txt'}", f"gh pr create -t x -b'{DIRTY}'",
+                    f"gh api repos/acme/pub/issues/4/comments -fbody='{DIRTY}'"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.decision(cmd), "deny")
+        self.assertEqual(self.decision(f'gh pr create -Racme/pub -t x -b "{DIRTY}"', cwd=private), "deny")
+        self.assertEqual(self.decision(f'gh pr create -a someone -t x -b "{DIRTY}"'), "deny")
+
+    def test_comments_posted_by_close_and_repo_descriptions(self) -> None:
+        for cmd in (f'gh pr close 4 -c "{DIRTY}"', f'gh issue close 4 --comment "{DIRTY}"',
+                    f'gh pr reopen 4 --comment "{DIRTY}"', f'gh repo edit --description "{DIRTY}"',
+                    f'gh repo edit acme/pub -d "{DIRTY}"'):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.decision(cmd), "deny")
+        self.assertEqual(self.decision(f'gh repo edit acme/secretproj -d "{DIRTY}"'), "pass")
+
+    def test_the_unparsed_fallback_honours_the_named_repo(self) -> None:
+        private = self.git_repo("secretproj")
+        cmd = f"gh issue create -R acme/pub -t x -F - <<EOF\nit's {DIRTY}\nEOF"
+        self.assertEqual(self.decision(cmd, cwd=private), "deny")
+        self.assertEqual(self.decision(cmd.replace("acme/pub", "acme/secretproj")), "pass")
+
+    def test_a_variable_reads_its_own_assignment_not_the_whole_line(self) -> None:
+        self.assertEqual(self.decision('gh pr view 1 -R acme/secretproj && N=ok; gh pr comment 4 -b "$N"'), "pass")
+        self.assertEqual(self.decision(f'N="{DIRTY}" && gh pr comment 4 -b "$N"'), "deny")
+
+    def test_pushd_and_a_hash_inside_a_word(self) -> None:
+        private = self.git_repo("secretproj")
+        self.assertEqual(self.decision(f'pushd {self.repo} && git commit -m "{DIRTY}"', cwd=private), "deny")
+        self.assertEqual(self.decision(f'git commit -m wip#1 && gh pr comment 4 -b "{DIRTY}"'), "deny")
 
 
 if __name__ == "__main__":

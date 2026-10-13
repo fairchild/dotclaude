@@ -12,7 +12,16 @@ message, a push's new commits, a PR/issue/release title or body, a comment or re
 merge's commit message, a `gh api` write's fields -- and denies the call when that text
 names one of your private repos and the target repo is public. When the private list
 cannot be read and no cached copy exists, a local commit goes ahead with a warning and a
-GitHub write asks you first.
+GitHub write asks you first. So does a guard that crashes or meets a bad pattern. Every
+gh call is bounded (PUBLIC_TEXT_GH_TIMEOUT, 8 s), and after one times out the rest are
+skipped, so the hook finishes inside its own timeout.
+
+The hook reads the literal command text, which is what catches the accidental leak in an
+ordinary command. It does not cover: `bash -c`, `sh -c` and `eval` strings; text that only
+exists at run time, such as `$(cat body.md)`, a piped or redirected body, or a variable set
+by an earlier command; GH_REPO, GIT_DIR and --git-dir; a remote's pushurl or
+remote.pushDefault; `cd` scoped to a subshell; commits already on any remote-tracking ref;
+gists, labels and tag messages.
 
 The private names are read from GitHub at run time and cached, never written here: a list
 of them in a public file would be the leak this exists to stop. What counts as a hit, kept
@@ -32,6 +41,7 @@ import json
 import os
 import re
 import shlex
+import signal
 import subprocess
 import sys
 import time
@@ -57,15 +67,29 @@ def _env_dir(var: str, xdg: str, fallback: str, leaf: str) -> Path:
 STATE = _env_dir("PUBLIC_TEXT_STATE", "XDG_STATE_HOME", ".local/state", "public-text")
 EXTRA = (Path(os.environ["PUBLIC_TEXT_EXTRA"]).expanduser() if os.environ.get("PUBLIC_TEXT_EXTRA")
          else Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "public-text" / "patterns")
+GH_TIMEOUT = float(os.environ.get("PUBLIC_TEXT_GH_TIMEOUT") or 8)
 warnings: list[str] = []
+gh_hung = False
 
 
 def gh(*args: str, cwd: Optional[str] = None) -> Optional[str]:
-    try:
-        r = subprocess.run(["gh", *args], capture_output=True, text=True, timeout=20, cwd=cwd)
-    except (OSError, subprocess.TimeoutExpired):
+    global gh_hung
+    if gh_hung:
         return None
-    return r.stdout if r.returncode == 0 else None
+    try:
+        p = subprocess.Popen(["gh", *args], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                             text=True, cwd=cwd, start_new_session=True)
+    except OSError:
+        return None
+    try:
+        out, _ = p.communicate(timeout=GH_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL)
+        p.communicate()
+        gh_hung = True
+        warnings.append(f"gh did not answer in {GH_TIMEOUT:g}s")
+        return None
+    return out if p.returncode == 0 else None
 
 
 def cached(name: str, ttl: int, fetch: Callable[[], Optional[str]]) -> str:
@@ -125,7 +149,13 @@ def patterns() -> list[re.Pattern[str]]:
     ]
     if first:
         pats.append(rf"(^|[^A-Za-z]){re.escape(first)}([^A-Za-z]|$)")
-    return [re.compile(p, re.I) for p in pats]
+    compiled = []
+    for p in pats:
+        try:
+            compiled.append(re.compile(p, re.I))
+        except re.error as e:
+            raise Unrunnable(f"a pattern does not compile ({p!r}: {e}); fix {EXTRA}")
+    return compiled
 
 
 def visibility(repo: str) -> Optional[str]:
@@ -208,6 +238,7 @@ class Write:
 def segments(cmd: str) -> list[list[str]]:
     lex = shlex.shlex(cmd, posix=True, punctuation_chars=";&|()<>\n")
     lex.whitespace, lex.whitespace_split = " \t\r", True
+    lex.commenters = ""  # bash reads `#` as a comment only at the start of a word; wip#1 is a word
     out: list[list[str]] = [[]]
     for tok in lex:
         if tok in SEPARATORS:
@@ -229,6 +260,8 @@ def flags(toks: list[str], valued: set[str]) -> tuple[dict[str, list[str]], list
         elif t in valued and i + 1 < len(toks):
             opts.setdefault(t, []).append(toks[i + 1])
             i += 1
+        elif not t.startswith("--") and len(t) > 2 and t[:2] in valued:
+            opts.setdefault(t[:2], []).append(t[2:])
         elif t.startswith("-") and len(t) > 1:
             opts.setdefault(t, []).append("")
         else:
@@ -287,6 +320,8 @@ def parse_git(toks: list[str], cwd: str, raw: str) -> Optional[Write]:
                 w.text.append(read_file(t.split("=", 1)[1], cwd, raw))
             elif re.fullmatch(r"-m.+", t):
                 w.text.append(t[2:])
+            elif re.fullmatch(r"-F.+", t):
+                w.text.append(read_file(t[2:], cwd, raw))
             j += 1
         return w
     if sub == "push":
@@ -319,9 +354,17 @@ GH_TEXT = {  # (group, verb) -> (text flags, file flags)
     ("issue", "comment"): ({"-b", "--body"}, {"-F", "--body-file"}),
     ("release", "create"): ({"-t", "--title", "-n", "--notes"}, {"-F", "--notes-file"}),
     ("release", "edit"): ({"-t", "--title", "-n", "--notes"}, {"-F", "--notes-file"}),
+    ("pr", "close"): ({"-c", "--comment"}, set()),
+    ("pr", "reopen"): ({"-c", "--comment"}, set()),
+    ("issue", "close"): ({"-c", "--comment"}, set()),
+    ("issue", "reopen"): ({"-c", "--comment"}, set()),
+    ("repo", "edit"): ({"-d", "--description", "-h", "--homepage"}, set()),
 }
-GH_VALUED = {"-R", "--repo", "-B", "--base", "-H", "--head", "-l", "--label", "-a", "--assignee",
-             "-r", "--reviewer", "-m", "--milestone", "-p", "--project", "-T", "--template",
+# -a, -r, -p and -m take a value only on create and edit; elsewhere they are switches
+# (review's --approve and --request-changes, release's --prerelease, merge's --merge).
+CREATE_EDIT_VALUED = {"-a", "-r", "-p", "-m"}
+GH_VALUED = {"-R", "--repo", "-B", "--base", "-H", "--head", "-l", "--label", "--assignee",
+             "--reviewer", "--milestone", "--project", "-T", "--template",
              "-A", "--author-email", "--match-head-commit", "--add-label", "--remove-label",
              "--add-assignee", "--remove-assignee", "--add-reviewer", "--remove-reviewer",
              "--add-project", "--remove-project", "--target", "--notes-start-tag"}
@@ -329,7 +372,7 @@ API_VALUED = {"-X", "--method", "-H", "--header", "-f", "--raw-field", "-F", "--
               "-q", "--jq", "-t", "--template", "--hostname", "--cache", "-p", "--preview"}
 
 
-def gh_repo(opts: dict[str, list[str]], pos: list[str], cwd: str) -> Optional[str]:
+def gh_repo(opts: dict[str, list[str]], pos: list[str], cwd: str, repo_arg: bool = False) -> Optional[str]:
     explicit = pick(opts, "-R", "--repo")
     if explicit:
         parts = explicit[-1].split("/")
@@ -338,6 +381,8 @@ def gh_repo(opts: dict[str, list[str]], pos: list[str], cwd: str) -> Optional[st
         m = GITHUB.search(p)
         if m:
             return f"{m[1]}/{m[2]}"
+    if repo_arg and pos and re.fullmatch(r"[\w.-]+/[\w.-]+", pos[0]):
+        return pos[0]
     return origin(cwd)
 
 
@@ -369,9 +414,11 @@ def parse_gh(toks: list[str], cwd: str, raw: str) -> Optional[Write]:
     if not spec:
         return None
     text_flags, file_flags = spec
-    valued = (GH_VALUED - {"-m"} if verb == "merge" else GH_VALUED) | text_flags | file_flags
+    valued = GH_VALUED | text_flags | file_flags
+    if group in ("pr", "issue") and verb in ("create", "edit"):
+        valued |= CREATE_EDIT_VALUED
     opts, pos = flags(toks[2:], valued)
-    w = Write(f"gh {group} {verb}", cwd, gh_repo(opts, pos, cwd))
+    w = Write(f"gh {group} {verb}", cwd, gh_repo(opts, pos, cwd, repo_arg=group == "repo"))
     w.text = pick(opts, *text_flags) + [read_file(f, cwd, raw) for f in pick(opts, *file_flags)]
     if (group, verb) == ("pr", "merge") and not ({"-r", "--rebase"} & opts.keys()) \
             and not pick(opts, "-b", "--body", "-F", "--body-file"):
@@ -392,24 +439,32 @@ def writes(cmd: str, cwd: str) -> list[Write]:
         segs = segments(cmd)
     except ValueError:  # a bare heredoc with an apostrophe; the whole command is the text
         segs = []
-        if re.search(r"\bgit\b.*\b(commit|push)\b|\bgh\s+(pr|issue|api|release)\b", cmd):
-            w = Write("a command the guard could not parse", cwd, origin(cwd),
-                      local=not re.search(r"\bgh\b|\bpush\b", cmd))
+        if re.search(r"\bgit\b.*\b(commit|push)\b|\bgh\s+(pr|issue|api|release|repo)\b", cmd):
+            named = re.search(r"(?:^|\s)(?:-R|--repo)(?:=|\s*)['\"]?([\w.-]+/[\w.-]+)", cmd)
+            w = Write("a command the guard could not parse", cwd,
+                      named[1] if named else origin(cwd), local=not re.search(r"\bgh\b|\bpush\b", cmd))
             w.text = [cmd]
             return [w]
     out: list[Write] = []
+    assigned: dict[str, str] = {}
     for seg in segs:
-        if seg[0] == "cd" and len(seg) > 1:
+        if seg[0] in ("cd", "pushd") and len(seg) > 1:
             cwd = str(Path(cwd, Path(seg[1]).expanduser()))
             continue
+        for t in seg[1:] if seg[0] in ("export", "local", "declare") else seg:
+            m = re.fullmatch(r"([A-Za-z_]\w*)=(.*)", t, re.S)
+            if not m:
+                break
+            assigned[m[1]] = m[2]
         for i, t in enumerate(seg):
             name = t.rsplit("/", 1)[-1]
             w = (parse_git(seg[i + 1:], cwd, cmd) if name == "git"
                  else parse_gh(seg[i + 1:], cwd, cmd) if name == "gh" else None)
             if name in ("git", "gh"):
                 if w:
-                    if re.search(r"\$\{?[A-Za-z_]", "".join(w.text)):
-                        w.text.append(cmd)  # a variable's value is only visible where it was set
+                    # a variable's value is only visible where this command sets it
+                    w.text += [assigned[v] for v in re.findall(r"\$\{?([A-Za-z_]\w*)", "".join(w.text))
+                               if v in assigned]
                     out.append(w)
                 break
     return out
@@ -465,11 +520,16 @@ def main(argv: list[str]) -> int:
     if argv[:1] == ["check"] and len(argv) > 1:
         return check(argv[1:])
     if argv[:1] == ["hook"]:
+        event: dict = {}
         try:
-            out = hook(json.load(sys.stdin))
-        except Exception as e:  # a crashed guard must say so, never pass quietly or wedge the shell
-            out = {"systemMessage": f"public-text-guard crashed ({type(e).__name__}: {e}); "
-                                    "this command's text is UNCHECKED."}
+            event = json.load(sys.stdin)
+            out = hook(event)
+        except Exception as e:  # a crashed guard says so on every call, and asks before a GitHub write
+            msg = f"public-text-guard crashed ({type(e).__name__}: {e}); this command's text is UNCHECKED."
+            cmd = str((event.get("tool_input") or {}).get("command") or "")
+            out = ({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask",
+                                           "permissionDecisionReason": msg}}
+                   if re.search(r"\bgh\b|\bgit\b.*\bpush\b", cmd) else {"systemMessage": msg})
         if out:
             print(json.dumps(out))
         return 0
