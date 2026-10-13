@@ -7,21 +7,26 @@
 `check` exits 0 clean, 1 refused, 2 a file is missing, 3 the check cannot run. With
 --repo it checks nothing when that repo is private.
 
-`hook` reads the outgoing text of a Bash command that writes to GitHub -- a commit
-message, a push's new commits, a PR/issue/release title or body, a comment or review, a
-merge's commit message, a `gh api` write's fields -- and denies the call when that text
-names one of your private repos and the target repo is public. When the private list
-cannot be read and no cached copy exists, a local commit goes ahead with a warning and a
-GitHub write asks you first. So does a guard that crashes or meets a bad pattern. Every
-gh call is bounded (PUBLIC_TEXT_GH_TIMEOUT, 8 s), and after one times out the rest are
-skipped, so the hook finishes inside its own timeout.
+`hook` finds each write in a Bash command -- git commit and push; gh pr, issue and release
+create, edit, comment, review, merge, close and reopen; gh repo create and edit; a gh api
+write -- and the repo each one lands on. When a write lands on a public repo, it checks the
+whole command text, with filesystem paths removed, plus any file the command passes as a
+body or message, the commits a push would send, and what a merge with no body would write.
+A hit denies the call. A private reference anywhere in the command counts, so a clean
+public write chained after a command that names a private repo is denied too; split the
+command. When a write's repo cannot be told and the text has a hit, it asks.
 
-The hook reads the literal command text, which is what catches the accidental leak in an
-ordinary command. It does not cover: `bash -c`, `sh -c` and `eval` strings; text that only
-exists at run time, such as `$(cat body.md)`, a piped or redirected body, or a variable set
-by an earlier command; GH_REPO, GIT_DIR and --git-dir; a remote's pushurl or
-remote.pushDefault; `cd` scoped to a subshell; commits already on any remote-tracking ref;
-gists, labels and tag messages.
+When the private list cannot be read and no cached copy exists, a crash, or a pattern that
+does not compile: a local commit goes ahead with a warning, and a GitHub write asks first.
+All gh calls in one run share a single deadline (PUBLIC_TEXT_GH_TIMEOUT, 20 s), so the hook
+ends inside its own 30 s timeout.
+
+It reads the literal command, which is what catches an accidental leak in an ordinary
+command. It does not cover: `bash -c`, `sh -c` and `eval` strings; text that only exists at
+run time, such as `$(cat body.md)`, a piped or redirected body, or a variable set by an
+earlier command; a private reference written as a path; GH_REPO, GIT_DIR and --git-dir;
+a remote's pushurl or remote.pushDefault; `cd` scoped to a subshell; commits already on any
+remote-tracking ref; gists, labels and tag messages.
 
 The private names are read from GitHub at run time and cached, never written here: a list
 of them in a public file would be the leak this exists to stop. What counts as a hit, kept
@@ -67,14 +72,25 @@ def _env_dir(var: str, xdg: str, fallback: str, leaf: str) -> Path:
 STATE = _env_dir("PUBLIC_TEXT_STATE", "XDG_STATE_HOME", ".local/state", "public-text")
 EXTRA = (Path(os.environ["PUBLIC_TEXT_EXTRA"]).expanduser() if os.environ.get("PUBLIC_TEXT_EXTRA")
          else Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "public-text" / "patterns")
-GH_TIMEOUT = float(os.environ.get("PUBLIC_TEXT_GH_TIMEOUT") or 8)
 warnings: list[str] = []
-gh_hung = False
+deadline: Optional[float] = None
+
+
+def gh_budget() -> float:
+    try:
+        return max(0.5, float(os.environ.get("PUBLIC_TEXT_GH_TIMEOUT") or 20))
+    except ValueError:
+        warnings.append("PUBLIC_TEXT_GH_TIMEOUT is not a number; using 20 s")
+        return 20.0
 
 
 def gh(*args: str, cwd: Optional[str] = None) -> Optional[str]:
-    global gh_hung
-    if gh_hung:
+    """One deadline for every gh call in a run, so the hook ends inside its own timeout."""
+    global deadline
+    if deadline is None:
+        deadline = time.monotonic() + gh_budget()
+    left = deadline - time.monotonic()
+    if left <= 0:
         return None
     try:
         p = subprocess.Popen(["gh", *args], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
@@ -82,12 +98,11 @@ def gh(*args: str, cwd: Optional[str] = None) -> Optional[str]:
     except OSError:
         return None
     try:
-        out, _ = p.communicate(timeout=GH_TIMEOUT)
+        out, _ = p.communicate(timeout=left)
     except subprocess.TimeoutExpired:
         os.killpg(p.pid, signal.SIGKILL)
         p.communicate()
-        gh_hung = True
-        warnings.append(f"gh did not answer in {GH_TIMEOUT:g}s")
+        warnings.append("gh ran out of its time budget")
         return None
     return out if p.returncode == 0 else None
 
@@ -222,56 +237,112 @@ def check(argv: list[str]) -> int:
     return 1
 
 
-# --- hook: what a Bash command is about to publish ------------------------------
+# --- hook: where a Bash command writes, and what it says --------------------------
+#
+# The text side reads the whole command, never one argument: every round of extracting
+# arguments one by one opened a new hole (a heredoc in a variable, an attached option, a
+# comment). Parsing is only for the target -- which repo each write in the chain lands on.
 
+GITHUB = re.compile(r"github\.com[:/]([^/\s'\"]+)/([^/\s'\"]+?)(?:\.git)?(?:[/#?\s'\"]|$)")
+OWNER_NAME = re.compile(r"[\w.-]+/[\w.-]+")
 SEPARATORS = {";", "&&", "||", "|", "|&", "&", "\n", "(", ")", ";;"}
-GITHUB = re.compile(r"github\.com[:/]([^/\s]+)/([^/\s]+?)(?:\.git)?(?:[/#?\s]|$)")
+HEREDOC = re.compile(r"(?<!<)<<(-?)(?!<)\s*(['\"]?)(\w+)\2")
+PATH_WORD = re.compile(r"(^|[\s'\"=(])(?:~|\.{1,2})?/[^\s'\"]*")
+WRITE_HINT = re.compile(r"\bgit\b.*\b(commit|push)\b|\bgh\s+(pr|issue|api|release|repo)\b", re.S)
+FILE_FLAGS = {"-F", "--file", "--body-file", "--notes-file", "--input"}
+GH_WRITES = {"pr": {"create", "edit", "comment", "review", "merge", "close", "reopen"},
+             "issue": {"create", "edit", "comment", "close", "reopen"},
+             "release": {"create", "edit"}, "repo": {"create", "edit"}}
 
 
 class Write:
-    def __init__(self, what: str, cwd: str, repo: Optional[str] = None, local: bool = False):
-        self.what, self.cwd, self.repo, self.local = what, cwd, repo, local
-        self.text: list[str] = []
-        self.fetch: Optional[Callable[[str], Optional[str]]] = None
+    def __init__(self, what: str, repo: Optional[str], local: bool = False, private: bool = False):
+        self.what, self.repo, self.local, self.private = what, repo, local, private
+        self.files: list[str] = []
+        self.fetch: Optional[Callable[[], Optional[str]]] = None
 
 
-def segments(cmd: str) -> list[list[str]]:
-    lex = shlex.shlex(cmd, posix=True, punctuation_chars=";&|()<>\n")
-    lex.whitespace, lex.whitespace_split = " \t\r", True
-    lex.commenters = ""  # bash reads `#` as a comment only at the start of a word; wip#1 is a word
+def without_heredoc_bodies(cmd: str) -> str:
+    out: list[str] = []
+    pending: list[tuple[str, bool]] = []
+    for line in cmd.split("\n"):
+        if pending:
+            delim, dash = pending[0]
+            if (line.lstrip("\t") if dash else line) == delim:
+                pending.pop(0)
+            continue
+        out.append(line)
+        pending += [(m[3], m[1] == "-") for m in HEREDOC.finditer(line)]
+    return "\n".join(out)
+
+
+def without_comments(cmd: str) -> str:
+    """Drop what bash drops: an unquoted `#` that starts a word, to the end of its line."""
+    out, quote, i = [], "", 0
+    while i < len(cmd):
+        c = cmd[i]
+        if c == "\\" and quote != "'":
+            out.append(cmd[i:i + 2]); i += 2; continue
+        if quote:
+            quote = "" if c == quote else quote
+        elif c in "'\"":
+            quote = c
+        elif c == "#" and (i == 0 or cmd[i - 1] in " \t\n;&|()"):
+            while i < len(cmd) and cmd[i] != "\n":
+                i += 1
+            continue
+        out.append(c); i += 1
+    return "".join(out)
+
+
+def segments(cmd: str) -> Optional[list[list[str]]]:
+    lex = shlex.shlex(without_comments(without_heredoc_bodies(cmd)), posix=True,
+                      punctuation_chars=";&|()<>\n")
+    lex.whitespace, lex.whitespace_split, lex.commenters = " \t\r", True, ""
     out: list[list[str]] = [[]]
-    for tok in lex:
-        if tok in SEPARATORS:
-            out.append([])
-        else:
-            out[-1].append(tok)
+    try:
+        for tok in lex:
+            if tok in SEPARATORS:
+                out.append([])
+            else:
+                out[-1].append(tok)
+    except ValueError:
+        return None
     return [s for s in out if s]
 
 
-def flags(toks: list[str], valued: set[str]) -> tuple[dict[str, list[str]], list[str]]:
-    opts: dict[str, list[str]] = {}
-    pos: list[str] = []
-    i = 0
-    while i < len(toks):
-        t = toks[i]
-        if t.startswith("--") and "=" in t:
-            k, v = t.split("=", 1)
-            opts.setdefault(k, []).append(v)
-        elif t in valued and i + 1 < len(toks):
-            opts.setdefault(t, []).append(toks[i + 1])
-            i += 1
-        elif not t.startswith("--") and len(t) > 2 and t[:2] in valued:
-            opts.setdefault(t[:2], []).append(t[2:])
-        elif t.startswith("-") and len(t) > 1:
-            opts.setdefault(t, []).append("")
-        else:
-            pos.append(t)
-        i += 1
-    return opts, pos
+def flag_value(toks: list[str], short: str, long: str) -> Optional[str]:
+    got = None
+    for i, t in enumerate(toks):
+        if t in (short, long) and i + 1 < len(toks):
+            got = toks[i + 1]
+        elif t.startswith(long + "="):
+            got = t.split("=", 1)[1]
+        elif t.startswith(short) and len(t) > 2 and not t.startswith("--"):
+            got = t[2:]
+    return got
 
 
-def pick(opts: dict[str, list[str]], *names: str) -> list[str]:
-    return [v for n in names for v in opts.get(n, [])]
+def file_args(toks: list[str]) -> list[str]:
+    out = []
+    for i, t in enumerate(toks):
+        if t in FILE_FLAGS and i + 1 < len(toks):
+            out.append(toks[i + 1])
+        elif t.split("=", 1)[0] in FILE_FLAGS and "=" in t:
+            out.append(t.split("=", 1)[1])
+        elif re.fullmatch(r"-F.+", t):
+            out.append(t[2:])
+        if "=@" in t:
+            out.append(t.split("=@", 1)[1])
+    return out
+
+
+def norm(repo: str) -> str:
+    m = GITHUB.search(repo + " ")
+    if m:
+        return f"{m[1]}/{m[2]}"
+    parts = re.sub(r"\.git$", "", repo).split("/")
+    return "/".join(parts[-2:]) if len(parts) >= 2 else f"{owner()}/{parts[0]}"
 
 
 def origin(cwd: str, remote: str = "origin") -> Optional[str]:
@@ -286,18 +357,7 @@ def origin(cwd: str, remote: str = "origin") -> Optional[str]:
     return f"{m[1]}/{m[2]}" if m else None
 
 
-def read_file(path: str, cwd: str, raw: str) -> str:
-    if path == "-":
-        return raw
-    p = Path(path).expanduser()
-    p = p if p.is_absolute() else Path(cwd) / p
-    try:
-        return p.read_text(errors="replace")
-    except OSError:
-        return raw
-
-
-def parse_git(toks: list[str], cwd: str, raw: str) -> Optional[Write]:
+def git_write(toks: list[str], cwd: str) -> Optional[Write]:
     i = 0
     while i < len(toks) and toks[i].startswith("-"):
         if toks[i] == "-C" and i + 1 < len(toks):
@@ -305,129 +365,67 @@ def parse_git(toks: list[str], cwd: str, raw: str) -> Optional[Write]:
         i += 2 if toks[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace") else 1
     sub, rest = (toks[i], toks[i + 1:]) if i < len(toks) else ("", [])
     if sub == "commit":
-        w = Write("git commit", cwd, origin(cwd), local=True)
-        j = 0
-        while j < len(rest):
-            t = rest[j]
-            nxt = rest[j + 1] if j + 1 < len(rest) else ""
-            if t in ("-m", "--message") or re.fullmatch(r"-[a-zA-Z]*m", t):
-                w.text.append(nxt); j += 1
-            elif t in ("-F", "--file") or re.fullmatch(r"-[a-zA-Z]*F", t):
-                w.text.append(read_file(nxt, cwd, raw)); j += 1
-            elif t.startswith("--message="):
-                w.text.append(t.split("=", 1)[1])
-            elif t.startswith("--file="):
-                w.text.append(read_file(t.split("=", 1)[1], cwd, raw))
-            elif re.fullmatch(r"-m.+", t):
-                w.text.append(t[2:])
-            elif re.fullmatch(r"-F.+", t):
-                w.text.append(read_file(t[2:], cwd, raw))
-            j += 1
+        w = Write("git commit", origin(cwd), local=True)
+        w.files = file_args(rest)
         return w
-    if sub == "push":
-        opts, pos = flags(rest, {"--repo", "-o", "--push-option", "--receive-pack", "--exec"})
-        remote = pos[0] if pos else "origin"
-        refs = [r.lstrip("+").split(":")[0] for r in pos[1:]]
-        refs = [r for r in refs if r] or (["--branches"] if "--all" in opts or "--mirror" in opts else ["HEAD"])
-        w = Write("git push", cwd, origin(cwd, remote))
-
-        def log(_: str) -> Optional[str]:
-            try:
-                r = subprocess.run(["git", "-C", cwd, "log", "--format=%B", *refs, "--not", "--remotes"],
-                                   capture_output=True, text=True, timeout=20)
-            except (OSError, subprocess.TimeoutExpired):
-                return None
-            return r.stdout if r.returncode == 0 else None
-        w.fetch = log
-        return w
-    return None
-
-
-GH_TEXT = {  # (group, verb) -> (text flags, file flags)
-    ("pr", "create"): ({"-t", "--title", "-b", "--body"}, {"-F", "--body-file"}),
-    ("pr", "edit"): ({"-t", "--title", "-b", "--body"}, {"-F", "--body-file"}),
-    ("pr", "comment"): ({"-b", "--body"}, {"-F", "--body-file"}),
-    ("pr", "review"): ({"-b", "--body"}, {"-F", "--body-file"}),
-    ("pr", "merge"): ({"-t", "--subject", "-b", "--body"}, {"-F", "--body-file"}),
-    ("issue", "create"): ({"-t", "--title", "-b", "--body"}, {"-F", "--body-file"}),
-    ("issue", "edit"): ({"-t", "--title", "-b", "--body"}, {"-F", "--body-file"}),
-    ("issue", "comment"): ({"-b", "--body"}, {"-F", "--body-file"}),
-    ("release", "create"): ({"-t", "--title", "-n", "--notes"}, {"-F", "--notes-file"}),
-    ("release", "edit"): ({"-t", "--title", "-n", "--notes"}, {"-F", "--notes-file"}),
-    ("pr", "close"): ({"-c", "--comment"}, set()),
-    ("pr", "reopen"): ({"-c", "--comment"}, set()),
-    ("issue", "close"): ({"-c", "--comment"}, set()),
-    ("issue", "reopen"): ({"-c", "--comment"}, set()),
-    ("repo", "edit"): ({"-d", "--description", "-h", "--homepage"}, set()),
-}
-# -a, -r, -p and -m take a value only on create and edit; elsewhere they are switches
-# (review's --approve and --request-changes, release's --prerelease, merge's --merge).
-CREATE_EDIT_VALUED = {"-a", "-r", "-p", "-m"}
-GH_VALUED = {"-R", "--repo", "-B", "--base", "-H", "--head", "-l", "--label", "--assignee",
-             "--reviewer", "--milestone", "--project", "-T", "--template",
-             "-A", "--author-email", "--match-head-commit", "--add-label", "--remove-label",
-             "--add-assignee", "--remove-assignee", "--add-reviewer", "--remove-reviewer",
-             "--add-project", "--remove-project", "--target", "--notes-start-tag"}
-API_VALUED = {"-X", "--method", "-H", "--header", "-f", "--raw-field", "-F", "--field", "--input",
-              "-q", "--jq", "-t", "--template", "--hostname", "--cache", "-p", "--preview"}
-
-
-def gh_repo(opts: dict[str, list[str]], pos: list[str], cwd: str, repo_arg: bool = False) -> Optional[str]:
-    explicit = pick(opts, "-R", "--repo")
-    if explicit:
-        parts = explicit[-1].split("/")
-        return "/".join(parts[-2:]) if len(parts) >= 2 else f"{owner()}/{parts[0]}"
-    for p in pos:
-        m = GITHUB.search(p)
-        if m:
-            return f"{m[1]}/{m[2]}"
-    if repo_arg and pos and re.fullmatch(r"[\w.-]+/[\w.-]+", pos[0]):
-        return pos[0]
-    return origin(cwd)
-
-
-def parse_gh(toks: list[str], cwd: str, raw: str) -> Optional[Write]:
-    if len(toks) < 2:
+    if sub != "push":
         return None
-    group = toks[0]
-    if group == "api":
-        opts, pos = flags(toks[1:], API_VALUED)
-        fields = pick(opts, "-f", "--raw-field", "-F", "--field")
-        method = (pick(opts, "-X", "--method") or ["POST" if fields or "--input" in opts else "GET"])[-1]
-        if method.upper() == "GET" or not pos:
+    pos, skip = [], False
+    for t in rest:
+        if skip:
+            skip = False
+        elif t in ("--repo", "-o", "--push-option", "--receive-pack", "--exec"):
+            skip = True
+        elif not t.startswith("-"):
+            pos.append(t)
+    refs = [r.lstrip("+").split(":")[0] for r in pos[1:]]
+    refs = [r for r in refs if r] or (["--branches"] if {"--all", "--mirror"} & set(rest) else ["HEAD"])
+    w = Write("git push", origin(cwd, pos[0] if pos else "origin"))
+
+    def log() -> Optional[str]:
+        try:
+            r = subprocess.run(["git", "-C", cwd, "log", "--format=%B", *refs, "--not", "--remotes"],
+                               capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
             return None
-        endpoint = pos[0].lstrip("/")
+        return r.stdout if r.returncode == 0 else None
+    w.fetch = log
+    return w
+
+
+def gh_write(toks: list[str], cwd: str) -> Optional[Write]:
+    group, verb, rest = (toks + ["", ""])[0], (toks + ["", ""])[1], toks[2:]
+    if group == "api":
+        rest = toks[1:]
+        method = flag_value(rest, "-X", "--method")
+        fields = any(re.fullmatch(r"-[fF].*|--(raw-)?field(=.*)?|--input(=.*)?", t) for t in rest)
+        if (method or ("POST" if fields else "GET")).upper() == "GET":
+            return None
+        endpoint = next((t.lstrip("/") for t in rest if re.match(r"/?(repos/|graphql$)", t)), "")
         m = re.match(r"repos/([^/]+)/([^/]+)", endpoint)
         repo = None
         if m:
-            o, r = m[1], m[2]
-            here = origin(cwd) or "/"
-            repo = f"{here.split('/')[0] if o == '{owner}' else o}/{here.split('/')[1] if r == '{repo}' else r}"
-        w = Write(f"gh api {method.upper()} {endpoint}", cwd, repo)
-        for f in fields:
-            v = f.split("=", 1)[-1]
-            w.text.append(read_file(v[1:], cwd, raw) if v.startswith("@") else v)
-        w.text += [read_file(f, cwd, raw) for f in pick(opts, "--input")]
+            here = (origin(cwd) or "/").split("/")
+            repo = f"{here[0] if m[1] == '{owner}' else m[1]}/{here[1] if m[2] == '{repo}' else m[2]}"
+        w = Write(f"gh api {endpoint or '(endpoint unread)'}", repo)
+        w.files = file_args(rest)
         return w
-    verb = toks[1]
-    spec = GH_TEXT.get((group, verb))
-    if not spec:
+    if verb not in GH_WRITES.get(group, ()):
         return None
-    text_flags, file_flags = spec
-    valued = GH_VALUED | text_flags | file_flags
-    if group in ("pr", "issue") and verb in ("create", "edit"):
-        valued |= CREATE_EDIT_VALUED
-    opts, pos = flags(toks[2:], valued)
-    w = Write(f"gh {group} {verb}", cwd, gh_repo(opts, pos, cwd, repo_arg=group == "repo"))
-    w.text = pick(opts, *text_flags) + [read_file(f, cwd, raw) for f in pick(opts, *file_flags)]
-    if (group, verb) == ("pr", "merge") and not ({"-r", "--rebase"} & opts.keys()) \
-            and not pick(opts, "-b", "--body", "-F", "--body-file"):
+    named = flag_value(rest, "-R", "--repo")
+    url = next((f"{m[1]}/{m[2]}" for m in map(GITHUB.search, rest) if m), None)
+    shaped = next((t for t in rest if OWNER_NAME.fullmatch(t)), None) if group == "repo" else None
+    repo = norm(named) if named else url or shaped or (origin(cwd) if group != "repo" or verb == "edit" else None)
+    w = Write(f"gh {group} {verb}", repo, private=group == "repo" and "--private" in rest)
+    w.files = file_args(rest)
+    explicit = any(re.fullmatch(r"-[bF].*|--body(-file)?(=.*)?", t) for t in rest)
+    if (group, verb) == ("pr", "merge") and not explicit and not {"-r", "--rebase"} & set(rest):
         # With no body, GitHub writes one from the repo's squash/merge setting: the PR body,
         # or every commit's message. Read what it would write and check all of it.
-        sel = [p for p in pos if not p.startswith("-")][:1]
+        sel = [t for t in rest if re.fullmatch(r"\d+|https?://\S+", t)][:1]
 
-        def landing(repo: str) -> Optional[str]:
-            return gh("pr", "view", *sel, "-R", repo, "--json", "title,body,commits", "-q",
+        def landing() -> Optional[str]:
+            return gh("pr", "view", *sel, "-R", repo or "", "--json", "title,body,commits", "-q",
                       '[.title, .body, (.commits[] | .messageHeadline, .messageBody)] | map(. // "") | join("\n")',
                       cwd=cwd)
         w.fetch = landing
@@ -435,82 +433,86 @@ def parse_gh(toks: list[str], cwd: str, raw: str) -> Optional[Write]:
 
 
 def writes(cmd: str, cwd: str) -> list[Write]:
-    try:
-        segs = segments(cmd)
-    except ValueError:  # a bare heredoc with an apostrophe; the whole command is the text
-        segs = []
-        if re.search(r"\bgit\b.*\b(commit|push)\b|\bgh\s+(pr|issue|api|release|repo)\b", cmd):
-            named = re.search(r"(?:^|\s)(?:-R|--repo)(?:=|\s*)['\"]?([\w.-]+/[\w.-]+)", cmd)
-            w = Write("a command the guard could not parse", cwd,
-                      named[1] if named else origin(cwd), local=not re.search(r"\bgh\b|\bpush\b", cmd))
-            w.text = [cmd]
-            return [w]
+    segs = segments(cmd)
+    if segs is None:
+        return [Write("a command the guard could not parse", None)] if WRITE_HINT.search(cmd) else []
     out: list[Write] = []
-    assigned: dict[str, str] = {}
+    stack: list[str] = []
     for seg in segs:
-        if seg[0] in ("cd", "pushd") and len(seg) > 1:
-            cwd = str(Path(cwd, Path(seg[1]).expanduser()))
+        if seg[0] in ("cd", "pushd"):
+            if seg[0] == "pushd":
+                stack.append(cwd)
+            cwd = str(Path(cwd, Path(seg[1] if len(seg) > 1 else "~").expanduser()))
             continue
-        for t in seg[1:] if seg[0] in ("export", "local", "declare") else seg:
-            m = re.fullmatch(r"([A-Za-z_]\w*)=(.*)", t, re.S)
-            if not m:
-                break
-            assigned[m[1]] = m[2]
+        if seg[0] == "popd":
+            cwd = stack.pop() if stack else cwd
+            continue
         for i, t in enumerate(seg):
             name = t.rsplit("/", 1)[-1]
-            w = (parse_git(seg[i + 1:], cwd, cmd) if name == "git"
-                 else parse_gh(seg[i + 1:], cwd, cmd) if name == "gh" else None)
             if name in ("git", "gh"):
+                w = git_write(seg[i + 1:], cwd) if name == "git" else gh_write(seg[i + 1:], cwd)
                 if w:
-                    # a variable's value is only visible where this command sets it
-                    w.text += [assigned[v] for v in re.findall(r"\$\{?([A-Za-z_]\w*)", "".join(w.text))
-                               if v in assigned]
                     out.append(w)
                 break
     return out
+
+
+def read_file(path: str, cwd: str) -> str:
+    p = Path(path).expanduser()
+    p = p if p.is_absolute() else Path(cwd) / p
+    try:
+        return p.read_text(errors="replace") if p.is_file() and p.stat().st_size < 1 << 20 else ""
+    except OSError:
+        return ""
 
 
 def hook(event: dict) -> Optional[dict]:
     cmd = (event.get("tool_input") or {}).get("command") or ""
     if event.get("tool_name") != "Bash" or not re.search(r"\b(git|gh)\b", cmd):
         return None
+    cwd = event.get("cwd") or os.getcwd()
     refused: list[str] = []
-    unrun: list[Write] = []
+    unresolved: list[str] = []
+    unrun: list[str] = []
+    local_only = True
     try:
-        found = writes(cmd, event.get("cwd") or os.getcwd())
+        found = writes(cmd, cwd)
     except Unrunnable as e:
-        found, w = [], Write("gh", "")
-        w.text = [str(e)]
-        unrun.append(w)
+        found, local_only = [], False
+        unrun.append(str(e))
+    scanned = PATH_WORD.sub(r"\1", cmd)  # paths are where a command runs, not what it says
     for w in found:
         try:
-            if w.local and not w.repo:
-                continue  # a commit with no GitHub remote publishes nothing yet; its push is checked
-            if is_private(w.repo):
+            if (w.local and not w.repo) or w.private or (w.repo and is_private(w.repo)):
                 continue
+            text = [scanned] + [read_file(f, cwd) for f in w.files]
             if w.fetch:
-                got = w.fetch(w.repo or "")
+                got = w.fetch()
                 if got is None:
                     raise Unrunnable(f"cannot read what {w.what} would publish")
-                w.text.append(got)
-            refused += [f"{w.what} -> {w.repo or 'an unknown repo'}: {l.strip()[:200]}"
-                        for l in hits("\n".join(w.text))]
+                text.append(got)
+            lines = [f"{w.what} -> {w.repo or 'a repo it could not name'}: {l.strip()[:200]}"
+                     for l in hits("\n".join(text))]
+            (refused if w.repo else unresolved).extend(lines)
         except Unrunnable as e:
-            w.text = [str(e)]
-            unrun.append(w)
+            local_only = local_only and w.local
+            unrun.append(str(e))
     note = "; ".join(dict.fromkeys(warnings))
     if refused:
-        reason = ("public-text-guard: this text is bound for a public repo and names a private repo "
-                  "or private detail:\n  " + "\n  ".join(refused[:12]) +
-                  "\nDescribe the change without the private reference (say \"a private repo\" if "
-                  "the link matters), then run it again.")
+        reason = ("public-text-guard: this command writes to a public repo, and its text names a private "
+                  "repo or private detail:\n  " + "\n  ".join(dict.fromkeys(refused[:12])) +
+                  "\nDescribe the change without the private reference (say \"a private repo\" if the link "
+                  "matters). If the reference belongs to another command in this chain, split the command "
+                  "and run the public write on its own.")
         return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                        "permissionDecisionReason": reason}}
-    if unrun:
-        why = "; ".join(w.text[0] for w in unrun)
-        msg = f"public-text-guard could not check this command: {why}. Its text is UNCHECKED."
-        if all(w.local for w in unrun):
-            return {"systemMessage": msg}
+    if unresolved or unrun:
+        why = "; ".join(dict.fromkeys(unrun)) or (
+            "it could not tell which repo this writes to, and the text names a private repo:\n  "
+            + "\n  ".join(dict.fromkeys(unresolved[:12])))
+        msg = f"public-text-guard could not clear this command: {why}"
+        if not unresolved and local_only:
+            return {"systemMessage": msg + ". Its text is UNCHECKED."}
         return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask",
                                        "permissionDecisionReason": msg}}
     return {"systemMessage": f"public-text-guard: {note}"} if note else None

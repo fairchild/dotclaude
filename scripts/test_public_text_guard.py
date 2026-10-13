@@ -23,6 +23,7 @@ DIRTY = "Follows acme/secretproj#12 closely."
 FAKE_GH = r"""#!/usr/bin/env bash
 [ -n "${FAKE_GH_DOWN:-}" ] && exit 1
 [ -n "${FAKE_GH_HANG:-}" ] && { sleep 120; exit 1; }
+[ -n "${FAKE_GH_SLOW:-}" ] && sleep "$FAKE_GH_SLOW"
 case "$*" in
   "api user "*) echo acme ;;
   "repo list acme --visibility private"*) printf 'secretproj\nhush-svc\nhome\n' ;;
@@ -155,7 +156,7 @@ class Guard(unittest.TestCase):
         self.assertEqual(self.decision(post.replace("acme/pub", "acme/secretproj")), "pass")
         self.assertEqual(self.decision(f"gh api repos/{{owner}}/{{repo}}/issues/4/comments -f body='{DIRTY}'"), "deny")
         self.assertEqual(self.decision("gh api repos/acme/pub/pulls/4"), "pass")
-        self.assertEqual(self.decision(f"gh api graphql -f query='mutation {{ x(body: \"{DIRTY}\") }}'"), "deny")
+        self.assertEqual(self.decision(f"gh api graphql -f query='mutation {{ x(body: \"{DIRTY}\") }}'"), "ask")
 
     def test_merge_checks_what_github_would_write(self) -> None:
         self.assertEqual(self.decision("gh pr merge 4 --squash --auto", FAKE_PR_TEXT=f"feat: x\n{DIRTY}"), "deny")
@@ -215,14 +216,64 @@ class Guard(unittest.TestCase):
         self.assertEqual(self.decision(cmd, cwd=private), "deny")
         self.assertEqual(self.decision(cmd.replace("acme/pub", "acme/secretproj")), "pass")
 
-    def test_a_variable_reads_its_own_assignment_not_the_whole_line(self) -> None:
-        self.assertEqual(self.decision('gh pr view 1 -R acme/secretproj && N=ok; gh pr comment 4 -b "$N"'), "pass")
+    def test_the_whole_command_is_the_text(self) -> None:
+        # The accepted cost: a private reference anywhere in the command denies a public write,
+        # and the reason says to split the command.
+        out = self.hook('gh pr view 1 -R acme/secretproj && N=ok; gh pr comment 4 -b "$N"')
+        self.assertIn("split", out["hookSpecificOutput"]["permissionDecisionReason"])
         self.assertEqual(self.decision(f'N="{DIRTY}" && gh pr comment 4 -b "$N"'), "deny")
+        self.assertEqual(self.decision(f'cd {self.repo} && git commit -m "fix: clean"', cwd=self.tmp), "pass")
 
     def test_pushd_and_a_hash_inside_a_word(self) -> None:
         private = self.git_repo("secretproj")
         self.assertEqual(self.decision(f'pushd {self.repo} && git commit -m "{DIRTY}"', cwd=private), "deny")
         self.assertEqual(self.decision(f'git commit -m wip#1 && gh pr comment 4 -b "{DIRTY}"'), "deny")
+
+
+    # --- codex round 2 on c38c957 -----------------------------------------------------------
+
+    def test_a_heredoc_assigned_to_a_variable(self) -> None:
+        for write in ('gh pr comment 4 -b "$BODY"', 'git commit -m "$BODY"'):
+            for subject in ("fix: a thing", "fix: it's a thing"):
+                with self.subTest(write=write, subject=subject):
+                    cmd = f"BODY=$(cat <<'EOF'\n{subject}\n\n{DIRTY}\nEOF\n)\n{write}"
+                    self.assertEqual(self.decision(cmd), "deny")
+
+    def test_bash_comments_neither_retarget_nor_write(self) -> None:
+        self.assertEqual(self.decision(f'gh pr comment 4 -R acme/pub -b "{DIRTY}" # -R acme/secretproj'), "deny")
+        self.assertEqual(self.decision(f'gh pr comment 4 -b "{DIRTY}" # see https://github.com/acme/secretproj/pull/1'),
+                         "deny")
+        self.assertEqual(self.decision(f'# gh pr comment 4 -b "{DIRTY}"\nls'), "pass")
+
+    def test_a_slow_gh_shares_one_deadline(self) -> None:
+        started = time.monotonic()
+        got = self.decision("gh pr merge 4 -s", FAKE_GH_SLOW="1.5", PUBLIC_TEXT_GH_TIMEOUT="3")
+        self.assertEqual(got, "ask")
+        self.assertLess(time.monotonic() - started, 6)
+
+    def test_a_bad_timeout_setting_still_checks(self) -> None:
+        self.assertEqual(self.decision(f'gh pr comment 4 -b "{DIRTY}"', PUBLIC_TEXT_GH_TIMEOUT="x"), "deny")
+
+    def test_the_target_belongs_to_the_write_segment(self) -> None:
+        private = self.git_repo("secretproj")
+        heredoc = f"-F - <<EOF\nit's {DIRTY}\nEOF"
+        self.assertEqual(self.decision(f"gh pr view 1 -R acme/secretproj; gh pr comment 4 {heredoc}"), "deny")
+        self.assertEqual(self.decision(f"gh pr comment https://github.com/acme/pub/pull/4 {heredoc}", cwd=private),
+                         "deny")
+        self.assertEqual(self.decision(f"gh pr comment 4 {heredoc}", cwd=private), "pass")
+
+    def test_repo_edit_and_create_find_their_repo(self) -> None:
+        private = self.git_repo("secretproj")
+        self.assertEqual(self.decision(f'gh repo edit --add-topic x acme/pub -d "{DIRTY}"', cwd=private), "deny")
+        self.assertEqual(self.decision(f'gh repo create acme/newthing --public --description "{DIRTY}"'), "deny")
+        self.assertEqual(self.decision(f'gh repo create acme/newthing --private --description "{DIRTY}"'), "pass")
+
+    def test_popd_returns(self) -> None:
+        private = self.git_repo("secretproj")
+        self.assertEqual(self.decision(f'pushd {private} && popd && git commit -m "{DIRTY}"'), "deny")
+
+    def test_attached_message_after_a_flag_cluster(self) -> None:
+        self.assertEqual(self.decision(f'git commit -am"{DIRTY}"'), "deny")
 
 
 if __name__ == "__main__":
