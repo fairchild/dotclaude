@@ -78,7 +78,6 @@ EXTRA = (Path(os.environ["PUBLIC_TEXT_EXTRA"]).expanduser() if os.environ.get("P
          else Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "public-text" / "patterns")
 warnings: list[str] = []
 deadline: Optional[float] = None
-gh_err = ""
 
 
 def gh_budget() -> float:
@@ -91,20 +90,19 @@ def gh_budget() -> float:
 
 def gh(*args: str, cwd: Optional[str] = None) -> Optional[str]:
     """One deadline for every gh call in a run, so the hook ends inside its own timeout."""
-    global deadline, gh_err
-    gh_err = ""
+    global deadline
     if deadline is None:
         deadline = time.monotonic() + gh_budget()
     left = deadline - time.monotonic()
     if left <= 0:
         return None
     try:
-        p = subprocess.Popen(["gh", *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        p = subprocess.Popen(["gh", *args], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                              text=True, cwd=cwd, start_new_session=True)
     except OSError:
         return None
     try:
-        out, gh_err = p.communicate(timeout=left)
+        out, _ = p.communicate(timeout=left)
     except subprocess.TimeoutExpired:
         os.killpg(p.pid, signal.SIGKILL)
         p.communicate()
@@ -197,12 +195,6 @@ def visibility(repo: str) -> Optional[str]:
     return got
 
 
-def repo_exists(repo: str) -> Optional[bool]:
-    if visibility(repo):
-        return True
-    return False if "Could not resolve to a Repository" in gh_err else None
-
-
 def is_private(repo: Optional[str]) -> bool:
     if not repo:
         return False
@@ -277,12 +269,16 @@ PR_VALUED = {"-R", "--repo", "-b", "--body", "-F", "--body-file", "-t", "--title
              "-l", "--label", "-T", "--template", "-A", "--author-email", "--match-head-commit", "--subject",
              "--assignee", "--reviewer", "--milestone", "--project", "--add-label", "--remove-label",
              "--add-assignee", "--remove-assignee", "--add-reviewer", "--remove-reviewer", "--add-project",
-             "--remove-project", "-n", "--notes", "--notes-file", "--target", "--notes-start-tag"}
+             "--remove-project", "-n", "--notes", "--notes-file", "--target", "--notes-start-tag",
+             "--attach", "--recover", "--parent", "--blocked-by", "--blocking", "--type", "--add-blocked-by",
+             "--add-blocking", "--add-sub-issue", "--remove-blocked-by", "--remove-blocking",
+             "--remove-sub-issue"}
 for _g in ("pr", "issue"):
     for _v in ("create", "edit"):
         VALUED[(_g, _v)] = PR_VALUED | {"-a", "-r", "-m", "-p"}
     for _v in ("close", "reopen"):
         VALUED[(_g, _v)] = PR_VALUED | {"-c", "--comment"}
+VALUED[("issue", "close")] |= {"-r", "--reason", "--duplicate-of"}
 MARK = "\x01"
 MAX_FILE = 1 << 20
 
@@ -506,17 +502,20 @@ def gh_write(toks: list[str], cwd: str) -> Optional[Write]:
             skip = t in VALUED.get((group, verb), PR_VALUED)
         else:
             pos.append(t)
-    first = pos[0] if pos and group != "release" else ""
+    # gh pr and gh issue take a number, a URL or a branch in the first slot, never owner/name.
+    # A table of value-taking options trails gh, so a URL anywhere else among the arguments may
+    # be an unknown option's value: the repo is then unknown, and a hit asks.
+    slot = group in ("pr", "issue") and verb != "create"
+    first = pos[0] if pos and (slot or group == "repo") else ""
+    stray = [p for p in pos if GITHUB.search(p) and not (slot and p is pos[0])]
     if named:
         repo: Optional[str] = norm(named)
     elif group == "repo":
         repo = norm(first) if first else (origin(cwd) if verb == "edit" else None)
+    elif stray:
+        repo = None
     elif GITHUB.search(first):
         repo = norm(first)
-    elif OWNER_NAME.fullmatch(first):
-        # gh pr and gh issue take a number, a URL or a branch here; feat/x is a branch.
-        known = repo_exists(first)
-        repo = first if known else origin(cwd) if known is False else None
     else:
         repo = origin(cwd)
     w = Write(f"gh {group} {verb}", repo, cwd, private=group == "repo" and "--private" in rest)

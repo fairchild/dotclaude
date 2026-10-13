@@ -347,5 +347,37 @@ class Guard(unittest.TestCase):
         self.assertEqual(self.decision(f'cd -- {self.repo} && git commit -m "{DIRTY}"', cwd=private), "deny")
 
 
+    # --- codex round 5 on ae5f991 -----------------------------------------------------------
+
+    SU = "https://github.com/acme/secretproj/issues/3"
+
+    def test_value_flags_this_gh_has(self) -> None:
+        private = self.git_repo("secretproj")
+        pu, iu = "https://github.com/acme/pub/pull/4", "https://github.com/acme/pub/issues/4"
+        for cmd in (f'gh pr comment --attach shot.png {pu} -b "{DIRTY}"',
+                    f'gh issue close -r "not planned" {iu} -c "{DIRTY}"',
+                    f'gh issue close --duplicate-of 3 {iu} -c "{DIRTY}"',
+                    f'gh issue edit --type Bug {iu} --body "{DIRTY}"'):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.decision(cmd, cwd=private), "deny")
+        for cmd in (f'gh issue create -t t -b "{DIRTY}" --parent {self.SU}',
+                    f'gh issue create -t t -b "{DIRTY}" --blocking {self.SU}',
+                    f'gh issue edit 4 --add-sub-issue {self.SU} --body "{DIRTY}"'):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.decision(cmd), "deny")
+
+    def test_an_owner_name_argument_is_a_branch(self) -> None:
+        private = self.git_repo("secretproj")
+        self.assertEqual(self.decision(f'gh pr comment acme/secretproj -b "{DIRTY}"'), "deny")
+        self.assertEqual(self.decision(f'gh pr comment acme/pub -b "{DIRTY}"', cwd=private), "pass")
+
+    def test_a_url_outside_the_selector_slot_asks(self) -> None:
+        for cmd in (f'gh pr comment 4 --frobnicate {self.SU} -b "{DIRTY}"',
+                    f'gh issue create --frobnicate {self.SU} -t t -b "{DIRTY}"',
+                    f'gh pr comment https://github.com/acme/pub/pull/4 --frobnicate {self.SU} -b "{DIRTY}"'):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.decision(cmd), "ask")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
