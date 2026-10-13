@@ -30,6 +30,8 @@ case "$*" in
   "api users/acme "*) echo "Somebody Person" ;;
   "repo view acme/secretproj "*) echo PRIVATE ;;
   "repo view acme/unknown "*) exit 1 ;;
+  "repo view feat/"*|"repo view claude/"*)
+    echo "GraphQL: Could not resolve to a Repository with the name '$3'. (repository)" >&2; exit 1 ;;
   "repo view "*) echo PUBLIC ;;
   "pr view "*) printf '%s\n' "${FAKE_PR_TEXT:-a clean title}" ;;
   *) echo "fake gh: unexpected: $*" >&2; exit 64 ;;
@@ -289,10 +291,14 @@ class Guard(unittest.TestCase):
                 self.assertEqual(self.decision(cmd), "deny")
         self.assertEqual(self.decision(f'gh repo edit -d "{DIRTY}" -d acme/secretproj acme/pub', cwd=private), "deny")
 
-    def test_a_foreign_url_in_a_private_checkout_is_not_proof_of_private(self) -> None:
+    def test_a_positional_url_selects_and_a_url_in_text_does_not(self) -> None:
         private = self.git_repo("secretproj")
         cmd = f'gh pr comment -b "see {self.URL}" https://github.com/acme/pub/pull/4'
-        self.assertEqual(self.decision(cmd, cwd=private), "ask")
+        self.assertEqual(self.decision(cmd, cwd=private), "deny")
+        sibling = f'gh pr comment 12 -b "{DIRTY}; see https://github.com/acme/hush-svc/pull/3"'
+        self.assertEqual(self.decision(sibling, cwd=private), "pass")
+        self.assertEqual(self.decision(f'gh pr create -t x -b "{DIRTY} https://github.com/cli/cli/pull/3"',
+                                       cwd=private), "pass")
 
     def test_a_heredoc_opener_needs_code_context_and_a_closing_line(self) -> None:
         private = self.git_repo("secretproj")
@@ -319,6 +325,26 @@ class Guard(unittest.TestCase):
         big.write_text("x" * (1 << 20) + "\n")
         self.assertEqual(self.decision(f"gh pr comment 4 -F {big}"), "ask")
         self.assertEqual(self.decision(f"git commit -F {big}"), "warn")
+
+
+    # --- codex round 4 on 267903f -----------------------------------------------------------
+
+    def test_repo_value_tables_are_per_command(self) -> None:
+        private = self.git_repo("secretproj")
+        self.assertEqual(self.decision(f'gh repo edit --template acme/pub -d "mirror of {DIRTY}"', cwd=private),
+                         "deny")
+        self.assertEqual(self.decision(f'gh repo create -p acme/secretproj acme/newpub --public -d "Fork of {DIRTY}"',
+                                       cwd=private), "deny")
+
+    def test_a_branch_name_is_not_a_repo(self) -> None:
+        private = self.git_repo("secretproj")
+        self.assertEqual(self.decision(f'gh pr comment feat/guard -b "{DIRTY}"', cwd=private), "pass")
+        self.assertEqual(self.decision('gh pr edit claude/fix-x --body "Follows hush-svc#3"', cwd=private), "pass")
+        self.assertEqual(self.decision(f'gh pr comment feat/guard -b "{DIRTY}"'), "deny")
+
+    def test_cd_double_dash(self) -> None:
+        private = self.git_repo("secretproj")
+        self.assertEqual(self.decision(f'cd -- {self.repo} && git commit -m "{DIRTY}"', cwd=private), "deny")
 
 
 if __name__ == "__main__":

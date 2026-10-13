@@ -78,6 +78,7 @@ EXTRA = (Path(os.environ["PUBLIC_TEXT_EXTRA"]).expanduser() if os.environ.get("P
          else Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "public-text" / "patterns")
 warnings: list[str] = []
 deadline: Optional[float] = None
+gh_err = ""
 
 
 def gh_budget() -> float:
@@ -90,19 +91,20 @@ def gh_budget() -> float:
 
 def gh(*args: str, cwd: Optional[str] = None) -> Optional[str]:
     """One deadline for every gh call in a run, so the hook ends inside its own timeout."""
-    global deadline
+    global deadline, gh_err
+    gh_err = ""
     if deadline is None:
         deadline = time.monotonic() + gh_budget()
     left = deadline - time.monotonic()
     if left <= 0:
         return None
     try:
-        p = subprocess.Popen(["gh", *args], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        p = subprocess.Popen(["gh", *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                              text=True, cwd=cwd, start_new_session=True)
     except OSError:
         return None
     try:
-        out, _ = p.communicate(timeout=left)
+        out, gh_err = p.communicate(timeout=left)
     except subprocess.TimeoutExpired:
         os.killpg(p.pid, signal.SIGKILL)
         p.communicate()
@@ -195,6 +197,12 @@ def visibility(repo: str) -> Optional[str]:
     return got
 
 
+def repo_exists(repo: str) -> Optional[bool]:
+    if visibility(repo):
+        return True
+    return False if "Could not resolve to a Repository" in gh_err else None
+
+
 def is_private(repo: Optional[str]) -> bool:
     if not repo:
         return False
@@ -257,9 +265,24 @@ FILE_FLAGS = {"-F", "--file", "--body-file", "--notes-file", "--input"}
 GH_WRITES = {"pr": {"create", "edit", "comment", "review", "merge", "close", "reopen"},
              "issue": {"create", "edit", "comment", "close", "reopen"},
              "release": {"create", "edit"}, "repo": {"create", "edit"}}
-REPO_VALUED = {"-d", "--description", "-h", "--homepage", "--add-topic", "--remove-topic", "--visibility",
-               "--default-branch", "--template", "-t", "--team", "--source", "-r", "--remote",
-               "-g", "--gitignore", "-l", "--license"}
+# The options that take a value, per command, from `gh <command> --help`: a value read as an
+# argument would be read as the repo.
+VALUED = {
+    ("repo", "edit"): {"-d", "--description", "-h", "--homepage", "--add-topic", "--remove-topic",
+                       "--default-branch", "--visibility", "--squash-merge-commit-message"},
+    ("repo", "create"): {"-d", "--description", "-h", "--homepage", "-g", "--gitignore", "-l", "--license",
+                         "-r", "--remote", "-s", "--source", "-t", "--team", "-p", "--template"},
+}
+PR_VALUED = {"-R", "--repo", "-b", "--body", "-F", "--body-file", "-t", "--title", "-B", "--base", "-H", "--head",
+             "-l", "--label", "-T", "--template", "-A", "--author-email", "--match-head-commit", "--subject",
+             "--assignee", "--reviewer", "--milestone", "--project", "--add-label", "--remove-label",
+             "--add-assignee", "--remove-assignee", "--add-reviewer", "--remove-reviewer", "--add-project",
+             "--remove-project", "-n", "--notes", "--notes-file", "--target", "--notes-start-tag"}
+for _g in ("pr", "issue"):
+    for _v in ("create", "edit"):
+        VALUED[(_g, _v)] = PR_VALUED | {"-a", "-r", "-m", "-p"}
+    for _v in ("close", "reopen"):
+        VALUED[(_g, _v)] = PR_VALUED | {"-c", "--comment"}
 MARK = "\x01"
 MAX_FILE = 1 << 20
 
@@ -269,8 +292,6 @@ class Write:
         self.what, self.repo, self.cwd, self.local, self.private = what, repo, cwd, local, private
         self.files: list[str] = []
         self.fetch: Optional[Callable[[], Optional[str]]] = None
-        self.fallback = False  # the repo came from the checkout, not from a selector
-        self.urls: set[str] = set()
 
 
 class Shell:
@@ -477,23 +498,28 @@ def gh_write(toks: list[str], cwd: str) -> Optional[Write]:
     # A target comes only from a selector: -R, the repo argument, or the checkout. A URL or
     # owner/name inside a title, body or comment is text, and text never sets the target.
     named = flag_value(rest, "-R", "--repo")
-    if group == "repo":
-        pos, skip = [], False
-        for t in rest:
-            if skip:
-                skip = False
-            elif t in REPO_VALUED:
-                skip = True
-            elif not t.startswith("-"):
-                pos.append(t)
-        selector = pos[0] if pos else ""
+    pos, skip = [], False
+    for t in rest:
+        if skip:
+            skip = False
+        elif t.startswith("-"):
+            skip = t in VALUED.get((group, verb), PR_VALUED)
+        else:
+            pos.append(t)
+    first = pos[0] if pos and group != "release" else ""
+    if named:
+        repo: Optional[str] = norm(named)
+    elif group == "repo":
+        repo = norm(first) if first else (origin(cwd) if verb == "edit" else None)
+    elif GITHUB.search(first):
+        repo = norm(first)
+    elif OWNER_NAME.fullmatch(first):
+        # gh pr and gh issue take a number, a URL or a branch here; feat/x is a branch.
+        known = repo_exists(first)
+        repo = first if known else origin(cwd) if known is False else None
     else:
-        selector = rest[0] if rest and (GITHUB.search(rest[0]) or OWNER_NAME.fullmatch(rest[0])) else ""
-    repo = norm(named or selector) if named or selector else (
-        origin(cwd) if group != "repo" or verb == "edit" else None)
+        repo = origin(cwd)
     w = Write(f"gh {group} {verb}", repo, cwd, private=group == "repo" and "--private" in rest)
-    w.fallback = not (named or selector)
-    w.urls = {f"{m[1]}/{m[2]}" for m in map(GITHUB.search, rest) if m}
     w.files = file_args(rest)
     explicit = any(re.fullmatch(r"-[bF].*|--body(-file)?(=.*)?", t) for t in rest)
     if (group, verb) == ("pr", "merge") and not explicit and not {"-r", "--rebase"} & set(rest):
@@ -526,7 +552,8 @@ def writes(cmd: str, cwd: str) -> tuple[list[Write], bool]:
         if seg[0] in ("cd", "pushd"):
             if seg[0] == "pushd":
                 stack.append(cwd)
-            cwd = str(Path(cwd, Path(seg[1] if len(seg) > 1 else "~").expanduser()))
+            target = next((a for a in seg[1:] if not a.startswith("-")), "~")
+            cwd = str(Path(cwd, Path(target).expanduser()))
             continue
         if seg[0] == "popd":
             cwd = stack.pop() if stack else cwd
@@ -576,11 +603,7 @@ def hook(event: dict) -> Optional[dict]:
             if w.local and not w.repo:
                 continue
             if w.private or (w.repo and is_private(w.repo)):
-                # Only a selector proves private. A checkout's repo is not proof when the
-                # command also links a different repo.
-                if not (w.fallback and w.urls - {w.repo}):
-                    continue
-                w.repo = None
+                continue
             text = [scanned] + [read_file(f, w.cwd) for f in w.files]
             if w.fetch:
                 got = w.fetch()
