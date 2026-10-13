@@ -80,7 +80,8 @@ class Guard(unittest.TestCase):
     # --- the checker ------------------------------------------------------------
 
     def test_refuses_each_kind_of_private_reference(self) -> None:
-        for text in (DIRTY, "fixed (hush-svc #7)", "see home#3", "https://github.com/acme/secretproj/pull/3",
+        for text in ("clone https://github.com/acme/secretproj.git", "git@github.com:acme/secretproj.git",
+                     DIRTY, "fixed (hush-svc #7)", "see home#3", "https://github.com/acme/secretproj/pull/3",
                      "Somebody decided", "the box at 192.168.1.20", "on 10.0.0.5", "box.tail1.ts.net",
                      "http://board.localhost/"):
             with self.subTest(text=text):
@@ -274,6 +275,50 @@ class Guard(unittest.TestCase):
 
     def test_attached_message_after_a_flag_cluster(self) -> None:
         self.assertEqual(self.decision(f'git commit -am"{DIRTY}"'), "deny")
+
+
+    # --- codex round 3 on bd478fd: a target only from a selector ---------------------------
+
+    URL = "https://github.com/acme/secretproj/pull/1"
+
+    def test_a_url_in_the_text_never_sets_the_target(self) -> None:
+        private = self.git_repo("secretproj")
+        for cmd in (f'gh pr comment 4 -b "see {self.URL}"', f'gh issue close 4 -c "see {self.URL}"',
+                    f'gh pr create -t "after {self.URL}" -b x', f'gh release create v1 -n "see {self.URL}"'):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.decision(cmd), "deny")
+        self.assertEqual(self.decision(f'gh repo edit -d "{DIRTY}" -d acme/secretproj acme/pub', cwd=private), "deny")
+
+    def test_a_foreign_url_in_a_private_checkout_is_not_proof_of_private(self) -> None:
+        private = self.git_repo("secretproj")
+        cmd = f'gh pr comment -b "see {self.URL}" https://github.com/acme/pub/pull/4'
+        self.assertEqual(self.decision(cmd, cwd=private), "ask")
+
+    def test_a_heredoc_opener_needs_code_context_and_a_closing_line(self) -> None:
+        private = self.git_repo("secretproj")
+        write = f'gh pr comment 4 -R acme/pub -b "{DIRTY}"'
+        for first in ('git commit -m "doc: explain <<EOF"', "# example: cat <<EOF", "printf '%s' '<<EOF'",
+                      "cat <<END-X\nbody\nEND-X"):
+            with self.subTest(first=first):
+                self.assertEqual(self.decision(f"{first}\n{write}", cwd=private), "deny")
+
+    def test_a_body_file_resolves_against_its_segment(self) -> None:
+        (self.repo / "body.md").write_text(DIRTY + "\n")
+        self.assertEqual(self.decision("cd pub && gh pr comment 4 -R acme/pub -F body.md", cwd=self.tmp), "deny")
+        self.assertEqual(self.decision("git -C pub commit -F body.md", cwd=self.tmp), "deny")
+
+    def test_a_write_inside_a_command_substitution(self) -> None:
+        private = self.git_repo("secretproj")
+        for cmd in (f"PR=\"$(gh pr create -R acme/pub -t x -b '{DIRTY}')\"",
+                    f"PR=`gh pr create -R acme/pub -t x -b '{DIRTY}'`"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.decision(cmd, cwd=private), "deny")
+
+    def test_an_oversize_body_file_is_not_read_as_empty(self) -> None:
+        big = self.tmp / "big.md"
+        big.write_text("x" * (1 << 20) + "\n")
+        self.assertEqual(self.decision(f"gh pr comment 4 -F {big}"), "ask")
+        self.assertEqual(self.decision(f"git commit -F {big}"), "warn")
 
 
 if __name__ == "__main__":

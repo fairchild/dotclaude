@@ -22,11 +22,15 @@ All gh calls in one run share a single deadline (PUBLIC_TEXT_GH_TIMEOUT, 20 s), 
 ends inside its own 30 s timeout.
 
 It reads the literal command, which is what catches an accidental leak in an ordinary
-command. It does not cover: `bash -c`, `sh -c` and `eval` strings; text that only exists at
-run time, such as `$(cat body.md)`, a piped or redirected body, or a variable set by an
-earlier command; a private reference written as a path; GH_REPO, GIT_DIR and --git-dir;
-a remote's pushurl or remote.pushDefault; `cd` scoped to a subshell; commits already on any
-remote-tracking ref; gists, labels and tag messages.
+command. A write's repo comes only from a selector -- -R, the PR, issue or repo argument, an
+API path, git -C or the directory after cd, pushd and popd -- never from a URL in its text,
+and a hit asks whenever any write's repo is unknown or the command could not be fully read.
+It does not cover: `bash -c`, `sh -c` and `eval` strings; text that only exists at run
+time, such as `$(cat body.md)`, a piped or redirected body, or a variable set by an earlier
+command; a private reference written as a path, including a markdown link to
+`/OWNER/NAME/...`; GH_REPO, GIT_DIR and --git-dir; a remote's pushurl or
+remote.pushDefault; `cd` scoped to a subshell; commits already on any remote-tracking ref;
+gists, labels and tag messages.
 
 The private names are read from GitHub at run time and cached, never written here: a list
 of them in a public file would be the leak this exists to stop. What counts as a hit, kept
@@ -155,7 +159,7 @@ def patterns() -> list[re.Pattern[str]]:
     alt = "|".join(map(re.escape, private_names(login)))
     first = first_name(login)
     pats = [
-        rf"{re.escape(login)}/({alt})({NB}|$)",
+        rf"{re.escape(login)}/({alt})(\.git)?({NB}|$)",
         rf"(^|{NB})({alt}) ?#[0-9]+",
         rf"(^|[^0-9.])(10\.{OCT}|192\.168|172\.(1[6-9]|2[0-9]|3[01]))\.{OCT}\.{OCT}([^0-9]|$)",
         rf"[A-Za-z0-9-]\.ts\.net({NB}|$)",
@@ -246,58 +250,116 @@ def check(argv: list[str]) -> int:
 GITHUB = re.compile(r"github\.com[:/]([^/\s'\"]+)/([^/\s'\"]+?)(?:\.git)?(?:[/#?\s'\"]|$)")
 OWNER_NAME = re.compile(r"[\w.-]+/[\w.-]+")
 SEPARATORS = {";", "&&", "||", "|", "|&", "&", "\n", "(", ")", ";;"}
-HEREDOC = re.compile(r"(?<!<)<<(-?)(?!<)\s*(['\"]?)(\w+)\2")
+HEREDOC = re.compile(r"<<(-?)\s*(['\"]?)([\w-]+)\2")
 PATH_WORD = re.compile(r"(^|[\s'\"=(])(?:~|\.{1,2})?/[^\s'\"]*")
 WRITE_HINT = re.compile(r"\bgit\b.*\b(commit|push)\b|\bgh\s+(pr|issue|api|release|repo)\b", re.S)
 FILE_FLAGS = {"-F", "--file", "--body-file", "--notes-file", "--input"}
 GH_WRITES = {"pr": {"create", "edit", "comment", "review", "merge", "close", "reopen"},
              "issue": {"create", "edit", "comment", "close", "reopen"},
              "release": {"create", "edit"}, "repo": {"create", "edit"}}
+REPO_VALUED = {"-d", "--description", "-h", "--homepage", "--add-topic", "--remove-topic", "--visibility",
+               "--default-branch", "--template", "-t", "--team", "--source", "-r", "--remote",
+               "-g", "--gitignore", "-l", "--license"}
+MARK = "\x01"
+MAX_FILE = 1 << 20
 
 
 class Write:
-    def __init__(self, what: str, repo: Optional[str], local: bool = False, private: bool = False):
-        self.what, self.repo, self.local, self.private = what, repo, local, private
+    def __init__(self, what: str, repo: Optional[str], cwd: str, local: bool = False, private: bool = False):
+        self.what, self.repo, self.cwd, self.local, self.private = what, repo, cwd, local, private
         self.files: list[str] = []
         self.fetch: Optional[Callable[[], Optional[str]]] = None
+        self.fallback = False  # the repo came from the checkout, not from a selector
+        self.urls: set[str] = set()
 
 
-def without_heredoc_bodies(cmd: str) -> str:
-    out: list[str] = []
-    pending: list[tuple[str, bool]] = []
-    for line in cmd.split("\n"):
-        if pending:
-            delim, dash = pending[0]
-            if (line.lstrip("\t") if dash else line) == delim:
-                pending.pop(0)
-            continue
-        out.append(line)
-        pending += [(m[3], m[1] == "-") for m in HEREDOC.finditer(line)]
-    return "\n".join(out)
+class Shell:
+    """Bash's reading of a command, as far as finding its writes needs: comments and heredoc
+    bodies dropped, and each $(...) or `...`, quoted or not, lifted out as a command of its
+    own. `doubt` is set when the command does not close the way bash would need it to."""
+
+    def __init__(self, src: str) -> None:
+        self.src, self.i, self.doubt = src, 0, False
+        self.inner: list[str] = []
+        self.pending: list[tuple[str, bool]] = []
+        self.outer = self.code("")
+
+    def code(self, end: str) -> str:
+        s, out, depth = self.src, [], 0
+        while self.i < len(s):
+            c = s[self.i]
+            if c == end and (end == "`" or depth == 0):
+                self.i += 1
+                return "".join(out)
+            if c == "\\":
+                out.append(s[self.i:self.i + 2]); self.i += 2; continue
+            if c == "'":
+                j = s.find("'", self.i + 1)
+                if j < 0:
+                    self.doubt, j = True, len(s) - 1
+                out.append(s[self.i:j + 1]); self.i = j + 1; continue
+            if c == '"':
+                out.append(self.dquote()); continue
+            if s.startswith("$(", self.i) or c == "`":
+                out.append(self.lift()); continue
+            if c == "#" and (self.i == 0 or s[self.i - 1] in " \t\n;&|()"):
+                while self.i < len(s) and s[self.i] != "\n":
+                    self.i += 1
+                continue
+            m = HEREDOC.match(s, self.i) if s.startswith("<<", self.i) and s[self.i - 1:self.i] != "<" else None
+            if m and not s.startswith("<<<", self.i):
+                self.pending.append((m[3], m[1] == "-"))
+                out.append(m[0]); self.i = m.end(); continue
+            if c == "\n" and self.pending:
+                self.bodies()
+            depth += (c == "(") - (c == ")" and depth > 0)
+            out.append(c); self.i += 1
+        self.doubt |= bool(end)
+        return "".join(out)
+
+    def dquote(self) -> str:
+        s, out = self.src, ['"']
+        self.i += 1
+        while self.i < len(s):
+            c = s[self.i]
+            if c == "\\":
+                out.append(s[self.i:self.i + 2]); self.i += 2; continue
+            if c == '"':
+                self.i += 1
+                return "".join(out + ['"'])
+            if s.startswith("$(", self.i) or c == "`":
+                out.append(self.lift()); continue
+            out.append(c); self.i += 1
+        self.doubt = True
+        return "".join(out)
+
+    def lift(self) -> str:
+        tick = self.src[self.i] == "`"
+        self.i += 1 if tick else 2
+        start = self.i
+        self.code("`" if tick else ")")
+        self.inner.append(self.src[start:self.i - 1])
+        return f"{MARK}{len(self.inner) - 1}{MARK}"
+
+    def bodies(self) -> None:
+        """A heredoc's body is dropped only when its closing line is there."""
+        s, j = self.src, self.i + 1
+        for delim, dash in self.pending:
+            while True:
+                if j > len(s):
+                    self.pending = []
+                    return
+                k = s.find("\n", j)
+                k = len(s) if k < 0 else k
+                line, j = s[j:k], k + 1
+                if (line.lstrip("\t") if dash else line) == delim:
+                    break
+        self.pending = []
+        self.i = j - 1
 
 
-def without_comments(cmd: str) -> str:
-    """Drop what bash drops: an unquoted `#` that starts a word, to the end of its line."""
-    out, quote, i = [], "", 0
-    while i < len(cmd):
-        c = cmd[i]
-        if c == "\\" and quote != "'":
-            out.append(cmd[i:i + 2]); i += 2; continue
-        if quote:
-            quote = "" if c == quote else quote
-        elif c in "'\"":
-            quote = c
-        elif c == "#" and (i == 0 or cmd[i - 1] in " \t\n;&|()"):
-            while i < len(cmd) and cmd[i] != "\n":
-                i += 1
-            continue
-        out.append(c); i += 1
-    return "".join(out)
-
-
-def segments(cmd: str) -> Optional[list[list[str]]]:
-    lex = shlex.shlex(without_comments(without_heredoc_bodies(cmd)), posix=True,
-                      punctuation_chars=";&|()<>\n")
+def segments(text: str) -> Optional[list[list[str]]]:
+    lex = shlex.shlex(text, posix=True, punctuation_chars=";&|()<>\n")
     lex.whitespace, lex.whitespace_split, lex.commenters = " \t\r", True, ""
     out: list[list[str]] = [[]]
     try:
@@ -365,7 +427,7 @@ def git_write(toks: list[str], cwd: str) -> Optional[Write]:
         i += 2 if toks[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace") else 1
     sub, rest = (toks[i], toks[i + 1:]) if i < len(toks) else ("", [])
     if sub == "commit":
-        w = Write("git commit", origin(cwd), local=True)
+        w = Write("git commit", origin(cwd), cwd, local=True)
         w.files = file_args(rest)
         return w
     if sub != "push":
@@ -380,7 +442,7 @@ def git_write(toks: list[str], cwd: str) -> Optional[Write]:
             pos.append(t)
     refs = [r.lstrip("+").split(":")[0] for r in pos[1:]]
     refs = [r for r in refs if r] or (["--branches"] if {"--all", "--mirror"} & set(rest) else ["HEAD"])
-    w = Write("git push", origin(cwd, pos[0] if pos else "origin"))
+    w = Write("git push", origin(cwd, pos[0] if pos else "origin"), cwd)
 
     def log() -> Optional[str]:
         try:
@@ -407,16 +469,31 @@ def gh_write(toks: list[str], cwd: str) -> Optional[Write]:
         if m:
             here = (origin(cwd) or "/").split("/")
             repo = f"{here[0] if m[1] == '{owner}' else m[1]}/{here[1] if m[2] == '{repo}' else m[2]}"
-        w = Write(f"gh api {endpoint or '(endpoint unread)'}", repo)
+        w = Write(f"gh api {endpoint or '(endpoint unread)'}", repo, cwd)
         w.files = file_args(rest)
         return w
     if verb not in GH_WRITES.get(group, ()):
         return None
+    # A target comes only from a selector: -R, the repo argument, or the checkout. A URL or
+    # owner/name inside a title, body or comment is text, and text never sets the target.
     named = flag_value(rest, "-R", "--repo")
-    url = next((f"{m[1]}/{m[2]}" for m in map(GITHUB.search, rest) if m), None)
-    shaped = next((t for t in rest if OWNER_NAME.fullmatch(t)), None) if group == "repo" else None
-    repo = norm(named) if named else url or shaped or (origin(cwd) if group != "repo" or verb == "edit" else None)
-    w = Write(f"gh {group} {verb}", repo, private=group == "repo" and "--private" in rest)
+    if group == "repo":
+        pos, skip = [], False
+        for t in rest:
+            if skip:
+                skip = False
+            elif t in REPO_VALUED:
+                skip = True
+            elif not t.startswith("-"):
+                pos.append(t)
+        selector = pos[0] if pos else ""
+    else:
+        selector = rest[0] if rest and (GITHUB.search(rest[0]) or OWNER_NAME.fullmatch(rest[0])) else ""
+    repo = norm(named or selector) if named or selector else (
+        origin(cwd) if group != "repo" or verb == "edit" else None)
+    w = Write(f"gh {group} {verb}", repo, cwd, private=group == "repo" and "--private" in rest)
+    w.fallback = not (named or selector)
+    w.urls = {f"{m[1]}/{m[2]}" for m in map(GITHUB.search, rest) if m}
     w.files = file_args(rest)
     explicit = any(re.fullmatch(r"-[bF].*|--body(-file)?(=.*)?", t) for t in rest)
     if (group, verb) == ("pr", "merge") and not explicit and not {"-r", "--rebase"} & set(rest):
@@ -432,13 +509,20 @@ def gh_write(toks: list[str], cwd: str) -> Optional[Write]:
     return w
 
 
-def writes(cmd: str, cwd: str) -> list[Write]:
-    segs = segments(cmd)
-    if segs is None:
-        return [Write("a command the guard could not parse", None)] if WRITE_HINT.search(cmd) else []
+def writes(cmd: str, cwd: str) -> tuple[list[Write], bool]:
+    """Every write in the command, each with the repo it lands on, and whether any of the
+    command could not be read the way bash would read it."""
+    sh = Shell(cmd)
+    segs = segments(sh.outer)
+    doubt = sh.doubt or segs is None
     out: list[Write] = []
     stack: list[str] = []
-    for seg in segs:
+    for seg in segs or []:
+        for tok in seg:
+            for n in re.findall(f"{MARK}(\\d+){MARK}", tok):
+                got, unsure = writes(sh.inner[int(n)], cwd)
+                out += got
+                doubt |= unsure
         if seg[0] in ("cd", "pushd"):
             if seg[0] == "pushd":
                 stack.append(cwd)
@@ -454,14 +538,18 @@ def writes(cmd: str, cwd: str) -> list[Write]:
                 if w:
                     out.append(w)
                 break
-    return out
+    return out, doubt
 
 
 def read_file(path: str, cwd: str) -> str:
     p = Path(path).expanduser()
     p = p if p.is_absolute() else Path(cwd) / p
     try:
-        return p.read_text(errors="replace") if p.is_file() and p.stat().st_size < 1 << 20 else ""
+        if not p.is_file():
+            return ""
+        if p.stat().st_size >= MAX_FILE:
+            raise Unrunnable(f"{path} is over 1 MiB and was not read")
+        return p.read_text(errors="replace")
     except OSError:
         return ""
 
@@ -476,16 +564,24 @@ def hook(event: dict) -> Optional[dict]:
     unrun: list[str] = []
     local_only = True
     try:
-        found = writes(cmd, cwd)
+        found, doubt = writes(cmd, cwd)
+        if doubt and WRITE_HINT.search(cmd):  # a write the parse may have missed has no known repo
+            found.append(Write("a command the guard could not fully read", None, cwd))
     except Unrunnable as e:
         found, local_only = [], False
         unrun.append(str(e))
     scanned = PATH_WORD.sub(r"\1", cmd)  # paths are where a command runs, not what it says
     for w in found:
         try:
-            if (w.local and not w.repo) or w.private or (w.repo and is_private(w.repo)):
+            if w.local and not w.repo:
                 continue
-            text = [scanned] + [read_file(f, cwd) for f in w.files]
+            if w.private or (w.repo and is_private(w.repo)):
+                # Only a selector proves private. A checkout's repo is not proof when the
+                # command also links a different repo.
+                if not (w.fallback and w.urls - {w.repo}):
+                    continue
+                w.repo = None
+            text = [scanned] + [read_file(f, w.cwd) for f in w.files]
             if w.fetch:
                 got = w.fetch()
                 if got is None:
