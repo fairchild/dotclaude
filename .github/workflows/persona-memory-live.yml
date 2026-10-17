@@ -38,7 +38,7 @@ jobs:
         run: bun tests/harness.ts --suite live --report json
 
       - name: Upload live report artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: persona-memory-live-report
           path: skills/persona-memory/tests/.artifacts/live-report.json
