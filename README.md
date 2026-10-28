@@ -89,6 +89,7 @@ Claude loads these when the task matches the description.
 | `signoz-log` | Send structured logs to SigNoz observability platform. |
 | `skills-manager` | Use when the user wants to list, search, install, remove, inspect, validate, audit, or update skills. |
 | `swiftui-expert` | Write, review, or improve SwiftUI code. |
+| `tight-docs` | Use this when a coding agent writes or revises a design doc, a security review, or an ADR (an architecture decision… |
 | `update-dependencies` | Smart dependency updates across ecosystems (npm/bun/pnpm, uv/poetry, cargo). |
 | `webapp-testing` | Interact with and test web applications using Playwright. |
 
