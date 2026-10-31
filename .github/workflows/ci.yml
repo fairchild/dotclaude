@@ -21,6 +21,7 @@ jobs:
       analyze: ${{ steps.paths.outputs.analyze }}
       persona: ${{ steps.paths.outputs.persona }}
       team: ${{ steps.paths.outputs.team }}
+      gondolin: ${{ steps.paths.outputs.gondolin }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -95,7 +96,7 @@ jobs:
   gate:
     name: CI
     if: always()
-    needs: [changes, config, package, webui, analyze, persona, team]
+    needs: [changes, config, package, webui, analyze, persona, team, gondolin]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -232,6 +233,37 @@ jobs:
 
       - name: Run regression harness
         run: bash skills/team-memory/tests/regression.sh
+
+  gondolin:
+    needs: changes
+    if: needs.changes.outputs.gondolin == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Check the shell scripts
+        working-directory: skills/gondolin-ci
+        run: shellcheck -x -P SCRIPTDIR lane/*.sh lane/lib/*.sh scripts/*.sh
+
+      - name: Install the lane's dependencies
+        working-directory: skills/gondolin-ci/lane
+        run: npm ci
+
+      # The policy, sanitiser and run-matching logic. A VM needs a Mac; see the skill's Checking section.
+      - name: Run the lane's tests
+        working-directory: skills/gondolin-ci/lane
+        run: node --test ./lib/*.test.mjs ./*.test.mjs
 
   persona:
     needs: changes

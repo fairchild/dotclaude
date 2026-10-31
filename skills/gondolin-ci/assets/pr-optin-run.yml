@@ -1,0 +1,63 @@
+# The opt-in workflow the gondolin-ci skill dispatches. Copy it to .github/workflows/ on the default
+# branch and replace the example step.
+#
+# Nothing about a pull request starts a run: there is no pull_request trigger, label or path filter.
+# A run exists because someone with write access dispatched one, naming the commit they read. The
+# skill dispatches on the default branch, so the definition that executes is that branch's copy of
+# this file, and the pull request's code is checked out as data. A dispatch at any other ref runs
+# that ref's copy, which is why the job below sends such a run to a hosted runner.
+#
+# The run does not attach its checks to the pull request. It is read on its own.
+name: Opt-in PR Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: Pull request number an opt-in runner is registered for
+        required: true
+        type: string
+      head_sha:
+        description: The 40-character commit that was read; the job refuses any other
+        required: true
+        type: string
+      suites:
+        description: Comma-separated subset of the jobs below
+        required: false
+        type: string
+        default: lint
+
+permissions:
+  contents: read
+
+# One runner serves one job, so a second dispatch for a pull request would queue for hours.
+concurrency:
+  group: optin-pr-${{ inputs.pull_request }}
+  cancel-in-progress: true
+
+jobs:
+  # One job per suite, gated on its name. One invocation of the skill runs one suite.
+  lint:
+    if: contains(format(',{0},', inputs.suites), ',lint,')
+    # The labels are the ones the skill's VM registers under.
+    runs-on: >-
+      ${{ github.event_name == 'workflow_dispatch'
+      && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      && fromJSON(format('["self-hosted","optin","pr-{0}"]', inputs.pull_request))
+      || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.head_sha }}
+          persist-credentials: false
+
+      - name: Confirm the tree is the commit that was read
+        env:
+          HEAD_SHA: ${{ inputs.head_sha }}
+        run: test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+
+      # Replace with the repository's own check. Leave setup actions' caches off: a run on the
+      # default branch writes to the cache later jobs restore from (references/design.md, gap 2).
+      - name: Run the suite
+        run: git log -1 --oneline

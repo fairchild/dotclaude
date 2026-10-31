@@ -1,0 +1,99 @@
+[2026-09-30 16:55:29Z INFO JobRunner] Job ID 4da417fc-9ef7-5e57-9440-81a47f5bef14
+[2026-09-30 16:55:29Z INFO JobRunner] Initializing launch client
+[2026-09-30 16:55:29Z INFO JobRunner] Starting the job execution context.
+[2026-09-30 16:55:29Z INFO JobRunner] Validating directory permissions for: '/home/runner/actions-runner/_work'
+[2026-09-30 16:55:29Z INFO JobRunner] Getting job extension.
+[2026-09-30 16:55:29Z INFO JobRunner] Initialize job. Getting all job steps.
+[2026-09-30 16:55:31Z INFO ProcessInvokerWrapper] Finished process 1695 with exit code 0, and elapsed time 00:00:00.0221071.
+[2026-09-30 16:55:31Z INFO ExecutionContext] Publish step telemetry for current step {
+  "action": "setup_job",
+  "type": "runner",
+  "stage": "Pre",
+  "stepId": "ad778bd0-cac8-5e3b-8aa5-5afa6189b104",
+  "result": "succeeded",
+  "errorMessages": [],
+  "executionTimeInSeconds": 2,
+  "startTime": "2026-09-30T16:55:29.8814306Z",
+  "finishTime": "2026-09-30T16:55:31.2168782Z"
+}.
+[2026-09-30 16:55:31Z INFO JobRunner] Total job steps: 2.
+[2026-09-30 16:55:31Z INFO JobRunner] Run all job steps.
+[2026-09-30 16:55:31Z INFO StepsRunner] Processing step: DisplayName='Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
+[2026-09-30 16:55:31Z INFO StepsRunner] Evaluating: success()
+[2026-09-30 16:55:31Z INFO StepsRunner] Result: true
+[2026-09-30 16:55:31Z INFO StepsRunner] Starting the step.
+[2026-09-30 16:55:37Z INFO ProcessInvokerWrapper] Finished process 1700 with exit code 0, and elapsed time 00:00:06.6163622.
+[2026-09-30 16:55:37Z INFO ExecutionContext] Publish step telemetry for current step {
+  "action": "actions/checkout",
+  "ref": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+  "type": "node24",
+  "stage": "Main",
+  "stepId": "209d11ad-4953-58bf-bacb-4bf68c64da87",
+  "stepContextName": "__actions_checkout",
+  "hasPreStep": false,
+  "hasPostStep": true,
+  "result": "succeeded",
+  "errorMessages": [],
+  "executionTimeInSeconds": 7,
+  "startTime": "2026-09-30T16:55:31.2301862Z",
+  "finishTime": "2026-09-30T16:55:37.9136305Z"
+}.
+[2026-09-30 16:55:37Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[2026-09-30 16:55:37Z INFO StepsRunner] Current state: job state = ''
+[2026-09-30 16:55:37Z INFO StepsRunner] Processing step: DisplayName='Run tests'
+[2026-09-30 16:55:37Z INFO StepsRunner] Evaluating: success()
+[2026-09-30 16:55:37Z INFO StepsRunner] Result: true
+[2026-09-30 16:55:37Z INFO StepsRunner] Starting the step.
+[2026-09-30 16:55:37Z INFO ProcessInvokerWrapper] Finished process 1923 with exit code 127, and elapsed time 00:00:00.0026012.
+[2026-09-30 16:55:37Z INFO StepsRunner] Step result: Failed
+[2026-09-30 16:55:37Z INFO ExecutionContext] Publish step telemetry for current step {
+  "action": "sh",
+  "type": "run",
+  "stage": "Main",
+  "stepId": "63b957fd-337d-5750-81ce-2cb8c6828f9b",
+  "stepContextName": "__run",
+  "result": "failed",
+  "errorMessages": [
+    "Process completed with exit code 127."
+  ],
+  "executionTimeInSeconds": 1,
+  "startTime": "2026-09-30T16:55:37.914817Z",
+  "finishTime": "2026-09-30T16:55:37.9286057Z"
+}.
+[2026-09-30 16:55:37Z INFO StepsRunner] Update job result with current step result 'Failed'.
+[2026-09-30 16:55:37Z INFO StepsRunner] Current state: job state = 'Failed'
+[2026-09-30 16:55:37Z INFO StepsRunner] Processing step: DisplayName='Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
+[2026-09-30 16:55:37Z INFO StepsRunner] Evaluating: always()
+[2026-09-30 16:55:37Z INFO StepsRunner] Result: true
+[2026-09-30 16:55:37Z INFO StepsRunner] Starting the step.
+[2026-09-30 16:55:38Z INFO ProcessInvokerWrapper] Finished process 1935 with exit code 0, and elapsed time 00:00:00.1531538.
+[2026-09-30 16:55:38Z INFO ExecutionContext] Publish step telemetry for current step {
+  "action": "actions/checkout",
+  "ref": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+  "type": "node24",
+  "stage": "Post",
+  "stepId": "639469d3-64c8-5668-8652-5740a052913b",
+  "result": "succeeded",
+  "errorMessages": [],
+  "executionTimeInSeconds": 1,
+  "startTime": "2026-09-30T16:55:37.9318653Z",
+  "finishTime": "2026-09-30T16:55:38.0989193Z"
+}.
+[2026-09-30 16:55:38Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[2026-09-30 16:55:38Z INFO StepsRunner] Current state: job state = 'Failed'
+[2026-09-30 16:55:38Z INFO JobRunner] Finalize job.
+[2026-09-30 16:55:38Z INFO ExecutionContext] Publish step telemetry for current step {
+  "action": "complete_job",
+  "type": "runner",
+  "stage": "Post",
+  "stepId": "2e8a84c6-6167-590b-abb2-4de5ae0c9a0c",
+  "result": "succeeded",
+  "errorMessages": [],
+  "executionTimeInSeconds": 1,
+  "startTime": "2026-09-30T16:55:38.1054579Z",
+  "finishTime": "2026-09-30T16:55:38.1334575Z"
+}.
+[2026-09-30 16:55:38Z INFO JobRunner] Job result after all job steps finish: Failed
+[2026-09-30 16:55:38Z INFO JobRunner] Completing the job execution context.
+[2026-09-30 16:55:38Z INFO JobRunner] Shutting down the job server queue.
+[2026-09-30 16:55:41Z INFO JobRunner] Raising job completed against run service

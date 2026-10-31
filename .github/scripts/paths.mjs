@@ -5,6 +5,7 @@ const patterns = {
   analyze: /^skills\/analyze-usage\//,
   persona: /^skills\/persona-memory\//,
   team: /^(skills\/team-memory\/|agents\/team-memory-sleep.md$|settings.example.json$)/,
+  gondolin: /^skills\/gondolin-ci\//,
 };
 export function affected(files, all = false) {
   const infrastructure = files.some(p => p.startsWith('.github/') || p === '.mise.toml');
