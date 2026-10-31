@@ -1,0 +1,12 @@
+{
+  "note": "What a real job's toolchain reaches for, on top of the Actions control plane in allowlist.json. Kept separate so the runner agent's own reach stays readable.",
+  "hosts": [
+    "pypi.org",
+    "files.pythonhosted.org",
+    "registry.npmjs.org",
+    "cdn.playwright.dev",
+    "releases.astral.sh",
+    "playwright.download.prss.microsoft.com",
+    "workers.cloudflare.com"
+  ]
+}

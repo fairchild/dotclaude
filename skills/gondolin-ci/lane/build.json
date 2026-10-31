@@ -1,0 +1,21 @@
+{
+  "arch": "aarch64",
+  "distro": "alpine",
+  "alpine": {
+    "version": "3.23.0",
+    "kernelPackage": "linux-virt",
+    "kernelImage": "vmlinuz-virt",
+    "initramfsPackages": [],
+    "krunfwVersion": "v5.2.1"
+  },
+  "oci": {
+    "image": "gondolin-runner-rootfs:local",
+    "runtime": "docker",
+    "platform": "linux/arm64",
+    "pullPolicy": "never"
+  },
+  "rootfs": {
+    "label": "gondolin-root",
+    "sizeMb": 8192
+  }
+}
