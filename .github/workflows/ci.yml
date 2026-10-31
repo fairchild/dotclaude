@@ -54,6 +54,7 @@ jobs:
           python scripts/catalog.py readme --check
           python scripts/portability.py --check
           python scripts/test_portability.py
+          python scripts/test_public_text_guard.py
           for fixture in .github/fixtures/*.invalid.json; do
             if python .github/scripts/validate-config.py --settings-only "$fixture"; then exit 1; fi
           done
