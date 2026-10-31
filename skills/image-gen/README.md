@@ -36,7 +36,7 @@ Comparison run directories can be reviewed with `scripts/review_gallery.py`:
 
 ```bash
 skills/image-gen/scripts/review_gallery.py \
-  --run-dir skills/image-gen/outputs/comparisons/20260516-jrnlfish-logos
+  --run-dir skills/image-gen/outputs/comparisons/20260516-myapp-logos
 ```
 
 After UI changes or comparison runs, capture the gallery for agent review with
@@ -44,7 +44,7 @@ After UI changes or comparison runs, capture the gallery for agent review with
 
 ```bash
 skills/image-gen/scripts/evaluate_review_gallery.py \
-  --run-dir skills/image-gen/outputs/comparisons/20260516-jrnlfish-logos
+  --run-dir skills/image-gen/outputs/comparisons/20260516-myapp-logos
 ```
 
 The evaluator writes desktop, interaction, and mobile screenshots plus

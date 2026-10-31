@@ -107,7 +107,7 @@ analyze-usage search "memory" --thinking
 analyze-usage search "memory" --all
 
 # Filters
-analyze-usage search "refactor" --user --repo bertram-chat --since 7d -n 20
+analyze-usage search "refactor" --user --repo myapp --since 7d -n 20
 ```
 
 | Flag | Description |

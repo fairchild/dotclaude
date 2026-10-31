@@ -4,7 +4,7 @@
 {"type":"preference","content":"Prefer deterministic checks before merge"}
 {"type":"thread","content":"Resolve stale journal sync thread"}
 {"type":"thread","content":"Investigate login token rotation edge case"}
-{"type":"fact","content":"Michael uses Bun for TypeScript tooling"}
+{"type":"fact","content":"The user uses Bun for TypeScript tooling"}
 {"type":"fact","content":"Primary code host is GitHub"}
 {"type":"relationship","content":"Treat the assistant as a proactive teammate"}
 {"type":"relationship","content":"High assertiveness is acceptable for low-risk tasks"}

@@ -93,7 +93,7 @@ def write_fixture(home: Path, *, cwd: str | None = None) -> Path:
     claude_dir = home / ".claude" / "projects" / "demo"
     claude_dir.mkdir(parents=True, exist_ok=True)
     session_file = claude_dir / "session.jsonl"
-    cwd = cwd or "/conductor/workspaces/services/demo"
+    cwd = cwd or "/conductor/workspaces/myapp/demo"
     entries = [
         {
             "uuid": "u1",
@@ -165,7 +165,7 @@ def write_claude_subagent_fixture(home: Path, *, cwd: str | None = None) -> Path
     subagent_dir = home / ".claude" / "projects" / "demo" / "s1" / "subagents"
     subagent_dir.mkdir(parents=True, exist_ok=True)
     session_file = subagent_dir / "agent-nested1.jsonl"
-    cwd = cwd or "/conductor/workspaces/services/demo"
+    cwd = cwd or "/conductor/workspaces/myapp/demo"
     entries = [
         {
             "uuid": "sub-u1",

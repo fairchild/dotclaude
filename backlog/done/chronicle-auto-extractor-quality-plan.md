@@ -103,7 +103,7 @@ Proposed:
 **Acceptance:**
 - [ ] Existing extract tests pass unchanged
 - [ ] New tests cover fallback + gating
-- [ ] Default flipped to on after a burn-in period (e.g., 1 week of opt-in use on Michael's machine)
+- [ ] Default flipped to on after a burn-in period (e.g., 1 week of opt-in use on the user's machine)
 
 ### Phase 4 (optional): Backfill
 

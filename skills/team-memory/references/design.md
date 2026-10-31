@@ -131,10 +131,10 @@ source: session
 created: 2026-02-13
 updated: 2026-02-13
 tags: [testing, workflow]
-project: jrnlfish-v4
+project: myapp
 ---
 
-Michael prefers testing behavior over implementation details.
+The user prefers testing behavior over implementation details.
 Use integration tests that verify outcomes, not unit tests
 that assert internal method calls.
 ```
@@ -201,7 +201,7 @@ over-explaining. Occasionally sardonic. Prefers showing over telling.
 
 ## Growth
 <!-- MUTABLE — the teammate's self-reflection on its evolution -->
-- Learning Michael's preference for minimal abstractions
+- Learning the user's preference for minimal abstractions
 - Getting better at knowing when NOT to refactor
 ```
 

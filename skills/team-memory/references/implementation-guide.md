@@ -93,7 +93,7 @@ A Claude Code skill with these components (in implementation order):
 
 11. Wire up SKILL.md commands (`/team-memory init`, `list`, `switch`, `status`, `consolidate`, `forget`)
 12. Test the full lifecycle: init → launch → active memory → session end → sleep compute
-13. Create a sample Bertram personality for Michael to customize
+13. Create a sample Bertram personality for the user to customize
 
 ## Key Technical Decisions
 

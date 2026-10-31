@@ -47,7 +47,7 @@ cmux clear-progress
 cmux log "Deployment started"
 cmux log --level error --source "test-runner" "3 tests failed"
 
-cmux rename-workspace "bread-builder tests"
+cmux rename-workspace "myapp tests"
 cmux notify --title "Tests Complete" --body "All 42 tests passed"
 ```
 

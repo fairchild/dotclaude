@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Set up a workshop for bread-builder",
+      "prompt": "Set up a workshop for myapp",
       "expected_output": "Creates three-pane workshop layout (terminal left, browser right, test watcher bottom full-width), detects project commands from lockfile/scripts, verifies commands started, sets sidebar dashboard",
       "expectations": [
         "Recognizes 'workshop' as a named convention and builds the specific layout",
@@ -15,7 +15,7 @@
     },
     {
       "id": 2,
-      "prompt": "Set up an ops deck to run tests and lint on planventura",
+      "prompt": "Set up an ops deck to run tests and lint on myapp",
       "expected_output": "Spawns separate agent workspaces with agent-inbox coordination, sidebar progress tracking, and dual-channel monitoring",
       "expectations": [
         "Recognizes 'ops deck' as a named convention and spawns multiple agent workspaces",

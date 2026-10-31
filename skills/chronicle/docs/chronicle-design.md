@@ -27,7 +27,7 @@
 A **stateful agent** that observes, remembers, and learns from your coding sessions over time. Not just titles—a longitudinal memory system that can:
 
 - **Recall**: "What was I working on in that OAuth session last week?"
-- **Synthesize**: "What patterns do I see in how Michael debugs?"
+- **Synthesize**: "What patterns do I see in how the user debugs?"
 - **Brief**: "What happened in my last 3 sessions? Catch me up."
 - **Investigate**: "Find all sessions where I touched authentication code."
 
@@ -125,7 +125,7 @@ Inspired by Letta's memory blocks and sleep-time compute, this agent **thinks wh
 | Type | What it Stores | Update Frequency | Example |
 |------|---------------|------------------|---------|
 | **Episodic** | Raw session logs, transcripts | Every session | "Dec 15: Fixed OAuth redirect in auth module" |
-| **Semantic** | Extracted facts, knowledge | After consolidation | "Michael knows: OAuth, Bun, TypeScript, Cloudflare Workers" |
+| **Semantic** | Extracted facts, knowledge | After consolidation | "The user knows: OAuth, Bun, TypeScript, Cloudflare Workers" |
 | **Procedural** | Observed workflows, patterns | Weekly mining | "Debugging pattern: read logs → grep for error → trace backwards" |
 
 ### Memory Block Schema
@@ -144,15 +144,15 @@ interface MemoryBlock {
 
 // Core blocks the Chronicle maintains:
 const CHRONICLE_BLOCKS = {
-  // IDENTITY: Who Michael is as a developer
+  // IDENTITY: Who the user is as a developer
   developer_profile: {
     label: "developer_profile",
-    description: "Core facts about Michael's development environment and skills",
+    description: "Core facts about the user's development environment and skills",
     limit: 2000,
     // Value: "Uses Bun, prefers TypeScript, Cloudflare Workers for deployment..."
   },
 
-  // PREFERENCES: How Michael likes to work
+  // PREFERENCES: How the user likes to work
   preferences: {
     label: "preferences",
     description: "Observed preferences and style choices",
@@ -173,13 +173,13 @@ const CHRONICLE_BLOCKS = {
     label: "active_projects",
     description: "Current active projects and their status",
     limit: 2000,
-    // Value: "jrnlfish: daily journaling app, currently on experiments..."
+    // Value: "notesapp: daily journaling app, currently on experiments..."
   },
 
   // PATTERNS: Observed behavioral patterns
   work_patterns: {
     label: "work_patterns",
-    description: "Mining-derived patterns in how Michael works",
+    description: "Mining-derived patterns in how the user works",
     limit: 2000,
     // Value: "Tends to debug by reading logs first, prefers test-behavior-not-implementation..."
   },
@@ -384,7 +384,7 @@ async function dailyConsolidation(): Promise<void> {
 │   │     "I found 2 OAuth-related sessions:                              │   │
 │   │      • Dec 15: Fixed OAuth redirect loop in auth module             │   │
 │   │        Status: Completed. Added state param validation.             │   │
-│   │      • Dec 10: Initial OAuth integration for jrnlfish               │   │
+│   │      • Dec 10: Initial OAuth integration for notesapp               │   │
 │   │        Status: Shipped, using Google provider.                      │   │
 │   │      Want me to dig into either one?"                               │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
@@ -478,7 +478,7 @@ async function mineWeeklyPatterns(): Promise<void> {
     ${await getBlock("work_patterns")}
 
     Analyze for:
-    1. DEBUGGING PATTERNS: How does Michael approach debugging?
+    1. DEBUGGING PATTERNS: How does the user approach debugging?
     2. WORKFLOW PATTERNS: What sequence of actions is common?
     3. TOOL PATTERNS: What tools/commands are frequently used?
     4. TIME PATTERNS: Any patterns in when/how work happens?
@@ -599,7 +599,7 @@ The first release focuses on **knowing what was left undone** and **picking up w
 │           │                           │                        │            │
 │           ▼                           │  "Last session you     │            │
 │   ┌──────────────────────┐            │  were working on OAuth │            │
-│   │  SESSION END HOOK    │            │  in jrnlfish.          │            │
+│   │  SESSION END HOOK    │            │  in notesapp.          │            │
 │   │                      │            │                        │            │
 │   │  Extract:            │            │  Pending:              │            │
 │   │  • What was done     │───────────▶│  • State validation    │            │
@@ -727,7 +727,7 @@ $ claude
 ┌─────────────────────────────────────────────────────────────────┐
 │  Chronicle: You have 2 pending threads from yesterday:          │
 │                                                                 │
-│  [HIGH] Add state validation tests for OAuth (jrnlfish)         │
+│  [HIGH] Add state validation tests for OAuth (notesapp)         │
 │  [MED]  Review error handling in redirect.ts                    │
 │                                                                 │
 │  Continue with these? [y/n/details]                             │
@@ -739,7 +739,7 @@ $ claude
 > /chronicle what was I doing?
 
 # Option 3: Project-scoped
-> /chronicle pending jrnlfish
+> /chronicle pending notesapp
 ```
 
 ### Thread Resolution
@@ -980,7 +980,7 @@ PHASE 1-2: Custom MVP          PHASE 3+: Evaluate Letta
 
 | Category | Question | Observable Signals |
 |----------|----------|--------------------|
-| **Debugging** | "How does Michael debug?" | Sequence: logs→grep→trace? First action? |
+| **Debugging** | "How does the user debug?" | Sequence: logs→grep→trace? First action? |
 | **Workflow** | "What sequences are common?" | plan→implement→test? Branch→code→PR? |
 | **Tools** | "What tools recur?" | bun vs npm, vitest vs jest, commit style |
 | **Time** | "When/how does work happen?" | Session length, morning vs evening |
@@ -1081,7 +1081,7 @@ function calculateImportance(entry): number {
 ```bash
 /chronicle skills                    # Technologies I've used
 /chronicle projects using Hono       # Which use this framework?
-/chronicle similar to jrnlfish       # Projects with similar stack
+/chronicle similar to notesapp       # Projects with similar stack
 /chronicle recurring problems        # Cross-project issues
 ```
 

@@ -192,7 +192,7 @@ EXAMPLES
     analyze-usage search "memory" --fts
 
     # Search with filters
-    analyze-usage search "refactor" --repo bertram-chat --since 7d --user
+    analyze-usage search "refactor" --repo myapp --since 7d --user
 
     # Turn durations
     analyze-usage query "SELECT * FROM turn_durations ORDER BY duration_ms DESC LIMIT 10"

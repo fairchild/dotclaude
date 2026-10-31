@@ -72,5 +72,5 @@ experiment on; a plain terminal you type into yourself.
 
 A subagent host has none of those: the brief path goes in the prompt, the model is
 a parameter, and there is no screen to check. The trade is that the report lands
-here rather than on a surface Michael can talk to, so relay it — and the arc ends
+here rather than on a surface the user can talk to, so relay it — and the arc ends
 when this session does.

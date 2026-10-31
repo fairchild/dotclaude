@@ -164,7 +164,7 @@ Before presenting or publishing a generated report:
 ## Conversation search
 
 ```bash
-scripts/analyze-usage search "deploy" --repo services --since 4w -n 20
+scripts/analyze-usage search "deploy" --repo myapp --since 4w -n 20
 scripts/analyze-usage search "memory" --thinking
 scripts/analyze-usage search "architecture decision" --all --fts
 ```

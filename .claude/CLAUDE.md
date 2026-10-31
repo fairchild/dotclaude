@@ -14,7 +14,7 @@ This repo is public on GitHub but serves as the owner's actual working config.
 
 **This repo is public.** Never commit secrets, credentials, or personal data.
 
-- Commits, PR bodies, and review comments refer to the owner as "the user", never by name
+- Commits, PR bodies, review comments, and tracked text refer to the owner as "the user", never by name; `LICENSE` and authorship metadata are the exception
 - Private repositories stay out of tracked files, commit messages, and PR text: no names, paths, issue numbers, or run IDs
 - Session data is gitignored (see [session-data.md](../skills/chronicle/assets/docs/session-data.md))
 - Run `/opensource-precheck` before major changes
