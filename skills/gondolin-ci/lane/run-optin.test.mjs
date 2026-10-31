@@ -174,3 +174,14 @@ test("a runner that never took its job is deregistered, and one already gone cos
   const gone = drive(`name=${RUNNER} repo=acme/widgets`, "forget_the_runner", "exit 0");
   assert.equal(gone.status, 0);
 });
+
+test("the race check refuses when GitHub cannot say what is queued", () => {
+  const body = `case "$*" in
+  "run list"*) exit 1 ;;
+  *) echo 0 ;;
+esac
+`;
+  const blind = drive("repo=acme/widgets pr=7", "refuse_to_race_an_earlier_dispatch", body);
+  assert.equal(blind.status, 1);
+  assert.match(blind.stdout, /cannot tell whether one waits for pr-7/);
+});

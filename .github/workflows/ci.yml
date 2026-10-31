@@ -237,7 +237,8 @@ jobs:
   gondolin:
     needs: changes
     if: needs.changes.outputs.gondolin == 'true'
-    runs-on: ubuntu-latest
+    # The lane reads macOS's input idle time and priority bands, and its tests drive them.
+    runs-on: macos-latest
     timeout-minutes: 10
     permissions:
       contents: read
@@ -254,13 +255,15 @@ jobs:
 
       - name: Check the shell scripts
         working-directory: skills/gondolin-ci
-        run: shellcheck -x -P SCRIPTDIR lane/*.sh lane/lib/*.sh scripts/*.sh
+        run: |
+          brew install shellcheck
+          shellcheck -x -P SCRIPTDIR lane/*.sh lane/lib/*.sh scripts/*.sh
 
       - name: Install the lane's dependencies
         working-directory: skills/gondolin-ci/lane
         run: npm ci
 
-      # The policy, sanitiser and run-matching logic. A VM needs a Mac; see the skill's Checking section.
+      # The policy, sanitiser and run-matching logic. The containment probe needs a built guest.
       - name: Run the lane's tests
         working-directory: skills/gondolin-ci/lane
         run: node --test ./lib/*.test.mjs ./*.test.mjs

@@ -182,10 +182,14 @@ refuse_to_race_an_earlier_dispatch() {
 
   # A job queued for pr-<N> would take our runner before our own dispatch does, at an older sha. A
   # run already in progress can still hold queued jobs, so every unfinished run is checked.
-  local state unfinished="" id labels
+  local state unfinished="" listed id labels
   for state in queued in_progress waiting pending requested; do
-    unfinished+=" $(gh run list --repo "$repo" --workflow "$workflow" --status "$state" \
-      --json databaseId --jq '.[].databaseId' 2> /dev/null || true)"
+    if ! listed=$(gh run list --repo "$repo" --workflow "$workflow" --status "$state" \
+      --json databaseId --jq '.[].databaseId' 2> /dev/null); then
+      say "${red}cannot list ${repo}'s runs, so cannot tell whether one waits for pr-${pr}${off}"
+      exit 1
+    fi
+    unfinished+=" ${listed}"
   done
   for id in $unfinished; do
     if ! labels=$(ask "repos/${repo}/actions/runs/${id}/jobs" --jq '.jobs[] | select(.status == "queued") | .labels[]'); then
