@@ -64,11 +64,11 @@ counts=$(git rev-list --left-right --count HEAD...@{u} 2>/dev/null || echo "0 0"
 | Project         | Branch | Clean | Remote      |
 |-----------------|--------|-------|-------------|
 | beads           | main   | yes   | up-to-date  |
-| jrnlfish-v4     | feat/x | no    | 3 ahead     |
+| notesapp-v4     | feat/x | no    | 3 ahead     |
 | better-auth     | main   | yes   | 2 behind    |
 
 Issues:
-- jrnlfish-v4: uncommitted changes (3 files)
+- notesapp-v4: uncommitted changes (3 files)
 - better-auth: 2 commits behind origin/main
 ```
 
@@ -78,7 +78,7 @@ Issues:
 | Project         | Branch | Clean | Remote      | Tests |
 |-----------------|--------|-------|-------------|-------|
 | beads           | main   | yes   | up-to-date  | pass  |
-| jrnlfish-v4     | feat/x | no    | 3 ahead     | fail  |
+| notesapp-v4     | feat/x | no    | 3 ahead     | fail  |
 ```
 
 **With --detail:**
@@ -106,7 +106,7 @@ Pulled 2 repos:
   - beads (12 commits)
   - chronicle (3 commits)
 
-Skipped (dirty): jrnlfish-v4
+Skipped (dirty): notesapp-v4
 ```
 
 ## Remote Sync Status

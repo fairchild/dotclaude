@@ -2,7 +2,7 @@
 arc: memory-loop-quality
 priority: 3
 timeout: 30d
-ready-for-human: a direction decision — do the three memory systems unify under one surface, or stay independent with clear boundaries? Needs Michael's call before any consolidation work.
+ready-for-human: a direction decision — do the three memory systems unify under one surface, or stay independent with clear boundaries? Needs the user's call before any consolidation work.
 ---
 
 # Memory systems coherence

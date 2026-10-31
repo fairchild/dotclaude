@@ -74,4 +74,4 @@ Each task has a `---` divider with blank lines around it.
 
 ## Why not GitHub Issues
 
-The repo is public, but it's Michael's personal config — work-in-progress notes don't need to be public artifacts. Local markdown also keeps the full body editable in the same editor as the code, version-controlled alongside the change that resolves it, and lets the same file accumulate author-meaning + worker-trace in one place.
+The repo is public, but it's the owner's personal config — work-in-progress notes don't need to be public artifacts. Local markdown also keeps the full body editable in the same editor as the code, version-controlled alongside the change that resolves it, and lets the same file accumulate author-meaning + worker-trace in one place.

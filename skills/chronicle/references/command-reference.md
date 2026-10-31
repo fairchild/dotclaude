@@ -479,7 +479,7 @@ Search across all Chronicle blocks by text:
 
 Example queries:
 - `/chronicle search oauth` - Find sessions mentioning OAuth
-- `/chronicle search jrnlfish` - Find all jrnlfish sessions
+- `/chronicle search myapp` - Find all myapp sessions
 - `/chronicle search "error handling"` - Find sessions with specific phrase
 
 ---

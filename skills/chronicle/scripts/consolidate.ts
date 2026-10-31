@@ -11,7 +11,7 @@
  *   bun consolidate.ts                  # Dry run (default)
  *   bun consolidate.ts --apply          # Actually consolidate
  *   bun consolidate.ts --older-than=30  # Only blocks older than 30 days (default: 14)
- *   bun consolidate.ts --project=services  # Only consolidate one project
+ *   bun consolidate.ts --project=myapp  # Only consolidate one project
  *   bun consolidate.ts --drop-pending   # Drop all pending items from consolidated blocks
  */
 import { readdirSync, readFileSync, mkdirSync, renameSync, writeFileSync, existsSync } from "fs";

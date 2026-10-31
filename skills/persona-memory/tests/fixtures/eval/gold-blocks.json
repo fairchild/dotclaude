@@ -16,7 +16,7 @@
     "Publish live evaluation artifacts in CI"
   ],
   "user-profile.md": [
-    "Michael uses Bun for TypeScript tooling",
+    "The user uses Bun for TypeScript tooling",
     "Primary code host is GitHub"
   ],
   "relationships.md": [

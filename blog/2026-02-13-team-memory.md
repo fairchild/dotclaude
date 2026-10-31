@@ -89,4 +89,4 @@ After a few sessions, check `~/.ai-memory/bertram/archival/` — you'll find a g
 
 ---
 
-*Built as a Claude Code skill. The full implementation lives at [github.com/mfairchild365/.claude](https://github.com/mfairchild365/.claude) in `skills/team-memory/`.*
+*Built as a Claude Code skill. The full implementation lives at [github.com/fairchild/dotclaude](https://github.com/fairchild/dotclaude) in `skills/team-memory/`.*

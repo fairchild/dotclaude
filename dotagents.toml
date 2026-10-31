@@ -97,7 +97,7 @@ zoom-out = true
 # Reverse sharing is the exception. Canonical first-party shared sources live
 # in fairchild/dotfiles and are materialized into ~/.agents/skills/ there; this
 # table is for dotclaude-only skills that genuinely need to flow the other way.
-# personal-writing-style qualifies because the voice it encodes is Michael's
-# rather than this repo's, and it applies wherever he writes — Codex included.
+# personal-writing-style qualifies because the voice it encodes is the owner's
+# rather than this repo's, and it applies wherever they write — Codex included.
 [share-to-agents]
 personal-writing-style = true

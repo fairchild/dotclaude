@@ -77,7 +77,7 @@ Include these in the retrospective for potential session resumption:
 - **Session ID**: Find the current session's JSONL file:
   ```bash
   # Project path is encoded (/ becomes -)
-  ls -lt ~/.claude/projects/-Users-fairchild-conductor-workspaces-bread-builder-kabul/*.jsonl | head -1
+  ls -lt ~/.claude/projects/-Users-you-code-myapp/*.jsonl | head -1
   ```
   Resume with: `claude --resume <session-id>`
 

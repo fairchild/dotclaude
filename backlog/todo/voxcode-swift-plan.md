@@ -332,7 +332,7 @@ review. Not rendered as markdown — raw structured data for potential future us
 
 ```json
 {"jsonrpc": "2.0", "id": 1, "method": "session/new", "params": {
-  "cwd": "/Users/michael/code/my-project"
+  "cwd": "/Users/you/code/my-project"
 }}
 ```
 

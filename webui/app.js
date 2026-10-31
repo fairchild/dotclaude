@@ -285,7 +285,7 @@ function renderReadme() {
     return `<div class="readme-container">
       <div class="readme-content">
         <h2>~/.claude Configuration</h2>
-        <p>This is Michael's Claude Code configuration directory.</p>
+        <p>This is a Claude Code configuration directory.</p>
         <p>Use the tabs above to explore:</p>
         <ul>
           <li><strong>/commands</strong> - Slash commands available in sessions</li>

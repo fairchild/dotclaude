@@ -283,13 +283,13 @@ describe("usage metrics", () => {
     const labeled = await worker.fetch(
       new Request("https://skills.example/mcp", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-skills-client": "michael" },
+        headers: { "Content-Type": "application/json", "x-skills-client": "example-client" },
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "skills/list", params: {} }),
       }),
       env,
     );
     expect(labeled.status).toBe(200);
-    expect(datapoints.at(-1)!.blobs![3]).toBe("michael");
+    expect(datapoints.at(-1)!.blobs![3]).toBe("example-client");
   });
 
   test("a missing METRICS binding is harmless", async () => {
@@ -379,11 +379,11 @@ describe("posthog emission", () => {
           body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "skills/get", params: { uri: "skill://git-workflow/SKILL.md" } }),
         });
 
-      await worker.fetch(request({ "x-skills-client": "michael" }), phEnv, ctx);
+      await worker.fetch(request({ "x-skills-client": "example-client" }), phEnv, ctx);
       await Promise.all(waited);
       expect(captured.length).toBe(1);
       expect(captured[0].event).toBe("skill_used");
-      expect(captured[0].distinct_id).toBe("michael");
+      expect(captured[0].distinct_id).toBe("example-client");
       expect(captured[0].properties.skill).toBe("git-workflow");
       expect(captured[0].properties.transport).toBe("hosted-worker");
       expect(captured[0].properties.$process_person_profile).toBe(false);

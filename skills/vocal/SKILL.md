@@ -94,7 +94,7 @@ VOCAL_DATA_DIR=~/Library/Application\ Support/vocal-skill \
 
 ### Local TTS (macOS `say`)
 ```bash
-uv run --script scripts/tts_local.py --text "Hello Michael"
+uv run --script scripts/tts_local.py --text "Hello there"
 ```
 
 Examples:
@@ -128,7 +128,7 @@ uv run --script scripts/stt_local.py --duration 5 --device 1
 ### ElevenLabs TTS (cloud)
 ```bash
 uv run --script scripts/tts_elevenlabs.py \
-  --text "Hello Michael" \
+  --text "Hello there" \
   --voice George
 ```
 
