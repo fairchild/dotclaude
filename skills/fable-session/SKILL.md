@@ -25,9 +25,45 @@ Model per delegated task:
 - **Sonnet** — simple and fully specified
 - **Fable** — needs nuance
 
+Each worker is short-lived: one task, its own worktree and scratch folder, and a
+brief naming the goal, the files in and out of scope, the done criterion and the
+evidence expected. Run the first task of a kind alone and fan out once it has
+passed review. After two failures for the same reason, move the task up a model.
+A review runs on a model at least as strong as the work it reviews.
+
+## Review
+
+Each change passes these in order:
+
+1. **Reflect.** While the worker's context is warm, send it once: "Read your
+   change with fresh eyes. Look for inconsistencies, untrue claims and ways to
+   simplify. Act on what you find, then report what changed."
+2. **Pre-review.** A fresh agent that did not build the change checks every claim
+   it makes and reports to you, before the change is marked ready.
+3. **Review.** One fresh reviewer marks each finding blocking, deferrable or nit.
+   Blocking findings hold the merge. Each deferrable finding gets a fix or a
+   tracked home, named in a reply. Re-checks go to the same reviewer and cover
+   only the change since their last review, plus their own earlier findings.
+
+## Decisions
+
+Stop and ask the owner for these: publishing or anything else visible outside the
+repository, spending money, deleting what can't be recovered, legal questions,
+and loosening a gate. Decide everything else, record the decision and its reason
+beside the work, and carry on.
+
+## Context
+
+Before the session nears its limit, write a local, untracked resume file: the
+agents running and what each is doing, decisions not yet recorded, blockers, and
+what must survive. After a compaction or a handoff, rebuild state from live reads
+of branches, pull requests and checks; the resume file is a guide to them.
+
 ## Done
 
-A commit plus a demonstrated run — an e2e recording where there's a UI.
+A commit plus a demonstrated run — an e2e recording where there's a UI. The arc
+closes once a fresh verifier that did not build it has reproduced each done
+criterion from a tag or commit, and its findings are fixed or tracked.
 
 ## Brief
 
@@ -55,13 +91,13 @@ surface the work already lives in.
 The first four launch a CLI and share the same three failure modes:
 
 ```bash
-claude --model claude-fable-5
+claude --model claude-fable-5-1
 ```
 
 Pass the model flag explicitly — bare `claude` has come up Opus. Wait for the TUI
 to settle before sending. Send a one-line prompt pointing at the brief; multi-line
 pastes sit unsubmitted in the composer. Read the screen once to confirm the status
-line says Fable 5 and the prompt was submitted rather than left sitting in `❯`,
+line says Fable and the prompt was submitted rather than left sitting in `❯`,
 then stop monitoring.
 
 Wait-then-send is a verb per host: Orca `terminal wait --for tui-idle` then
