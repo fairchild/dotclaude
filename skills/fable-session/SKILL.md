@@ -1,21 +1,22 @@
 ---
 name: fable-session
-description: Hand off long-arc work to a fable session — Fable orchestrates and verifies while delegating the implementation. Triggers on "fable session", "fable team session", "fable workflow session".
+description: Hand off long-arc work to a fable session — an Opus 5.5 orchestrator at xhigh effort verifies while delegating the implementation. Triggers on "fable session", "fable team session", "fable workflow session".
 license: Apache-2.0
 ---
 
 # Fable Session
 
-A Fable session owning a piece of work end to end, in a worktree of its own.
+A session owning a piece of work end to end, in a worktree of its own. Its
+orchestrator runs on Opus 5.5 at `xhigh` effort unless the brief names another.
 
 ## Roles
 
-Fable holds the arc and checks coherence across pieces. It delegates the
+The orchestrator holds the arc and checks coherence across pieces. It delegates the
 implementation rather than doing it, keeping its own context under ~200k.
 
 Delegation mechanism, by phrasing:
 
-- **fable session** — Fable's call
+- **fable session** — the orchestrator's call
 - **fable team session** — `Agent`
 - **fable workflow session** — `Workflow`
 
@@ -86,18 +87,18 @@ surface the work already lives in.
 | cmux workspace | `$CMUX_WORKSPACE_ID` is set | `cmux-orchestrator` skill — `cmux new-workspace --cwd <worktree> --command <launch>` |
 | WorkSpaces | the repo is registered with the `workspaces` CLI (`workspaces repo list`) | `workspaces ws new <repo> <name>`, then `workspaces open <ws> --cmd <launch>` |
 | Plain terminal | none of the above, and the work wants a session that outlives this one | `git-worktree` skill for the worktree, then a terminal tab in it |
-| `Agent` subagent | the arc fits inside this session | `Agent` with `model: "fable"`, `isolation: "worktree"` |
+| `Agent` subagent | the arc fits inside this session | `Agent` with `model: "opus"`, `effort: "xhigh"`, `isolation: "worktree"` |
 
 The first four launch a CLI and share the same three failure modes:
 
 ```bash
-claude --model claude-fable-5-1
+claude --model claude-opus-5-5 --effort xhigh
 ```
 
-Pass the model flag explicitly — bare `claude` has come up Opus. Wait for the TUI
+Pass both flags explicitly, since bare `claude` starts on the account's default. Wait for the TUI
 to settle before sending. Send a one-line prompt pointing at the brief; multi-line
 pastes sit unsubmitted in the composer. Read the screen once to confirm the status
-line says Fable and the prompt was submitted rather than left sitting in `❯`,
+line says Opus 5.5 and the prompt was submitted rather than left sitting in `❯`,
 then stop monitoring.
 
 Wait-then-send is a verb per host: Orca `terminal wait --for tui-idle` then
