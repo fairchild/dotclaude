@@ -30,7 +30,7 @@ Detect package manager from lockfile: `bun.lock` → bun, `pnpm-lock.yaml` → p
 - **Use agent-inbox for cross-agent coordination** when `.agents/inbox/*` is present or when the task benefits from explicit file-based messaging between agents.
 - **Prefer project-scripts** when a repo supports them: use standardized `scripts/` entrypoints for setup, run, stop, and archive, with `mise` as the preferred orchestrator when present.
 - **Memory is available**. Use `chronicle` when continuity across sessions, recall, or durable context would help.
-- **Hand long-arc work to a fable session**: Fable orchestrates and verifies coherent quality while delegating the implementation — Opus by default, Sonnet when the task is simple and fully specified, Fable when it needs nuance. Contract: the `fable-session` skill.
+- **Hand long-arc work to a fable session**: Opus 5.5 at `xhigh` effort orchestrates and verifies coherent quality while delegating the implementation — Opus by default, Sonnet when the task is simple and fully specified, Fable when it needs nuance. Contract: the `fable-session` skill.
 
 ## Memory noticing
 
