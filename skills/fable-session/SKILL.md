@@ -85,11 +85,18 @@ surface the work already lives in.
 |------|-----------|-----------|
 | Orca terminal | `orca worktree current --json` resolves | `orca-cli` skill, "Fable session handoff" |
 | cmux workspace | `$CMUX_WORKSPACE_ID` is set | `cmux-orchestrator` skill — `cmux new-workspace --cwd <worktree> --command <launch>` |
-| WorkSpaces | the repo is registered with the `workspaces` CLI (`workspaces repo list`) | `workspaces ws new <repo> <name>`, then `workspaces open <ws> --cmd <launch>` |
+| WorkSpaces | the repo is registered with the `workspaces` CLI (`workspaces repo list`) | `scripts/launch-session.sh <repo> <name> <brief>`, relative to this skill's base directory |
 | Plain terminal | none of the above, and the work wants a session that outlives this one | `git-worktree` skill for the worktree, then a terminal tab in it |
 | `Agent` subagent | the arc fits inside this session | `Agent` with `model: "opus"`, `effort: "xhigh"`, `isolation: "worktree"` |
 
-The first four launch a CLI and share the same three failure modes:
+WorkSpaces is the first choice when it fits. The script creates the workspace from
+`origin/main`, launches the orchestrator clear of this session's identity, and
+exits 0 only once `ws check` proves one session on the requested model and effort.
+Exit 3 means a person has to answer a prompt in the row. Run it again to bring a
+session back after it quits or the machine restarts. Pass `--model` and `--effort`
+to override the defaults.
+
+The other CLI hosts share the same three failure modes:
 
 ```bash
 claude --model claude-opus-5-5 --effort xhigh
@@ -99,13 +106,13 @@ Pass both flags explicitly, since bare `claude` starts on the account's default.
 to settle before sending. Send a one-line prompt pointing at the brief; multi-line
 pastes sit unsubmitted in the composer. Read the screen once to confirm the status
 line says Opus 5.5 and the prompt was submitted rather than left sitting in `❯`,
-then stop monitoring.
+then stop monitoring. A launch from inside a Claude session passes on that session's
+`CLAUDE*` variables, which turns off transcript saving, so clear them first. Confirm
+one process, a transcript on disk and the expected model.
 
 Wait-then-send is a verb per host: Orca `terminal wait --for tui-idle` then
-`terminal send`; cmux `read-screen` then `send` and `send-key Enter`; workspaces
-`automation wait --for prompt_ready` then `automation input write --submit`,
-which is operator scope and needs the app running with the Automation Operator
-experiment on; a plain terminal you type into yourself.
+`terminal send`; cmux `read-screen` then `send` and `send-key Enter`; a plain
+terminal you type into yourself.
 
 A subagent host has none of those: the brief path goes in the prompt, the model is
 a parameter, and there is no screen to check. The trade is that the report lands
