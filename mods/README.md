@@ -6,7 +6,7 @@ so rerun `claude plugin validate --json mods/<name>` when Claude Code updates.
 
 - **`usage-meter`**: `mcp__usage-meter__reading` reads the account's five-hour and seven-day usage
   windows. It only observes.
-- **`compaction`**: `mcp__compaction__context` reports the context against the thresholds below;
+- **`compaction`**: `mcp__compaction__context` reports the context against the points below;
   `mcp__compaction__request` records a `/compact` with instructions for the summary, which the mod
   runs from a timer once the main thread's turn ends and the session goes idle.
 
@@ -16,16 +16,25 @@ and `$` calls, and a change to either list is a change to what the mod can do.
 
 ## Install
 
-In a cloud environment, paste [`scripts/cloud-environment.sh`](../scripts/cloud-environment.sh)
-into the environment's Setup script. It installs the mods before the first session and sets the
-auto-compaction policy described below; its header says how to change the ref, add plugins, or
-append the environment's own steps. It logs to `~/.claude/dotclaude-setup.log`, and a new session's
-ToolSearch finds all three tools.
+In a cloud environment, the setup script line from the main README's
+[Cloud sessions](../README.md#cloud-sessions) installs both mods with the rest of the bundle, as a
+directory marketplace named `dotclaude`. `DOTCLAUDE_MODS` on that line narrows them, and
+`DOTCLAUDE_MODS=none` leaves them out. A new session's ToolSearch finds
+`mcp__usage-meter__reading`, `mcp__compaction__context` and `mcp__compaction__request`, and
+`~/.claude/cloud-bootstrap.status` names the mods it installed.
 
-On a machine, run the same script without the compaction settings:
+On a machine:
 
 ```bash
-AUTO_COMPACT_WINDOW= AUTO_COMPACT_PCT= bash scripts/cloud-environment.sh
+claude plugin marketplace add fairchild/dotclaude
+```
+
+```bash
+claude plugin install usage-meter@dotclaude
+```
+
+```bash
+claude plugin install compaction@dotclaude
 ```
 
 The mods load only from user settings: declared in a repository's `.claude/settings.json`, they do
@@ -41,5 +50,7 @@ them. `IDLE_MS = 3000` is the wait after a main turn before a request runs.
 
 Claude Code compacts at `min((W - 20000) * P / 100, W - 33000)`, with `W` from
 `CLAUDE_CODE_AUTO_COMPACT_WINDOW` and `P` from `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`. The setup script
-sets `W = 300000` and `P = 100`, which gives 267k; with no window set, a 1M-token model compacts
-near 967k.
+sets them when `DOTCLAUDE_COMPACT_WINDOW` and `DOTCLAUDE_COMPACT_PCT` are on its line: `300000` and
+`100` give 267k. With no window set, a 1M-token model compacts near 967k. The prepare point comes
+from the repository these mods were written for, whose Stop hook prepares there; here it is only
+reported.

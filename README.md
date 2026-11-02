@@ -189,7 +189,7 @@ npx skills check && npx skills update
 
 ## Mods
 
-[`mods/`](mods/README.md) holds two Claude Code mods, `usage-meter` and `compaction`. A cloud environment installs them by pasting [`scripts/cloud-environment.sh`](scripts/cloud-environment.sh) into its Setup script.
+[`mods/`](mods/README.md) holds two Claude Code mods, `usage-meter` and `compaction`, listed in this repo's marketplace. A cloud environment gets them from the [Cloud sessions](#cloud-sessions) setup line; on a machine, `claude plugin marketplace add fairchild/dotclaude` and install each.
 
 ## Development
 
@@ -218,15 +218,21 @@ Cloud sessions never see the machine's `~/.claude`, but they do read the one on 
 curl -fsSL https://raw.githubusercontent.com/fairchild/dotclaude/main/scripts/cloud-bootstrap.sh | bash
 ```
 
-[`scripts/cloud-bootstrap.sh`](scripts/cloud-bootstrap.sh) installs the bundle that [`cloud-bundle.yml`](.github/workflows/cloud-bundle.yml) publishes from `main`: `CLAUDE.md`, agents, commands, every skill not marked `machine-bound`, and the settings that mean the same on a VM. It leaves out hooks, the status line, plugins and `dotagents` links, which assume this machine. Each run records its result in `~/.claude/cloud-bootstrap.status`.
+[`scripts/cloud-bootstrap.sh`](scripts/cloud-bootstrap.sh) installs the bundle that [`cloud-bundle.yml`](.github/workflows/cloud-bundle.yml) publishes from `main`: `CLAUDE.md`, agents, commands, every skill not marked `machine-bound`, the [mods](mods/README.md), and the settings that mean the same on a VM. It leaves out hooks, the status line, other plugins and `dotagents` links, which assume this machine. Each run records its result in `~/.claude/cloud-bootstrap.status`.
 
-To install only some skills, name them before `bash`, separated by spaces or commas. A name it can't install, misspelled or `machine-bound`, is listed in the status line.
+Variables before `bash`, each optional:
+
+| Variable | Effect |
+|----------|--------|
+| `DOTCLAUDE_SKILLS` | Only these skills, separated by spaces or commas. A name it can't install, misspelled or `machine-bound`, is listed in the status line. |
+| `DOTCLAUDE_MODS` | Only these mods; `none` installs none. Unset, both install and load from the first session. |
+| `DOTCLAUDE_COMPACT_WINDOW`, `DOTCLAUDE_COMPACT_PCT` | When sessions auto-compact (`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`); `300000` and `100` compact at 267k. Unset, the platform's default stands. |
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fairchild/dotclaude/main/scripts/cloud-bootstrap.sh | DOTCLAUDE_SKILLS="tight-docs fable-session" bash
+curl -fsSL https://raw.githubusercontent.com/fairchild/dotclaude/main/scripts/cloud-bootstrap.sh | DOTCLAUDE_SKILLS="tight-docs fable-session" DOTCLAUDE_COMPACT_WINDOW=300000 DOTCLAUDE_COMPACT_PCT=100 bash
 ```
 
-The variable belongs in the setup script itself: an environment's variables aren't set yet while setup runs.
+The variables belong in the setup script itself: an environment's variables aren't set yet while setup runs.
 
 A cached environment doesn't rerun its setup script, so sessions get what `main` held when the cache was built, at most about seven days ago. Editing the script rebuilds the cache.
 
