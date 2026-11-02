@@ -1,8 +1,9 @@
 # mods: Claude Code mods for any session
 
 A mod is a Claude Code plugin whose hooks module runs inside the engine, with the session's
-permissions. This folder is a `directory` marketplace named `dotclaude-mods`
-(`.claude-plugin/marketplace.json`) holding two mods. The mod API is early access: hook modules
+permissions. This folder holds two, listed in the repository's `dotclaude` marketplace
+(`.claude-plugin/marketplace.json` at the root), so one GitHub marketplace installs them anywhere.
+The mod API is early access: hook modules
 load only while Claude Code's rollout flag for them is on, so rerun the checks below when Claude
 Code updates.
 
@@ -77,53 +78,62 @@ That gives `min(280000, 267000) = 267000`. In a cloud session a subagent ignores
 `W - 33000`, the same 267k. With other settings the mod still works, but its report of where the
 context sits against the points is off by however far the real compaction point moved.
 
-## Install in a cloud environment
+## Install
 
-1. Add `fairchild/dotclaude` under Repositories in the environment's settings. A setup script can
-   read a private repository only when it is listed there; the clone lands at
-   `/home/user/dotclaude`.
-2. Add one line to the environment's setup script:
+Every route ends in the same two plugin IDs, `usage-meter@dotclaude` and `compaction@dotclaude`,
+so a machine, an environment and a repository can each declare them and the declarations merge.
 
-   ```bash
-   bash /home/user/dotclaude/mods/install-cloud.sh
-   ```
-
-   The script finds the clone from its own path, fetches `main`, and copies `mods/` as
-   `origin/main` holds it into `~/.claude/dotclaude-mods/`. It then merges into
-   `~/.claude/settings.json`, keeping every other key:
-
-   ```json
-   {
-     "extraKnownMarketplaces": {
-       "dotclaude-mods": {
-         "source": { "source": "directory", "path": "/root/.claude/dotclaude-mods/mods" }
-       }
-     },
-     "enabledPlugins": {
-       "usage-meter@dotclaude-mods": true,
-       "compaction@dotclaude-mods": true
-     }
-   }
-   ```
-
-   Each run logs to `~/.claude/dotclaude-mods.log`. A failed copy leaves
-   `~/.claude/dotclaude-mods/` empty and the settings unchanged, so no mod loads half-installed. It
-   exits 0 either way so the rest of the setup script runs, and running it twice gives the same
-   result. `DOTCLAUDE_MODS_REF=<ref>` copies from another ref, for trying a branch.
-3. Check it in a new session: `~/.claude/dotclaude-mods.log` exists and ends with a `settings:`
-   line, and ToolSearch finds `mcp__usage-meter__reading`, `mcp__compaction__context` and
-   `mcp__compaction__request`.
-
-## Install locally
+**On a machine:**
 
 ```bash
-claude plugin marketplace add <path-to-dotclaude>/mods
+claude plugin marketplace add fairchild/dotclaude
 ```
 
 ```bash
-claude plugin install usage-meter@dotclaude-mods
+claude plugin install usage-meter@dotclaude
 ```
 
 ```bash
-claude plugin install compaction@dotclaude-mods
+claude plugin install compaction@dotclaude
 ```
+
+**In a cloud environment**, put the same three commands in the environment's setup script. They run
+before any session starts, so the first session already has the tools; the repository is public,
+so nothing needs adding under Repositories. The CLI merges its entries into `~/.claude/settings.json`
+and installs each plugin whole or not at all.
+
+```bash
+{
+  date -u +%Y-%m-%dT%H:%M:%SZ
+  claude plugin marketplace add fairchild/dotclaude \
+    && claude plugin install usage-meter@dotclaude \
+    && claude plugin install compaction@dotclaude
+} </dev/null >>"$HOME/.claude/dotclaude-mods.log" 2>&1 \
+  || echo "dotclaude mods: install failed; see ~/.claude/dotclaude-mods.log" >&2
+```
+
+Pair it with the two auto-compaction settings above. To check it, start a new session: the log's
+last run shows both plugins installed (or already installed, on a rerun), and ToolSearch finds `mcp__usage-meter__reading`,
+`mcp__compaction__context` and `mcp__compaction__request`.
+
+**In a repository**, add the declaration to its `.claude/settings.json`, so anyone who opens the
+repository gets the mods without touching their own setup:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "dotclaude": { "source": { "source": "github", "repo": "fairchild/dotclaude" } }
+  },
+  "enabledPlugins": {
+    "usage-meter@dotclaude": true,
+    "compaction@dotclaude": true
+  }
+}
+```
+
+Declared only in settings, the marketplace is fetched during the first session and its plugins
+load from the next one, so a cloud environment that wants them from its first session runs the
+setup commands as well. Both routes may be present; they name the same IDs.
+
+`claude plugin marketplace update dotclaude` pulls the latest `main`. To try a branch, add the
+marketplace as `fairchild/dotclaude@<branch>`.
