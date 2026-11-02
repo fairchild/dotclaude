@@ -18,8 +18,8 @@ and `$` calls, and a change to either list is a change to what the mod can do.
 
 In a cloud environment, paste [`scripts/cloud-environment.sh`](../scripts/cloud-environment.sh)
 into the environment's Setup script. It installs the mods before the first session and sets the
-auto-compaction values below; its header says how to change the ref, add plugins, or append the
-environment's own steps. It logs to `~/.claude/dotclaude-setup.log`, and a new session's
+auto-compaction policy described below; its header says how to change the ref, add plugins, or
+append the environment's own steps. It logs to `~/.claude/dotclaude-setup.log`, and a new session's
 ToolSearch finds all three tools.
 
 On a machine, run the same script without the compaction settings:
@@ -31,11 +31,15 @@ AUTO_COMPACT_WINDOW= AUTO_COMPACT_PCT= bash scripts/cloud-environment.sh
 The mods load only from user settings: declared in a repository's `.claude/settings.json`, they do
 not load.
 
-## Compaction thresholds
+## Compaction points
 
-`compaction.ts` sets `POINTS = { floorTokens: 150_000, prepareTokens: 220_000, compactAtTokens: 267_000 }`,
-`IDLE_MS = 3000` and `MAX_INSTRUCTIONS = 2000`. A request below the floor is refused, and
-`compactAtTokens` is where automatic compaction should land. Claude Code compacts at
-`min((W - 20000) * P / 100, W - 33000)`, with `W` from `CLAUDE_CODE_AUTO_COMPACT_WINDOW` and `P`
-from `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`; `W = 300000` and `P = 100` give 267k. Cloud sessions
-otherwise inherit `P = 80`, which lands at 224k.
+`mcp__compaction__context` reports two points from `compaction.ts`, `floorTokens: 150_000` (a
+request below it is refused, since compacting that early frees too little) and `prepareTokens:
+220_000`, and a third from the engine: `autoCompactThreshold`, where automatic compaction will
+run. That one follows whatever the settings give, so the mod has no value to keep in step with
+them. `IDLE_MS = 3000` is the wait after a main turn before a request runs.
+
+Claude Code compacts at `min((W - 20000) * P / 100, W - 33000)`, with `W` from
+`CLAUDE_CODE_AUTO_COMPACT_WINDOW` and `P` from `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`. The setup script
+sets `W = 300000` and `P = 100`, which gives 267k; with no window set, a 1M-token model compacts
+near 967k.

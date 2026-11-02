@@ -1,28 +1,32 @@
 /**
  * The compaction mod: the main thread compacts at a moment it chooses, with
  * instructions for the summary. `mcp__compaction__context` answers `$.session.usage()` against
- * POINTS; `mcp__compaction__request` records one pending request (a second replaces it), refusing a
+ * POINTS and the engine's auto-compaction threshold, so no value here has to match the settings;
+ * `mcp__compaction__request` records one pending request (a second replaces it), refusing a
  * subagent, bad instructions, and a context below the floor or not yet measured.
  *
  * A main turn that ends with an answer arms one timer (IDLE_MS); a main turn that starts cancels
  * it. When it fires the mod reads the context again: a main turn begun meanwhile keeps the request
  * for that turn's end, a context below the floor drops it, and otherwise `/compact` runs once
  * through the command call, spike 10's route (`spikes/10-cloud-mods/`). State is lost on a reload.
- *
- * Its other hooks pass each event on unchanged, and its tool hooks answer only its own two tools.
- * `pnpm gates mods` holds its hooks and `$` calls to mods/allowlist.json, and a test holds the
- * command to `compact`. The types narrow Claude Code 2.1.314's mod API to what the mod uses.
+ * Its other hooks pass each event on unchanged; its tool hooks answer only its own two tools.
+ * `pnpm gates mods` holds its hooks and `$` calls to mods/allowlist.json, a test holds the command
+ * to `compact`, and the types narrow Claude Code 2.1.316's mod API to what the mod uses.
  */
 
 /**
- * The live context window as `$.session.usage()` reports it (`SessionContextUsage`): `tokens` (the
- * last response's input) and `percent` are absent until the live window's first response.
+ * The live context as `$.session.usage()` reports it (`SessionContextUsage`): `tokens` and `percent`
+ * wait for its first response; `breakdown` comes when asked (`summary`, counted locally).
  */
 export type ContextUsage = {
   readonly tokens?: number;
   readonly window: number;
   readonly percent?: number;
+  readonly breakdown?: { readonly autoCompactThreshold?: number };
 };
+
+export type UsageArgs = { readonly breakdown?: "summary" };
+type Usage = (args?: UsageArgs) => Promise<{ readonly context: ContextUsage }>;
 
 export type ToolSpec = {
   readonly name: string;
@@ -34,7 +38,7 @@ export type Timer = { readonly cancel: () => void };
 
 /** The engine interface (`$`), narrowed to the four calls the mod makes. */
 export type Engine = {
-  readonly session: { readonly usage: () => Promise<{ readonly context: ContextUsage }> };
+  readonly session: { readonly usage: Usage };
   readonly tool: { readonly register: (tool: ToolSpec) => Promise<{ readonly tool: string }> };
   /** `after` calls `fn` once after `ms`, outside any hook, unless cancelled first. */
   readonly clock: { readonly after: (ms: number, fn: () => void) => Timer };
@@ -94,9 +98,8 @@ export type On = {
   (event: "turn.complete", hook: Hook<"turn.complete">): unknown;
 };
 
-/** COMPACTION's points (tools/lib/compaction.ts), which a mod cannot import; a test holds them equal. */
-export const POINTS = { floorTokens: 150_000, prepareTokens: 220_000, compactAtTokens: 267_000 };
-
+/** COMPACTION's floor and prepare point (tools/lib/compaction.ts); a test holds them equal. */
+export const POINTS = { floorTokens: 150_000, prepareTokens: 220_000 };
 /** The idle wait after a main turn ends before a request runs, and the longest instructions. */
 export const IDLE_MS = 3000;
 export const MAX_INSTRUCTIONS = 2000;
@@ -147,12 +150,7 @@ type Fields = {
 type Store = { readonly read: () => Fields; readonly write: (change: Partial<Fields>) => void };
 
 function store(): Store {
-  let fields: Fields = {
-    pending: null,
-    timer: null,
-    turns: 0,
-    last: "none in this session.",
-  };
+  let fields: Fields = { pending: null, timer: null, turns: 0, last: "none in this session." };
   return {
     read: () => fields,
     write: (change) => {
@@ -165,17 +163,20 @@ const reason = (error: unknown): string => (error instanceof Error ? error.messa
 const answer = (text: string) => ({ result: text });
 const FLOOR = `the request floor (${tokens(POINTS.floorTokens)})`;
 
-function placed(count: number): string {
-  if (count >= POINTS.compactAtTokens) return "past the automatic compaction point.";
+function placed(count: number, compactAt: number | undefined): string {
+  if (compactAt !== undefined && count >= compactAt) return "past the automatic compaction point.";
   if (count >= POINTS.prepareTokens) return "past the prepare point.";
   if (count >= POINTS.floorTokens) return "past the request floor, below the prepare point.";
   return "below the request floor, so a request is refused.";
 }
 
 function contextLines(context: ContextUsage): string[] {
+  const at = context.breakdown?.autoCompactThreshold;
+  const auto =
+    at === undefined ? "off, or not reported" : `at ${tokens(at)} (the engine's threshold)`;
   const points =
-    `Points (COMPACTION): requests from ${tokens(POINTS.floorTokens)}; the Stop hook's prepare ` +
-    `step at ${tokens(POINTS.prepareTokens)}; automatic compaction near ${tokens(POINTS.compactAtTokens)}.`;
+    `Points: requests from ${tokens(POINTS.floorTokens)}; the Stop hook's prepare step at ` +
+    `${tokens(POINTS.prepareTokens)} (COMPACTION); automatic compaction ${auto}.`;
   if (context.tokens === undefined) {
     const unmeasured = "Context: not measured since the session started or last compacted";
     return [
@@ -188,12 +189,12 @@ function contextLines(context: ContextUsage): string[] {
   return [
     `Context: ${tokens(context.tokens)} tokens of a ${window}.`,
     points,
-    `So: ${placed(context.tokens)}`,
+    `So: ${placed(context.tokens, at)}`,
   ];
 }
 
 async function contextAnswer($: Engine, state: Store) {
-  const { context } = await $.session.usage();
+  const { context } = await $.session.usage({ breakdown: "summary" });
   const { pending, last } = state.read();
   const waiting = pending === null ? "none." : `"${pending}", to run once the main turn ends.`;
   const lines = [...contextLines(context), `Pending request: ${waiting}`];
