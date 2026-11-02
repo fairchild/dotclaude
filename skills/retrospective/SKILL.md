@@ -1,6 +1,6 @@
 ---
 name: retrospective
-description: Run a retrospective on a session, PR or milestone — find the mistakes that repeated, fix each at the strongest layer that holds it, and prove each new check catches the real past mistake. Use after a PR merges or is abandoned, after a failed verification, or at the end of an arc.
+description: Run a retrospective on a session, PR or milestone — find the mistakes that repeated, fix each at the strongest layer that holds it, and prove each new check catches the real past mistake. Run as /retrospective after a PR merges or is abandoned, after a failed verification, or at the end of an arc.
 license: Apache-2.0
 disable-model-invocation: true
 inspired-by: https://github.com/cursor/plugins
@@ -9,7 +9,7 @@ metadata:
   experimental_reason: "Replaces the session-scoring retro command; no eval yet."
 ---
 
-# Retro
+# Retrospective
 
 Make the next agent unable to repeat this mistake. Assume it sees only the files it opens, copies
 the nearest example and takes the shortest path that compiles.

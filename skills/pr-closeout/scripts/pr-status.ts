@@ -4,12 +4,9 @@
  * Fetch PR status: metadata, unresolved review comments, CI status.
  * Usage: bun pr-status.ts [PR_NUMBER]   (run from the PR's repository)
  * If no PR number provided, auto-detects from current branch.
- * Also writes .context/pr-status-<n>.md in the current directory.
  */
 
 import { $ } from "bun";
-import { mkdirSync, writeFileSync } from "fs";
-import { join } from "path";
 
 interface PRMetadata {
   number: number;
@@ -46,10 +43,9 @@ interface CICheck {
   link: string;
 }
 
-async function getRepoInfo(): Promise<{ owner: string; repo: string }> {
-  const result = await $`gh repo view --json owner,name`.quiet();
-  const data = JSON.parse(result.stdout.toString());
-  return { owner: data.owner.login, repo: data.name };
+function repoFromUrl(url: string): { owner: string; repo: string } {
+  const [, owner, repo] = new URL(url).pathname.split("/");
+  return { owner, repo };
 }
 
 async function getPRNumber(providedNumber?: number): Promise<number> {
@@ -178,10 +174,14 @@ function generateMarkdown(
 async function main() {
   const args = process.argv.slice(2);
   if (args[0] === "--help" || args[0] === "-h") {
-    console.log("Usage: bun pr-status.ts [PR_NUMBER]\nRun from the PR's repository. Prints metadata, CI checks and unresolved threads;\nwrites .context/pr-status-<n>.md.");
+    console.log("Usage: bun pr-status.ts [PR_NUMBER]\nRun from the PR's repository. Prints metadata, CI checks and unresolved threads.");
     process.exit(0);
   }
-  const providedPR = args[0] ? parseInt(args[0], 10) : undefined;
+  if (args[0] && !/^[1-9]\d*$/.test(args[0])) {
+    console.error(`Not a PR number: ${args[0]}. Usage: bun pr-status.ts [PR_NUMBER]`);
+    process.exit(2);
+  }
+  const providedPR = args[0] ? Number(args[0]) : undefined;
 
   try {
     // Get PR number (auto-detect or provided)
@@ -193,12 +193,11 @@ async function main() {
       process.exit(1);
     }
 
-    // Fetch all data in parallel
-    const [repoInfo, prMetadata, checks] = await Promise.all([
-      getRepoInfo(),
+    const [prMetadata, checks] = await Promise.all([
       getPRMetadata(prNumber),
       getCIChecks(prNumber),
     ]);
+    const repoInfo = repoFromUrl(prMetadata.url);
 
     const threads = await getReviewThreads(
       repoInfo.owner,
@@ -206,18 +205,7 @@ async function main() {
       prNumber
     );
 
-    // Generate markdown
-    const markdown = generateMarkdown(prMetadata, threads, checks);
-
-    // Save to .context/
-    const contextDir = join(process.cwd(), ".context");
-    mkdirSync(contextDir, { recursive: true });
-    const artifactPath = join(contextDir, `pr-status-${prNumber}.md`);
-    writeFileSync(artifactPath, markdown);
-
-    // Output to stdout
-    console.log(markdown);
-    console.log(`\n*Saved to: ${artifactPath}*`);
+    console.log(generateMarkdown(prMetadata, threads, checks));
   } catch (error) {
     console.error("Error fetching PR status:", error);
     process.exit(1);

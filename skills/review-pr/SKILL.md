@@ -1,6 +1,6 @@
 ---
 name: review-pr
-description: Review a pull request, yours before opening it or someone else's, then re-check each later push for blockers only, with every verdict bound to the reviewed head. Use when asked to review or re-review a PR or a branch, or before opening a PR on non-trivial work.
+description: Review a pull request, yours before opening it or someone else's, then re-check each later push for blockers only, with every verdict bound to the reviewed head. Run as /review-pr <url or branch> to review or re-review, including your own branch before opening a PR.
 license: Apache-2.0
 disable-model-invocation: true
 metadata:
