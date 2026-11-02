@@ -1,6 +1,6 @@
 name: Cloud bundle
 # Publishes what scripts/cloud-bootstrap.sh installs in a Claude Code cloud environment. A rolling
-# release asset, because that is the one path into this repo that works while a setup script runs.
+# release asset, because public release downloads have worked while a setup script runs.
 on:
   push:
     branches: [main]

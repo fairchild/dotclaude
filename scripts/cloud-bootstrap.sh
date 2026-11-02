@@ -3,8 +3,8 @@
 # ~/.claude never reaches. A cloud environment's setup script fetches and runs this.
 #
 # It installs the release bundle rather than cloning: a release download from a repo the session
-# isn't attached to works during setup, and GitHub credentials arrive only after setup. Setup
-# must exit 0 or the session fails to start, so every outcome lands in the status file instead.
+# isn't attached to has worked during setup, where git fetch has been seen to fail. Setup must
+# exit 0 or the session fails to start, so every outcome lands in the status file instead.
 set -u
 
 bundle_url="${DOTCLAUDE_BUNDLE_URL:-https://github.com/fairchild/dotclaude/releases/download/cloud-latest/dotclaude-cloud.tar.gz}"
