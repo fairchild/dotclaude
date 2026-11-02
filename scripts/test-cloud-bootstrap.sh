@@ -57,6 +57,15 @@ grep -q ' ok test-revision; not installed: image-generator signoz-log$' "$picked
   || fail "status: $(cat "$picked/cloud-bootstrap.status")"
 [[ -s "$picked/CLAUDE.md" ]] || fail "naming skills dropped the rest of the bundle"
 
+tabbed="$tmp/tabbed/.claude"
+DOTCLAUDE_SKILLS=$'tight-docs\tfable-session\n' bootstrap "file://$bundle" "$tabbed"
+[[ "$(ls "$tabbed/skills" | tr '\n' ' ')" == "fable-session tight-docs " ]] \
+  || fail "tab and newline separated names installed: $(ls "$tabbed/skills" | tr '\n' ' ')"
+
+separators="$tmp/separators/.claude"
+DOTCLAUDE_SKILLS=" , " bootstrap "file://$bundle" "$separators"
+[[ -f "$separators/skills/tight-docs/SKILL.md" ]] || fail "a list of only separators removed every skill"
+
 # Settings it can't parse are left exactly as they were, with nothing half-written beside them.
 broken="$tmp/broken/.claude"
 mkdir -p "$broken"

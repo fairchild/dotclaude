@@ -10,11 +10,10 @@ set -u
 bundle_url="${DOTCLAUDE_BUNDLE_URL:-https://github.com/fairchild/dotclaude/releases/download/cloud-latest/dotclaude-cloud.tar.gz}"
 runtime="${DOTCLAUDE_RUNTIME:-$HOME/.claude}"
 status="$runtime/cloud-bootstrap.status"
-named_skills="${DOTCLAUDE_SKILLS:-}"
-named_skills="${named_skills//,/ }"
 
 main() {
   refuse_outside_a_cloud_vm
+  named_skills="$(as_name_list "${DOTCLAUDE_SKILLS:-}")"
 
   work="$(mktemp -d)"
   trap 'rm -rf -- "$work"' EXIT
@@ -39,6 +38,13 @@ refuse_outside_a_cloud_vm() {
     echo "cloud-bootstrap: $runtime is a git clone; refusing to layer over it" >&2
     exit 1
   fi
+}
+
+as_name_list() {
+  local names
+  names="$(tr ',\t\n' '   ' <<<"$1" | tr -s ' ')"
+  names="${names# }"
+  printf '%s' "${names% }"
 }
 
 or_report() {
