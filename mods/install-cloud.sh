@@ -41,6 +41,7 @@ if ! git -C "$repo" archive "$ref" mods 2>>"$log" | tar -x -C "$mods" 2>>"$log" 
 fi
 echo "copied: $mods/mods" >>"$log"
 
+# shellcheck disable=SC2016 # the single-quoted script is JavaScript, expanded by node
 if ! SETTINGS="$settings" MARKETPLACE="$mods/mods" node -e '
 const fs = require("node:fs");
 const file = process.env.SETTINGS;
