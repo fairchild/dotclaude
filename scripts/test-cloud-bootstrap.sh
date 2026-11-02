@@ -29,29 +29,33 @@ grep -q ' ok test-revision$' "$runtime/cloud-bootstrap.status" || fail "status: 
 [[ ! -e "$runtime/skills/signoz-log" ]] || fail "a machine-bound skill was installed"
 [[ "$(cat "$runtime/projects/session.jsonl")" == keep ]] || fail "existing runtime state was disturbed"
 
-python3 - "$runtime/settings.json" <<'PY'
-import json
-import sys
-
-settings = json.load(open(sys.argv[1]))
-assert settings["enabledPlugins"] == {"meter@local": True}, "existing keys must survive"
-assert settings["env"]["KEEP"] == "1", "existing env must survive"
-assert settings["effortLevel"], "preferences must carry over"
-assert "Read(.env)" in settings["permissions"]["deny"], "deny rules must carry over"
-for key in ("hooks", "statusLine", "voice", "theme", "extraKnownMarketplaces"):
-    assert key not in settings, f"{key} assumes the local machine"
-PY
+settings="$runtime/settings.json"
+expect() { jq -e "$1" "$settings" >/dev/null || fail "$2"; }
+expect '.enabledPlugins == {"meter@local": true}' "existing keys must survive"
+expect '.env.KEEP == "1"' "existing env must survive"
+expect '.effortLevel | length > 0' "preferences must carry over"
+expect '.permissions.deny | index("Read(.env)") != null' "deny rules must carry over"
+expect '[has("hooks", "statusLine", "voice", "theme", "extraKnownMarketplaces")] | any | not' \
+  "a setting that assumes the local machine carried over"
 
 # Running it again, as a rebuilt environment cache does, changes nothing about the result.
 bootstrap "file://$bundle" "$runtime"
-python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); assert len(d["permissions"]["deny"]) == len(set(d["permissions"]["deny"]))' \
-  "$runtime/settings.json" || fail "a second run duplicated deny rules"
+expect '.permissions.deny | length == (unique | length)' "a second run duplicated deny rules"
 
 # A failed download still exits 0, so the session starts, and says what failed.
 offline="$tmp/offline/.claude"
 bootstrap "file://$tmp/missing.tar.gz" "$offline" || fail "a failed download must exit 0"
 grep -q ' failed: download: ' "$offline/cloud-bootstrap.status" || fail "the download failure was not recorded"
 [[ ! -e "$offline/CLAUDE.md" ]] || fail "a failed download left files behind"
+
+# Settings it can't parse are left exactly as they were, with nothing half-written beside them.
+broken="$tmp/broken/.claude"
+mkdir -p "$broken"
+printf 'not json\n' > "$broken/settings.json"
+bootstrap "file://$bundle" "$broken" || fail "a settings failure must exit 0"
+grep -q ' failed: settings: ' "$broken/cloud-bootstrap.status" || fail "the settings failure was not recorded"
+[[ "$(cat "$broken/settings.json")" == "not json" ]] || fail "unparseable settings were rewritten"
+[[ ! -e "$broken/settings.json.partial" ]] || fail "a failed merge left a partial file"
 
 # A real machine's clone is never written into.
 clone="$tmp/mac/.claude"
