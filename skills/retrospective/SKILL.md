@@ -1,7 +1,8 @@
 ---
-name: retro
+name: retrospective
 description: Run a retrospective on a session, PR or milestone — find the mistakes that repeated, fix each at the strongest layer that holds it, and prove each new check catches the real past mistake. Use after a PR merges or is abandoned, after a failed verification, or at the end of an arc.
 license: Apache-2.0
+disable-model-invocation: true
 inspired-by: https://github.com/cursor/plugins
 metadata:
   status: experimental
@@ -36,7 +37,7 @@ Prove each new check fails on the real past mistake, recreated in a scratch file
 
 ## 4. Record
 
-Apply the fixes in the repo, in a PR. Lessons with no code home go where the repo keeps them (the
+Propose the fixes; apply them in a PR once agreed. Lessons with no code home go where the repo keeps them (the
 backlog item, a decision record, CLAUDE.md); cross-session ones go to memory.
 
 **Reply:** each class, its evidence, the layer chosen and why a stronger one didn't work.

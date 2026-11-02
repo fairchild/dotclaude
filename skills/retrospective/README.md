@@ -1,4 +1,4 @@
-# Retro
+# Retrospective
 
 Find repeated mistakes and fix each at the strongest layer that holds it.
 

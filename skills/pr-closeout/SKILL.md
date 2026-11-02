@@ -20,26 +20,29 @@ Open as a draft.
 
 ## Follow through
 
-Watch every check, not only required ones, to completion; a green result often doesn't wake a
-session. Read conversation comments, reviews, inline threads, and check output and annotations —
-a bot can leave findings only there. `bun scripts/pr-status.ts [PR]` (relative to this skill)
-gathers threads and checks in one read. Fix failures at the cause; rerun only on evidence of a
+Watch every check, not only required ones, to completion; a passing check sends no notification,
+so poll until done. Read conversation comments, reviews, inline threads, and check output and annotations —
+a bot can leave findings only there. From the PR's repo, `bun <this skill>/scripts/pr-status.ts [PR]`
+gathers threads, checks and comment IDs in one read (`--help`). Fix failures at the cause; rerun only on evidence of a
 transient failure. Count unresolved threads even when outdated.
 
 ## Dispositions
 
-Every blocking or deferrable finding gets one, as a reply in its thread:
+Read all findings before touching code; they interact. Every blocking or deferrable finding gets a
+disposition, as a reply in its thread:
 
 - **Fixed:** the change, the pushed commit, the verification and its result.
 - **Deferred:** why it belongs elsewhere and where it is tracked.
-- **Declined:** why, with code or test evidence. Leave the thread open for the reviewer.
+- **Declined:** why, with code or test evidence.
 
-Then resolve the thread. Never bulk-resolve to clear a gate. A nit needs no reply or push: fix it
-if small and agreed, otherwise resolve it. Findings with no thread (a summary, check output) get a
-conversation reply naming each.
+Resolve a thread once its fix is pushed; leave Deferred and Declined threads open with the reply.
+Never bulk-resolve. A nit needs no push: fix it if small and agreed, otherwise reply in a line.
+Findings with no thread (a summary, check output) get a conversation reply naming each. Resolve
+base conflicts the way the repo merges.
 
-Post replies from a file (`gh api repos/<o>/<r>/pulls/<n>/comments -F in_reply_to=<id> -F body=@file`),
-then resolve with GraphQL `resolveReviewThread` or MCP `resolve_review_thread`.
+Post replies from a file (`gh api repos/<o>/<r>/pulls/<n>/comments -F in_reply_to=<comment id> -F body=@file`;
+the numeric ID, not the thread node ID), then resolve with GraphQL `resolveReviewThread` or MCP
+`resolve_review_thread`.
 
 ## Ready
 
@@ -58,7 +61,5 @@ Unavailable state is unknown, not success. Claim continued watching only when a 
 
 ## Merge
 
-Don't merge unless the repo's instructions or the user say to. Where merging is the default, still
-leave it to the user when merging could cause hard-to-undo side effects, cost money, weaken
-security or gates, make something private public, or decide product scope. When you merge, merge
-only the verified head (`gh pr merge --match-head-commit <sha>`) and watch what the merge starts.
+Don't merge unless the repo's instructions or the user say to. When you merge, merge only the
+verified head (`gh pr merge --match-head-commit <sha>`) and watch what the merge starts.

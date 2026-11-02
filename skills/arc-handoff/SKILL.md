@@ -11,14 +11,15 @@ metadata:
 
 A handoff is a new comment on the arc's tracking issue telling the next session where it stands.
 Memory holds durable lessons; the handoff holds in-flight state. Never edit an earlier handoff —
-readers take the newest.
+readers take the newest. No tracking issue: append it to the work item's file.
 
 ## Write
 
 1. Gather live state, not memory: each open PR's state, head, checks and latest review (read the
    review itself — `reviewDecision` misses a `COMMENT` with a blocker); running watchers, VMs or
    tmux sessions; who or what blocks each next step.
-2. Push anything that exists only on this machine — commits, stashes, edits — as a draft PR.
+2. Push anything that exists only on this machine — commits, stashes, edits — to a WIP branch
+   (a draft PR if the repo wants one).
 3. Post, stamped with `date -u +%FT%TZ` in the same command:
 
 ```markdown

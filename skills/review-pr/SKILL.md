@@ -1,7 +1,8 @@
 ---
-name: pr-review
+name: review-pr
 description: Review a pull request, yours before opening it or someone else's, then re-check each later push for blockers only, with every verdict bound to the reviewed head. Use when asked to review or re-review a PR or a branch, or before opening a PR on non-trivial work.
 license: Apache-2.0
+disable-model-invocation: true
 metadata:
   status: experimental
   experimental_reason: "Consolidates the old review-pr and code-review commands with practice from the user's other repositories; no eval yet."
@@ -19,7 +20,8 @@ The repository's own instructions (AGENTS.md, CLAUDE.md, a review policy) overri
 
 Record the base and head SHAs. Read the PR body, the discussion and earlier reviews; don't repeat
 settled findings. Review in a scratch worktree so probes never touch the author's branch. For your
-own branch before a PR, the base is `git merge-base HEAD origin/main`.
+own branch before a PR: commit first, take the base from `git merge-base HEAD origin/HEAD`, and
+judge against the plan or issue the work came from; skip CI and discussion.
 
 ## First pass
 
@@ -30,7 +32,7 @@ own branch before a PR, the base is `git merge-base HEAD origin/main`.
 3. **Approach.** Ask what the PR is for and whether a simpler shape does it: abstractions with one
    caller, options nothing uses, wrappers that only forward, code duplicating what the repo has,
    inline comments that narrate. Name the simpler alternative; "this is complex" isn't a finding.
-   Raise these now — follow-ups won't.
+   Raise these now; re-checks look only for blockers.
 4. **Run** the repo's checks and the touched tests. Probe doubtful claims yourself: a mutant of the
    changed line against the named test, then `git checkout -- .`. Probes never commit.
 5. **Wait for CI** on the head and read check output and annotations, not only the conclusion.
@@ -65,8 +67,9 @@ couldn't verify.
 Re-read the head just before posting; if it moved, review the delta first. Post one review with
 line findings as inline comments (GitHub MCP `pull_request_review_write` +
 `add_comment_to_pending_review`, or `gh api repos/<o>/<r>/pulls/<n>/reviews` with `commit_id` and
-`comments[]`), from a body file. Approve when nothing blocks; on your own account's PR, post a
-`COMMENT`. Post only when asked to review on the PR; otherwise report to the user. Never merge or
+`comments[]`), from a body file. Approve only when nothing blocks and nothing else stands: a red
+check, a draft, another reviewer's open blocker, or state you couldn't read (unknown fails
+closed) — then post a `COMMENT` naming it. On your own account's PR, always `COMMENT`. Post only when asked to review on the PR; otherwise report to the user. Never merge or
 push to the author's branch.
 
 ## Re-checks
@@ -77,5 +80,4 @@ push to the author's branch.
    blockers only; raise no new nits.
 3. Resolve your own threads the new head fixes, replying with the fixing commit. Never resolve
    someone else's.
-4. Don't approve while a check is red, the PR is a draft, or another reviewer's blocking thread is
-   open — post a `COMMENT` naming it. Unknown state fails closed.
+4. Post the verdict as above.

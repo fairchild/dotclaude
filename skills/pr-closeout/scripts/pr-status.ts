@@ -2,8 +2,9 @@
 
 /**
  * Fetch PR status: metadata, unresolved review comments, CI status.
- * Usage: bun scripts/pr-status.ts [PR_NUMBER]
+ * Usage: bun pr-status.ts [PR_NUMBER]   (run from the PR's repository)
  * If no PR number provided, auto-detects from current branch.
+ * Also writes .context/pr-status-<n>.md in the current directory.
  */
 
 import { $ } from "bun";
@@ -29,6 +30,7 @@ interface ReviewThread {
   line: number | null;
   comments: {
     nodes: Array<{
+      databaseId: number;
       author: { login: string } | null;
       body: string;
       createdAt: string;
@@ -40,8 +42,8 @@ interface ReviewThread {
 interface CICheck {
   name: string;
   state: string;
-  conclusion: string;
-  detailsUrl: string;
+  bucket: string;
+  link: string;
 }
 
 async function getRepoInfo(): Promise<{ owner: string; repo: string }> {
@@ -74,6 +76,7 @@ async function getReviewThreads(
       repository(owner: $owner, name: $repo) {
         pullRequest(number: $pr) {
           reviewThreads(first: 100) {
+            pageInfo { hasNextPage }
             nodes {
               id
               isResolved
@@ -81,6 +84,7 @@ async function getReviewThreads(
               line
               comments(first: 10) {
                 nodes {
+                  databaseId
                   author { login }
                   body
                   createdAt
@@ -97,24 +101,16 @@ async function getReviewThreads(
   const result =
     await $`gh api graphql -f query=${query} -f owner=${owner} -f repo=${repo} -F pr=${prNumber}`.quiet();
   const data = JSON.parse(result.stdout.toString());
-  return data.data.repository.pullRequest.reviewThreads.nodes;
+  const threads = data.data.repository.pullRequest.reviewThreads;
+  if (threads.pageInfo.hasNextPage) console.error("Warning: more than 100 review threads; only the first 100 are shown.");
+  return threads.nodes;
 }
 
-async function getCIChecks(prNumber: number): Promise<CICheck[]> {
-  try {
-    const result =
-      await $`gh pr checks ${prNumber} --json name,state,conclusion,detailsUrl`.quiet();
-    return JSON.parse(result.stdout.toString());
-  } catch {
-    return [];
-  }
-}
-
-function formatStatus(conclusion: string, state: string): string {
-  if (conclusion === "success") return "pass";
-  if (conclusion === "failure") return "fail";
-  if (state === "pending") return "pending";
-  return conclusion || state || "unknown";
+async function getCIChecks(prNumber: number): Promise<CICheck[] | string> {
+  const result = await $`gh pr checks ${prNumber} --json name,state,bucket,link`.quiet().nothrow();
+  const out = result.stdout.toString().trim();
+  if (out.startsWith("[")) return JSON.parse(out);
+  return result.stderr.toString().trim() || "gh pr checks failed";
 }
 
 function truncate(text: string, maxLength: number): string {
@@ -125,7 +121,7 @@ function truncate(text: string, maxLength: number): string {
 function generateMarkdown(
   pr: PRMetadata,
   threads: ReviewThread[],
-  checks: CICheck[]
+  checks: CICheck[] | string
 ): string {
   const unresolvedThreads = threads.filter((t) => !t.isResolved);
   const timestamp = new Date().toISOString();
@@ -138,15 +134,16 @@ function generateMarkdown(
 
   // CI Status
   md += `### CI Status\n\n`;
-  if (checks.length === 0) {
+  if (typeof checks === "string") {
+    md += `CI: unknown (${checks})\n\n`;
+  } else if (checks.length === 0) {
     md += `No CI checks found.\n\n`;
   } else {
     md += `| Check | Status | Details |\n`;
     md += `|-------|--------|--------|\n`;
     for (const check of checks) {
-      const status = formatStatus(check.conclusion, check.state);
-      const link = check.detailsUrl ? `[link](${check.detailsUrl})` : "-";
-      md += `| ${check.name} | ${status} | ${link} |\n`;
+      const link = check.link ? `[link](${check.link})` : "-";
+      md += `| ${check.name} | ${check.bucket || check.state} | ${link} |\n`;
     }
     md += `\n`;
   }
@@ -166,7 +163,7 @@ function generateMarkdown(
         : `\`${thread.path}\``;
 
       md += `#### ${location} - @${author}\n`;
-      md += `Thread ID: \`${thread.id}\`\n`;
+      md += `Thread ID: \`${thread.id}\` | Reply to comment ID: \`${firstComment.databaseId}\`\n`;
       md += `> ${truncate(firstComment.body.replace(/\n/g, " "), 200)}\n\n`;
       md += `[View thread](${firstComment.url})\n\n`;
     }
@@ -180,6 +177,10 @@ function generateMarkdown(
 
 async function main() {
   const args = process.argv.slice(2);
+  if (args[0] === "--help" || args[0] === "-h") {
+    console.log("Usage: bun pr-status.ts [PR_NUMBER]\nRun from the PR's repository. Prints metadata, CI checks and unresolved threads;\nwrites .context/pr-status-<n>.md.");
+    process.exit(0);
+  }
   const providedPR = args[0] ? parseInt(args[0], 10) : undefined;
 
   try {
