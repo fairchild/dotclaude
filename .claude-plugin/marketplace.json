@@ -1,6 +1,8 @@
 {
   "name": "dotclaude",
-  "owner": { "name": "Michael Fairchild" },
+  "owner": {
+    "name": "Michael Fairchild"
+  },
   "metadata": {
     "description": "Curated Claude Code skills for dev workflows and creative work",
     "version": "1.0.0"
@@ -10,7 +12,9 @@
       "name": "brainstorm-to-brief",
       "source": "./",
       "strict": false,
-      "skills": ["./skills/brainstorm-to-brief"],
+      "skills": [
+        "./skills/brainstorm-to-brief"
+      ],
       "description": "Wide-to-narrow design workflow: exploration to polished design brief",
       "license": "Apache-2.0",
       "category": "creative"
@@ -19,7 +23,9 @@
       "name": "image-gen",
       "source": "./",
       "strict": false,
-      "skills": ["./skills/image-gen"],
+      "skills": [
+        "./skills/image-gen"
+      ],
       "description": "Generate images via OpenAI, Google Imagen 4, Nano Banana Pro, fal.ai Flux",
       "license": "Apache-2.0",
       "category": "creative"
@@ -28,7 +34,9 @@
       "name": "dotclaude-config",
       "source": "./",
       "strict": false,
-      "skills": ["./skills/dotclaude-config"],
+      "skills": [
+        "./skills/dotclaude-config"
+      ],
       "description": "Claude Code configuration management for global and project settings",
       "license": "Apache-2.0",
       "category": "meta"
@@ -37,7 +45,9 @@
       "name": "release",
       "source": "./",
       "strict": false,
-      "skills": ["./skills/release"],
+      "skills": [
+        "./skills/release"
+      ],
       "description": "Semantic versioned releases with AI changelogs, worktree-aware",
       "license": "Apache-2.0",
       "category": "workflow"
@@ -46,10 +56,26 @@
       "name": "skill-building",
       "source": "./",
       "strict": false,
-      "skills": ["./skills/skill-building"],
+      "skills": [
+        "./skills/skill-building"
+      ],
       "description": "Guide for creating effective Claude Code skills with validation",
       "license": "Apache-2.0",
       "category": "meta"
+    },
+    {
+      "name": "usage-meter",
+      "source": "./mods/usage-meter",
+      "description": "A tool that answers the account's five-hour and seven-day usage windows; observes only.",
+      "license": "Apache-2.0",
+      "category": "mods"
+    },
+    {
+      "name": "compaction",
+      "source": "./mods/compaction",
+      "description": "Lets the main thread compact at a moment it chooses, with instructions for the summary; runs only /compact, from a timer after its turn.",
+      "license": "Apache-2.0",
+      "category": "mods"
     }
   ]
 }
