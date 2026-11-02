@@ -1,0 +1,45 @@
+name: Cloud bundle
+# Publishes what scripts/cloud-bootstrap.sh installs in a Claude Code cloud environment. A rolling
+# release asset, because that is the one path into this repo that works while a setup script runs.
+on:
+  push:
+    branches: [main]
+    paths:
+      - CLAUDE.md
+      - agents/**
+      - commands/**
+      - hooks/**
+      - scripts/**
+      - skills/**
+      - settings.example.json
+      - .github/workflows/cloud-bundle.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cloud-bundle
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build bundle
+        run: |
+          git archive --add-virtual-file=REVISION:"$GITHUB_SHA" --format=tar.gz \
+            -o dotclaude-cloud.tar.gz HEAD \
+            CLAUDE.md agents commands hooks scripts skills settings.example.json
+      - name: Publish to the rolling release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view cloud-latest >/dev/null 2>&1 \
+            || gh release create cloud-latest --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "Cloud bundle" --notes "Installed by scripts/cloud-bootstrap.sh."
+          gh release upload cloud-latest dotclaude-cloud.tar.gz --clobber

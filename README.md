@@ -206,6 +206,18 @@ Bootstrap backs up an ambiguous non-Git runtime before cloning and refuses to mo
 
 This is dotclaude's implementation of the [fairchild/dotfiles source/runtime contract](https://github.com/fairchild/dotfiles/blob/master/docs/source-runtime-contract.md); it remains independently operable through the scripts above.
 
+### Cloud sessions
+
+Cloud sessions never see the machine's `~/.claude`, but they do read the one on their VM, so an environment's setup script can carry preferences over. Add this line to the setup script of a personal cloud environment at [claude.ai/code](https://claude.ai/code):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fairchild/dotclaude/main/scripts/cloud-bootstrap.sh | bash
+```
+
+[`scripts/cloud-bootstrap.sh`](scripts/cloud-bootstrap.sh) installs the bundle that [`cloud-bundle.yml`](.github/workflows/cloud-bundle.yml) publishes from `main`: `CLAUDE.md`, agents, commands, every skill not marked `machine-bound`, and the settings that mean the same on a VM. It leaves out hooks, the status line, plugins and `dotagents` links, which assume this machine. Each run records its result in `~/.claude/cloud-bootstrap.status`.
+
+A cached environment doesn't rerun its setup script, so sessions get what `main` held when the cache was built, at most about seven days ago. Editing the script rebuilds the cache.
+
 Skill installation and symlinking is driven by [`dotagents.toml`](dotagents.toml) — a manifest declaring which ecosystem skills live in `~/.agents/skills/` and how they're linked into `~/.claude/skills/`. Canonical first-party shared sources now live in [fairchild/dotfiles](https://github.com/fairchild/dotfiles/tree/master/agents/shared/first-party-skills), so dotclaude no longer declares reverse links into `~/.agents`. [`scripts/sync-dotagents.py`](scripts/sync-dotagents.py) remains the reconciler: `audit` reports drift, `sync` reconciles, and `status` is a one-liner for hooks. A SessionStart hook runs `status` each session so drift surfaces without blocking.
 
 ## Permissions Model
