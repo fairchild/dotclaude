@@ -23,18 +23,12 @@ directory marketplace named `dotclaude`. `DOTCLAUDE_MODS` on that line narrows t
 `mcp__usage-meter__reading`, `mcp__compaction__context` and `mcp__compaction__request`, and
 `~/.claude/cloud-bootstrap.status` names the mods it installed.
 
-On a machine:
+On a machine, install them from this repository's marketplace, as the main README's
+[Install as a plugin marketplace](../README.md#install-as-a-plugin-marketplace) shows:
 
-```bash
-claude plugin marketplace add fairchild/dotclaude
 ```
-
-```bash
-claude plugin install usage-meter@dotclaude
-```
-
-```bash
-claude plugin install compaction@dotclaude
+/plugin install usage-meter --marketplace fairchild/dotclaude
+/plugin install compaction --marketplace fairchild/dotclaude
 ```
 
 The mods load only from user settings: declared in a repository's `.claude/settings.json`, they do

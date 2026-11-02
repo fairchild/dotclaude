@@ -187,9 +187,36 @@ npx skills add fairchild/dotclaude --skill <skill-name>
 npx skills check && npx skills update
 ```
 
+## Install as a plugin marketplace
+
+This repository is a Claude Code plugin marketplace named `dotclaude` ([`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json)). Install a plugin from it in one step, in a session or from a terminal (Claude Code 2.1.275 or later):
+
+```
+/plugin install usage-meter --marketplace fairchild/dotclaude
+/plugin install compaction --marketplace fairchild/dotclaude
+/plugin install brainstorm-to-brief --marketplace fairchild/dotclaude
+/plugin install image-gen --marketplace fairchild/dotclaude
+/plugin install dotclaude-config --marketplace fairchild/dotclaude
+/plugin install release --marketplace fairchild/dotclaude
+/plugin install skill-building --marketplace fairchild/dotclaude
+```
+
+From a terminal, the same line starts with `claude plugin install`. The first install adds the marketplace to your user settings, and `/plugin` then lists everything it offers.
+
+| Plugin | What it is |
+|--------|------------|
+| `usage-meter` | Mod: one tool that reads the five-hour and seven-day usage windows ([mods](mods/README.md)) |
+| `compaction` | Mod: lets the main thread ask for `/compact` with instructions ([mods](mods/README.md)) |
+| `brainstorm-to-brief`, `image-gen`, `dotclaude-config`, `release`, `skill-building` | The skills of the same name, from `skills/` |
+
+- `claude plugin marketplace update dotclaude` pulls the latest `main`; `claude plugin marketplace add fairchild/dotclaude@<branch>` tries a branch instead.
+- On a machine whose `~/.claude` is this repository, the skills are already there: install only the mods.
+- Mods load from user settings only. Declared in a repository's `.claude/settings.json` (`--scope project`), they don't load.
+- A cloud environment gets the mods from the [Cloud sessions](#cloud-sessions) setup line, which installs them from the release bundle before the first session.
+
 ## Mods
 
-[`mods/`](mods/README.md) holds two Claude Code mods, `usage-meter` and `compaction`, listed in this repo's marketplace. A cloud environment gets them from the [Cloud sessions](#cloud-sessions) setup line; on a machine, `claude plugin marketplace add fairchild/dotclaude` and install each.
+[`mods/`](mods/README.md) holds two Claude Code mods, `usage-meter` and `compaction`: what each does, the rules they keep, and when compaction runs. Install them [as above](#install-as-a-plugin-marketplace), or in a cloud environment through the [Cloud sessions](#cloud-sessions) setup line.
 
 ## Development
 
