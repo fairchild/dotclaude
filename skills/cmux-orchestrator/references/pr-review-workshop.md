@@ -18,7 +18,7 @@ A Worktree Workshop variant focused on responding to code review comments on our
 "respond to review on PR 185"
 ```
 
-Use `/review-pr` when reviewing a PR someone else wrote.
+Use `/pr-review` when reviewing a PR someone else wrote; `/pr-closeout` covers dispositions and thread resolution.
 
 ## Phase 1: Read All Review Context
 

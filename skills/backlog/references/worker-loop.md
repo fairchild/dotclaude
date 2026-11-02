@@ -86,7 +86,7 @@ Run the backend's `advance` to done with the PR URL in `| PR=<url>` prose.
 
 **Roadmap reference sweep.** After landing in `done/`, grep `backlog/ROADMAP.md` and any sibling slugs (same `arc:`) for the just-shipped slug or title. If the roadmap's Current Focus or Priorities section described this as upcoming/planned, update it to reflect that it's shipped. Same arc, related tasks: check if the arc's description should evolve. Don't auto-edit aggressively — surface drift to the operator if uncertain.
 
-If the PR has a first round of review comments before the loop exits, respond to them (use `respond-to-pr-review` skill if available).
+If the PR has a first round of review comments before the loop exits, respond to them (use the `pr-closeout` skill).
 
 #### 5b — Shipped a slice but not the full scope
 
