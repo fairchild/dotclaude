@@ -23,6 +23,9 @@ DOTCLAUDE_PLUGINS="${DOTCLAUDE_PLUGINS-usage-meter compaction}"
 AUTO_COMPACT_WINDOW="${AUTO_COMPACT_WINDOW-300000}"
 AUTO_COMPACT_PCT="${AUTO_COMPACT_PCT-100}"
 
+# The cloud image's install folders, after whatever the Setup step's PATH already holds.
+PATH="$PATH:/opt/claude-code/bin:/opt/node22/bin"
+
 log="$HOME/.claude/dotclaude-setup.log"
 mkdir -p "$HOME/.claude"
 date -u +%Y-%m-%dT%H:%M:%SZ >>"$log"
