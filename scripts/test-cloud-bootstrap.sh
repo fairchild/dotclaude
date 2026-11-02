@@ -48,6 +48,15 @@ bootstrap "file://$tmp/missing.tar.gz" "$offline" || fail "a failed download mus
 grep -q ' failed: download: ' "$offline/cloud-bootstrap.status" || fail "the download failure was not recorded"
 [[ ! -e "$offline/CLAUDE.md" ]] || fail "a failed download left files behind"
 
+# Named skills narrow the install to those alone, and a name it can't install is reported.
+picked="$tmp/picked/.claude"
+DOTCLAUDE_SKILLS="tight-docs, fable-session image-generator signoz-log" bootstrap "file://$bundle" "$picked"
+[[ "$(ls "$picked/skills" | tr '\n' ' ')" == "fable-session tight-docs " ]] \
+  || fail "named skills installed: $(ls "$picked/skills" | tr '\n' ' ')"
+grep -q ' ok test-revision; not installed: image-generator signoz-log$' "$picked/cloud-bootstrap.status" \
+  || fail "status: $(cat "$picked/cloud-bootstrap.status")"
+[[ -s "$picked/CLAUDE.md" ]] || fail "naming skills dropped the rest of the bundle"
+
 # Settings it can't parse are left exactly as they were, with nothing half-written beside them.
 broken="$tmp/broken/.claude"
 mkdir -p "$broken"

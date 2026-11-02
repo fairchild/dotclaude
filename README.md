@@ -226,6 +226,14 @@ curl -fsSL https://raw.githubusercontent.com/fairchild/dotclaude/main/scripts/cl
 
 [`scripts/cloud-bootstrap.sh`](scripts/cloud-bootstrap.sh) installs the bundle that [`cloud-bundle.yml`](.github/workflows/cloud-bundle.yml) publishes from `main`: `CLAUDE.md`, agents, commands, every skill not marked `machine-bound`, and the settings that mean the same on a VM. It leaves out hooks, the status line, plugins and `dotagents` links, which assume this machine. Each run records its result in `~/.claude/cloud-bootstrap.status`.
 
+To install only some skills, name them before `bash`, separated by spaces or commas. A name it can't install, misspelled or `machine-bound`, is listed in the status line.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fairchild/dotclaude/main/scripts/cloud-bootstrap.sh | DOTCLAUDE_SKILLS="tight-docs fable-session" bash
+```
+
+The variable belongs in the setup script itself: an environment's variables aren't set yet while setup runs.
+
 A cached environment doesn't rerun its setup script, so sessions get what `main` held when the cache was built, at most about seven days ago. Editing the script rebuilds the cache.
 
 Skill installation and symlinking is driven by [`dotagents.toml`](dotagents.toml) — a manifest declaring which ecosystem skills live in `~/.agents/skills/` and how they're linked into `~/.claude/skills/`. Canonical first-party shared sources now live in [fairchild/dotfiles](https://github.com/fairchild/dotfiles/tree/master/agents/shared/first-party-skills), so dotclaude no longer declares reverse links into `~/.agents`. [`scripts/sync-dotagents.py`](scripts/sync-dotagents.py) remains the reconciler: `audit` reports drift, `sync` reconciles, and `status` is a one-liner for hooks. A SessionStart hook runs `status` each session so drift surfaces without blocking.

@@ -3,12 +3,15 @@
 # ~/.claude never reaches; a cloud environment's setup script fetches and runs it as root. It
 # installs the release bundle rather than cloning, because git has been seen to fail during setup,
 # keeps only the settings that mean the same on a VM, and refuses to touch a real machine's
-# runtime. Setup must exit 0, so every outcome lands in the status file instead.
+# runtime. DOTCLAUDE_SKILLS, names separated by spaces or commas, narrows the skills to those.
+# Setup must exit 0, so every outcome lands in the status file instead.
 set -u
 
 bundle_url="${DOTCLAUDE_BUNDLE_URL:-https://github.com/fairchild/dotclaude/releases/download/cloud-latest/dotclaude-cloud.tar.gz}"
 runtime="${DOTCLAUDE_RUNTIME:-$HOME/.claude}"
 status="$runtime/cloud-bootstrap.status"
+named_skills="${DOTCLAUDE_SKILLS:-}"
+named_skills="${named_skills//,/ }"
 
 main() {
   refuse_outside_a_cloud_vm
@@ -20,10 +23,11 @@ main() {
   or_report download download_bundle
   or_report unpack tar -xzf "$work/bundle.tar.gz" -C "$work/bundle"
   drop_machine_bound_skills
+  keep_only_named_skills
   or_report copy install_bundle
   or_report settings merge_settings "$work/bundle/settings.example.json" "$runtime/settings.json"
 
-  report "ok $(cat "$work/bundle/REVISION" 2>/dev/null || echo unknown)"
+  report "ok $(bundle_revision)$(unavailable_named_skills)"
 }
 
 refuse_outside_a_cloud_vm() {
@@ -65,6 +69,18 @@ drop_machine_bound_skills() {
   done
 }
 
+keep_only_named_skills() {
+  local skill
+  [[ -n "$named_skills" ]] || return 0
+  for skill in "$work"/bundle/skills/*/; do
+    is_named "$(basename "$skill")" || rm -rf -- "$skill"
+  done
+}
+
+is_named() {
+  [[ " $named_skills " == *" $1 "* ]]
+}
+
 install_bundle() {
   local entry
   mkdir -p "$runtime"
@@ -84,6 +100,18 @@ merge_settings() {
       ' >"$target.partial" \
     && mv "$target.partial" "$target" \
     || { rm -f "$target.partial"; return 1; }
+}
+
+bundle_revision() {
+  cat "$work/bundle/REVISION" 2>/dev/null || echo unknown
+}
+
+unavailable_named_skills() {
+  local name missing=""
+  for name in $named_skills; do
+    [[ -d "$work/bundle/skills/$name" ]] || missing+=" $name"
+  done
+  [[ -z "$missing" ]] || printf '; not installed:%s' "$missing"
 }
 
 main
