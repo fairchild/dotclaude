@@ -1,0 +1,5 @@
+{
+  "name": "usage-meter",
+  "version": "0.1.0",
+  "description": "A tool that answers the account's five-hour and seven-day usage windows; observes only."
+}

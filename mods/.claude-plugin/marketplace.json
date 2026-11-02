@@ -1,0 +1,16 @@
+{
+  "name": "dotclaude-mods",
+  "owner": { "name": "app" },
+  "plugins": [
+    {
+      "name": "usage-meter",
+      "source": "./usage-meter",
+      "description": "A tool that answers the account's five-hour and seven-day usage windows; observes only."
+    },
+    {
+      "name": "compaction",
+      "source": "./compaction",
+      "description": "Lets the main thread compact at a moment it chooses, with instructions for the summary; runs only /compact, from a timer after its turn."
+    }
+  ]
+}
