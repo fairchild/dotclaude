@@ -29,6 +29,7 @@ mise tasks ls        # list all tasks
 | `run` | Start webui dev server |
 | `stop` | Stop webui server |
 | `archive` | Teardown workspace — stops processes, syncs git changes |
+| `cloud-environment.sh` | claude.ai cloud environment Setup script, pasted whole — installs the mods and sets auto-compaction |
 
 ## Utility Scripts
 

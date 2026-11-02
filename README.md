@@ -189,13 +189,7 @@ npx skills check && npx skills update
 
 ## Mods
 
-[`mods/`](mods/README.md) holds two Claude Code mods, `usage-meter` and `compaction`, listed in this repo's marketplace:
-
-```bash
-claude plugin marketplace add fairchild/dotclaude
-claude plugin install usage-meter@dotclaude
-claude plugin install compaction@dotclaude
-```
+[`mods/`](mods/README.md) holds two Claude Code mods, `usage-meter` and `compaction`. A cloud environment installs them by pasting [`scripts/cloud-environment.sh`](scripts/cloud-environment.sh) into its Setup script.
 
 ## Development
 
