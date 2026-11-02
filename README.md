@@ -187,6 +187,16 @@ npx skills add fairchild/dotclaude --skill <skill-name>
 npx skills check && npx skills update
 ```
 
+## Mods
+
+[`mods/`](mods/README.md) holds two Claude Code mods, `usage-meter` and `compaction`, listed in this repo's marketplace:
+
+```bash
+claude plugin marketplace add fairchild/dotclaude
+claude plugin install usage-meter@dotclaude
+claude plugin install compaction@dotclaude
+```
+
 ## Development
 
 `~/.claude` is an independent git clone on `main`. A `SessionStart` hook runs `scripts/deploy.sh` to sync from `origin/main` on every session start, so merged PRs are live immediately. Development happens in `~/code/dotclaude` on feature branches. See [skills/dotclaude-config/references/development-workflow.md](skills/dotclaude-config/references/development-workflow.md) for the full architecture, sync workflow, and skill development process.
