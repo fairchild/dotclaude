@@ -29,13 +29,12 @@ mise tasks ls        # list all tasks
 | `run` | Start webui dev server |
 | `stop` | Stop webui server |
 | `archive` | Teardown workspace — stops processes, syncs git changes |
-| `cloud-environment.sh` | claude.ai cloud environment Setup script, pasted whole — installs the mods and sets auto-compaction |
 
 ## Utility Scripts
 
 | Script | Description |
 |--------|-------------|
 | `claude-usage.py` | Check Claude usage limits (`uv run scripts/claude-usage.py --human`) |
-| `cloud-bootstrap.sh` | Layer this repo onto `~/.claude` in a Claude Code cloud session's VM; run by a cloud environment's setup script (cases in `test-cloud-bootstrap.sh`) |
+| `cloud-bootstrap.sh` | Layer this repo onto `~/.claude` in a Claude Code cloud session's VM, mods included; run by a cloud environment's setup script (cases in `test-cloud-bootstrap.sh`) |
 | `dotclaude.py` | Bootstrap, sync, and diagnose the independent runtime clone |
 | `public-text-guard.py` | Refuse text bound for a public repo that names one of your private repos. A `PreToolUse` hook on Bash (`hook`) and a CLI (`check [--repo OWNER/NAME] FILE...`); cases in `test_public_text_guard.py` |

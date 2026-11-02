@@ -11,6 +11,8 @@ on:
       - hooks/**
       - scripts/**
       - skills/**
+      - mods/**
+      - .claude-plugin/**
       - settings.example.json
       - .github/workflows/cloud-bundle.yml
   workflow_dispatch:
@@ -36,7 +38,7 @@ jobs:
         run: |
           git archive --add-virtual-file=REVISION:"$(git rev-parse HEAD)" --format=tar.gz \
             -o dotclaude-cloud.tar.gz HEAD \
-            CLAUDE.md agents commands hooks scripts skills settings.example.json
+            CLAUDE.md agents commands hooks scripts skills mods .claude-plugin settings.example.json
       - name: Publish to the rolling release
         env:
           GH_TOKEN: ${{ github.token }}
