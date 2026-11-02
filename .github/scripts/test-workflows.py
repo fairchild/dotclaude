@@ -20,6 +20,12 @@ def workflow(name: str) -> dict:
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_cloud_bundle_only_ever_publishes_main(self) -> None:
+        # Every cloud environment installs this asset. workflow_dispatch can run from
+        # any ref, so the checkout has to name main instead of trusting the trigger.
+        steps = workflow("cloud-bundle.yml")["jobs"]["publish"]["steps"]
+        self.assertEqual(steps[0]["with"]["ref"], "main")
+
     def test_pending_main_runs_cannot_replace_each_other(self) -> None:
         ci = workflow("ci.yml")
         # A pending skill push must survive a later docs-only push. PR runs may

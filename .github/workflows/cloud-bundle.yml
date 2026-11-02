@@ -26,12 +26,15 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Always main, so a dispatch from a branch or a rerun of an old commit can't replace the
+      # bundle every environment installs.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           persist-credentials: false
       - name: Build bundle
         run: |
-          git archive --add-virtual-file=REVISION:"$GITHUB_SHA" --format=tar.gz \
+          git archive --add-virtual-file=REVISION:"$(git rev-parse HEAD)" --format=tar.gz \
             -o dotclaude-cloud.tar.gz HEAD \
             CLAUDE.md agents commands hooks scripts skills settings.example.json
       - name: Publish to the rolling release
@@ -40,6 +43,6 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           gh release view cloud-latest >/dev/null 2>&1 \
-            || gh release create cloud-latest --target "$GITHUB_SHA" --prerelease --latest=false \
+            || gh release create cloud-latest --target main --prerelease --latest=false \
               --title "Cloud bundle" --notes "Installed by scripts/cloud-bootstrap.sh."
           gh release upload cloud-latest dotclaude-cloud.tar.gz --clobber

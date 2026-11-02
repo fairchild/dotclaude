@@ -16,16 +16,22 @@ report() {
   printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" | tee "$status"
 }
 
-# A clone at the runtime path is a real machine's deploy, which this must never write into.
+# Setup runs as root on Linux, which a machine with a real ~/.claude doesn't, and a clone at the
+# runtime path is that machine's deploy. Neither is ever written into. The setup script's own
+# exit 0 keeps a refusal from stopping a session.
+if [[ -z "${DOTCLAUDE_RUNTIME:-}" && ( "$(uname -s)" != Linux || "$EUID" -ne 0 ) ]]; then
+  echo "cloud-bootstrap: this is for a cloud session's VM; refusing to touch $runtime" >&2
+  exit 1
+fi
 if [[ -e "$runtime/.git" ]]; then
   echo "cloud-bootstrap: $runtime is a git clone; refusing to layer over it" >&2
-  exit 0
+  exit 1
 fi
 
 work="$(mktemp -d)"
 trap 'rm -rf -- "$work"' EXIT
 
-if ! curl --fail --silent --show-error --location --retry 3 --max-time 60 \
+if ! curl --fail --silent --show-error --location --retry 1 --max-time 40 \
   -o "$work/bundle.tar.gz" "$bundle_url" 2>"$work/error"; then
   report "failed: download: $(tail -n 1 "$work/error")"
   exit 0
@@ -70,7 +76,9 @@ for key in ("CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY", "CLAUDE_CODE_EXPERIMENTAL_AGE
 permissions = settings.setdefault("permissions", {})
 permissions["deny"] = list(dict.fromkeys(permissions.get("deny", []) + example["permissions"]["deny"]))
 
-target.write_text(json.dumps(settings, indent=2) + "\n")
+partial = target.with_suffix(".json.partial")
+partial.write_text(json.dumps(settings, indent=2) + "\n")
+partial.replace(target)
 PY
 then
   report "failed: settings: $(tail -n 1 "$work/error")"

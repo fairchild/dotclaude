@@ -57,8 +57,20 @@ grep -q ' failed: download: ' "$offline/cloud-bootstrap.status" || fail "the dow
 clone="$tmp/mac/.claude"
 mkdir -p "$clone/.git"
 printf 'mine\n' > "$clone/CLAUDE.md"
-bootstrap "file://$bundle" "$clone" || fail "the refusal must exit 0"
+if bootstrap "file://$bundle" "$clone"; then fail "a refusal must say so"; fi
 [[ "$(cat "$clone/CLAUDE.md")" == mine ]] || fail "a clone at the runtime path was overwritten"
 [[ ! -e "$clone/cloud-bootstrap.status" ]] || fail "a clone at the runtime path was written to"
+
+# With no runtime named, the real home directory is off limits outside a cloud VM. CI and laptops
+# aren't root; as root on Linux this script can't tell that from a VM, so the case doesn't apply.
+if [[ "$(uname -s)" != Linux || "$EUID" -ne 0 ]]; then
+  local_home="$tmp/laptop"
+  mkdir -p "$local_home/.claude"
+  printf 'mine\n' > "$local_home/.claude/CLAUDE.md"
+  if HOME="$local_home" DOTCLAUDE_BUNDLE_URL="file://$bundle" bash "$ROOT/scripts/cloud-bootstrap.sh" >/dev/null 2>&1; then
+    fail "a local run must refuse"
+  fi
+  [[ "$(cat "$local_home/.claude/CLAUDE.md")" == mine ]] || fail "a local run overwrote the real runtime"
+fi
 
 echo "cloud bootstrap: ok"
