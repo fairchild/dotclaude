@@ -18,7 +18,7 @@ A Worktree Workshop variant focused on responding to code review comments on our
 "respond to review on PR 185"
 ```
 
-Use `/review-pr` when reviewing a PR someone else wrote.
+Use `/review-pr` when reviewing a PR someone else wrote; `/pr-closeout` covers dispositions and thread resolution.
 
 ## Phase 1: Read All Review Context
 
@@ -47,35 +47,7 @@ Before creating any workspace or touching code, fetch the PR metadata, review co
 
 ## Phase 2: Reflect and Decide
 
-Read every unresolved comment before deciding what to change. Review comments can interact with each other, and a local-looking suggestion may have product, testing, or architectural context.
-
-For each comment:
-
-1. Read the relevant file and surrounding code.
-2. Check related code paths, tests, docs, plans, or prior discussion when they affect the comment.
-3. Gather more context before deciding if the comment's intent is unclear, the requested change has hidden implications, or multiple comments interact.
-4. Decide whether to **do**, **defer**, or **decline**.
-
-Use these decision meanings:
-
-| Decision | Meaning | Required response |
-|----------|---------|-------------------|
-| Do | The feedback is valid and should be implemented now | Make the change, verify it, and reply with what changed |
-| Defer | The feedback is valid, but should not block this PR | Reply with rationale and the intended follow-up path |
-| Decline | The feedback is not appropriate for this PR | Reply with evidence and reasoning |
-
-Present a brief decision summary before execution:
-
-```markdown
-## Review Response Plan: PR #<number>
-
-| Comment | Context checked | Decision | Reason | Planned response |
-|---------|-----------------|----------|--------|------------------|
-| `path/file.ts:42` @reviewer | file + test + helper | Do | bug is real | adjust helper and add regression test |
-| `path/other.ts:9` @reviewer | API contract + docs | Defer | broader behavior change | reply with follow-up path |
-```
-
-Proceed after the summary unless the plan includes risky scope expansion, uncertain product judgment, destructive git operations, or the user has asked to approve each step first.
+Follow the `pr-closeout` skill: read every finding first, give each a disposition (Fixed, Deferred, Declined), and present the plan before executing unless the user waived approval.
 
 ## Phase 3: Create/Reuse Worktree (Idempotent)
 

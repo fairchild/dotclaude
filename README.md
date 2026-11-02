@@ -41,7 +41,7 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 ├── settings.example.json  # Permissions, hooks, model selection (the live
 │                          # settings.json is machine-local and gitignored)
 ├── skills/            # Skills — tiered stable / experimental / local (see below)
-├── commands/          # Slash commands (/bootstrap, /code-review)
+├── commands/          # Slash commands (/bootstrap, /reflect)
 ├── agents/            # Specialized autonomous agents
 ├── hooks/             # Session lifecycle scripts
 ├── scripts/           # Runtime contract (bootstrap, sync, doctor) and catalog
@@ -117,13 +117,17 @@ Claude loads these when the task matches the description.
 
 | Skill | Domain | Why experimental |
 |---|---|---|
+| `arc-handoff` | Hand off an arc of work on its tracking issue, or pick up an arc another session left. | Generalised from a handoff skill in the user's other repositories; no eval yet. |
 | `ascii-art-fix` | Fix misaligned right borders in ASCII art diagrams | Prompt-only repair is useful but still has edge cases around nested diagrams, tables, and mixed markdown content. |
 | `claude-as` | Run Claude Code under a different account with claude-as profiles. | New in this form: the profile layering has run on one machine with two accounts; side-agent launches are tested headless only. |
 | `cloudflare-workers-deploy` | Set up Cloudflare Workers deployment for web applications with GitHub Actions CI/CD. | Deployment patterns are useful but not yet validated across enough project shapes and Cloudflare account setups. |
 | `gondolin-ci` | Run one GitHub Actions suite for a pull request inside a disposable gondolin micro-VM on a Mac, and watch the steps… | It has run real suites for one repository on one laptop. Run time still tracks the laptop's load, and tokens reach the guest and the host side is unconfined until the design's Phases 2 and 3 land. |
 | `ios-simulator` | Automate iOS Simulator tasks — capture screenshots, interact with apps, generate screen flow galleries. | Simulator automation remains sensitive to local device state, timing, window focus, and Xcode version differences. |
 | `persona-memory` | Build and operate a persistent persona and memory framework for Claude Code. | Healthy framework, intentionally experimental until background memory agents and full interactive-session CI coverage exist. |
+| `pr-closeout` | Own a pull request you opened from draft to ready to merge — CI green, every review finding given a disposition,… | Replaces the respond-to-pr-review command with closeout practice from the user's other repositories; no eval yet. |
 | `repo-steward` | The repo steward role — one long-running session that owns the work in a single repository. | Two real runs so far (two repositories, 2026-09-07 and 09-08) and no eval in this repo. The boot sequence and the loop are an experiment in keeping a long-running session's context in the repo rather than in its head. |
+| `retrospective` | Run a retrospective on a session, PR or milestone — find the mistakes that repeated, fix each at the strongest layer… | Replaces the session-scoring retro command; no eval yet. |
+| `review-pr` | Review a pull request, yours before opening it or someone else's, then re-check each later push for blockers only, with… | Consolidates the old review-pr and code-review commands with practice from the user's other repositories; no eval yet. |
 | `runner-optin` | Run one reviewed commit of one pull request on this laptop while hosted runners are blocked. | No eval and no invocations yet; the machinery it drives has never run against a real pull request. |
 | `skill-seeker` | Generate Claude Code skills from docs sites, GitHub repos, or local codebases using Skill Seekers. | Generated skill quality varies by source corpus and still requires explicit human review before installation. |
 | `vocal` | Speak text aloud (TTS) and transcribe speech (STT). | Voice workflows depend on local audio devices and optional ElevenLabs credentials, so reliability is environment-sensitive. |
@@ -141,15 +145,11 @@ Claude loads these when the task matches the description.
 | Command | Purpose |
 |---|---|
 | `/bootstrap` | Bootstrap a new project with interactive brainstorming and structure generation |
-| `/code-review` | Review recent work against plan and project standards |
 | `/codex-review` | Run code review via Codex CLI with non-Claude models (GPT-5, o3, Ollama) |
 | `/opensource-precheck` | Audit a private repo before making it public |
 | `/plan_retro` | Append a retrospective section to the current plan file |
 | `/project-health` | Review health of ~/code projects (git status, tests, remote sync) |
 | `/reflect` | Pause to review work with fresh eyes for bugs, missed cases, or simplifications |
-| `/respond-to-pr-review` | Respond to review feedback on our PR and advance toward mergeable state |
-| `/retro` | Review session trajectory and update todo file with lessons learned |
-| `/review-pr` | Review a pull request someone else wrote |
 
 ### Agents
 
