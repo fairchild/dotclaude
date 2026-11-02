@@ -59,6 +59,7 @@ jobs:
             if python .github/scripts/validate-config.py --settings-only "$fixture"; then exit 1; fi
           done
           scripts/test-participant-contract.sh
+          scripts/test-cloud-bootstrap.sh
           bash skills/agent-inbox/scripts/test-hooks.sh
           bash skills/claude-as/tests/test.sh
           python skills/image-gen/scripts/check_protocol.py

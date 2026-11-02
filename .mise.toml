@@ -27,6 +27,10 @@ description = "Read-only validation of tracked source and allowed private runtim
 run = "./scripts/test-participant-contract.sh"
 description = "Exercise the independent-clone source/runtime contract"
 
+[tasks."test:cloud"]
+run = "./scripts/test-cloud-bootstrap.sh"
+description = "Exercise the cloud bootstrap against a bundle built from this checkout"
+
 [tasks.portability]
 run = "./scripts/portability.py"
 description = "Report skill portability tiers and violations (SEP-2640 serving gate)"
