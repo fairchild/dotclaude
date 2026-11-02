@@ -6,8 +6,8 @@
 # rebuilt.
 #
 # It provisions the user level only: the dotclaude mods from the repository's GitHub marketplace,
-# and the auto-compaction settings their thresholds assume (mods/README.md). A repository's own
-# setup belongs in its SessionStart hook, and an environment's own tools go in the last section.
+# and when sessions auto-compact, a point the compaction mod reads from the engine. A repository's
+# own setup belongs in its SessionStart hook, and an environment's own tools go in the last section.
 #
 # Parameters: edit the defaults below in the pasted copy, or set the variable when running it
 # (`AUTO_COMPACT_WINDOW= AUTO_COMPACT_PCT= bash scripts/cloud-environment.sh` installs only the
@@ -19,7 +19,7 @@ DOTCLAUDE_REPO="${DOTCLAUDE_REPO-fairchild/dotclaude}"
 DOTCLAUDE_REF="${DOTCLAUDE_REF-main}"
 # Plugins from that marketplace, by name; append one to enable it in every session here.
 DOTCLAUDE_PLUGINS="${DOTCLAUDE_PLUGINS-usage-meter compaction}"
-# Compaction lands at min((W - 20000) * P / 100, W - 33000): 267k for these values.
+# When sessions auto-compact: min((W - 20000) * P / 100, W - 33000), 267k for these values.
 AUTO_COMPACT_WINDOW="${AUTO_COMPACT_WINDOW-300000}"
 AUTO_COMPACT_PCT="${AUTO_COMPACT_PCT-100}"
 
