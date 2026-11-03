@@ -75,3 +75,7 @@ the context and the points it was judged against, the instructions and the reaso
 That reading is what makes the points answerable rather than asserted: a floor that refuses
 requests the thread keeps making is too high, a prepare point the engine's backstop keeps
 beating is too low. The store is a JSON file, `~/.claude/plugins/store/compaction_*.json`.
+
+`log` lets a store that refuses go, since a reading is worth less than the compaction it
+describes: a file still empty after the tool has been used means the writes are failing, and
+`claude --debug` carries the reason.

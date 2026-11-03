@@ -130,6 +130,8 @@ export const GOAL_TOKENS = 300_000;
 export const RUNWAY_TOKENS = 80_000;
 /** What the engine keeps below its compaction window, the `W - 33000` arm of its own point. */
 export const BACKSTOP_TOKENS = 33_000;
+/** How far the engine's point may sit from the goal's before the report names the setting. */
+export const DRIFT_TOKENS = 10_000;
 
 const whole = (given: unknown): number | null =>
   typeof given === "number" && Number.isInteger(given) && given > 0 ? given : null;
@@ -306,7 +308,8 @@ function contextLines(p: Points, context: ContextUsage): string[] {
   const line =
     `Points: a goal of ${tokens(p.goalTokens)}; requests from ${tokens(p.floorTokens)}; the ` +
     `prepare point at ${tokens(p.prepareTokens)}; automatic compaction ${auto}.`;
-  const drift = at === undefined || Math.abs(at - backstop(p)) <= 10_000 ? [] : [settingLine(p, at)];
+  const drift =
+    at !== undefined && Math.abs(at - backstop(p)) > DRIFT_TOKENS ? [settingLine(p, at)] : [];
   if (context.tokens === undefined) {
     const unmeasured = "Context: not measured since the session started or last compacted";
     return [

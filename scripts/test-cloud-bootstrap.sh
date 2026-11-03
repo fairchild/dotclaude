@@ -72,11 +72,16 @@ DOTCLAUDE_MODS=none bootstrap "file://$bundle" "$none"
 [[ ! -e "$none/mods" ]] || fail "DOTCLAUDE_MODS=none installed mods"
 jq -e 'has("extraKnownMarketplaces") | not' "$none/settings.json" >/dev/null || fail "none still registered a marketplace"
 
-# Auto-compaction is set only when the environment names it.
+# Auto-compaction is set only when the environment names it, and the window is the mod's goal
+# too, so the thread's prepare point and the engine's backstop follow one number.
 compact="$tmp/compact/.claude"
 DOTCLAUDE_COMPACT_WINDOW=300000 DOTCLAUDE_COMPACT_PCT=100 bootstrap "file://$bundle" "$compact"
 jq -e '.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW == "300000" and .env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE == "100"' \
   "$compact/settings.json" >/dev/null || fail "auto-compaction was not set"
+jq -e '.pluginConfigs.compaction.goalTokens == 300000' \
+  "$compact/settings.json" >/dev/null || fail "the compaction goal did not follow the window"
+jq -e 'has("pluginConfigs") | not' "$none/settings.json" >/dev/null \
+  || fail "a goal was set for a run with no mods"
 
 # A bundle published before the mods joined it still installs everything else.
 old_bundle="$tmp/old.tar.gz"

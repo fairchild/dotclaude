@@ -73,7 +73,7 @@
     {
       "name": "compaction",
       "source": "./mods/compaction",
-      "description": "Lets the main thread compact at a moment it chooses, with instructions for the summary; runs only /compact, from a timer after its turn.",
+      "description": "Lets the main thread compact at a moment it chooses, with instructions for the summary and its reasoning kept; runs only /compact, from a timer after its turn.",
       "license": "Apache-2.0",
       "category": "mods"
     }
