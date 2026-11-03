@@ -1,9 +1,13 @@
 /**
  * The compaction mod: the main thread compacts at a moment it chooses, with
  * instructions for the summary. `mcp__compaction__context` answers `$.session.usage()` against
- * POINTS and the engine's auto-compaction threshold, so no value here has to match the settings;
+ * its points and the engine's auto-compaction threshold, so no value here has to match the settings;
  * `mcp__compaction__request` records one pending request (a second replaces it), refusing a
- * subagent, bad instructions, and a context below the floor or not yet measured.
+ * subagent, bad instructions, and a context below the floor or not yet measured. Both points
+ * derive from one goal, the context the session means to stay under, which the manifest's
+ * `userConfig` carries: `/config` or `claude plugin configure compaction` moves it, and either
+ * point takes an override. Every request is kept in `$.store`, its reasoning with it, so what
+ * the points are worth can be read back over sessions (LOG_KEY, LOG_LIMIT entries).
  *
  * A main turn that ends with an answer arms one timer (IDLE_MS); a main turn that starts cancels
  * it. When it fires the mod reads the context again: a main turn begun meanwhile keeps the request
@@ -25,6 +29,9 @@ export type ContextUsage = {
   readonly breakdown?: { readonly autoCompactThreshold?: number };
 };
 
+/** The plugin's configuration as `register` receives it (`PluginOptions`). */
+export type Options = Readonly<Record<string, string | number | boolean | readonly string[]>>;
+
 export type UsageArgs = { readonly breakdown?: "summary" };
 type Usage = (args?: UsageArgs) => Promise<{ readonly context: ContextUsage }>;
 
@@ -40,8 +47,16 @@ export type Timer = { readonly cancel: () => void };
 export type Engine = {
   readonly session: { readonly usage: Usage };
   readonly tool: { readonly register: (tool: ToolSpec) => Promise<{ readonly tool: string }> };
-  /** `after` calls `fn` once after `ms`, outside any hook, unless cancelled first. */
-  readonly clock: { readonly after: (ms: number, fn: () => void) => Timer };
+  /** `now` reads the wall clock; `after` calls `fn` once after `ms`, outside any hook, unless cancelled first. */
+  readonly clock: {
+    readonly now: () => Promise<number>;
+    readonly after: (ms: number, fn: () => void) => Timer;
+  };
+  /** The mod's own JSON file under the configuration directory, across sessions. */
+  readonly store: {
+    readonly get: (key: string) => Promise<unknown>;
+    readonly set: (key: string, value: unknown) => Promise<void>;
+  };
   /** `run` runs a slash command as if the person typed it, queued until the session is idle. */
   readonly command: {
     readonly run: (args: { readonly command: string; readonly args?: string }) => Promise<unknown>;
@@ -98,11 +113,49 @@ export type On = {
   (event: "turn.complete", hook: Hook<"turn.complete">): unknown;
 };
 
-/** COMPACTION's floor and prepare point (tools/lib/compaction.ts); a test holds them equal. */
-export const POINTS = { floorTokens: 150_000, prepareTokens: 220_000 };
-/** The idle wait after a main turn ends before a request runs, and the longest instructions. */
+/** The goal and the two points a request is judged against, in tokens. */
+export type Points = {
+  readonly goalTokens: number;
+  readonly floorTokens: number;
+  readonly prepareTokens: number;
+};
+
+/** The context a session means to stay under when its manifest's goal is unset. */
+export const GOAL_TOKENS = 300_000;
+/**
+ * What the prepare point leaves below the goal: a closing turn, a resume file, the request,
+ * the idle wait and the /compact round trip. A turn's tail is a turn's tail, so this is an
+ * absolute, where the floor is a share of the goal.
+ */
+export const RUNWAY_TOKENS = 80_000;
+/** What the engine keeps below its compaction window, the `W - 33000` arm of its own point. */
+export const BACKSTOP_TOKENS = 33_000;
+
+const whole = (given: unknown): number | null =>
+  typeof given === "number" && Number.isInteger(given) && given > 0 ? given : null;
+
+/**
+ * The points this activation runs on. The goal is the one value worth setting; the floor
+ * (half of it) and the prepare point (it less the runway) derive, and an override that is a
+ * whole number above zero replaces either. The prepare point never falls below the floor,
+ * since a prepare step under it would name a request the mod refuses.
+ */
+export function points(options: Options): Points {
+  const goalTokens = whole(options["goalTokens"]) ?? GOAL_TOKENS;
+  const floorTokens = whole(options["floorTokens"]) ?? Math.round(goalTokens / 2);
+  const prepare = whole(options["prepareTokens"]) ?? goalTokens - RUNWAY_TOKENS;
+  return { goalTokens, floorTokens, prepareTokens: Math.max(floorTokens, prepare) };
+}
+
+/** Where the engine's own point would sit for this goal, its `W - 33000` arm. */
+const backstop = (p: Points): number => p.goalTokens - BACKSTOP_TOKENS;
+/** The idle wait after a main turn ends before a request runs, and the longest texts. */
 export const IDLE_MS = 3000;
 export const MAX_INSTRUCTIONS = 2000;
+export const MAX_REASONING = 400;
+/** Where the requests are kept, and how many: the newest LOG_LIMIT, oldest dropped. */
+export const LOG_KEY = "requests";
+export const LOG_LIMIT = 200;
 
 const tokens = (count: number): string => count.toLocaleString("en-US");
 const INSTRUCTIONS = {
@@ -113,6 +166,17 @@ const INSTRUCTIONS = {
     "What the compaction summary must keep, in plain words: for a lead, the owner's briefs " +
     "verbatim, open asks, the agents and their states, and the merge order. 1 to " +
     `${tokens(MAX_INSTRUCTIONS)} characters.`,
+};
+
+const REASONING = {
+  type: "string",
+  minLength: 1,
+  maxLength: MAX_REASONING,
+  description:
+    "Why compact now rather than later, in a sentence or two: what the context is holding that " +
+    "is spent, and what the next stretch of work needs. Kept across sessions, so the points " +
+    "can be judged against the moments they were asked for. 1 to " +
+    `${tokens(MAX_REASONING)} characters.`,
 };
 
 const CONTEXT_TOOL: ToolSpec = {
@@ -130,18 +194,34 @@ const REQUEST_TOOL: ToolSpec = {
     "Asks for a compaction at the end of this turn: once the main thread's turn ends and no " +
     "other starts within a few seconds, runs /compact with these instructions. One request " +
     "waits at a time, and a second replaces it. Refused from a subagent, below the request " +
-    "floor, or while the context is not measured.",
+    "floor, or while the context is not measured. Its reasoning is kept across sessions.",
   inputSchema: {
     type: "object",
-    properties: { instructions: INSTRUCTIONS },
-    required: ["instructions"],
+    properties: { instructions: INSTRUCTIONS, reasoning: REASONING },
+    required: ["instructions", "reasoning"],
     additionalProperties: false,
   },
 };
 
 /** One registration's state; `turns` counts the main turns begun. */
+/** One request as the thread made it: what the summary must keep, and why now. */
+export type Request = { readonly instructions: string; readonly reasoning: string };
+
+/** One request as the store keeps it: what was asked, where, and what became of it. */
+export type Entry = Request & {
+  readonly at: number;
+  readonly outcome: "recorded" | "refused" | "ran" | "dropped" | "failed";
+  readonly tokens: number | null;
+  readonly window: number;
+  readonly goalTokens: number;
+  readonly floorTokens: number;
+  readonly prepareTokens: number;
+  readonly autoAt: number | null;
+  readonly why?: string;
+};
+
 type Fields = {
-  readonly pending: string | null;
+  readonly pending: Request | null;
   readonly timer: Timer | null;
   readonly turns: number;
   readonly last: string;
@@ -160,73 +240,142 @@ function store(): Store {
 }
 
 const reason = (error: unknown): string => (error instanceof Error ? error.message : String(error));
-const answer = (text: string) => ({ result: text });
-const FLOOR = `the request floor (${tokens(POINTS.floorTokens)})`;
 
-function placed(count: number, compactAt: number | undefined): string {
+/** Appends one entry, dropping the oldest past LOG_LIMIT; a store that refuses is let go. */
+async function log($: Engine, entry: Entry): Promise<void> {
+  try {
+    const kept = await $.store.get(LOG_KEY);
+    const entries = Array.isArray(kept) ? (kept as readonly Entry[]) : [];
+    await $.store.set(LOG_KEY, [...entries, entry].slice(-LOG_LIMIT));
+  } catch {
+    // The reading is worth less than the compaction it describes.
+  }
+}
+
+/** One entry, the points and the context it was judged against stamped on it. */
+async function entry(
+  $: Engine,
+  p: Points,
+  request: Request,
+  outcome: Entry["outcome"],
+  context: ContextUsage,
+  why?: string,
+): Promise<Entry> {
+  return {
+    ...request,
+    at: await $.clock.now(),
+    outcome,
+    tokens: context.tokens ?? null,
+    window: context.window,
+    goalTokens: p.goalTokens,
+    floorTokens: p.floorTokens,
+    prepareTokens: p.prepareTokens,
+    autoAt: context.breakdown?.autoCompactThreshold ?? null,
+    ...(why === undefined ? {} : { why }),
+  };
+}
+const answer = (text: string) => ({ result: text });
+const floor = (p: Points): string => `the request floor (${tokens(p.floorTokens)})`;
+
+function placed(p: Points, count: number, compactAt: number | undefined): string {
   if (compactAt !== undefined && count >= compactAt) return "past the automatic compaction point.";
-  if (count >= POINTS.prepareTokens) return "past the prepare point.";
-  if (count >= POINTS.floorTokens) return "past the request floor, below the prepare point.";
+  if (count >= p.prepareTokens) return "past the prepare point.";
+  if (count >= p.floorTokens) return "past the request floor, below the prepare point.";
   return "below the request floor, so a request is refused.";
 }
 
-function contextLines(context: ContextUsage): string[] {
+/**
+ * What to say when the engine compacts somewhere else than the goal implies: the mod reports
+ * the engine's point and never moves it, and `autoCompactWindow` is where that one is set.
+ */
+function settingLine(p: Points, at: number): string {
+  return (
+    `Note: the engine compacts at ${tokens(at)}, not the ${tokens(backstop(p))} this goal ` +
+    "implies. Only the `autoCompactWindow` setting moves that one; set it to " +
+    `${tokens(p.goalTokens)} to line them up, or set the goal to ${tokens(at + BACKSTOP_TOKENS)}.`
+  );
+}
+
+function contextLines(p: Points, context: ContextUsage): string[] {
   const at = context.breakdown?.autoCompactThreshold;
   const auto =
     at === undefined ? "off, or not reported" : `at ${tokens(at)} (the engine's threshold)`;
-  const points =
-    `Points: requests from ${tokens(POINTS.floorTokens)}; the Stop hook's prepare step at ` +
-    `${tokens(POINTS.prepareTokens)} (COMPACTION); automatic compaction ${auto}.`;
+  const line =
+    `Points: a goal of ${tokens(p.goalTokens)}; requests from ${tokens(p.floorTokens)}; the ` +
+    `prepare point at ${tokens(p.prepareTokens)}; automatic compaction ${auto}.`;
+  const drift = at === undefined || Math.abs(at - backstop(p)) <= 10_000 ? [] : [settingLine(p, at)];
   if (context.tokens === undefined) {
     const unmeasured = "Context: not measured since the session started or last compacted";
     return [
       `${unmeasured} (the next response measures it); the window is ${tokens(context.window)} tokens.`,
-      points,
+      line,
+      ...drift,
     ];
   }
   const percent = context.percent === undefined ? "" : ` (${String(context.percent)}%)`;
   const window = `${tokens(context.window)}-token window${percent}`;
   return [
     `Context: ${tokens(context.tokens)} tokens of a ${window}.`,
-    points,
-    `So: ${placed(context.tokens, at)}`,
+    line,
+    ...drift,
+    `So: ${placed(p, context.tokens, at)}`,
   ];
 }
 
-async function contextAnswer($: Engine, state: Store) {
+async function contextAnswer($: Engine, p: Points, state: Store) {
   const { context } = await $.session.usage({ breakdown: "summary" });
   const { pending, last } = state.read();
-  const waiting = pending === null ? "none." : `"${pending}", to run once the main turn ends.`;
-  const lines = [...contextLines(context), `Pending request: ${waiting}`];
+  const waiting =
+    pending === null ? "none." : `"${pending.instructions}", to run once the main turn ends.`;
+  const lines = [...contextLines(p, context), `Pending request: ${waiting}`];
   return answer([...lines, `Last request: ${last}`].join("\n"));
 }
 
-/** Why a request is refused, or null: a subagent, bad instructions, or a context below the floor. */
-async function refusal($: Engine, e: Input<"tool.call">, instructions: string | null) {
+/** Why a request is refused, or null: a subagent, a bad text, or a context below the floor. */
+async function refusal($: Engine, p: Points, e: Input<"tool.call">, request: Request | null) {
   if (e.agentId !== undefined) {
     return `only the main thread compacts the session, and this call came from a subagent (${e.agentId}).`;
   }
-  if (instructions === null) {
-    return `"instructions" must be text of 1 to ${tokens(MAX_INSTRUCTIONS)} characters naming what the summary must keep.`;
+  if (request === null) {
+    return `"instructions" must be text of 1 to ${tokens(MAX_INSTRUCTIONS)} characters naming what the summary must keep, and "reasoning" text of 1 to ${tokens(MAX_REASONING)} characters saying why compact now.`;
   }
   const { context } = await $.session.usage();
   if (context.tokens === undefined) {
     return "the context has not been measured since the session started or last compacted, so a compaction now would free nothing.";
   }
-  return context.tokens < POINTS.floorTokens
-    ? `the context is ${tokens(context.tokens)} tokens, below ${FLOOR}; a compaction this early frees too little for its cost.`
+  return context.tokens < p.floorTokens
+    ? `the context is ${tokens(context.tokens)} tokens, below ${floor(p)}; a compaction this early frees too little for its cost.`
     : null;
 }
 
-async function requestAnswer($: Engine, e: Input<"tool.call">, state: Store) {
-  const given = e["instructions"];
+/** The text under `field`, trimmed, or null where it is missing or longer than `most`. */
+function text(e: Input<"tool.call">, field: string, most: number): string | null {
+  const given = e[field];
   const trimmed = typeof given === "string" ? given.trim() : "";
-  const instructions = trimmed.length > 0 && trimmed.length <= MAX_INSTRUCTIONS ? trimmed : null;
-  const refused = await refusal($, e, instructions);
-  if (refused !== null || instructions === null) return answer(`Refused: ${refused ?? ""}`);
+  return trimmed.length > 0 && trimmed.length <= most ? trimmed : null;
+}
+
+async function requestAnswer($: Engine, p: Points, e: Input<"tool.call">, state: Store) {
+  const instructions = text(e, "instructions", MAX_INSTRUCTIONS);
+  const reasoning = text(e, "reasoning", MAX_REASONING);
+  const request =
+    instructions === null || reasoning === null ? null : { instructions, reasoning };
+  const refused = await refusal($, p, e, request);
+  if (refused !== null || request === null) {
+    const { context } = await $.session.usage({ breakdown: "summary" });
+    const asked = request ?? {
+      instructions: instructions ?? "",
+      reasoning: reasoning ?? "",
+    };
+    await log($, await entry($, p, asked, "refused", context, refused ?? ""));
+    return answer(`Refused: ${refused ?? ""}`);
+  }
+  const { context } = await $.session.usage({ breakdown: "summary" });
   const { pending } = state.read();
-  const replaced = pending === null ? "" : ` It replaces the pending request: "${pending}".`;
-  state.write({ pending: instructions });
+  const replaced =
+    pending === null ? "" : ` It replaces the pending request: "${pending.instructions}".`;
+  state.write({ pending: request });
+  await log($, await entry($, p, request, "recorded", context));
   return answer(
     `Recorded. The mod runs /compact with these instructions ${String(IDLE_MS / 1000)} s after ` +
       "this main turn ends, unless another turn starts first; automatic compaction stays the " +
@@ -235,47 +384,52 @@ async function requestAnswer($: Engine, e: Input<"tool.call">, state: Store) {
 }
 
 /** Runs the pending request from the timer, unless a main turn began or the context fell. */
-async function runPending($: Engine, state: Store): Promise<void> {
+async function runPending($: Engine, p: Points, state: Store): Promise<void> {
   const begun = state.read().turns;
-  const { context } = await $.session.usage();
+  const { context } = await $.session.usage({ breakdown: "summary" });
   const { pending, turns } = state.read();
   if (pending === null || turns !== begun) return;
   state.write({ pending: null });
-  if (context.tokens === undefined || context.tokens < POINTS.floorTokens) {
+  if (context.tokens === undefined || context.tokens < p.floorTokens) {
     const was =
       context.tokens === undefined
         ? "not measured when it was due; a compaction may have run."
-        : `${tokens(context.tokens)} tokens when it was due, below ${FLOOR}; an automatic compaction may have run.`;
+        : `${tokens(context.tokens)} tokens when it was due, below ${floor(p)}; an automatic compaction may have run.`;
     state.write({ last: `dropped, as the context was ${was}` });
+    await log($, await entry($, p, pending, "dropped", context, was));
     return;
   }
   try {
-    await $.command.run({ command: "compact", args: pending });
+    await $.command.run({ command: "compact", args: pending.instructions });
     state.write({ last: `ran /compact at ${tokens(context.tokens)} tokens.` });
+    await log($, await entry($, p, pending, "ran", context));
   } catch (error: unknown) {
-    state.write({ last: `/compact did not run: ${reason(error)}.` });
+    const why = reason(error);
+    state.write({ last: `/compact did not run: ${why}.` });
+    await log($, await entry($, p, pending, "failed", context, why));
   }
 }
 
 /** The timer's callback, outside every hook, so the command waits on no turn. */
-function fire($: Engine, state: Store): void {
+function fire($: Engine, p: Points, state: Store): void {
   state.write({ timer: null });
-  runPending($, state).catch((error: unknown) => {
+  runPending($, p, state).catch((error: unknown) => {
     const why = `(${reason(error)}); it waits for the next turn's end.`;
     state.write({ last: `the context could not be read when it was due ${why}` });
   });
 }
 
-export function register(on: On): void {
+export function register(on: On, options: Options): void {
   const state = store();
+  const p = points(options);
   on("session.start", async ($, e, next) => {
     const result = await next(e);
     await $.tool.register(CONTEXT_TOOL);
     await $.tool.register(REQUEST_TOOL);
     return result;
   });
-  on("tool.call", { tool: "mcp__compaction__context" }, ($) => contextAnswer($, state));
-  on("tool.call", { tool: "mcp__compaction__request" }, ($, e) => requestAnswer($, e, state));
+  on("tool.call", { tool: "mcp__compaction__context" }, ($) => contextAnswer($, p, state));
+  on("tool.call", { tool: "mcp__compaction__request" }, ($, e) => requestAnswer($, p, e, state));
   on("turn.start", (_, e, next) => {
     if (e.agentId === undefined) {
       const { timer, turns } = state.read();
@@ -289,7 +443,7 @@ export function register(on: On): void {
     const { pending, timer } = state.read();
     if (e.reason === "answer" && pending !== null && timer === null) {
       const fires = () => {
-        fire($, state);
+        fire($, p, state);
       };
       state.write({ timer: $.clock.after(IDLE_MS, fires) });
     }

@@ -1,5 +1,23 @@
 {
   "name": "compaction",
   "version": "0.1.0",
-  "description": "Lets the main thread compact at a moment it chooses, with instructions for the summary; runs only /compact, from a timer after its turn."
+  "description": "Lets the main thread compact at a moment it chooses, with instructions for the summary and its reasoning kept; runs only /compact, from a timer after its turn.",
+  "userConfig": {
+    "goalTokens": {
+      "type": "number",
+      "title": "Context goal (tokens)",
+      "description": "The context this session means to stay under. The request floor and the prepare point derive from it, and the mod says so when the engine's own automatic compaction does not match it (that one follows the autoCompactWindow setting, which this cannot move).",
+      "default": 300000
+    },
+    "floorTokens": {
+      "type": "number",
+      "title": "Request floor (tokens)",
+      "description": "Overrides the derived floor, below which a request is refused: compacting that early frees too little for its cost. Unset: half the goal."
+    },
+    "prepareTokens": {
+      "type": "number",
+      "title": "Prepare point (tokens)",
+      "description": "Overrides the derived prepare point, where the thread should be getting ready to compact. Unset: the goal less the runway a closing turn and the /compact round trip need (80,000)."
+    }
+  }
 }
