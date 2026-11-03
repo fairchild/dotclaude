@@ -26,6 +26,11 @@ directory marketplace named `dotclaude`. `DOTCLAUDE_MODS` on that line narrows t
 `mcp__usage-meter__reading`, `mcp__compaction__context` and `mcp__compaction__request`, and
 `~/.claude/cloud-bootstrap.status` names the mods it installed.
 
+A mod's `version` in its `plugin.json` is what `claude plugin update` compares, not the commit:
+a change that keeps the version reaches the marketplace cache and stops there, and installed
+sessions keep running the old copy. So a change worth installing bumps the version in the
+same commit.
+
 On a machine, install them from this repository's marketplace, as the main README's
 [Install as a plugin marketplace](../README.md#install-as-a-plugin-marketplace) shows:
 
