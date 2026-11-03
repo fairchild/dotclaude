@@ -1,5 +1,7 @@
 # Skill server quality review
 
+> A snapshot from 2026-09-05, kept as history. Current state: [mcp/README.md](../mcp/README.md) and [skill-server-architecture.md](skill-server-architecture.md).
+
 Reviewed 2026-09-05 against PR #270, merged as `81f4189e63edc4d34ac4d463889808782694a3a6`. An independent subagent reviewed the implementation read-only. The primary agent inspected the reported code and independently reproduced the external symlink, null request, oversized UTF-8 request, and unsupported protocol-version cases.
 
 Recommendation: fix the release blockers before publishing this code as a reference package. The store/handler separation is worth keeping. Most required work belongs at the filesystem, HTTP, build, and deployment boundaries.
