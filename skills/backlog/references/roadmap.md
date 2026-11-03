@@ -130,8 +130,8 @@ reliably surfaces the last open thread without prompting.
    maildir layout and exercise the full lifecycle end-to-end.
 
 ## Non-goals
-- Building a workspace orchestrator inside dotclaude. Conductor and cmux
-  handle this; the config layer doesn't need to compete.
+- Building a workspace orchestrator inside dotclaude. Conductor and
+  similar tools handle this; the config layer doesn't need to compete.
 - Real-time multi-user collaboration. Personal config; collaborators
   cherry-pick.
 ```

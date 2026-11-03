@@ -6,8 +6,6 @@ backlog_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 backlog_claimer() {
   if [[ -n "${CONDUCTOR_WORKSPACE_NAME:-}" ]]; then
     echo "conductor:$CONDUCTOR_WORKSPACE_NAME"
-  elif [[ -n "${CMUX_WORKSPACE_ID:-}" ]]; then
-    echo "cmux:$CMUX_WORKSPACE_ID"
   else
     echo "$(whoami)@$(hostname -s)"
   fi

@@ -38,6 +38,7 @@ Prove each new check fails on the real past mistake, recreated in a scratch file
 ## 4. Record
 
 Propose the fixes; apply them in a PR once agreed. Lessons with no code home go where the repo keeps them (the
-backlog item, a decision record, CLAUDE.md); cross-session ones go to memory.
+backlog item, a decision record, CLAUDE.md) or in the session's plan file if it ran from one;
+cross-session ones go to memory.
 
 **Reply:** each class, its evidence, the layer chosen and why a stronger one didn't work.

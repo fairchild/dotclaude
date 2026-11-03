@@ -100,7 +100,6 @@ Claude loads these when the task matches the description.
 |---|---|
 | `/brainstorm-to-brief` | Wide→Narrow design workflow taking UI/UX concepts from exploration to polished design brief. |
 | `/canon-printer` | Check status, ink levels, job queue, cancel stuck jobs, print files and rendered documents, track loaded paper, and… |
-| `/cmux-orchestrator` | Orchestrate the cmux terminal — named layouts (workshop, ops-deck), sidebar dashboarding (status, progress, logs),… |
 | `/codespaces` | Manage GitHub Codespaces lifecycle via gh CLI. |
 | `/excalidraw-diagrams` | Create diagrams and visual artifacts using Excalidraw with real-time canvas preview. |
 | `/fork` | Fork the current session with context carried over. |
@@ -147,7 +146,6 @@ Claude loads these when the task matches the description.
 | `/bootstrap` | Bootstrap a new project with interactive brainstorming and structure generation |
 | `/codex-review` | Run code review via Codex CLI with non-Claude models (GPT-5, o3, Ollama) |
 | `/opensource-precheck` | Audit a private repo before making it public |
-| `/plan_retro` | Append a retrospective section to the current plan file |
 | `/project-health` | Review health of ~/code projects (git status, tests, remote sync) |
 | `/reflect` | Pause to review work with fresh eyes for bugs, missed cases, or simplifications |
 
