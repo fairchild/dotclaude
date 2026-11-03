@@ -6,7 +6,9 @@
 # runtime. DOTCLAUDE_SKILLS, names separated by spaces or commas, narrows the skills to those;
 # DOTCLAUDE_MODS does the same for the mods (mods/README.md), and "none" installs none. The mods
 # register as a directory marketplace named dotclaude, so they load from the first session.
-# DOTCLAUDE_COMPACT_WINDOW and DOTCLAUDE_COMPACT_PCT, when set, decide when sessions auto-compact.
+# DOTCLAUDE_COMPACT_WINDOW and DOTCLAUDE_COMPACT_PCT, when set, decide when sessions auto-compact,
+# and the window is also the compaction mod's goal, so the thread's point and the engine's
+# backstop follow one number.
 # Setup must exit 0, so every outcome lands in the status file instead.
 set -u
 
@@ -154,6 +156,9 @@ merge_settings() {
           else . end
         | if $window != "" then .env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = $window else . end
         | if $pct != "" then .env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = $pct else . end
+        | if $window != "" and ($installed | index("compaction")) and ($window | test("^[0-9]+$"))
+          then .pluginConfigs.compaction.goalTokens = ($window | tonumber)
+          else . end
       ' >"$target.partial" \
     && mv "$target.partial" "$target" \
     || { rm -f "$target.partial"; return 1; }

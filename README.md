@@ -6,6 +6,8 @@ My working `~/.claude/` configuration for Claude Code. Published for reference �
 
 Treating each session as worth remembering. [Chronicle](skills/chronicle/) journals every session and brings the relevant context back at the next one; the rest of the memory work is still evolving.
 
+Giving a session the instruments to manage itself. The two [mods](#mods) below run inside the engine: one answers how much of the account's usage is left, the other lets the thread choose when to compact and say what the summary must keep. Both install in one line.
+
 ## Drawing from This
 
 This config is personal — `CLAUDE.md` holds my preferences and hooks call my Chronicle scripts. To draw from it, cherry-pick rather than clone.
@@ -202,7 +204,56 @@ From a terminal, the same line starts with `claude plugin install`. The first in
 
 ## Mods
 
-[`mods/`](mods/README.md) holds two Claude Code mods, `usage-meter` and `compaction`: what each does, the rules they keep, and when compaction runs. Install them [as above](#install-as-a-plugin-marketplace), or in a cloud environment through the [Cloud sessions](#cloud-sessions) setup line.
+A mod is a plugin whose hooks module runs inside the engine, so it can answer tools of its own and act between turns. These two observe and answer; neither makes a network, process or file-system call. [`mods/`](mods/README.md) has the full rules.
+
+```
+/plugin install usage-meter --marketplace fairchild/dotclaude
+/plugin install compaction --marketplace fairchild/dotclaude
+```
+
+From a terminal, `claude plugin install` instead of `/plugin install`. The first one adds the marketplace; both load in the session that installs them and in every session after.
+
+In a setup script — a cloud agent's, a devcontainer's, any image built before Claude Code is signed in — there is no CLI to call, so write the two mods and the settings keys directly. Needs `curl`, `tar` and `python3`; no root, no authentication:
+
+```bash
+root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"; tmp="$(mktemp -d)"
+curl -fsSL --retry 2 https://github.com/fairchild/dotclaude/archive/refs/heads/main.tar.gz | tar -xz -C "$tmp"
+mkdir -p "$root/mods/.claude-plugin"
+cp -R "$tmp"/*/mods/compaction "$tmp"/*/mods/usage-meter "$root/mods/"; rm -rf "$tmp"
+printf '%s' '{"name":"dotclaude","owner":{"name":"Michael Fairchild"},"plugins":[{"name":"usage-meter","source":"./usage-meter"},{"name":"compaction","source":"./compaction"}]}' \
+  > "$root/mods/.claude-plugin/marketplace.json"
+python3 - "$root" <<'EOF'
+import json, pathlib, sys
+p = pathlib.Path(sys.argv[1], "settings.json")
+s = json.loads(p.read_text()) if p.exists() else {}
+s.setdefault("extraKnownMarketplaces", {})["dotclaude"] = {
+    "source": {"source": "directory", "path": str(pathlib.Path(sys.argv[1], "mods"))}}
+s.setdefault("enabledPlugins", {}).update(
+    {"usage-meter@dotclaude": True, "compaction@dotclaude": True})
+p.parent.mkdir(parents=True, exist_ok=True)
+p.write_text(json.dumps(s, indent=2) + "\n")
+EOF
+```
+
+The mods become a directory marketplace named `dotclaude`, so their plugin IDs match a machine that installed them from GitHub, and they load from the first session. It merges into an existing `settings.json` rather than replacing it, and rerunning it changes nothing. For a whole cloud environment rather than the mods alone, [Cloud sessions](#cloud-sessions) is the one line that carries skills and settings too.
+
+| Mod | Tool | What you get |
+|-----|------|--------------|
+| `usage-meter` | `mcp__usage-meter__reading` | The account's five-hour and seven-day windows: how much is used and when each resets. Ask "how much usage is left?" |
+| `compaction` | `mcp__compaction__context` | Where the session sits against its context goal, the request floor and the prepare point. Ask "how's my context?" |
+| | `mcp__compaction__request` | Records a `/compact` with instructions for the summary and the reasoning for compacting now; the mod runs it once the turn ends. Say "compact when this turn is done, keeping the merge order" |
+
+The point of `request` over plain `/compact`: the engine's automatic compaction takes no instructions, so it decides for itself what survives. A thread that asks gets to say what must not be lost. Each request is kept, reasoning included, so the points can be judged against the moments they were asked for.
+
+**One number to set.** `goalTokens` is the context a session means to stay under — 300,000 unless you change it, from which the request floor (half) and the prepare point (the goal less 80,000 of runway) follow:
+
+```bash
+claude plugin configure compaction   # or /config in a session
+```
+
+The engine's own compaction is separate and stays the engine's: it fires at `min((W - 20000) * P / 100, W - 33000)`, with `W` from the `autoCompactWindow` setting. At `W = 300000` that is 267k, which is why a 300k goal and that setting belong at the same number — the goal is when the thread compacts on purpose, and the engine's point is the backstop that compacts without instructions. The mod can't move it, so it reports the gap when the two disagree.
+
+In a cloud environment the [Cloud sessions](#cloud-sessions) setup line installs both mods and sets the goal and the window together.
 
 ## Development
 
@@ -239,7 +290,7 @@ Variables before `bash`, each optional:
 |----------|--------|
 | `DOTCLAUDE_SKILLS` | Only these skills, separated by spaces or commas. A name it can't install, misspelled or `machine-bound`, is listed in the status line. |
 | `DOTCLAUDE_MODS` | Only these mods; `none` installs none. Unset, both install and load from the first session. |
-| `DOTCLAUDE_COMPACT_WINDOW`, `DOTCLAUDE_COMPACT_PCT` | When sessions auto-compact (`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`); `300000` and `100` compact at 267k. Unset, the platform's default stands. |
+| `DOTCLAUDE_COMPACT_WINDOW`, `DOTCLAUDE_COMPACT_PCT` | When sessions auto-compact (`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`); `300000` and `100` compact at 267k. The window is also the compaction mod's `goalTokens`, so its prepare point lands 47k before that backstop. Unset, the platform's default stands and the mod keeps its own 300,000 goal. |
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fairchild/dotclaude/main/scripts/cloud-bootstrap.sh | DOTCLAUDE_SKILLS="tight-docs fable-session" DOTCLAUDE_COMPACT_WINDOW=300000 DOTCLAUDE_COMPACT_PCT=100 bash

@@ -12,7 +12,8 @@ orchestrator runs on Opus 5.5 at `xhigh` effort unless the brief names another.
 ## Roles
 
 The orchestrator holds the arc and checks coherence across pieces. It delegates the
-implementation rather than doing it, keeping its own context under ~200k.
+implementation rather than doing it, keeping its own context inside the goal the
+`compaction` mod reports rather than a number carried here (Context, below).
 
 Delegation mechanism, by phrasing:
 
@@ -55,10 +56,27 @@ beside the work, and carry on.
 
 ## Context
 
-Before the session nears its limit, write a local, untracked resume file: the
-agents running and what each is doing, decisions not yet recorded, blockers, and
-what must survive. After a compaction or a handoff, rebuild state from live reads
-of branches, pull requests and checks; the resume file is a guide to them.
+The `compaction` mod holds the context goal, so this skill names no number of its
+own: `mcp__compaction__context` reports where the session sits against the goal,
+the request floor and the prepare point, and `/config` moves the goal for every
+session that loads the mod. The orchestrator reads it rather than guessing, since
+a goal in two places drifts.
+
+At the prepare point, write a local, untracked resume file — the agents running and
+what each is doing, decisions not yet recorded, blockers, and what must survive —
+and then call `mcp__compaction__request` with what the summary must keep and why
+compacting now beats carrying on. The mod runs `/compact` once the turn ends. The
+engine's own compaction is the backstop and takes no instructions, so a summary
+that matters is one the thread asked for. After a compaction or a handoff, rebuild
+state from live reads of branches, pull requests and checks; the resume file is a
+guide to them.
+
+Before taking on a long arc, `mcp__usage-meter__reading` says what is left of the
+account's five-hour and seven-day windows. That is the other budget: the context
+goal decides when to compact, the windows decide whether to start.
+
+Without the mods, the orchestrator keeps the arc and delegates the diffs, and
+writes the resume file on its own judgement of the session's length.
 
 ## Done
 
