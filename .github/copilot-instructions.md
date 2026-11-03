@@ -15,6 +15,11 @@ Start every review with:
 - **2/5** - Significant concerns to fix.
 - **1/5** - Blocking issues.
 
+Mark every finding `blocking`, `deferrable` or `nit`, as the `review-pr` skill does. Blocking is
+broken behavior, a security gap the PR introduces, a contract violation, a test that can't fail for
+its claim, or a doc claim that misleads. Any blocking finding means 3/5 or lower; none means 4/5 or
+higher.
+
 ## Collapsible Details
 
 For explanations, use foldable sections:
@@ -44,7 +49,7 @@ Extended explanation...
 
 ## Inline Style
 
-Terse labels: `Bug:`, `Perf:`, `Security:` — not "I think it might be beneficial..."
+Severity first, then a terse kind: `blocking: Bug:`, `deferrable: Perf:`, `nit:` — not "I think it might be beneficial..."
 
 ## Line-Level Comments
 
