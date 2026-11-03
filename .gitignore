@@ -157,6 +157,9 @@ skills/x-ai-feed
 # maildir-shared backend — in-flight dir lives in git-common-dir
 backlog/doing
 
+# Local mod development area
+/dev-mods/
+
 # Deploy hook log (runtime audit trail, not source)
 /deploy.log
 /deploy.log.1
