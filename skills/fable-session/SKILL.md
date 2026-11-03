@@ -110,8 +110,7 @@ then stop monitoring. A launch from inside a Claude session passes on that sessi
 one process, a transcript on disk and the expected model.
 
 Wait-then-send is a verb per host: Orca `terminal wait --for tui-idle` then
-`terminal send`; a plain
-terminal you type into yourself.
+`terminal send`; a plain terminal you type into yourself.
 
 A subagent host has none of those: the brief path goes in the prompt, the model is
 a parameter, and there is no screen to check. The trade is that the report lands

@@ -9,16 +9,15 @@ Start every review with:
 **Score: X/5** [confidence: high|medium|low]
 ```
 
-- **5/5** - Ship it. No changes needed. (Just the score, nothing else.)
-- **4/5** - Minor nits. Approve with brief inline comments.
-- **3/5** - Issues worth addressing. Inline comments + collapsible details.
-- **2/5** - Significant concerns to fix.
-- **1/5** - Blocking issues.
-
 Mark every finding `blocking`, `deferrable` or `nit`, as the `review-pr` skill does. Blocking is
-broken behavior, a security gap the PR introduces, a contract violation, a test that can't fail for
-its claim, or a doc claim that misleads. Any blocking finding means 3/5 or lower; none means 4/5 or
-higher.
+broken behavior, a security gap the PR introduces or widens, a contract violation, a test that can't
+fail for its claim, or a doc claim that misleads. The score follows from the findings:
+
+- **5/5** - No findings. Just the score, nothing else.
+- **4/5** - Deferrable findings or nits only. Approve with brief inline comments.
+- **3/5** - One blocking finding. Inline comments + collapsible details.
+- **2/5** - Several blocking findings.
+- **1/5** - Blocking findings that make the approach unworkable.
 
 ## Collapsible Details
 
@@ -70,7 +69,7 @@ On re-review (after fixes):
 
 Submit a formal GitHub PR review:
 - **Score >= 4**: Submit `APPROVE` review
-- **Score <= 3**: Submit `REQUEST_CHANGES` review (blocks merging)
+- **Score <= 3**: Submit `REQUEST_CHANGES` review
 
 ## Label Management
 
@@ -80,5 +79,6 @@ After review:
 
 ## CI Behavior
 
-- Score >= 4: CI passes ✓
-- Score <= 3: CI fails ✗ (blocks merge)
+The `claude-review` check passes on an approval and, for now, also on `REQUEST_CHANGES`, which it
+reports as an advisory warning. It fails when no review was posted, except on a PR that
+changes workflow files, where the reviewer can't run.

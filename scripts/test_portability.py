@@ -23,7 +23,7 @@ import portability  # noqa: E402
 SKILLS = frozenset({"agent-inbox", "chronicle", "wake-adapter", "session-titles"})
 ADAPTER_SCRIPTS = ("wake-adapter", "skills/wake-adapter/scripts")
 
-# A wake-parent.sh that shipped in this repo (80c3c23, lines 15-18): a
+# skills/cmux-orchestrator/scripts/wake-parent.sh at 80c3c23, lines 15-18 (since removed): a
 # hard dependency on a sibling skill that `--check` reported as clean.
 WAKE_PARENT_HEAD = """script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # The inbox skill is installed beside this adapter skill.
