@@ -158,6 +158,28 @@ test('a request with no reasoning is refused, and the refusal is kept too', asyn
   expect(entries[0]).toMatchObject({ outcome: 'refused', autoAt: 267_000, tokens: 240_000 })
 })
 
+test('a clock that throws costs the reading, never the request', async ($, on) => {
+  kept(on)
+  on('clock.now', () => {
+    throw new Error('no clock')
+  })
+  on('session.usage', () => ({ value: usage(240_000, 267_000) }))
+  on('tool.register', (_, e) => ({ value: { tool: e.name } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const answered = await $.tool.call({
+    tool: 'mcp__compaction__request',
+    instructions: 'keep the merge order',
+    reasoning: 'the clock is beside the point',
+  })
+
+  expect(String(answered.result)).toContain('Recorded.')
+
+  const text = String((await $.tool.call({ tool: 'mcp__compaction__context' })).result)
+  expect(text).toContain('Pending request: "keep the merge order"')
+})
+
 test('a request below the floor is refused, the floor named as the goal implies it', async ($, on) => {
   mock.store(on)
   mock.clock(on)

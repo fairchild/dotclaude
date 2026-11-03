@@ -203,7 +203,6 @@ const REQUEST_TOOL: ToolSpec = {
   },
 };
 
-/** One registration's state; `turns` counts the main turns begun. */
 /** One request as the thread made it: what the summary must keep, and why now. */
 export type Request = { readonly instructions: string; readonly reasoning: string };
 
@@ -220,6 +219,7 @@ export type Entry = Request & {
   readonly why?: string;
 };
 
+/** One registration's state; `turns` counts the main turns begun. */
 type Fields = {
   readonly pending: Request | null;
   readonly timer: Timer | null;
@@ -241,38 +241,41 @@ function store(): Store {
 
 const reason = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
-/** Appends one entry, dropping the oldest past LOG_LIMIT; a store that refuses is let go. */
-async function log($: Engine, entry: Entry): Promise<void> {
-  try {
-    const kept = await $.store.get(LOG_KEY);
-    const entries = Array.isArray(kept) ? (kept as readonly Entry[]) : [];
-    await $.store.set(LOG_KEY, [...entries, entry].slice(-LOG_LIMIT));
-  } catch {
-    // The reading is worth less than the compaction it describes.
-  }
-}
-
-/** One entry, the points and the context it was judged against stamped on it. */
-async function entry(
+/**
+ * Appends one request, the points and the context it was judged against stamped on it: the
+ * newest LOG_LIMIT, the oldest dropped.
+ *
+ * Every call the reading needs sits inside the guard, the clock's among them. A caller has
+ * already taken the request out of the state by the time it logs, so a throw escaping here
+ * would lose that request and leave the timer's catch reporting a wait that is not coming.
+ */
+async function log(
   $: Engine,
   p: Points,
   request: Request,
   outcome: Entry["outcome"],
   context: ContextUsage,
   why?: string,
-): Promise<Entry> {
-  return {
-    ...request,
-    at: await $.clock.now(),
-    outcome,
-    tokens: context.tokens ?? null,
-    window: context.window,
-    goalTokens: p.goalTokens,
-    floorTokens: p.floorTokens,
-    prepareTokens: p.prepareTokens,
-    autoAt: context.breakdown?.autoCompactThreshold ?? null,
-    ...(why === undefined ? {} : { why }),
-  };
+): Promise<void> {
+  try {
+    const entry: Entry = {
+      ...request,
+      at: await $.clock.now(),
+      outcome,
+      tokens: context.tokens ?? null,
+      window: context.window,
+      goalTokens: p.goalTokens,
+      floorTokens: p.floorTokens,
+      prepareTokens: p.prepareTokens,
+      autoAt: context.breakdown?.autoCompactThreshold ?? null,
+      ...(why === undefined ? {} : { why }),
+    };
+    const kept = await $.store.get(LOG_KEY);
+    const entries = Array.isArray(kept) ? (kept as readonly Entry[]) : [];
+    await $.store.set(LOG_KEY, [...entries, entry].slice(-LOG_LIMIT));
+  } catch {
+    // The reading is worth less than the compaction it describes.
+  }
 }
 const answer = (text: string) => ({ result: text });
 const floor = (p: Points): string => `the request floor (${tokens(p.floorTokens)})`;
@@ -367,7 +370,7 @@ async function requestAnswer($: Engine, p: Points, e: Input<"tool.call">, state:
       instructions: instructions ?? "",
       reasoning: reasoning ?? "",
     };
-    await log($, await entry($, p, asked, "refused", context, refused ?? ""));
+    await log($, p, asked, "refused", context, refused ?? "");
     return answer(`Refused: ${refused ?? ""}`);
   }
   const { context } = await $.session.usage({ breakdown: "summary" });
@@ -375,7 +378,7 @@ async function requestAnswer($: Engine, p: Points, e: Input<"tool.call">, state:
   const replaced =
     pending === null ? "" : ` It replaces the pending request: "${pending.instructions}".`;
   state.write({ pending: request });
-  await log($, await entry($, p, request, "recorded", context));
+  await log($, p, request, "recorded", context);
   return answer(
     `Recorded. The mod runs /compact with these instructions ${String(IDLE_MS / 1000)} s after ` +
       "this main turn ends, unless another turn starts first; automatic compaction stays the " +
@@ -396,17 +399,17 @@ async function runPending($: Engine, p: Points, state: Store): Promise<void> {
         ? "not measured when it was due; a compaction may have run."
         : `${tokens(context.tokens)} tokens when it was due, below ${floor(p)}; an automatic compaction may have run.`;
     state.write({ last: `dropped, as the context was ${was}` });
-    await log($, await entry($, p, pending, "dropped", context, was));
+    await log($, p, pending, "dropped", context, was);
     return;
   }
   try {
     await $.command.run({ command: "compact", args: pending.instructions });
     state.write({ last: `ran /compact at ${tokens(context.tokens)} tokens.` });
-    await log($, await entry($, p, pending, "ran", context));
+    await log($, p, pending, "ran", context);
   } catch (error: unknown) {
     const why = reason(error);
     state.write({ last: `/compact did not run: ${why}.` });
-    await log($, await entry($, p, pending, "failed", context, why));
+    await log($, p, pending, "failed", context, why);
   }
 }
 
