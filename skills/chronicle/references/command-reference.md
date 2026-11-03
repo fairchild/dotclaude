@@ -678,7 +678,7 @@ Opens browser to http://localhost:3456
 ./skills/chronicle/tests/run_tests.sh
 ```
 
-For detailed development workflow, see **[docs/development.md](docs/development.md)**.
+For detailed development workflow, see **[docs/development.md](../docs/development.md)**.
 
 ---
 
