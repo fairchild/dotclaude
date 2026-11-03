@@ -10,3 +10,5 @@ agent-map
 irc
 unslop
 workspaces-orchestrator
+rex
+session-strip
