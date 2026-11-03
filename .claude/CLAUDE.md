@@ -59,71 +59,20 @@ bunx playwright test -c webui/           # E2E
 
 ## PR Reviews
 
-See `.github/copilot-instructions.md` for code review style (shared with Copilot).
+Review with `/review-pr`; drive your own PR to merge-ready with `pr-closeout`. The review bot follows `.github/copilot-instructions.md`, which uses the same blocking / deferrable / nit marks.
 
-## Development Architecture
+## Development
 
-Two independent clones of this repo, both on `main`:
+Two independent clones, both on `main`: `~/code/dotclaude` for development (branches, PRs) and
+`~/.claude` as the deploy target Claude Code reads. A `SessionStart` hook runs
+`~/.claude/scripts/deploy.sh`, which removes dev symlinks and fast-forwards to `origin/main`.
+[docs/development.md](../docs/development.md) has the full workflow.
 
-| Path | Branch | Role |
-|------|--------|------|
-| `~/code/dotclaude` | `main` + feature branches | **Development** — branches, PRs |
-| `~/.claude` | `main` | **Deploy target** — Claude Code reads this |
-
-### After Merging a PR
-
-```bash
-~/.claude/scripts/deploy.sh
-```
-
-The deploy script removes dev symlinks and fast-forwards `~/.claude` to `origin/main`. A `SessionStart` hook runs this automatically.
-
-### Developing Skills
-
-```bash
-# 1. Feature branch in dev repo
-git -C ~/code/dotclaude checkout -b feat/my-skill main
-mkdir -p ~/code/dotclaude/skills/my-skill
-
-# 2. Symlink into runtime for live testing
-ln -s ~/code/dotclaude/skills/my-skill ~/.claude/skills/my-skill
-
-# 3. Develop, test, commit, push, PR, merge
-
-# 4. Deploy (removes symlink, pulls new code)
-~/.claude/scripts/deploy.sh
-```
-
-### Runtime Config Changes
-
-`settings.json` is **not tracked**. It is the live runtime file: Claude Code writes to it
-(`/model`, `/config`), other apps rewrite their own hooks in it, and it is the only
-place an `autoMode.environment` description of this machine's infrastructure can live — the
-classifier reads `autoMode` from user or managed settings, never from a repository. Keeping
-that out of a public repo is why the file is gitignored; it also keeps app drift out of the
-tree, so `deploy.sh` can fast-forward.
-
-`settings.example.json` is the shareable shape: this repo's own hooks, permissions, plugins,
-and defaults, with machine-specific forwarders and the environment block removed. Change it
-when the shape changes, through a PR like any other file.
-
-Never `cp ~/.claude/settings.json` into this repo. To seed a new machine, copy the example the
-other way and fill it in:
-
-```bash
-cp ~/code/dotclaude/settings.example.json ~/.claude/settings.json
-```
-
-Everything else (new skills, workflow changes, doc updates) goes through feature branches and
-PRs in `~/code/dotclaude` the same way.
-
-### Key Rules
-
-- **All development happens in `~/code/dotclaude`** — feature branches, PRs, code review
-- **`~/.claude` is deploy-only** — read and fast-forward only; never commit there. `settings.json` is gitignored; change `settings.example.json` when the shareable shape changes
-- **Symlink direction**: `~/.claude/skills/<name>` → `~/code/dotclaude/skills/<name>`
-- **Ecosystem installs**: `npx skills add <repo>` places content at `~/.agents/skills/<name>/`, symlinked into `~/.claude/skills/<name>`. Provenance (origin URL, commit hash, install timestamps) is tracked by the CLI in `~/.agents/.skill-lock.json`. This repo does not vendor third-party skill content; the lockfile is the source of truth.
-- **Full workflow docs**: `skills/dotclaude-config/references/development-workflow.md`
+- **All development happens in `~/code/dotclaude`**: feature branches, PRs, code review.
+- **`~/.claude` is deploy-only**: read and fast-forward, never commit there.
+- **Live-test a skill** by symlinking `~/.claude/skills/<name>` → `~/code/dotclaude/skills/<name>`; deploy removes the link.
+- **`settings.json` is not tracked.** It is the live runtime file, and the only place an `autoMode.environment` description of this machine can live. Never copy it into this repo; change `settings.example.json`, the shareable shape, through a PR.
+- **Ecosystem installs**: `npx skills add <repo>` places content in `~/.agents/skills/<name>/`, linked into `~/.claude/skills/` per `dotagents.toml`. This repo doesn't vendor third-party skill content; `~/.agents/.skill-lock.json` holds provenance.
 
 ## Agent skills
 
@@ -131,7 +80,7 @@ Per-repo configuration for the engineering skills (`to-issues`, `triage`, `to-pr
 
 ### Issue tracker
 
-Work lives as markdown files under `backlog/{todo,doing,done,failed}/` via the `backlog` skill — not GitHub Issues. State is directory location; the strategic layer is `backlog/ROADMAP.md`. See `docs/agents/issue-tracker.md`.
+Work lives as markdown files under `backlog/{inbox,todo,doing,done,failed}/` via the `backlog` skill — not GitHub Issues. State is directory location; the strategic layer is `backlog/ROADMAP.md`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

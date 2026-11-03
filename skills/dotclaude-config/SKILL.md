@@ -194,14 +194,14 @@ When the current directory IS `~/.claude`: <!-- portability: allow -->
 
 ```bash
 # Verify: the global config dir should be a standalone clone, NOT a worktree
-[ -d ~/.claude/.git ] && echo "STANDALONE (correct)" || echo "WORKTREE — see development-workflow.md to migrate"  # portability: allow
+[ -d ~/.claude/.git ] && echo "STANDALONE (correct)" || echo "NOT A STANDALONE CLONE — see references/development-workflow.md"  # portability: allow
 ```
 
 - **`~/code/dotclaude`** — feature branches, PRs, all development
 - **`~/.claude`** — always on `main`, updated by SessionStart hook (`scripts/deploy.sh`) <!-- portability: allow -->
 - Runtime config changes stay in `~/.claude/settings.json` — it is gitignored; `settings.example.json` is the tracked shape and changes by PR <!-- portability: allow -->
 
-See [references/development-workflow.md](references/development-workflow.md) for setup, symlink workflow, and migration from worktree.
+See [references/development-workflow.md](references/development-workflow.md) for the pattern and why, and [docs/development.md](https://github.com/fairchild/dotclaude/blob/main/docs/development.md) for the full workflow: setup, deploy, the skill symlink flow, and recovery.
 
 ## Detailed Documentation
 

@@ -4,17 +4,11 @@ My working `~/.claude/` configuration for Claude Code. Published for reference �
 
 ## What I'm Exploring
 
-Sessions are ephemeral but work is not. Much of this config is dedicated to an ongoing experiment: what happens when you treat each session as worth remembering?
-
-**Chronicle** keeps a persistent journal of each session. A hook extracts a memory block at session end (what was accomplished, what's pending, key decisions). At session start, another hook injects relevant context: recent work in this project, pending items, stale threads. Over time: `/chronicle curate` to organize, `/chronicle insights` for cross-session patterns, `/chronicle publish` for digests.
-
-Supporting pieces: a stop hook names each session from its content; analyze-usage runs DuckDB across Claude Code and Cursor logs; recall/remember agents persist memory across sessions; `/fork` carries context into a new worktree or session.
-
-Much of this config observes work rather than does it. The memory system is where the config is still evolving.
+Treating each session as worth remembering. [Chronicle](skills/chronicle/) journals every session and brings the relevant context back at the next one; the rest of the memory work is still evolving.
 
 ## Drawing from This
 
-This config is personal — `CLAUDE.md` has my name, hooks call my Chronicle scripts, the MCP server needs my API key. To draw from it, cherry-pick rather than clone.
+This config is personal — `CLAUDE.md` holds my preferences and hooks call my Chronicle scripts. To draw from it, cherry-pick rather than clone.
 
 **Copy directly** (self-contained):
 - `settings.example.json` permissions pattern (allow/ask/deny tiers)
@@ -23,13 +17,12 @@ This config is personal — `CLAUDE.md` has my name, hooks call my Chronicle scr
 **Customize first:**
 - `CLAUDE.md` — personal identity and tool preferences
 - `settings.example.json` hooks — these call Chronicle scripts; remove or replace with your own session lifecycle
-- `.mcp.json` — requires `PERPLEXITY_API_KEY` environment variable
 
 **Prerequisites for the full config:**
 - `bun` — hooks and scripts are TypeScript
 - `jq` — statusline payload parsing
 - `git` — core operations
-- Optional: `uv` (Python), `mise` (runtimes), Perplexity API key
+- Optional: `uv` (Python), `mise` (runtimes)
 
 Project-level `.claude/` directories override global settings. See Claude Code docs for the merge behavior.
 
@@ -48,7 +41,9 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 ├── dotagents.toml     # Manifest of ecosystem skills linked from ~/.agents
 ├── backlog/           # Markdown issue tracker (todo/doing/done) + ROADMAP.md
 ├── chronicle/         # Chronicle session memory
-├── managed-agents/    # Self-hosted execution environments for managed agents
+├── mods/              # Claude Code mods (usage-meter, compaction)
+├── mcp/               # Skill server: serves these skills over MCP
+├── .claude-plugin/    # Plugin marketplace manifest
 ├── webui/             # Config Visualizer dashboard
 ├── docs/              # Agent-skill config and development notes
 ├── blog/              # Writing about this config
@@ -57,12 +52,13 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 
 ## Quick Reference
 
-Every first-party skill sits in one of three tiers, declared in its `SKILL.md` frontmatter and rendered here by `mise run catalog` (CI fails when this block drifts from the frontmatter):
+Every first-party skill sits in one of four tiers, declared in its `SKILL.md` frontmatter and rendered here by `mise run catalog` (CI fails when this block drifts from the frontmatter):
 
 | Tier | Declared by | Meaning |
 |------|-------------|---------|
 | stable | no `metadata.status` | Has an eval or sustained use; safe to auto-invoke |
 | experimental | `metadata.status: experimental` + `experimental_reason` | Usable, with a stated reason it hasn't graduated |
+| superseded | `metadata.status: superseded` + `superseded_reason` | Replaced by something else; kept and reachable as `/name` |
 | local | listed in `skills/.gitignore` | Lives in `~/.claude` only; never published |
 
 Ecosystem skills (installed by `npx skills` from other repos) are symlinked in from `~/.agents/skills/` per [`dotagents.toml`](dotagents.toml) and aren't listed here.
@@ -164,14 +160,6 @@ Claude loads these when the task matches the description.
 | `vocal-listener` | Background listener that records speech, transcribes it, and sends transcripts to the main session. |
 <!-- catalog:end -->
 
-### MCP Servers
-
-Configured in [`.mcp.json`](https://code.claude.com/docs/en/mcp) (merges with project-level configs):
-
-| Server | Purpose |
-|--------|---------|
-| [perplexity-mcp](https://github.com/Alcova-AI/perplexity-mcp) | Web search and reasoning via Perplexity API |
-
 ## Install via Skills
 
 ```bash
@@ -218,7 +206,7 @@ From a terminal, the same line starts with `claude plugin install`. The first in
 
 ## Development
 
-`~/.claude` is an independent git clone on `main`. A `SessionStart` hook runs `scripts/deploy.sh` to sync from `origin/main` on every session start, so merged PRs are live immediately. Development happens in `~/code/dotclaude` on feature branches. See [skills/dotclaude-config/references/development-workflow.md](skills/dotclaude-config/references/development-workflow.md) for the full architecture, sync workflow, and skill development process.
+`~/.claude` is an independent git clone on `main`. A `SessionStart` hook runs `scripts/deploy.sh` to sync from `origin/main` on every session start, so merged PRs are live immediately. Development happens in `~/code/dotclaude` on feature branches. [docs/development.md](docs/development.md) has the full workflow: the two clones, deploy, and developing a skill.
 
 ### Source/runtime participant contract
 
@@ -261,6 +249,8 @@ The variables belong in the setup script itself: an environment's variables aren
 
 A cached environment doesn't rerun its setup script, so sessions get what `main` held when the cache was built, at most about seven days ago. Editing the script rebuilds the cache.
 
+### Ecosystem skills
+
 Skill installation and symlinking is driven by [`dotagents.toml`](dotagents.toml) — a manifest declaring which ecosystem skills live in `~/.agents/skills/` and how they're linked into `~/.claude/skills/`. Canonical first-party shared sources now live in [fairchild/dotfiles](https://github.com/fairchild/dotfiles/tree/master/agents/shared/first-party-skills), so dotclaude no longer declares reverse links into `~/.agents`. [`scripts/sync-dotagents.py`](scripts/sync-dotagents.py) remains the reconciler: `audit` reports drift, `sync` reconciles, and `status` is a one-liner for hooks. A SessionStart hook runs `status` each session so drift surfaces without blocking.
 
 ## Permissions Model
@@ -297,10 +287,8 @@ statline (2) Opus 5 $7.24 18%
 └── worktree — plus the branch, when the worktree name doesn't imply it
 ```
 
-Everything but the branch and the dirty count arrives on stdin: the payload
-carries `context_window.used_percentage`, `workspace.git_worktree`, and `cost`
-directly. One `jq` call, at most two `git` calls, no cache, no background job,
-and no read of the session transcript.
+Everything but the branch and the dirty count arrives in the stdin payload, so
+it costs one `jq` call and at most two `git` calls.
 
 The branch stays hidden while it agrees with the worktree name, so a surprising
 checkout is the thing that shows up:
@@ -309,13 +297,6 @@ checkout is the thing that shows up:
 statline (2) Opus 5 $7.24 18%                 on fairchild/statline
 dotclaude fairchild/statline (2) Opus 5 ...   same branch, different worktree
 ```
-
-This replaced a 224-line renderer (`skills/status-line-live/`) whose token
-formula, background cache, and session-title lookup were reimplementing fields
-the harness now supplies — and which forked a subshell every five seconds to
-`jq -s` the whole session JSONL. It was also the only writer of
-`~/.claude/session-titles/<project>/<id>.tokens`, so that file is no longer
-produced; session titles themselves still come from the `Stop` hook.
 
 The payload carries more than this line uses — `rate_limits.five_hour` and
 `.seven_day` percentages, `session_name`, `effort.level`, `exceeds_200k_tokens`.
@@ -327,8 +308,13 @@ Capture one with a probe at the fallback path to see the current shape.
 
 | Doc | Topic |
 |-----|-------|
-| [docs/development.md](docs/development.md) | Worktree architecture, auto-sync, skill development |
+| [docs/development.md](docs/development.md) | The two clones, deploy, developing a skill |
+| [docs/github-actions.md](docs/github-actions.md) | CI, releases and site deploys |
+| [docs/skill-portability.md](docs/skill-portability.md) | How skills stay portable when served over MCP |
+| [docs/skill-server-architecture.md](docs/skill-server-architecture.md) | How the `mcp/` skill server is built |
+| [docs/agents/](docs/agents/) | How the engineering skills read this repo: backlog, triage roles, domain docs |
 | [skills/chronicle/docs/chronicle-design.md](skills/chronicle/docs/chronicle-design.md) | Chronicle memory system design |
+| [docs/skill-server-release-plan.md](docs/skill-server-release-plan.md), [docs/skill-server-quality-review.md](docs/skill-server-quality-review.md) | History: snapshots from 2026-09-05 |
 
 ---
 

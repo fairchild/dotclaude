@@ -1,5 +1,7 @@
 # skill-server release plan
 
+> A snapshot from 2026-09-05, kept as history. Current state: [mcp/README.md](../mcp/README.md) and [skill-server-architecture.md](skill-server-architecture.md).
+
 Status, 2026-09-05: the GitHub-only candidate pipeline and package-backed site
 deployment are implemented, and the first candidate,
 [`skill-server-v0.1.0-rc.1`](https://github.com/fairchild/dotclaude/releases/tag/skill-server-v0.1.0-rc.1)
