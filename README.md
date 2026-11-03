@@ -213,6 +213,30 @@ A mod is a plugin whose hooks module runs inside the engine, so it can answer to
 
 From a terminal, `claude plugin install` instead of `/plugin install`. The first one adds the marketplace; both load in the session that installs them and in every session after.
 
+In a setup script — a cloud agent's, a devcontainer's, any image built before Claude Code is signed in — there is no CLI to call, so write the two mods and the settings keys directly. Needs `curl`, `tar` and `python3`; no root, no authentication:
+
+```bash
+root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"; tmp="$(mktemp -d)"
+curl -fsSL --retry 2 https://github.com/fairchild/dotclaude/archive/refs/heads/main.tar.gz | tar -xz -C "$tmp"
+mkdir -p "$root/mods/.claude-plugin"
+cp -R "$tmp"/*/mods/compaction "$tmp"/*/mods/usage-meter "$root/mods/"; rm -rf "$tmp"
+printf '%s' '{"name":"dotclaude","owner":{"name":"Michael Fairchild"},"plugins":[{"name":"usage-meter","source":"./usage-meter"},{"name":"compaction","source":"./compaction"}]}' \
+  > "$root/mods/.claude-plugin/marketplace.json"
+python3 - "$root" <<'EOF'
+import json, pathlib, sys
+p = pathlib.Path(sys.argv[1], "settings.json")
+s = json.loads(p.read_text()) if p.exists() else {}
+s.setdefault("extraKnownMarketplaces", {})["dotclaude"] = {
+    "source": {"source": "directory", "path": str(pathlib.Path(sys.argv[1], "mods"))}}
+s.setdefault("enabledPlugins", {}).update(
+    {"usage-meter@dotclaude": True, "compaction@dotclaude": True})
+p.parent.mkdir(parents=True, exist_ok=True)
+p.write_text(json.dumps(s, indent=2) + "\n")
+EOF
+```
+
+The mods become a directory marketplace named `dotclaude`, so their plugin IDs match a machine that installed them from GitHub, and they load from the first session. It merges into an existing `settings.json` rather than replacing it, and rerunning it changes nothing. For a whole cloud environment rather than the mods alone, [Cloud sessions](#cloud-sessions) is the one line that carries skills and settings too.
+
 | Mod | Tool | What you get |
 |-----|------|--------------|
 | `usage-meter` | `mcp__usage-meter__reading` | The account's five-hour and seven-day windows: how much is used and when each resets. Ask "how much usage is left?" |
