@@ -146,7 +146,6 @@ Claude loads these when the task matches the description.
 | `/bootstrap` | Bootstrap a new project with interactive brainstorming and structure generation |
 | `/codex-review` | Run code review via Codex CLI with non-Claude models (GPT-5, o3, Ollama) |
 | `/opensource-precheck` | Audit a private repo before making it public |
-| `/plan_retro` | Append a retrospective section to the current plan file |
 | `/project-health` | Review health of ~/code projects (git status, tests, remote sync) |
 | `/reflect` | Pause to review work with fresh eyes for bugs, missed cases, or simplifications |
 
