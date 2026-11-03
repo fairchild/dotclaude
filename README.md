@@ -4,13 +4,7 @@ My working `~/.claude/` configuration for Claude Code. Published for reference â
 
 ## What I'm Exploring
 
-Sessions are ephemeral but work is not. Much of this config is dedicated to an ongoing experiment: what happens when you treat each session as worth remembering?
-
-**Chronicle** keeps a persistent journal of each session. A hook extracts a memory block at session end (what was accomplished, what's pending, key decisions). At session start, another hook injects relevant context: recent work in this project, pending items, stale threads. Over time: `/chronicle curate` to organize, `/chronicle insights` for cross-session patterns, `/chronicle publish` for digests.
-
-Supporting pieces: a stop hook names each session from its content; analyze-usage runs DuckDB across Claude Code, Codex, Cursor and Pi logs; team-memory gives agents recall and remember across sessions; `/fork` carries context into a new worktree or session.
-
-Much of this config observes work rather than does it. The memory system is where the config is still evolving.
+Treating each session as worth remembering. [Chronicle](skills/chronicle/) journals every session and brings the relevant context back at the next one; the rest of the memory work is still evolving.
 
 ## Drawing from This
 
