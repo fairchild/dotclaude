@@ -44,7 +44,7 @@ Memory grows from explicit instruction (*"remember that..."*) *and* from quieter
 ## Memory hygiene
 
 - **A description routes; it does not recount.** A memory's description and its index line are the only parts every session sees. Write them as when to read the memory (*"Read before changing the deploy pipeline"*), in the paths, hosts and symptoms a session will have in hand. Dates, PR numbers and outcomes go in the body.
-- **One home per fact.** A rule about code lives in the repo beside the code; a memory that would restate it becomes a pointer. An arc's in-flight state lives in a handoff on its tracking issue, not in memory.
+- **One home per fact.** A rule about code lives in the repo beside the code; a memory that would restate it becomes a pointer. An arc's in-flight state lives in a handoff on its tracking issue (`arc-handoff`), not in memory.
 - **Remove a claim when it stops being true.** When an issue a memory calls open closes, or an outage it describes ends, edit the memory in the same session. A stale claim is acted on until someone checks it.
 
 ## Code Philosophy
