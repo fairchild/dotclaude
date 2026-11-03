@@ -79,7 +79,7 @@ Comments are append-only and chronological. `gh issue view --json comments` reco
 
 ## Claim resolution
 
-The **branch** is the claim identity. Agents often share a GitHub PAT (one bot account, many workers), so `--assignee @me` reduces to "this account is involved" rather than "this worker claimed it." Branch is usually unique per workspace (Conductor, cmux, feature branches).
+The **branch** is the claim identity. Agents often share a GitHub PAT (one bot account, many workers), so `--assignee @me` reduces to "this account is involved" rather than "this worker claimed it." Branch is usually unique per workspace (Conductor, feature branches).
 
 Walking the worklog comments in chronological order:
 

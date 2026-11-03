@@ -38,7 +38,6 @@
       "Bash(gh search *)",
       "Bash(gh status *)",
       "Bash(~/.claude/skills/gh-apps/scripts/gh-apps.py *)",
-      "Bash(uv run ~/.claude/skills/cmux-orchestrator/scripts/pr-fetch-context.py *)",
       "Read(~/.ai-memory/**)",
       "Edit(~/.ai-memory/**)"
     ],

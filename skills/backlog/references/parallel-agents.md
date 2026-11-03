@@ -94,7 +94,6 @@ for d in $in_flight; do
       # Rescue in place
       branch=$(git rev-parse --abbrev-ref HEAD)
       claimer=${CONDUCTOR_WORKSPACE_NAME:+conductor:$CONDUCTOR_WORKSPACE_NAME}
-      claimer=${claimer:-${CMUX_WORKSPACE_ID:+cmux:$CMUX_WORKSPACE_ID}}
       claimer=${claimer:-$(whoami)@$(hostname -s)}
       echo "- $ts rescued claimer=$claimer branch=$branch" >> "$f"
       git add "$f"
@@ -170,8 +169,7 @@ Stateless: each cycle reads everything it needs from the task file. No worker-si
 The advance recipe stamps a `claimer=` from the environment (when claiming from todo/) in this order:
 
 1. `CONDUCTOR_WORKSPACE_NAME` → `conductor:austin-v3`
-2. `CMUX_WORKSPACE_ID` → `cmux:abc123`
-3. fallback → `user@host`
+2. fallback → `user@host`
 
 For your own worker, pick whichever identifies the agent process uniquely enough to be useful in `git blame` / progress logs. The identity is informational — it doesn't drive scheduling or authorization.
 

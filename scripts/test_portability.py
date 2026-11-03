@@ -20,13 +20,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import portability  # noqa: E402
 
-SKILLS = frozenset({"agent-inbox", "chronicle", "cmux-orchestrator", "session-titles"})
-CMUX_SCRIPTS = ("cmux-orchestrator", "skills/cmux-orchestrator/scripts")
+SKILLS = frozenset({"agent-inbox", "chronicle", "wake-adapter", "session-titles"})
+ADAPTER_SCRIPTS = ("wake-adapter", "skills/wake-adapter/scripts")
 
-# skills/cmux-orchestrator/scripts/wake-parent.sh at 80c3c23, lines 15-18: a
+# A wake-parent.sh that shipped in this repo (80c3c23, lines 15-18): a
 # hard dependency on a sibling skill that `--check` reported as clean.
 WAKE_PARENT_HEAD = """script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# The inbox skill is installed beside this orchestration skill.
+# The inbox skill is installed beside this adapter skill.
 # shellcheck source=../../agent-inbox/scripts/lib.sh
 . "$script_dir/../../agent-inbox/scripts/lib.sh"
 """
@@ -39,7 +39,7 @@ def kinds(line: str, skill: str, rel_dir: str) -> list[str]:
 class SiblingClimb(unittest.TestCase):
     def test_wake_parent_source_line_at_80c3c23(self) -> None:
         found = portability.line_findings(
-            '. "$script_dir/../../agent-inbox/scripts/lib.sh"', *CMUX_SCRIPTS, SKILLS
+            '. "$script_dir/../../agent-inbox/scripts/lib.sh"', *ADAPTER_SCRIPTS, SKILLS
         )
         self.assertEqual([kind for kind, _ in found], ["cross-skill-path"])
         self.assertIn("'agent-inbox'", found[0][1])
@@ -54,7 +54,7 @@ class SiblingClimb(unittest.TestCase):
             'const lib = import.meta.dir + "/../../agent-inbox/scripts/lib.sh";',
         ]:
             with self.subTest(line=line):
-                self.assertEqual(kinds(line, *CMUX_SCRIPTS), ["cross-skill-path"])
+                self.assertEqual(kinds(line, *ADAPTER_SCRIPTS), ["cross-skill-path"])
 
     def test_skill_md_markdown_link(self) -> None:
         line = "> **Related:** see [chronicle](../chronicle/SKILL.md)."
@@ -67,11 +67,11 @@ class SiblingClimb(unittest.TestCase):
             'Path(__file__).resolve().parent.parent.parent / "agent-inbox" / "scripts"',
         ]:
             with self.subTest(line=line):
-                self.assertEqual(kinds(line, *CMUX_SCRIPTS), ["cross-skill-path"])
+                self.assertEqual(kinds(line, *ADAPTER_SCRIPTS), ["cross-skill-path"])
 
     def test_waiver_clears_the_line(self) -> None:
         line = '. "$script_dir/../../agent-inbox/scripts/lib.sh"  # portability: allow'
-        self.assertEqual(kinds(line, *CMUX_SCRIPTS), [])
+        self.assertEqual(kinds(line, *ADAPTER_SCRIPTS), [])
 
     def test_climb_within_own_skill(self) -> None:
         for line, rel_dir in [
@@ -100,13 +100,13 @@ class AnchoredPaths(unittest.TestCase):
     def test_existing_kinds_unchanged(self) -> None:
         for line, kind in {
             "~/.claude/skills/agent-inbox/scripts/lib.sh": "cross-skill-path",
-            "~/.claude/skills/cmux-orchestrator/scripts/wake-parent.sh": "self-path",
+            "~/.claude/skills/wake-adapter/scripts/wake-parent.sh": "self-path",
             "~/.claude/settings.json": "machine-state",
             "/Users/someone/code": "user-home",
             'join(HOME, ".claude", "skills", "agent-inbox")': "cross-skill-path",
         }.items():
             with self.subTest(line=line):
-                self.assertEqual(kinds(line, *CMUX_SCRIPTS), [kind])
+                self.assertEqual(kinds(line, *ADAPTER_SCRIPTS), [kind])
 
 
 class RepoScan(unittest.TestCase):
@@ -114,8 +114,8 @@ class RepoScan(unittest.TestCase):
         files = {
             "skills/agent-inbox/SKILL.md": "---\nname: agent-inbox\n---\n",
             "skills/agent-inbox/scripts/lib.sh": "agent_inbox_root() { :; }\n",
-            "skills/cmux-orchestrator/SKILL.md": "---\nname: cmux-orchestrator\n---\n",
-            "skills/cmux-orchestrator/scripts/wake-parent.sh": "#!/usr/bin/env bash\nset -euo pipefail\n\n" + WAKE_PARENT_HEAD,
+            "skills/wake-adapter/SKILL.md": "---\nname: wake-adapter\n---\n",
+            "skills/wake-adapter/scripts/wake-parent.sh": "#!/usr/bin/env bash\nset -euo pipefail\n\n" + WAKE_PARENT_HEAD,
         }
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -132,12 +132,12 @@ class RepoScan(unittest.TestCase):
                 portability.ROOT = saved
 
         self.assertFalse(verdicts["agent-inbox"].failed)
-        self.assertTrue(verdicts["cmux-orchestrator"].failed)
+        self.assertTrue(verdicts["wake-adapter"].failed)
         self.assertEqual(
-            [(f.file, f.line, f.severity, f.kind) for f in verdicts["cmux-orchestrator"].findings],
+            [(f.file, f.line, f.severity, f.kind) for f in verdicts["wake-adapter"].findings],
             [
-                ("skills/cmux-orchestrator/scripts/wake-parent.sh", 6, "FAIL", "cross-skill-path"),
-                ("skills/cmux-orchestrator/scripts/wake-parent.sh", 7, "FAIL", "cross-skill-path"),
+                ("skills/wake-adapter/scripts/wake-parent.sh", 6, "FAIL", "cross-skill-path"),
+                ("skills/wake-adapter/scripts/wake-parent.sh", 7, "FAIL", "cross-skill-path"),
             ],
         )
 

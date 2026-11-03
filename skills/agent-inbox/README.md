@@ -85,7 +85,7 @@ Hook commands run outside skill invocation, so they need the skill's absolute in
 
 `scripts/test-hooks.sh` covers identity handling and runs in CI.
 
-Waking an idle agent belongs to the terminal or harness. The `cmux-orchestrator` skill carries a cmux adapter, `scripts/wake-parent.sh`.
+Waking an idle agent belongs to the terminal or harness.
 
 ## Design choices
 

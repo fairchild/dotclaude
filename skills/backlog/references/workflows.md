@@ -17,7 +17,7 @@ Ask the operator:
 > - **`jira`** — tasks live as Jira work items via Atlassian CLI; useful when the team already triages and prioritizes in Jira.
 > - **`Custom`** — Create a custom backend.
 
-Default to `maildir-git` if the operator declines to choose. Recommend `maildir-shared` if `git worktree list` shows more than one worktree, or if the project hints at Conductor/cmux use.
+Default to `maildir-git` if the operator declines to choose. Recommend `maildir-shared` if `git worktree list` shows more than one worktree, or if the project hints at Conductor use.
 
 ### Step 2a — scaffold for `maildir-git`
 

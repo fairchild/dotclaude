@@ -84,7 +84,6 @@ surface the work already lives in.
 | Host | Fits when | Mechanics |
 |------|-----------|-----------|
 | Orca terminal | `orca worktree current --json` resolves | `orca-cli` skill, "Fable session handoff" |
-| cmux workspace | `$CMUX_WORKSPACE_ID` is set | `cmux-orchestrator` skill — `cmux new-workspace --cwd <worktree> --command <launch>` |
 | WorkSpaces | the repo is registered with the `workspaces` CLI (`workspaces repo list`) | `scripts/launch-session.sh <repo> <name> <brief>`, relative to this skill's base directory |
 | Plain terminal | none of the above, and the work wants a session that outlives this one | `git-worktree` skill for the worktree, then a terminal tab in it |
 | `Agent` subagent | the arc fits inside this session | `Agent` with `model: "opus"`, `effort: "xhigh"`, `isolation: "worktree"` |
@@ -111,7 +110,7 @@ then stop monitoring. A launch from inside a Claude session passes on that sessi
 one process, a transcript on disk and the expected model.
 
 Wait-then-send is a verb per host: Orca `terminal wait --for tui-idle` then
-`terminal send`; cmux `read-screen` then `send` and `send-key Enter`; a plain
+`terminal send`; a plain
 terminal you type into yourself.
 
 A subagent host has none of those: the brief path goes in the prompt, the model is

@@ -14,7 +14,7 @@ describe("skill reading and installation", () => {
     for (const name of ['$(touch injected)', '`touch injected`', 'name"; touch injected; "', "$HOME", "../outside", "nested/name", "a\\b", "name\n", "name\r", "name with spaces", "--checkpoint", "a--b", "trailing-", "", "Uppercase"]) {
       expect(() => installPrompt(name, "# Example\n", ["SKILL.md"])).toThrow("unsafe skill name");
     }
-    for (const name of ["cmux-orchestrator", "skill-v2", "a", "123"]) {
+    for (const name of ["git-worktree", "skill-v2", "a", "123"]) {
       expect(installPrompt(name, "# Example\n", ["SKILL.md"])).toContain(`.claude/skills/${name}`);
     }
   });
