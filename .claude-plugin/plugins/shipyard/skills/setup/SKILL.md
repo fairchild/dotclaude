@@ -10,9 +10,9 @@ metadata:
 
 # Fitting the seats to a repository
 
-The seats work with no configuration. This skill exists because their defaults are guesses about
-*this* repository, and a guess that a session re-derives on every review is a guess it will
-eventually get wrong differently.
+The seats work with no configuration, on defaults that are guesses about this repository. This
+skill replaces the guesses with values read from the repository once, so every later review starts
+from the same answer.
 
 It runs once per repository, and again when the tooling changes. It writes exactly one file —
 `.claude/shipyard.md`, tracked, in the repository under review — and creates the review label if
@@ -44,8 +44,8 @@ Each line of `references/detection.md` is what to run and what the answer means.
 | venue, label | the repository's existing review habits: do humans review inline or in conversation? Does a label already mean "ready for review"? Reuse the name in use before inventing `review`. |
 | never-defer classes | the repository's own gates and guards. A script that refuses a commit, a hook, a CI job whose whole purpose is a policy — each names a class that is never a nit here. |
 
-Run every detection command and show what each printed before you write the file. A detected value
-with no command behind it is a guess wearing a table's clothes.
+Run every detection command and show what each printed before you write the file. A value in that
+table with no command output behind it is a guess.
 
 ## Writing the file
 
@@ -95,15 +95,13 @@ Setup is not done when the file is written. It is done when the seat has used it
    prints are the real ones. Correct the required-checks line against that output, not against the
    workflow file, which names jobs rather than checks.
 
-Report what each printed. A setup reported as complete without these three is the failure this
-skill exists to prevent: a configuration file that is wrong in a way nobody notices until a
-verdict is wrong.
+Report what each printed. Without these three, an error in the file surfaces later as a wrong
+verdict, where it is far harder to trace.
 
 ## Session wiring for a seat
 
-A seat is a session that will compact several times before the work is done, so part of setting up
-a repository is making a new session survive that. This is the part the plugin cannot do for the
-operator, and being clear about the split is most of the value here.
+A seat will compact several times before the work is done, so part of setting up a repository is
+making a new session survive that. The plugin ships one half and the operator sets the other.
 
 **What the plugin ships.** A `PreCompact` hook that names the seat's resume file and when it was
 last written, and a `SessionStart` hook that tells a new session the file exists and needs
@@ -111,9 +109,8 @@ re-checking. Both come from `scripts/seat-resume.sh` and are silent in a session
 seat. `goal_tokens` and `scratch_root` come from the plugin's `userConfig` and reach the hook as
 `CLAUDE_PLUGIN_OPTION_GOAL_TOKENS` and `CLAUDE_PLUGIN_OPTION_SCRATCH_ROOT`.
 
-**What the operator sets.** The engine's own automatic compaction point. The plugin does not try to
-set it from the manifest — set it where it is definitely read, and verify by reading it back, which
-is the only claim worth making about a setting:
+**What the operator sets.** The engine's own automatic compaction point. The plugin does not set it
+from the manifest; put it where it is read, then read it back to confirm:
 
 ```json
 {
@@ -133,7 +130,7 @@ Per session instead of per machine: `claude --autocompact 300000`.
 `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` moves the `P` in that formula.
 
 **Verify by reading it back.** The `compaction` mod reports both numbers and says when they
-disagree, which is a better check than re-reading the file you just wrote:
+disagree, which re-reading the file you just wrote does not:
 
 ```text
 Points: a goal of 300,000; requests from 150,000; the prepare point at 220,000;

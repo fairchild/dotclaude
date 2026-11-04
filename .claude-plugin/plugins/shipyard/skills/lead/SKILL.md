@@ -28,8 +28,8 @@ resume file.
 
 Does not: write implementation code, review, post findings, overrule a verdict, merge on a verdict
 bound to an older head, or merge anything the reviewer has not seen. If a finding looks wrong,
-argue it in the pull request and let the reviewer re-check. A lead that can overrule a verdict has
-no review, only a second opinion it is free to ignore.
+argue it in the pull request and let the reviewer re-check. A lead that can overrule a verdict
+turns the review into advice.
 
 ## The queue
 
@@ -37,9 +37,8 @@ One list, in the repository's own tracker, with one state per item: ready, dispa
 blocked, merged. The lead's queue is not a second copy of the tracker — an item's state is where it
 sits in the tracker, and a lead keeping its own parallel list eventually acts on the stale one.
 
-Work gets dispatched when its brief is writable. An item that cannot be briefed in one page is not
-ready; it is a design question wearing a task's clothes, and dispatching it buys a pull request
-nobody can review.
+Work gets dispatched when its brief is writable. An item that cannot be briefed in one page is a
+design question rather than a task, and dispatching it produces a pull request nobody can review.
 
 ## The brief
 
@@ -56,8 +55,8 @@ the queue. `references/brief.md` is the shape. What it must carry:
   for.
 - **The gate**, from the config file, and that it must pass before the pull request opens.
 
-A brief you cannot write is the signal to stop. Write the design question down and take it to the
-user instead of dispatching a guess.
+A brief you cannot write means the work is not ready. Write the design question down and take it
+to the user rather than dispatching a guess.
 
 ## Dispatch
 
@@ -79,9 +78,8 @@ the code is *for* is not.
    reads it to confirm it matches the brief — matches, not reviews. A pull request that did
    something else is a brief problem, and it goes back before it reaches the reviewer.
 2. **Labelled.** Apply the config file's review label. That is the whole handoff: the reviewer seat
-   polls for the label and takes it from there. Do not summarize the change for the reviewer, do not
-   say what you think of it, and do not name the findings you expect. A reviewer told what to find
-   finds it.
+   polls for the label and takes it from there. Send no summary of the change, no opinion of it and
+   no list of the findings you expect — a reviewer given those tends to confirm them.
 3. **Verdict.** Read it from the venue the config file names — a conversation comment or a review
    body; those are the only two places a verdict is, and a seat posts to one of them, not both.
    Take the `VERDICT:` line and the SHA it binds to:
@@ -102,13 +100,22 @@ the code is *for* is not.
    see what else is in the queue. A nit is the implementer's call.
 5. **Merge**, and only when all of these hold: the verdict is `approve`, its SHA is the current
    head, the required checks are green on that head, and nothing is unresolved that the repository
-   requires resolved. Merge the verified head explicitly — `gh pr merge --match-head-commit <sha>` —
-   so a push that lands between your read and your merge stops the merge instead of slipping
-   through it.
+   requires resolved. Name the verified head in the merge, so a push landing between your read and
+   your merge stops it rather than riding along:
 
-Merging is the one thing this seat does that changes a shared branch. Everything above it is
-recoverable; this is not. The repository's own instructions about merging override anything here,
-and where they say a human merges, the lead reports ready and stops.
+   ```bash
+   gh pr merge "$PR" --match-head-commit "$head"                      # local
+   gh api --method PUT "repos/$SHIPYARD_REPO/pulls/$PR/merge" -f sha="$head"   # REST
+   ```
+
+   Both refuse the merge when the head has moved. Prefer the REST form where `gh pr`
+   subcommands answer `403`, which is how they behave in cloud sessions —
+   `../reviewer/references/posting.md` covers why. Pick the merge method the repository
+   allows (`merge_method=squash|merge|rebase`); its ruleset says which.
+
+Merging is the only step here that changes a shared branch, and the only one that cannot be
+undone from the seat. The repository's own instructions about merging override anything here; where
+they say a human merges, the lead reports ready and stops.
 
 ## Living in one session
 

@@ -13,8 +13,8 @@ earlier verdicts cite these by number.
    the claim is the finding, not the code.
 
 3. **Unreadable state is not good state.** A check whose output you could not fetch, a thread you
-   could not list, a token that answered `403` — all of it is `verification-incomplete`. The seat's
-   one job is to be the reader a merge can trust, which it stops being the first time it guesses.
+   could not list, a token that answered `403` — all of it is `verification-incomplete`. A merge
+   tool treats a verdict as a reading of the head, so a guess there propagates as fact.
 
 4. **Shape findings have one window.** Raise them on the fresh review or not at all. Asking for a
    simpler abstraction after three rounds of blockers are fixed costs a push, a CI run and a round,
@@ -41,17 +41,17 @@ earlier verdicts cite these by number.
     in the review, because it is the only one a reader cannot reconstruct from the diff.
 
 11. **An empty queue and a broken poll look identical.** `watch.sh` exits 2 when it could not ask,
-    and 0 with no output when the answer was "nothing". Collapsing them is how a seat sits silent
-    for a day while an author waits: the queue was never empty, the token had expired. Report the
-    exit 2, back off, poll again, and never let it end the loop.
+    and 0 with no output when the answer was "nothing". Read as the same thing, an expired token
+    presents as a quiet repository and the seat waits instead of reporting. Report the exit 2, back
+    off, and poll again; it does not end the loop.
 
 12. **A fork head is a stranger's code.** Running the repository's gate on it executes that code on
     this machine with this token in the environment. CI runs it in a sandbox built for that; the
     seat does not. Record "gate not run: fork head" and judge the rest on reading.
 
 13. **A gate that was already red is not this pull request's finding.** Run it on the recorded base
-    SHA before attributing a failure to the author. The embarrassing version of this is a blocking
-    finding against someone who changed nothing in the failing area.
+    SHA before attributing a failure to the author, or the finding lands on someone who changed
+    nothing in the failing area.
 
 14. **The last verdict wins, which is what makes `verification-incomplete` recoverable.** Without
     that rule it is terminal: the verdict is posted, the head no longer looks unreviewed, and

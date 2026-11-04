@@ -13,11 +13,10 @@
 #   CLAUDE_PLUGIN_OPTION_SCRATCH_ROOT  where seats keep scratch state (default ~/.worktrees/shipyard)
 #   CLAUDE_PLUGIN_OPTION_GOAL_TOKENS   the context goal, for the message only (default 300000)
 #
-# Installed globally, this runs in every session, so both hooks stay silent unless the working
-# directory is a git repository that already has a resume file — a seat's hook has no business
-# narrating itself in a session that is not a seat. That is also why a seat writes its resume file
-# when it takes the seat rather than when it first needs it: the file's existence is what tells
-# this script a seat is here.
+# Installed globally, this runs in every session on the machine, so both hooks stay silent unless
+# the working directory is a git repository that already has a resume file. The file's existence is
+# the only signal available for telling a seat from an ordinary session, which is why a seat writes
+# it on taking the seat rather than when it first needs it.
 set -euo pipefail
 
 root=${CLAUDE_PLUGIN_OPTION_SCRATCH_ROOT:-$HOME/.worktrees/shipyard}
@@ -37,7 +36,14 @@ fi
 [[ -n $slug ]] || exit 0
 file="$root/resume/$slug.md"
 
-emit() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps({"systemMessage": sys.stdin.read()}))'; }
+# python3 builds the JSON because escaping a message into it by hand is a bug waiting for the
+# first path with a quote in it. This hook runs in every session on the machine, so a missing
+# python3 makes it say nothing rather than fail: the message is advice, and advice is not worth an
+# error in somebody else's session.
+emit() {
+  command -v python3 >/dev/null 2>&1 || return 0
+  printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps({"systemMessage": sys.stdin.read()}))'
+}
 
 case ${1:-} in
 path)
