@@ -45,7 +45,7 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 ├── chronicle/         # Chronicle session memory
 ├── mods/              # Claude Code mods (usage-meter, compaction)
 ├── mcp/               # Skill server: serves these skills over MCP
-├── .claude-plugin/    # Plugin marketplace manifest
+├── .claude-plugin/    # Marketplace manifest + multi-component plugins (shipyard)
 ├── webui/             # Config Visualizer dashboard
 ├── docs/              # Agent-skill config and development notes
 ├── blog/              # Writing about this config
@@ -187,6 +187,7 @@ This repository is a Claude Code plugin marketplace named `dotclaude` ([`.claude
 /plugin install dotclaude-config --marketplace fairchild/dotclaude
 /plugin install release --marketplace fairchild/dotclaude
 /plugin install skill-building --marketplace fairchild/dotclaude
+/plugin install shipyard --marketplace fairchild/dotclaude
 ```
 
 From a terminal, the same line starts with `claude plugin install`. The first install adds the marketplace to your user settings, and `/plugin` then lists everything it offers.
@@ -196,6 +197,7 @@ From a terminal, the same line starts with `claude plugin install`. The first in
 | `usage-meter` | Mod: one tool that reads the five-hour and seven-day usage windows ([mods](mods/README.md)) |
 | `compaction` | Mod: lets the main thread ask for `/compact` with instructions ([mods](mods/README.md)) |
 | `brainstorm-to-brief`, `image-gen`, `dotclaude-config`, `release`, `skill-building` | The skills of the same name, from `skills/` |
+| `shipyard` | The multi-seat development pattern: a reviewer seat that owns every review in a repository ([plugins](.claude-plugin/plugins/shipyard/README.md)) |
 
 - `claude plugin marketplace update dotclaude` pulls the latest `main`; `claude plugin marketplace add fairchild/dotclaude@<branch>` tries a branch instead.
 - On a machine whose `~/.claude` is this repository, the skills are already there: install only the mods.

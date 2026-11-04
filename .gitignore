@@ -61,7 +61,7 @@ cache/
 downloads/
 docs/local/
 projects/
-plugins/
+/plugins/
 image-cache/
 knowledge/
 webui/data.json

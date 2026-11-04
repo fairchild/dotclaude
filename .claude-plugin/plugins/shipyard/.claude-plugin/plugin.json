@@ -1,0 +1,23 @@
+{
+  "name": "shipyard",
+  "description": "The multi-seat development pattern as a plugin: long-lived lead and reviewer seats with short-lived implementers between them. This slice ships the reviewer seat, which owns every fresh review and re-check in a repository and posts one parseable verdict per head.",
+  "license": "Apache-2.0",
+  "dependencies": [
+    "compaction",
+    "usage-meter"
+  ],
+  "userConfig": {
+    "goal_tokens": {
+      "type": "number",
+      "title": "Context goal (tokens)",
+      "description": "The context a seat means to stay under, the same number the compaction mod judges a request against. A seat hands off and writes its resume file before this, not after.",
+      "default": 300000
+    },
+    "scratch_root": {
+      "type": "string",
+      "title": "Scratch worktree root",
+      "description": "Where a seat cuts the throwaway worktrees it reviews in. A property of this machine's filesystem layout, not of any repository, so it belongs here rather than in a repository's config file.",
+      "default": "~/.worktrees/shipyard"
+    }
+  }
+}

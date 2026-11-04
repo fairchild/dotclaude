@@ -76,6 +76,13 @@
       "description": "Lets the main thread compact at a moment it chooses, with instructions for the summary and its reasoning kept; runs only /compact, from a timer after its turn.",
       "license": "Apache-2.0",
       "category": "mods"
+    },
+    {
+      "name": "shipyard",
+      "source": "./.claude-plugin/plugins/shipyard",
+      "description": "The multi-seat development pattern: a long-lived reviewer seat that owns every fresh review and re-check in a repository and posts one parseable verdict per head. Lead and setup seats follow.",
+      "license": "Apache-2.0",
+      "category": "workflow"
     }
   ]
 }
