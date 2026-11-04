@@ -44,6 +44,19 @@ commands (`gh pr` goes through GraphQL, which answers `403` in cloud sessions);
 [`references/lessons.md`](skills/reviewer/references/lessons.md) is what previous seats learned,
 cited by number.
 
+## Skills and tiers
+
+| Skill | Invoked as | Tier | What keeps it from stable |
+| --- | --- | --- | --- |
+| `lead` | `/shipyard:lead` | experimental | no eval, one consumer; the merge step is the only part of the pattern that changes a shared branch and it has not run unattended long |
+| `reviewer` | `/shipyard:reviewer` | experimental | no eval, one consumer; the verdict grammar is stable but little parses it yet |
+| `setup` | `/shipyard:setup` | experimental | no eval, one consumer; the detection rules come from a handful of repositories rather than a survey |
+
+Each declares its tier in its own `SKILL.md` frontmatter, which is what
+`.github/scripts/validate-config.py` checks. All three are slash-only
+(`disable-model-invocation: true`): taking a seat is something the user does on purpose, not
+something a model decides mid-task.
+
 ## The lead seat
 
 ```

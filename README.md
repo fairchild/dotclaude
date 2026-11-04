@@ -200,7 +200,7 @@ From a terminal, the same line starts with `claude plugin install`. The first in
 | `shipyard` | The multi-seat development pattern: lead, reviewer and setup seats, plus a compaction hook ([plugins](.claude-plugin/plugins/shipyard/README.md)) |
 
 - `claude plugin marketplace update dotclaude` pulls the latest `main`; `claude plugin marketplace add fairchild/dotclaude@<branch>` tries a branch instead.
-- On a machine whose `~/.claude` is this repository, the skills are already there: install only the mods.
+- On a machine whose `~/.claude` is this repository, the skills in `skills/` are already there: install the mods and `shipyard`, which are plugins rather than loose skills and do not load from the source tree on their own.
 - Mods load from user settings only. Declared in a repository's `.claude/settings.json` (`--scope project`), they don't load.
 - A cloud environment gets the mods from the [Cloud sessions](#cloud-sessions) setup line, which installs them from the release bundle before the first session.
 

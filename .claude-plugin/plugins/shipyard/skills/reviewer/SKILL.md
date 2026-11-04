@@ -35,8 +35,15 @@ pull request turns out to carry your own commits, say so and decline it.
 ## The loop
 
 `${CLAUDE_PLUGIN_ROOT}/scripts/watch.sh` is the poll: it prints one line per pull request that
-wants attention — those carrying the review label with no verdict for the current head, and those
-with a verdict for an older head. It takes everything from the environment and writes nothing.
+wants attention — those with no verdict for the current head, and those with a verdict for an older
+head. It takes everything from the environment and writes nothing.
+
+```bash
+SHIPYARD_REPO=owner/name "${CLAUDE_PLUGIN_ROOT}/scripts/watch.sh"
+```
+
+With no `SHIPYARD_LABEL`, that is every open non-draft pull request. Narrowing to a label is what a
+repository opts into once a lead is applying one:
 
 ```bash
 SHIPYARD_REPO=owner/name SHIPYARD_LABEL=review "${CLAUDE_PLUGIN_ROOT}/scripts/watch.sh"
@@ -135,7 +142,7 @@ file at all, these defaults hold, and the seat is useful before anyone configure
 | Setting | Default with no config file |
 | --- | --- |
 | venue | a conversation comment on the pull request |
-| review label | `review` |
+| review label | none — every open non-draft pull request. A label default would need someone to apply it, which is not a default at all |
 | gate command | detected from the lockfile — `bun.lock` → `bun run check`, `pnpm-lock.yaml` → `pnpm check`, `uv.lock` → `uv run lint`, else the repository's own task runner |
 | test command | detected the same way |
 | required checks | whatever the head's check runs report as required |

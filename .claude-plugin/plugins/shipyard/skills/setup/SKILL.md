@@ -64,7 +64,13 @@ deciding whether to trust it.
 
 ## The label
 
-If the repository has no label meaning "ready for review", create the one the file names:
+A label is a narrowing, not a precondition: with none configured the seat reviews every open
+non-draft pull request, which is how a repository runs the seat before it has decided anything.
+Configure one when the repository wants the lead to choose what gets reviewed — and then something
+has to apply it, which is the part that gets forgotten.
+
+If the repository wants a label and has none meaning "ready for review", create the one the file
+names:
 
 ```bash
 gh label create review --repo "$REPO" --description "The reviewer seat picks this up" --color 0366d6
@@ -72,6 +78,10 @@ gh label create review --repo "$REPO" --description "The reviewer seat picks thi
 
 If a label already carries that meaning under another name, use the existing name and create
 nothing. A second label for the same idea splits the queue, and half the work goes unreviewed.
+
+Then check what actually applies it. A label that exists because a workflow used to be gated on it,
+with nothing applying it now, is worse than no label: a seat polling for it sees an empty queue and
+reports nothing to do. Say in the config file what applies the label, or leave the line blank.
 
 ## Checking the fit
 

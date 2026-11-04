@@ -12,7 +12,9 @@
 #
 # Everything comes from the environment:
 #   SHIPYARD_REPO     owner/name (default: the repository of the current directory)
-#   SHIPYARD_LABEL    the label the lead applies (default: review)
+#   SHIPYARD_LABEL    the label the lead applies. Empty or "none" (the default) means every open
+#                     non-draft pull request, which is what lets a seat run in a repository that
+#                     has configured nothing: a label default would need someone to apply it.
 #   SHIPYARD_LIMIT    pull requests to consider (default: 50)
 #   SHIPYARD_ACTOR    the login whose verdicts count (default: the token's own)
 #
@@ -21,7 +23,7 @@
 set -euo pipefail
 
 repo=${SHIPYARD_REPO:-$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)}
-label=${SHIPYARD_LABEL:-review}
+label=${SHIPYARD_LABEL-none}
 limit=${SHIPYARD_LIMIT:-50}
 
 if [[ -z $repo ]]; then
@@ -35,8 +37,14 @@ if [[ -z $actor ]]; then
   exit 2
 fi
 
-prs=$(gh api "repos/$repo/pulls?state=open&per_page=$limit" \
-  --jq ".[] | select(.draft == false) | select(any(.labels[]; .name == \"$label\")) | \"\(.number) \(.base.sha) \(.head.sha)\"") || {
+if [[ -z $label || $label == none ]]; then
+  select_label="."
+else
+  select_label="select(any(.labels[]; .name == \"$label\"))"
+fi
+
+prs=$(gh api --paginate "repos/$repo/pulls?state=open&per_page=$limit" \
+  --jq ".[] | select(.draft == false) | $select_label | \"\(.number) \(.base.sha) \(.head.sha)\"") || {
   echo "watch: cannot list pull requests for $repo" >&2
   exit 2
 }
