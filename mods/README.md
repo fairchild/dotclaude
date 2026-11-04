@@ -28,7 +28,12 @@ That marketplace is shared: the plugins under
 [`.claude-plugin/plugins/`](../.claude-plugin/plugins/README.md) install into the same directory,
 each flattened to its root, so a plugin ID in a cloud session matches one on a machine that added
 this repository's marketplace from GitHub. The directory is named `mods` because it is a deployed
-path, not because everything in it is a mod; `DOTCLAUDE_PLUGINS` narrows that kind separately. A new session's ToolSearch finds
+path, not because everything in it is a mod; `DOTCLAUDE_PLUGINS` narrows that kind separately.
+
+The two narrowings are not quite independent, because a plugin declaring `dependencies` does not
+load without them — the installer says so outright. `shipyard` depends on both mods, so
+`DOTCLAUDE_MODS=none` takes `shipyard` with it rather than leaving it installed and unable to
+start. The status line names the dependency that was missing. A new session's ToolSearch finds
 `mcp__usage-meter__reading`, `mcp__compaction__context` and `mcp__compaction__request`, and
 `~/.claude/cloud-bootstrap.status` names the mods it installed.
 

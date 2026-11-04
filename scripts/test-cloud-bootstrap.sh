@@ -69,7 +69,7 @@ expect '.permissions.deny | length == (unique | length)' "a second run duplicate
 
 # Named mods narrow the install, "none" installs none, and a mod left out is no longer listed.
 DOTCLAUDE_MODS="usage-meter not-a-mod" bootstrap "file://$bundle" "$runtime"
-grep -q '; mods: usage-meter; mods not installed: not-a-mod; plugins: shipyard$' "$runtime/cloud-bootstrap.status" \
+grep -q '; mods: usage-meter; mods not installed: not-a-mod; plugins skipped: shipyard needs compaction$' "$runtime/cloud-bootstrap.status" \
   || fail "status: $(cat "$runtime/cloud-bootstrap.status")"
 [[ ! -e "$runtime/mods/compaction" ]] || fail "a mod that wasn't named stayed installed"
 # Named plugins narrow the same way, and a name the bundle does not carry is reported rather than
@@ -90,23 +90,28 @@ grep -q '; mods: usage-meter compaction$' "$no_plugins/cloud-bootstrap.status" \
 jq -e '.enabledPlugins | has("shipyard@dotclaude") | not' "$no_plugins/settings.json" >/dev/null \
   || fail "a plugin that was not installed was still enabled"
 
-# "none" for the mods leaves the plugins in place: the directory is the marketplace root both kinds
-# share, so what has to be gone is the mods themselves, not the directory.
+# A plugin that declares dependencies does not load without them, so narrowing the mods away takes
+# the plugin with it rather than leaving one installed and enabled that cannot start. The status
+# line says which dependency was missing. "none" for the mods here leaves nothing at all, so there
+# is no marketplace to register.
 none="$tmp/none/.claude"
 DOTCLAUDE_MODS=none bootstrap "file://$bundle" "$none"
-[[ ! -e "$none/mods/compaction" && ! -e "$none/mods/usage-meter" ]] \
-  || fail "DOTCLAUDE_MODS=none installed mods"
-jq -e '[.plugins[].name] == ["shipyard"]' "$none/mods/.claude-plugin/marketplace.json" >/dev/null \
-  || fail "DOTCLAUDE_MODS=none left a mod in the marketplace"
-jq -e '.enabledPlugins | has("compaction@dotclaude") | not' "$none/settings.json" >/dev/null \
-  || fail "a mod that was not installed was still enabled"
+grep -q '; plugins skipped: shipyard needs compaction usage-meter$' "$none/cloud-bootstrap.status" \
+  || fail "status: $(cat "$none/cloud-bootstrap.status")"
+[[ ! -e "$none/mods" ]] || fail "DOTCLAUDE_MODS=none installed something"
+jq -e 'has("extraKnownMarketplaces") | not' "$none/settings.json" >/dev/null \
+  || fail "none still registered a marketplace"
+jq -e '.enabledPlugins | has("shipyard@dotclaude") | not' "$none/settings.json" >/dev/null \
+  || fail "a plugin whose dependencies are absent was still enabled"
 
-# Neither kind: nothing to register, so no marketplace at all.
-nothing="$tmp/nothing/.claude"
-DOTCLAUDE_MODS=none DOTCLAUDE_PLUGINS=none bootstrap "file://$bundle" "$nothing"
-[[ ! -e "$nothing/mods" ]] || fail "installing neither kind still made a marketplace root"
-jq -e 'has("extraKnownMarketplaces") | not' "$nothing/settings.json" >/dev/null \
-  || fail "installing neither kind still registered a marketplace"
+# One dependency short counts the same, and the status names only the one that is missing.
+partial="$tmp/partial/.claude"
+DOTCLAUDE_MODS=compaction bootstrap "file://$bundle" "$partial"
+grep -q '; mods: compaction; plugins skipped: shipyard needs usage-meter$' "$partial/cloud-bootstrap.status" \
+  || fail "status: $(cat "$partial/cloud-bootstrap.status")"
+[[ ! -e "$partial/mods/shipyard" ]] || fail "a plugin kept a dependency it did not have"
+jq -e '[.plugins[].name] == ["compaction"]' "$partial/mods/.claude-plugin/marketplace.json" >/dev/null \
+  || fail "the marketplace lists a plugin that was not installed"
 
 # Auto-compaction is set only when the environment names it, and the window is the mod's goal
 # too, so the thread's prepare point and the engine's backstop follow one number.

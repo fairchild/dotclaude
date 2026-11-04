@@ -292,7 +292,7 @@ Variables before `bash`, each optional:
 |----------|--------|
 | `DOTCLAUDE_SKILLS` | Only these skills, separated by spaces or commas. A name it can't install, misspelled or `machine-bound`, is listed in the status line. |
 | `DOTCLAUDE_MODS` | Only these mods; `none` installs none. Unset, both install and load from the first session. |
-| `DOTCLAUDE_PLUGINS` | Only these plugins from [`.claude-plugin/plugins/`](.claude-plugin/plugins/README.md); `none` installs none. Unset, `shipyard` installs, so a cloud session can take a seat. The two switches are independent: `DOTCLAUDE_MODS=none` leaves the plugins in place and the other way round. |
+| `DOTCLAUDE_PLUGINS` | Only these plugins from [`.claude-plugin/plugins/`](.claude-plugin/plugins/README.md); `none` installs none. Unset, `shipyard` installs, so a cloud session can take a seat. A plugin declaring `dependencies` does not load without them, so narrowing a mod away takes a plugin that depends on it too — `DOTCLAUDE_MODS=none` leaves no `shipyard` either, and the status line names the dependency that was missing. |
 | `DOTCLAUDE_COMPACT_WINDOW`, `DOTCLAUDE_COMPACT_PCT` | When sessions auto-compact (`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`); `300000` and `100` compact at 267k. The window is also the compaction mod's `goalTokens`, so its prepare point lands 47k before that backstop. Unset, the platform's default stands and the mod keeps its own 300,000 goal. |
 
 ```bash

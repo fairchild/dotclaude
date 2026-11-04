@@ -33,7 +33,9 @@ A plugin here reaches a cloud session too: the bundle
 [`cloud-bundle.yml`](../../.github/workflows/cloud-bundle.yml) publishes carries `.claude-plugin/`,
 and [`cloud-bootstrap.sh`](../../scripts/cloud-bootstrap.sh) installs these alongside the mods into
 one directory marketplace named `dotclaude`, enabled from the first session. `DOTCLAUDE_PLUGINS`
-narrows which, and `none` installs none.
+narrows which, and `none` installs none. A plugin here that declares `dependencies` is installed
+only when they are all present, since one does not load without them: narrowing the mods away
+takes a plugin that depends on them too, and the status line says which dependency was missing.
 
 A plugin here pins no `version`, for the reason [`mods/README.md`](../../mods/README.md) gives: without
 one, a GitHub install resolves to the commit SHA and `claude plugin update` follows `main`. None

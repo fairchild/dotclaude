@@ -34,6 +34,7 @@ main() {
   keep_only_named_skills
   keep_only_named_mods
   keep_only_named_plugins
+  drop_plugins_with_absent_dependencies
   or_report copy install_bundle
   or_report mods install_marketplace
   or_report settings merge_settings "$work/bundle/settings.example.json" "$runtime/settings.json"
@@ -122,6 +123,27 @@ bundled_plugins() {
   local plugin
   for plugin in "$work"/bundle/.claude-plugin/plugins/*/; do
     [[ -f "$plugin/.claude-plugin/plugin.json" ]] && basename "$plugin"
+  done
+  return 0
+}
+
+# A plugin that declares dependencies does not load without them — the installer says so outright
+# — so narrowing the mods away would otherwise leave a plugin installed and enabled that cannot
+# start. The operator's narrowing wins and the plugin goes, with the reason in the status line:
+# "no mods" has to be allowed to mean no mods.
+drop_plugins_with_absent_dependencies() {
+  local plugin name present missing dep
+  present=" $(bundled_mods | tr '\n' ' ')$(bundled_plugins | tr '\n' ' ') "
+  for plugin in "$work"/bundle/.claude-plugin/plugins/*/; do
+    [[ -f "$plugin/.claude-plugin/plugin.json" ]] || continue
+    name="$(basename "$plugin")"
+    missing=""
+    for dep in $(jq -r '(.dependencies // [])[]' "$plugin/.claude-plugin/plugin.json" 2>/dev/null); do
+      [[ "$present" == *" $dep "* ]] || missing+=" $dep"
+    done
+    [[ -z "$missing" ]] && continue
+    printf '%s needs%s\n' "$name" "$missing" >>"$work/skipped-plugins"
+    rm -rf -- "$plugin"
   done
   return 0
 }
@@ -226,9 +248,13 @@ mods_note() {
 }
 
 plugins_note() {
-  local installed missing="" name
+  local installed missing="" name skipped
   installed="$(installed_of_kind plugins)"
   [[ -z "$installed" ]] || printf '; plugins:%s' "$installed"
+  if [[ -s "$work/skipped-plugins" ]]; then
+    skipped="$(paste -sd ',' - <"$work/skipped-plugins" | sed 's/,/, /g')"
+    printf '; plugins skipped: %s' "$skipped"
+  fi
   [[ "$named_plugins" != none ]] || return 0
   for name in $named_plugins; do
     [[ -d "$runtime/mods/$name" ]] || missing+=" $name"
