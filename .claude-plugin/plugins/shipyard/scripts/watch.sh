@@ -50,10 +50,12 @@ else
   select_label="select(any(.labels[]; .name == \"$label\"))"
 fi
 
-# The cap is applied to the filtered result, not passed as per_page: under --paginate per_page is
-# the page size and caps nothing. Truncating the captured value rather than piping gh into head
-# also keeps a SIGPIPE from reading as a failed listing under pipefail.
-listed=$(gh api --paginate "repos/$repo/pulls?state=open&per_page=100" \
+# Ascending by creation, because the cap keeps the head of the list: GET /pulls defaults to newest
+# first, which would drop the oldest pull requests — the ones that have waited longest — exactly
+# backwards. The cap is applied to the filtered result, not passed as per_page: under --paginate
+# per_page is the page size and caps nothing. Truncating the captured value rather than piping gh
+# into head also keeps a SIGPIPE from reading as a failed listing under pipefail.
+listed=$(gh api --paginate "repos/$repo/pulls?state=open&sort=created&direction=asc&per_page=100" \
   --jq ".[] | select(.draft == false) | $select_label | \"\(.number) \(.base.sha) \(.head.sha)\"") || {
   echo "watch: cannot list pull requests for $repo" >&2
   exit 2
