@@ -76,17 +76,17 @@ The loop itself:
 1. Poll.
 2. **Exit 2 is not an empty queue.** It means the poll could not be made — an unreadable
    repository, a token without scope, a rate limit. Report what it printed, wait, and poll again;
-   doubling the wait from the interval up to ten minutes. Never treat it as nothing to do, and
-   never let it end the loop: an empty queue and a broken poll look identical from the outside,
-   which is how a seat sits silent for a day.
+   doubling the wait from the interval up to ten minutes. An empty queue and a failed poll are
+   indistinguishable from outside, so reading exit 2 as an empty queue leaves the seat idle while
+   work waits. It does not end the loop either.
 3. Exit 0 with no output is an empty queue. Wait one interval and poll again. The interval is 120
    seconds unless the config file says otherwise — short enough that an author is not waiting on a
    timer, long enough not to spend the rate limit on an idle repository.
 4. Take the lines in the order given: rechecks and retries first, then freshes, oldest first
    within each group. An author waiting on a re-read is blocked, and a delta is cheaper than a
    first pass.
-5. **Finish what you started.** A review in flight always completes, even if a later poll would
-   reorder the queue. If a poll re-lists a pull request you are working on, skip it.
+5. **Finish a review in flight** even when a later poll would reorder the queue. When a poll
+   re-lists a pull request you are working on, skip that line.
 6. Re-poll immediately after finishing a pull request rather than waiting an interval. Work
    arrives in bursts, and a push usually follows a verdict within minutes.
 
@@ -209,8 +209,8 @@ checks does not forbid it; a check you could not read does. Unreadable state is
 `verification-incomplete`, never `approve`.
 
 Under the verdict goes the checkpoint block — the base and head SHAs, what you ran and what it
-said, what you could not verify. It is not a courtesy: a re-check reads the previous base and head
-out of it, since the poll only ever reports the current pair.
+said, what you could not verify. A re-check reads the previous base and head out of it, since the
+poll reports only the current pair.
 
 Post the verdict in the one venue the config file names — a conversation comment, or the body of
 the review carrying the inline findings — and never as a GitHub approval: the seat has no merge
@@ -259,8 +259,7 @@ you a failure that belongs to the seat rather than the author. If no gate can be
 Two values are the operator's rather than the repository's, so they come from the plugin's
 `userConfig` and not from that file: `goal_tokens`, the context the seat stays under, and
 `scratch_root`, where it cuts worktrees. Both describe the machine the seat runs on and the account
-it runs as — a repository cannot know either, and two repositories would not disagree about them so
-much as have no standing to set them.
+it runs as, which a repository cannot know.
 
 ## Living in one session
 

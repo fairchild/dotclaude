@@ -12,7 +12,7 @@ recognizes for a plugin hosted in the repository that serves it.
 - **[`shipyard`](shipyard/)**: the multi-seat development pattern — a lead seat, a reviewer seat,
   implementers between them, and a setup seat that fits the three to one repository.
 
-Three homes, three shapes, and the shape decides:
+Which of the three homes a plugin takes follows from its shape:
 
 - `skills/<name>` with a marketplace entry whose `source` is `./` and whose `skills` array names one
   directory — a plugin that is one skill, and the same skill a machine running this repository as

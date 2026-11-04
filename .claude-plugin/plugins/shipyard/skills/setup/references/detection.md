@@ -95,5 +95,5 @@ Each guard names a class that is never a nit in this repository: a secret scanne
 credential in tracked text is blocking; a policy job means the policy is blocking; a cluster of
 reverts around one module means changes there carry a cost the diff does not show.
 
-A class belongs in the never-defer list when the repository already treats it as unarguable. The
-list is not a wish.
+A class belongs in the never-defer list when something in the repository already refuses it today.
+A class nobody enforces yet belongs in the roadmap instead.
