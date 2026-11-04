@@ -8,7 +8,11 @@ model: sonnet
 
 Deep codebase exploration to understand a problem and create a research artifact. **Run this in a separate session** before implementation to protect context.
 
-**Output**: `tmp/research/research-{slug}.md`
+**Output**: `docs/research/{YYYY-MM-DD}-{slug}.md`
+
+The artifact lives in the repo it is about, next to that repo's other research, so past research
+stays dated and searchable in git history. Commit it with the work it informs, or on its own. In a
+public repository, ask before writing: research may name private systems.
 
 ## Purpose
 
@@ -75,10 +79,10 @@ This is the **context-heavy** part. Systematically explore:
 ### Phase 3: Create Artifact
 
 ```bash
-mkdir -p tmp/research
+mkdir -p docs/research
 ```
 
-Write to `tmp/research/research-{slug}.md`:
+Write to `docs/research/{YYYY-MM-DD}-{slug}.md`:
 
 ```markdown
 # Research: {topic}
@@ -139,11 +143,11 @@ Write to `tmp/research/research-{slug}.md`:
 Research Complete
 
 Topic: {topic}
-Artifact: tmp/research/research-{slug}.md
+Artifact: docs/research/{YYYY-MM-DD}-{slug}.md
 
 To use this research:
 1. Start implementation session (capable model)
-2. Open: tmp/research/research-{slug}.md
+2. Open: docs/research/{YYYY-MM-DD}-{slug}.md
 3. Run: prime {issue-id}
    or: implement {issue-id}
 ═══════════════════════════════════════════════════════════════
@@ -171,7 +175,7 @@ research add response caching to clerk agent
 Research Complete
 
 Topic: add response caching to clerk agent
-Artifact: tmp/research/research-clerk-response-caching.md
+Artifact: docs/research/2026-03-12-clerk-response-caching.md
 
 Key findings:
 - Use Cloudflare KV for persistence
@@ -200,7 +204,7 @@ research fix duplicate assistant messages in planning
 Research Complete
 
 Topic: fix duplicate assistant messages in planning
-Artifact: tmp/research/research-planning-duplicate-messages.md
+Artifact: docs/research/2026-03-18-planning-duplicate-messages.md
 
 Root cause identified:
 - Mock path calls persistMessages AND streams message
