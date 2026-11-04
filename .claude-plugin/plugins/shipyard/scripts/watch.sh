@@ -32,6 +32,25 @@
 #   watch.sh --self-test   check the classification against built-in fixtures; makes no network call
 set -euo pipefail
 
+# One line per item: timestamp, author, and that item's own VERDICT line where it has one.
+# Extracting the verdict inside jq keeps a multi-line body from becoming several lines out here,
+# and the timestamp is what lets two venues merge in the order they were actually posted. The
+# author comes out as a field rather than a jq filter because gh api has no --arg to pass one in
+# safely, and interpolating a login into the filter is an injection waiting to happen.
+#
+# `.created_at // .submitted_at` because the two venues disagree: an issue comment carries
+# created_at, a review carries submitted_at and no created_at at all. Reading only created_at puts
+# `null` on every review line, which sorts every review after every comment regardless of when it
+# was posted — and that silently breaks supersession across venues, the whole point of ordering.
+verdict_jq='.[] | "\(.created_at // .submitted_at)\t\(.user.login)\t\(.body | split("\n") | map(select(startswith("VERDICT:"))) | last // "")"'
+
+# Both venues merged, ordered, narrowed to one actor's verdict lines. The main loop and the
+# self-test go through this, so a fixture exercises the same path a poll does.
+verdict_lines() {
+  local actor=$1
+  sort | awk -F'\t' -v actor="$actor" '$2 == actor && $3 ~ /^VERDICT:/ { print $3 }'
+}
+
 # Which state a pull request is in, given its head and its verdict lines in timestamp order on
 # stdin. Separate from the fetching so --self-test can drive it: a wrong answer here either
 # re-reviews work already reviewed or silently drops work, and neither shows up without four
@@ -82,6 +101,48 @@ VERDICT: verification-incomplete — at $a — 0 blocking, 0 deferrable, 0 nit" 
   check retry "VERDICT: approve — at $b — 0 blocking, 0 deferrable, 0 nit
 VERDICT: verification-incomplete — at $a — 0 blocking, 0 deferrable, 0 nit" "$a" \
     "earlier head approved, current head incomplete"
+  # The cases above feed classify() lines that are already in order, so they cannot catch a
+  # timestamp read from the wrong field — which is exactly how the two venues came to sort wrongly.
+  # These run the real jq filter over payloads shaped like each endpoint's.
+  if command -v jq >/dev/null 2>&1; then
+    local comment_payload review_payload
+    comment_payload='[{"created_at":"2026-01-01T12:00:00Z","user":{"login":"seat"},
+      "body":"## Review\n\nVERDICT: verification-incomplete — at '"$a"' — 0 blocking, 0 deferrable, 0 nit"}]'
+    review_payload='[{"submitted_at":"2026-01-01T11:00:00Z","user":{"login":"seat"},
+      "body":"## Review\n\nVERDICT: approve — at '"$a"' — 0 blocking, 0 deferrable, 0 nit"}]'
+
+    local ts
+    ts=$(jq -r "$verdict_jq" <<<"$review_payload" | cut -f1)
+    if [[ $ts == "2026-01-01T11:00:00Z" ]]; then
+      echo "ok    a review payload yields its submitted_at"
+    else
+      echo "FAIL  a review payload yields its submitted_at: got '$ts'"
+      failures=$((failures + 1))
+    fi
+
+    ts=$(jq -r "$verdict_jq" <<<"$comment_payload" | cut -f1)
+    if [[ $ts == "2026-01-01T12:00:00Z" ]]; then
+      echo "ok    a comment payload yields its created_at"
+    else
+      echo "FAIL  a comment payload yields its created_at: got '$ts'"
+      failures=$((failures + 1))
+    fi
+
+    # End to end across venues: the review approved first, a comment said incomplete after, so the
+    # head is owed a retry. Read the wrong timestamp field and this comes back settled.
+    got=$(printf '%s\n%s\n' \
+      "$(jq -r "$verdict_jq" <<<"$comment_payload")" \
+      "$(jq -r "$verdict_jq" <<<"$review_payload")" | verdict_lines seat | classify "$a")
+    if [[ $got == retry ]]; then
+      echo "ok    later comment supersedes an earlier review across venues"
+    else
+      echo "FAIL  later comment supersedes an earlier review across venues: wanted retry, got $got"
+      failures=$((failures + 1))
+    fi
+  else
+    echo "skip  payload cases (no jq on PATH)"
+  fi
+
   if [[ $failures -eq 0 ]]; then
     echo "watch.sh: self-test passed"
     return 0
@@ -130,12 +191,6 @@ listed=$(gh api --paginate "repos/$repo/pulls?state=open&sort=created&direction=
 }
 prs=$(head -n "$limit" <<<"$listed")
 
-# One line per comment: timestamp, author, and that comment's own VERDICT line where it has one.
-# Extracting the verdict inside jq keeps a multi-line body from becoming several lines out here,
-# and the timestamp is what lets two venues merge in the order they were actually posted. The
-# author comes out as a field rather than a jq filter because gh api has no --arg to pass one in
-# safely, and interpolating a login into the filter is an injection waiting to happen.
-verdict_jq='.[] | "\(.created_at)\t\(.user.login)\t\(.body | split("\n") | map(select(startswith("VERDICT:"))) | last // "")"'
 
 rechecks=()
 freshes=()
@@ -160,9 +215,7 @@ while read -r number base head; do
   }
 
   # Merge both venues chronologically, keep this actor's verdict lines, drop the metadata.
-  state=$(printf '%s\n%s\n' "$comments" "$reviews" | sort |
-    awk -F'\t' -v actor="$actor" '$2 == actor && $3 ~ /^VERDICT:/ { print $3 }' |
-    classify "$head")
+  state=$(printf '%s\n%s\n' "$comments" "$reviews" | verdict_lines "$actor" | classify "$head")
 
   case $state in
   fresh) freshes+=("$number $base $head fresh") ;;
