@@ -21,11 +21,15 @@ Delegation mechanism, by phrasing:
 - **fable team session** — `Agent`
 - **fable workflow session** — `Workflow`
 
-Model per delegated task:
-
-- **Opus** — default
-- **Sonnet** — simple and fully specified
-- **Fable** — needs nuance
+Model per delegated task, named on every call: the test is whether a stronger
+model would reach a different answer on *this* task, not how much the arc
+matters. Opus where the worker has to hold coupled pieces at once and decide
+something the brief has not named. Sonnet where the brief is complete and
+correctness is settled by something outside the model's judgement — a failing
+test, a gate, an exact wording, a named file to sweep. Fable where the work needs
+nuance. An omitted `model` on an `Agent` call inherits the orchestrator's, which
+here is Opus, so silence is the most expensive choice available; say the model
+and say why in one line.
 
 Each worker is short-lived: one task, its own worktree and scratch folder, and a
 brief naming the goal, the files in and out of scope, the done criterion and the
