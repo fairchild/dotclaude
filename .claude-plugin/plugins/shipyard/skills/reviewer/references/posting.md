@@ -37,24 +37,28 @@ VERDICT: changes-needed — at 0123456789abcdef0123456789abcdef01234567 — 1 bl
 - not verified: <what, and why not>
 ```
 
-One `VERDICT:` line per posted body. Name no other commit on that line — a parser takes the SHA
-on it as the head the verdict binds to, and a second SHA makes the verdict ambiguous rather than
-wrong, which is worse.
+One `VERDICT:` line per head, in one place. The repository's config file names which venue that
+is — a conversation comment or the body of a review carrying inline findings — and the verdict goes
+in that one, not both. A watcher reads both venues, so a verdict duplicated across them is two
+verdicts for one head.
+
+Name no other commit on the `VERDICT:` line. A parser takes the SHA on it as the head the verdict
+binds to, and a second SHA makes the verdict ambiguous rather than wrong, which is worse.
 
 With no findings, keep the `### Findings` heading and write `none`. A parser that sees the heading
 missing cannot tell a clean review from a truncated one.
 
 ## Commands
 
-A conversation comment — the default venue, and where the verdict goes:
+A conversation comment — the default venue:
 
 ```bash
 gh api --method POST "repos/$SHIPYARD_REPO/issues/$PR/comments" -F body=@body.md
 ```
 
-A review with inline line findings, when the repository's config file asks for them. `commit_id`
-must be the head you reviewed, and every `comments[]` entry must name a path and line that exist at
-that SHA:
+A review with inline line findings, when the repository's config file asks for them. The verdict
+then goes in this body rather than in a conversation comment. `commit_id` must be the head you
+reviewed, and every `comments[]` entry must name a path and line that exist at that SHA:
 
 ```bash
 gh api --method POST "repos/$SHIPYARD_REPO/pulls/$PR/reviews" \
@@ -84,6 +88,7 @@ After posting, read the comment back and confirm its `VERDICT:` line carries the
 
 ```bash
 gh api "repos/$SHIPYARD_REPO/issues/$PR/comments" --jq '.[-1].body' | grep '^VERDICT:'
+gh api "repos/$SHIPYARD_REPO/pulls/$PR/reviews" --jq '.[-1].body' | grep '^VERDICT:'
 ```
 
-A verdict is posted or it did not happen.
+Read back the venue you posted to. A verdict is posted or it did not happen.

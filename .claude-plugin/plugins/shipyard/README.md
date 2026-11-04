@@ -6,8 +6,8 @@ A development pattern with seats rather than tasks. A **lead** session plans, as
 reviewer that has read every pull request in a repository says things a reviewer handed one diff
 cannot, and because the author of a change is the worst available judge of it.
 
-This is the first slice: the reviewer seat alone, as `/shipyard:reviewer`. The lead skill, a setup
-skill and a compaction prepare hook follow, in that order.
+Two of the three seats are here: the reviewer, as `/shipyard:reviewer`, and `/shipyard:setup`,
+which fits the seats to one repository. The lead skill and the compaction prepare hook follow.
 
 ## Install
 
@@ -43,6 +43,21 @@ It never merges, never pushes to an author's branch, and never reviews its own w
 commands (`gh pr` goes through GraphQL, which answers `403` in cloud sessions);
 [`references/lessons.md`](skills/reviewer/references/lessons.md) is what previous seats learned,
 cited by number.
+
+## Setup
+
+```
+/shipyard:setup
+```
+
+Once per repository, and again when its tooling changes. It detects the gate, the tests, the
+required check names, the venue and the review label by running commands rather than reading
+guesses out of files, writes `.claude/shipyard.md` in the repository under review, and then checks
+the fit by running the seat's own scripts against it. It creates the review label if the repository
+has none and reuses the existing name if it has one. `skills/setup/references/detection.md` is what
+it runs and what each answer means.
+
+This repository's own [`.claude/shipyard.md`](../../../.claude/shipyard.md) is the worked example.
 
 ## Configuration
 
