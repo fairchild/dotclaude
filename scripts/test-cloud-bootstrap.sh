@@ -23,7 +23,7 @@ echo keep > "$runtime/projects/session.jsonl"
 printf '{"enabledPlugins": {"meter@local": true}, "env": {"KEEP": "1"}}\n' > "$runtime/settings.json"
 bootstrap "file://$bundle" "$runtime"
 
-grep -q ' ok test-revision; mods: usage-meter compaction$' "$runtime/cloud-bootstrap.status" \
+grep -q ' ok test-revision; mods: usage-meter compaction; plugins: shipyard$' "$runtime/cloud-bootstrap.status" \
   || fail "status: $(cat "$runtime/cloud-bootstrap.status")"
 [[ -s "$runtime/CLAUDE.md" ]] || fail "CLAUDE.md missing"
 [[ -f "$runtime/skills/tight-docs/SKILL.md" ]] || fail "a portable skill is missing"
@@ -48,13 +48,18 @@ expect '[has("hooks", "statusLine", "voice", "theme")] | any | not' \
 expect --arg path "$runtime/mods" '.extraKnownMarketplaces == {"dotclaude": {"source": {"source": "directory", "path": $path}}}' \
   "the mods marketplace was not registered"
 expect '.enabledPlugins["usage-meter@dotclaude"] and .enabledPlugins["compaction@dotclaude"]' "a mod was not enabled"
+expect '.enabledPlugins["shipyard@dotclaude"]' "a bundled plugin was not enabled"
 expect '.env | has("CLAUDE_CODE_AUTO_COMPACT_WINDOW", "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE") | not' \
   "auto-compaction was set without being asked for"
-jq -e '[.plugins[] | {name, source}] == [{"name": "usage-meter", "source": "./usage-meter"}, {"name": "compaction", "source": "./compaction"}]' \
-  "$runtime/mods/.claude-plugin/marketplace.json" >/dev/null || fail "the mods marketplace lists the wrong plugins"
+# One marketplace holds both kinds, each flattened to the directory root whatever it was called in
+# the source tree, so a plugin ID here matches a machine that added the marketplace from GitHub.
+jq -e '[.plugins[] | {name, source}] == [{"name": "usage-meter", "source": "./usage-meter"}, {"name": "compaction", "source": "./compaction"}, {"name": "shipyard", "source": "./shipyard"}]' \
+  "$runtime/mods/.claude-plugin/marketplace.json" >/dev/null || fail "the marketplace lists the wrong plugins"
+[[ -f "$runtime/mods/shipyard/skills/reviewer/SKILL.md" ]] || fail "a bundled plugin's skills are missing"
 if command -v claude >/dev/null; then
-  for mod in usage-meter compaction; do
-    claude plugin validate "$runtime/mods/$mod" >/dev/null 2>&1 || fail "the installed $mod does not validate"
+  for plugin in usage-meter compaction shipyard; do
+    claude plugin validate "$runtime/mods/$plugin" >/dev/null 2>&1 \
+      || fail "the installed $plugin does not validate"
   done
 fi
 
@@ -64,13 +69,44 @@ expect '.permissions.deny | length == (unique | length)' "a second run duplicate
 
 # Named mods narrow the install, "none" installs none, and a mod left out is no longer listed.
 DOTCLAUDE_MODS="usage-meter not-a-mod" bootstrap "file://$bundle" "$runtime"
-grep -q '; mods: usage-meter; mods not installed: not-a-mod$' "$runtime/cloud-bootstrap.status" \
+grep -q '; mods: usage-meter; mods not installed: not-a-mod; plugins: shipyard$' "$runtime/cloud-bootstrap.status" \
   || fail "status: $(cat "$runtime/cloud-bootstrap.status")"
 [[ ! -e "$runtime/mods/compaction" ]] || fail "a mod that wasn't named stayed installed"
+# Named plugins narrow the same way, and a name the bundle does not carry is reported rather than
+# silently dropped. DOTCLAUDE_MODS is unset here, so the mods are untouched.
+picked_plugins="$tmp/picked-plugins/.claude"
+DOTCLAUDE_PLUGINS="shipyard not-a-plugin" bootstrap "file://$bundle" "$picked_plugins"
+grep -q '; plugins: shipyard; plugins not installed: not-a-plugin$' "$picked_plugins/cloud-bootstrap.status" \
+  || fail "status: $(cat "$picked_plugins/cloud-bootstrap.status")"
+[[ -d "$picked_plugins/mods/shipyard" ]] || fail "a named plugin was not installed"
+
+# "none" leaves the plugins out without touching the mods, which is the point of two switches.
+no_plugins="$tmp/no-plugins/.claude"
+DOTCLAUDE_PLUGINS=none bootstrap "file://$bundle" "$no_plugins"
+[[ ! -e "$no_plugins/mods/shipyard" ]] || fail "DOTCLAUDE_PLUGINS=none installed a plugin"
+[[ -d "$no_plugins/mods/compaction" ]] || fail "DOTCLAUDE_PLUGINS=none took the mods with it"
+grep -q '; mods: usage-meter compaction$' "$no_plugins/cloud-bootstrap.status" \
+  || fail "status: $(cat "$no_plugins/cloud-bootstrap.status")"
+jq -e '.enabledPlugins | has("shipyard@dotclaude") | not' "$no_plugins/settings.json" >/dev/null \
+  || fail "a plugin that was not installed was still enabled"
+
+# "none" for the mods leaves the plugins in place: the directory is the marketplace root both kinds
+# share, so what has to be gone is the mods themselves, not the directory.
 none="$tmp/none/.claude"
 DOTCLAUDE_MODS=none bootstrap "file://$bundle" "$none"
-[[ ! -e "$none/mods" ]] || fail "DOTCLAUDE_MODS=none installed mods"
-jq -e 'has("extraKnownMarketplaces") | not' "$none/settings.json" >/dev/null || fail "none still registered a marketplace"
+[[ ! -e "$none/mods/compaction" && ! -e "$none/mods/usage-meter" ]] \
+  || fail "DOTCLAUDE_MODS=none installed mods"
+jq -e '[.plugins[].name] == ["shipyard"]' "$none/mods/.claude-plugin/marketplace.json" >/dev/null \
+  || fail "DOTCLAUDE_MODS=none left a mod in the marketplace"
+jq -e '.enabledPlugins | has("compaction@dotclaude") | not' "$none/settings.json" >/dev/null \
+  || fail "a mod that was not installed was still enabled"
+
+# Neither kind: nothing to register, so no marketplace at all.
+nothing="$tmp/nothing/.claude"
+DOTCLAUDE_MODS=none DOTCLAUDE_PLUGINS=none bootstrap "file://$bundle" "$nothing"
+[[ ! -e "$nothing/mods" ]] || fail "installing neither kind still made a marketplace root"
+jq -e 'has("extraKnownMarketplaces") | not' "$nothing/settings.json" >/dev/null \
+  || fail "installing neither kind still registered a marketplace"
 
 # Auto-compaction is set only when the environment names it, and the window is the mod's goal
 # too, so the thread's prepare point and the engine's backstop follow one number.
@@ -102,7 +138,7 @@ picked="$tmp/picked/.claude"
 DOTCLAUDE_SKILLS="tight-docs, fable-session image-generator signoz-log" bootstrap "file://$bundle" "$picked"
 [[ "$(ls "$picked/skills" | tr '\n' ' ')" == "fable-session tight-docs " ]] \
   || fail "named skills installed: $(ls "$picked/skills" | tr '\n' ' ')"
-grep -q ' ok test-revision; not installed: image-generator signoz-log; mods: usage-meter compaction$' "$picked/cloud-bootstrap.status" \
+grep -q ' ok test-revision; not installed: image-generator signoz-log; mods: usage-meter compaction; plugins: shipyard$' "$picked/cloud-bootstrap.status" \
   || fail "status: $(cat "$picked/cloud-bootstrap.status")"
 [[ -s "$picked/CLAUDE.md" ]] || fail "naming skills dropped the rest of the bundle"
 

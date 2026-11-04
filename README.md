@@ -284,7 +284,7 @@ Cloud sessions never see the machine's `~/.claude`, but they do read the one on 
 curl -fsSL https://raw.githubusercontent.com/fairchild/dotclaude/main/scripts/cloud-bootstrap.sh | bash
 ```
 
-[`scripts/cloud-bootstrap.sh`](scripts/cloud-bootstrap.sh) installs the bundle that [`cloud-bundle.yml`](.github/workflows/cloud-bundle.yml) publishes from `main`: `CLAUDE.md`, agents, commands, every skill not marked `machine-bound`, the [mods](mods/README.md), and the settings that mean the same on a VM. It leaves out hooks, the status line, other plugins and `dotagents` links, which assume this machine. Each run records its result in `~/.claude/cloud-bootstrap.status`.
+[`scripts/cloud-bootstrap.sh`](scripts/cloud-bootstrap.sh) installs the bundle that [`cloud-bundle.yml`](.github/workflows/cloud-bundle.yml) publishes from `main`: `CLAUDE.md`, agents, commands, every skill not marked `machine-bound`, the [mods](mods/README.md), the [plugins](.claude-plugin/plugins/README.md), and the settings that mean the same on a VM. It leaves out hooks, the status line and `dotagents` links, which assume this machine. Each run records its result in `~/.claude/cloud-bootstrap.status`.
 
 Variables before `bash`, each optional:
 
@@ -292,6 +292,7 @@ Variables before `bash`, each optional:
 |----------|--------|
 | `DOTCLAUDE_SKILLS` | Only these skills, separated by spaces or commas. A name it can't install, misspelled or `machine-bound`, is listed in the status line. |
 | `DOTCLAUDE_MODS` | Only these mods; `none` installs none. Unset, both install and load from the first session. |
+| `DOTCLAUDE_PLUGINS` | Only these plugins from [`.claude-plugin/plugins/`](.claude-plugin/plugins/README.md); `none` installs none. Unset, `shipyard` installs, so a cloud session can take a seat. The two switches are independent: `DOTCLAUDE_MODS=none` leaves the plugins in place and the other way round. |
 | `DOTCLAUDE_COMPACT_WINDOW`, `DOTCLAUDE_COMPACT_PCT` | When sessions auto-compact (`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`); `300000` and `100` compact at 267k. The window is also the compaction mod's `goalTokens`, so its prepare point lands 47k before that backstop. Unset, the platform's default stands and the mod keeps its own 300,000 goal. |
 
 ```bash

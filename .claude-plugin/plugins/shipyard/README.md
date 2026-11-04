@@ -15,6 +15,12 @@ compaction hook that names each seat's resume file at the moment it is about to 
 /plugin install shipyard --marketplace fairchild/dotclaude
 ```
 
+In a cloud environment the setup line in the main README's
+[Cloud sessions](../../../README.md#cloud-sessions) installs it with the rest of the bundle, so a
+cloud session can take a seat without installing anything by hand. That matters for the reviewer
+seat in particular: `gh pr` goes through GraphQL and answers `403` in cloud sessions, which is why
+[`posting.md`](skills/reviewer/references/posting.md) posts through REST everywhere.
+
 From a terminal, `claude plugin install` instead of `/plugin install`. The plugin declares
 `dependencies` on the [`compaction`](../../../mods/README.md) and
 [`usage-meter`](../../../mods/README.md) mods rather than absorbing them: a seat needs to know what

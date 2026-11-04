@@ -29,6 +29,12 @@ plugin skills into tables described as that directory would make both harder to 
 own README is where its skills and their tiers are listed. `.github/scripts/validate-config.py`
 does check their frontmatter, so the declaration is enforced wherever it lives.
 
+A plugin here reaches a cloud session too: the bundle
+[`cloud-bundle.yml`](../../.github/workflows/cloud-bundle.yml) publishes carries `.claude-plugin/`,
+and [`cloud-bootstrap.sh`](../../scripts/cloud-bootstrap.sh) installs these alongside the mods into
+one directory marketplace named `dotclaude`, enabled from the first session. `DOTCLAUDE_PLUGINS`
+narrows which, and `none` installs none.
+
 A plugin here pins no `version`, for the reason [`mods/README.md`](../../mods/README.md) gives: without
 one, a GitHub install resolves to the commit SHA and `claude plugin update` follows `main`. None
 carries a `bin/` directory either — claude.ai and Cowork refuse to install a plugin that has one, so
