@@ -149,12 +149,18 @@ repositories at once.
 
 ## Living in one session
 
-The seat outlives its context window. Keep a resume file — the repository, the pull requests seen,
-the verdict posted for each head, the findings still open, and what you were mid-way through — and
-write it before you compact, not after. `mcp__compaction__request` carries the instructions for the
-summary; the resume file carries what a summary would lose. The plugin's compaction hook names the
-file at the prepare point and again at the next session's start, and does not write it for you. A verdict is posted or it did not
-happen: never report one from memory without reading it back off the pull request.
+The seat outlives its context window, so it keeps a resume file: the repository, the pull requests
+seen, the verdict posted for each head, the findings still open, and what it was mid-way through.
+
+Write it when you take the seat, before the first review, and keep it current as you go — not when
+you first need it. The plugin's compaction hook names the file at a compaction and again at the
+next session's start, but it keys off the file's existence and never writes it: a seat with no file
+is indistinguishable from a session that is not a seat, and gets no reminder at all. Update it
+before you compact, not after. `mcp__compaction__request` carries the instructions for the summary;
+the resume file carries what a summary would lose.
+
+A verdict is posted or it did not happen: never report one from memory without reading it back off
+the pull request.
 
 `references/lessons.md` holds what previous seats learned, numbered. Cite a lesson by number when
 it decides a call, and add one when this seat learns something a numbered line would have

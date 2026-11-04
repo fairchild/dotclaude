@@ -111,10 +111,14 @@ and where they say a human merges, the lead reports ready and stops.
 
 ## Living in one session
 
-The seat outlives its context window. Keep a resume file — the queue and each item's state, who is
-working where, the verdict for each open pull request and the head it binds to, and what you were
-mid-way through — and write it before you compact. The plugin's compaction hook names the file at
-the prepare point and again at the next session's start; it does not write it for you.
+The seat outlives its context window, so it keeps a resume file: the queue and each item's state,
+who is working where, the verdict for each open pull request and the head it binds to, and what it
+was mid-way through.
+
+Write it when you take the seat, before the first dispatch, and keep it current as you go. The
+plugin's compaction hook names the file at a compaction and again at the next session's start, and
+it keys off the file's existence — a seat with no file is indistinguishable from a session that is
+not a seat, and gets no reminder at all. The hook does not write the file for you.
 
 Re-read state before you act on it. A queue item's state, a pull request's head, a check's
 conclusion and a verdict's SHA are all volatile, and everything in your context about them is a

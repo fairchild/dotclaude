@@ -13,9 +13,11 @@
 #   CLAUDE_PLUGIN_OPTION_SCRATCH_ROOT  where seats keep scratch state (default ~/.worktrees/shipyard)
 #   CLAUDE_PLUGIN_OPTION_GOAL_TOKENS   the context goal, for the message only (default 300000)
 #
-# Installed globally, this runs in every session, so it stays silent unless the working directory
-# is a git repository that already has a resume file — a seat's hook has no business narrating
-# itself in a session that is not a seat.
+# Installed globally, this runs in every session, so both hooks stay silent unless the working
+# directory is a git repository that already has a resume file — a seat's hook has no business
+# narrating itself in a session that is not a seat. That is also why a seat writes its resume file
+# when it takes the seat rather than when it first needs it: the file's existence is what tells
+# this script a seat is here.
 set -euo pipefail
 
 root=${CLAUDE_PLUGIN_OPTION_SCRATCH_ROOT:-$HOME/.worktrees/shipyard}
@@ -43,14 +45,15 @@ path)
   ;;
 
 pre-compact)
-  # Said whether or not the file exists: at a compaction, a missing resume file is the thing
-  # most worth saying.
-  if [[ -f $file ]]; then
-    age=$(( ($(date +%s) - $(stat -f %m "$file" 2>/dev/null || stat -c %Y "$file")) / 60 ))
-    emit "shipyard: resume file is $file, last written ${age}m ago. Before this compaction, bring it up to date — the queue and each item's state, each open pull request with the verdict and the head SHA it binds to, and what this seat was mid-way through. Context goal is ${goal} tokens; what the summary drops, that file is the only copy of."
-  else
-    emit "shipyard: no resume file at $file. If this session is a seat, write it before compacting: the queue and each item's state, each open pull request with the verdict and the head SHA it binds to, and what this seat was mid-way through. Nothing else carries that across the summary."
-  fi
+  # No file means this is not a seat, so say nothing. A seat writes its resume file when it takes
+  # the seat, which is what makes the file's absence a reliable answer rather than a guess — see
+  # the skills. Speaking here instead would narrate shipyard at every global session that
+  # compacts in any repository, which is most of them.
+  [[ -f $file ]] || exit 0
+  # GNU first: `-c` is rejected outright by BSD stat, so it falls through cleanly, while BSD's
+  # `-f %m` means filesystem status on GNU and prints something that is not a timestamp.
+  age=$(( ($(date +%s) - $(stat -c %Y "$file" 2>/dev/null || stat -f %m "$file")) / 60 ))
+  emit "shipyard: resume file is $file, last written ${age}m ago. Before this compaction, bring it up to date — the queue and each item's state, each open pull request with the verdict and the head SHA it binds to, and what this seat was mid-way through. Context goal is ${goal} tokens; what the summary drops, that file is the only copy of."
   ;;
 
 start)
