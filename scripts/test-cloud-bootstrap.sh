@@ -34,7 +34,9 @@ settings="$runtime/settings.json"
 expect() {
   local args=()
   while [[ "$1" == --arg ]]; do args+=("$1" "$2" "$3"); shift 3; done
-  jq -e "${args[@]}" "$1" "$settings" >/dev/null || fail "$2"
+  # ${args[@]+...} because bash 3.2 — macOS's /bin/bash — calls an empty array unbound under
+  # set -u, and most calls here pass no --arg at all.
+  jq -e ${args[@]+"${args[@]}"} "$1" "$settings" >/dev/null || fail "$2"
 }
 expect '.enabledPlugins["meter@local"] == true' "existing keys must survive"
 expect '.env.KEEP == "1"' "existing env must survive"
