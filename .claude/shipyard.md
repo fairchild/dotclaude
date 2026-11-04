@@ -11,9 +11,16 @@ serves several repositories at once.
   last five merged pull requests: every review arrived as a review object, four with no inline
   comments and one with four, and no pull request had a single conversation comment. A seat posting
   conversation comments here would be posting somewhere nobody reads.
-- **Review label: `needs code review`** — the label already in use, described in this repository as
-  triggering the review workflow. Not `review`: a second label for the same idea splits the queue
-  and half the work goes unreviewed.
+- **Review label: `needs code review`** — the name to use, but read the next line before relying on
+  it. The label exists and is the only one here that means "ready for review", so a seat should use
+  it rather than create `review` and split the queue. What it does *not* do is arrive on its own:
+  `.github/workflows/ci.yml`'s companion review workflow was gated on this label, nobody applied
+  it, and the gate was dropped — the review now fires on `opened`, `synchronize`,
+  `ready_for_review` and `reopened`, label or no label. **A reviewer seat polling for this label
+  here would see nothing**, so the lead seat has to apply it explicitly, and a seat run here before
+  the lead exists should poll on pull request state instead.
+- `code review passed` is applied by the review workflow at the end of a review, which re-triggers
+  the workflow with a bot actor. A seat treating that label as its own signal would loop.
 - Seat-to-seat notes: none. This repository has no thread issue; a seat with something to say to the
   next seat says it in the pull request.
 

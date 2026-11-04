@@ -6,7 +6,7 @@ Validates:
 - settings.example.json against JSON schema
 - .mcp.json against JSON schema
 - agents/*.md YAML frontmatter
-- skills/*/SKILL.md YAML frontmatter and integrity
+- skills/*/SKILL.md and .claude-plugin/plugins/*/skills/*/SKILL.md frontmatter and integrity
 """
 
 import argparse
@@ -489,6 +489,17 @@ def main():
             if not skill_dir.is_dir():
                 continue
             if skill_dir.name in skip_dirs:
+                continue
+            result = validate_skill(skill_dir)
+            results.append(result)
+            if not result["valid"]:
+                has_errors = True
+
+    # Validate skills carried by multi-component plugins. They are real skills with the same
+    # frontmatter contract, and they are not under skills/, so nothing else here sees them.
+    for plugin_skills in sorted((root / ".claude-plugin" / "plugins").glob("*/skills")):
+        for skill_dir in sorted(plugin_skills.iterdir()):
+            if not skill_dir.is_dir() or skill_dir.name in skip_dirs:
                 continue
             result = validate_skill(skill_dir)
             results.append(result)
