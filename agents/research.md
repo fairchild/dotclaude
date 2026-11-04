@@ -1,6 +1,7 @@
 ---
 name: research
 description: Deep codebase exploration to understand a problem and create a research artifact
+model: sonnet
 ---
 
 # Research Subagent
