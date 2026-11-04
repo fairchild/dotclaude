@@ -48,6 +48,13 @@ binds to, and a second SHA makes the verdict ambiguous rather than wrong, which 
 With no findings, keep the `### Findings` heading and write `none`. A parser that sees the heading
 missing cannot tell a clean review from a truncated one.
 
+The base and head lines in the checkpoint are load-bearing rather than decorative: a re-check reads
+the previous pair out of them to build its `range-diff`, because the poll only ever reports the
+current pair. A checkpoint without both SHAs costs the next review its delta.
+
+Nothing else in the body may start a line with `VERDICT:` — the poll matches that at column zero,
+so a quoted earlier verdict becomes a second verdict for the head. Indent it or quote it with `>`.
+
 ## Commands
 
 A conversation comment — the default venue:

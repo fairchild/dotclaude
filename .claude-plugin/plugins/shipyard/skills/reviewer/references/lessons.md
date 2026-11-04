@@ -39,3 +39,26 @@ earlier verdicts cite these by number.
 
 10. **Say what you did not check.** The checkpoint's "not verified" line is the most valuable line
     in the review, because it is the only one a reader cannot reconstruct from the diff.
+
+11. **An empty queue and a broken poll look identical.** `watch.sh` exits 2 when it could not ask,
+    and 0 with no output when the answer was "nothing". Collapsing them is how a seat sits silent
+    for a day while an author waits: the queue was never empty, the token had expired. Report the
+    exit 2, back off, poll again, and never let it end the loop.
+
+12. **A fork head is a stranger's code.** Running the repository's gate on it executes that code on
+    this machine with this token in the environment. CI runs it in a sandbox built for that; the
+    seat does not. Record "gate not run: fork head" and judge the rest on reading.
+
+13. **A gate that was already red is not this pull request's finding.** Run it on the recorded base
+    SHA before attributing a failure to the author. The embarrassing version of this is a blocking
+    finding against someone who changed nothing in the failing area.
+
+14. **The last verdict wins, which is what makes `verification-incomplete` recoverable.** Without
+    that rule it is terminal: the verdict is posted, the head no longer looks unreviewed, and
+    nothing may replace it. The poll returns such a head as `retry`; the grammar allows a seat to
+    supersede its own verdict for the same head.
+
+15. **A lockfile names a package manager, not a command.** Guessing `bun run check` from `bun.lock`
+    gets a failure that belongs to the seat rather than the author. Discover the task from the
+    repository's own task runner, record which one you chose, and treat an undiscoverable gate as
+    an absence rather than a finding.
