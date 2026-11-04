@@ -4,7 +4,7 @@
 #
 #   <number> <base-sha> <head-sha> fresh|recheck
 #
-# fresh   — carries the review label and has no verdict for the current head
+# fresh   — no verdict for the current head (and carries the review label, where one is set)
 # recheck — has a verdict for an older head, so the author pushed since
 #
 # Verdicts are read from both venues a seat can post to, conversation comments and review
@@ -15,7 +15,9 @@
 #   SHIPYARD_LABEL    the label the lead applies. Empty or "none" (the default) means every open
 #                     non-draft pull request, which is what lets a seat run in a repository that
 #                     has configured nothing: a label default would need someone to apply it.
-#   SHIPYARD_LIMIT    pull requests to consider (default: 50)
+#   SHIPYARD_LIMIT    at most this many pull requests considered, oldest first (default: 50).
+#                     Applied after the label filter, not as the page size: the listing paginates,
+#                     so a labelled pull request past the first page is still found.
 #   SHIPYARD_ACTOR    the login whose verdicts count (default: the token's own)
 #
 # Exit 0 with no output means nothing to do. Exit 2 means the poll could not be made, which is
@@ -31,6 +33,11 @@ if [[ -z $repo ]]; then
   exit 2
 fi
 
+if [[ ! $limit =~ ^[1-9][0-9]*$ ]]; then
+  echo "watch: SHIPYARD_LIMIT must be a positive integer, got '$limit'" >&2
+  exit 2
+fi
+
 actor=${SHIPYARD_ACTOR:-$(gh api user --jq .login 2>/dev/null || true)}
 if [[ -z $actor ]]; then
   echo "watch: cannot read the token's own login; set SHIPYARD_ACTOR" >&2
@@ -43,11 +50,15 @@ else
   select_label="select(any(.labels[]; .name == \"$label\"))"
 fi
 
-prs=$(gh api --paginate "repos/$repo/pulls?state=open&per_page=$limit" \
+# The cap is applied to the filtered result, not passed as per_page: under --paginate per_page is
+# the page size and caps nothing. Truncating the captured value rather than piping gh into head
+# also keeps a SIGPIPE from reading as a failed listing under pipefail.
+listed=$(gh api --paginate "repos/$repo/pulls?state=open&per_page=100" \
   --jq ".[] | select(.draft == false) | $select_label | \"\(.number) \(.base.sha) \(.head.sha)\"") || {
   echo "watch: cannot list pull requests for $repo" >&2
   exit 2
 }
+prs=$(head -n "$limit" <<<"$listed")
 
 while read -r number base head; do
   [[ -n ${number:-} ]] || continue
