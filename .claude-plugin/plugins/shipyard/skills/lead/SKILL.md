@@ -100,9 +100,18 @@ the code is *for* is not.
    see what else is in the queue. A nit is the implementer's call.
 5. **Merge**, and only when all of these hold: the verdict is `approve`, its SHA is the current
    head, the required checks are green on that head, and nothing is unresolved that the repository
-   requires resolved. Merge the verified head explicitly — `gh pr merge --match-head-commit <sha>` —
-   so a push that lands between your read and your merge stops the merge instead of slipping
-   through it.
+   requires resolved. Name the verified head in the merge, so a push landing between your read and
+   your merge stops it rather than riding along:
+
+   ```bash
+   gh pr merge "$PR" --match-head-commit "$head"                      # local
+   gh api --method PUT "repos/$SHIPYARD_REPO/pulls/$PR/merge" -f sha="$head"   # REST
+   ```
+
+   Both refuse the merge when the head has moved. Prefer the REST form where `gh pr`
+   subcommands answer `403`, which is how they behave in cloud sessions —
+   `../reviewer/references/posting.md` covers why. Pick the merge method the repository
+   allows (`merge_method=squash|merge|rebase`); its ruleset says which.
 
 Merging is the only step here that changes a shared branch, and the only one that cannot be
 undone from the seat. The repository's own instructions about merging override anything here; where

@@ -14,7 +14,8 @@ skills set `disable-model-invocation: true`, so a model never enters one mid-tas
 ## Requirements
 
 - GitHub. The scripts use the GitHub REST API; no other forge is supported.
-- `gh`, authenticated with `repo` scope for the repository under review.
+- `gh`, authenticated with `repo` scope for the repository under review. The lead also needs
+  permission to merge there.
 - `git` 2.35 or later, for `worktree`, `range-diff` and `--remerge-diff`.
 - `python3`, which the compaction hook uses to build its JSON. Absent, the hook says nothing
   instead of failing.
@@ -84,9 +85,10 @@ learned, numbered so a review can cite one.
 The lead holds one queue in the repository's own tracker, writes a brief per item, cuts a worktree
 per implementer and dispatches into it, then applies the review label and says nothing further
 about the change — a reviewer given the lead's expectations tends to confirm them. It reads the
-verdict, gives every blocking and deferrable finding a disposition, and merges with
-`gh pr merge --match-head-commit <sha>` once the verdict is `approve`, its SHA is the current head,
-and the required checks are green on that head.
+verdict, gives every blocking and deferrable finding a disposition, and merges once the verdict is
+`approve`, its SHA is the current head, and the required checks are green on that head. The merge
+names that head — `gh pr merge --match-head-commit`, or `PUT …/pulls/<n>/merge` with `sha` where
+`gh pr` subcommands answer `403` — so a push landing in between stops it.
 
 The lead writes no implementation code, posts no findings, and cannot overrule a verdict. A finding
 it disagrees with goes back to the pull request as an argument, and the reviewer re-checks.
@@ -153,14 +155,15 @@ remote rather than the checkout, so a seat that moves to a second worktree keeps
 
 - **Experimental, with one consumer.** No eval suite. The verdict grammar and the poll states are
   settled; the loop has not run unattended against a repository with many open pull requests.
-- **The lead can merge.** It is gated on an `approve` verdict bound to the current head with green
-  required checks, and `--match-head-commit` stops a merge when the head moved, but a seat that
-  merges is a seat with write access.
+- **The lead's merge is the only step that changes a shared branch.** It is gated on an `approve`
+  verdict bound to the current head with green required checks, and naming the head stops a merge
+  when the head moved — but a seat that merges is a seat with write access.
 - **A fork head is reviewed from CI, not locally.** Running a repository's gate on a fork head
   executes a contributor's code on the machine the seat runs on, with its token in the environment.
   The seat records the gate as not run unless the config file opts a named fork in.
-- **No forge but GitHub**, and no GraphQL-only operation. Resolving a review thread is the one
-  exception, and it degrades to a reply when the token cannot do it.
+- **No forge but GitHub.** Everything goes through REST, which is what works in a cloud session.
+  GraphQL is needed only to resolve a review thread, and that degrades to a reply when the token
+  cannot do it.
 
 ## Skills and tiers
 
