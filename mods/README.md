@@ -26,10 +26,15 @@ directory marketplace named `dotclaude`. `DOTCLAUDE_MODS` on that line narrows t
 `mcp__usage-meter__reading`, `mcp__compaction__context` and `mcp__compaction__request`, and
 `~/.claude/cloud-bootstrap.status` names the mods it installed.
 
-A mod's `version` in its `plugin.json` is what `claude plugin update` compares, not the commit:
-a change that keeps the version reaches the marketplace cache and stops there, and installed
-sessions keep running the old copy. So a change worth installing bumps the version in the
-same commit.
+Neither mod's `plugin.json` pins a `version`, and neither marketplace entry does, so for an
+install from this repository on GitHub the version is the commit SHA and `claude plugin update`
+follows `main`. A pinned version would be compared instead of the commit, and a change that
+kept it would reach the marketplace cache and stop there with installed sessions on the old
+copy. Keep the field out unless these mods start wanting releases of their own.
+
+A marketplace added from a local path is the other way to track a working copy: a plugin whose
+entry is a relative path, as both of these are, loads in place from the folder, so an edit is
+live at the next session start or `/reload-plugins` whatever any version says.
 
 On a machine, install them from this repository's marketplace, as the main README's
 [Install as a plugin marketplace](../README.md#install-as-a-plugin-marketplace) shows:
