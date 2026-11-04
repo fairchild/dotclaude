@@ -6,8 +6,8 @@ A development pattern with seats rather than tasks. A **lead** session plans, as
 reviewer that has read every pull request in a repository says things a reviewer handed one diff
 cannot, and because the author of a change is the worst available judge of it.
 
-Two of the three seats are here: the reviewer, as `/shipyard:reviewer`, and `/shipyard:setup`,
-which fits the seats to one repository. The lead skill and the compaction prepare hook follow.
+All three seats are here — `/shipyard:lead`, `/shipyard:reviewer` and `/shipyard:setup` — with a
+compaction hook that names each seat's resume file at the moment it is about to lose its context.
 
 ## Install
 
@@ -44,6 +44,24 @@ commands (`gh pr` goes through GraphQL, which answers `403` in cloud sessions);
 [`references/lessons.md`](skills/reviewer/references/lessons.md) is what previous seats learned,
 cited by number.
 
+## The lead seat
+
+```
+/shipyard:lead
+```
+
+One session per repository: it holds the queue, writes the briefs, cuts a worktree per implementer
+and dispatches into it, applies the review label and then says nothing — a reviewer told what to
+find finds it — reads the verdict, gives every finding a disposition, and merges the verified head
+with `--match-head-commit` once the verdict is `approve` at the current head and the required
+checks are green on it.
+
+It does not write implementation code, does not review, and cannot overrule a verdict. A seat that
+can overrule the review is a seat with no review; if a finding looks wrong, the lead argues it in
+the pull request and the reviewer re-checks.
+[`references/brief.md`](skills/lead/references/brief.md) is the brief's shape and the four ways one
+goes wrong.
+
 ## Setup
 
 ```
@@ -79,6 +97,20 @@ one seat serves several repositories at once and they do not agree.
 A repository with no config file still gets a working reviewer — comments as the venue, a `review`
 label, gate and test commands detected from the lockfile, required checks read from CI. Configuring
 it improves on that; it is not the price of entry.
+
+## The compaction hook
+
+A seat outlives its context window, so the pattern depends on a resume file — the queue, each open
+pull request with the verdict and the head SHA it binds to, what the seat was mid-way through.
+[`scripts/seat-resume.sh`](scripts/seat-resume.sh) names that file at the two moments it matters:
+`PreCompact`, where it also says when the file was last written, and `SessionStart`, where it tells
+the next session the file exists and that everything in it needs re-checking.
+
+It does not write the file. What belongs in one is what the seat knows and a script cannot guess.
+Installed globally the hook runs in every session, so it stays silent unless the working directory
+is a repository that already has a resume file — a seat's hook has no business narrating itself in
+a session that is not a seat. The resume file is keyed by the repository's remote rather than the
+checkout, so a seat that moves to a second worktree is still the same seat.
 
 ## No version, no `bin/`
 

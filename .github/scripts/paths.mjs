@@ -1,5 +1,5 @@
 const patterns = {
-  config: /^(skills\/|agents\/|scripts\/|settings.example.json$|dotagents.toml$|setup.sh$|README.md$|\.mcp.json$|\.gitignore$)/,
+  config: /^(skills\/|agents\/|scripts\/|\.claude-plugin\/|settings.example.json$|dotagents.toml$|setup.sh$|README.md$|\.mcp.json$|\.gitignore$)/,
   package: /^(mcp\/|skills\/|LICENSE$)/,
   webui: /^(webui\/|commands\/|agents\/|skills\/|scripts\/|\.claude-plugin\/|blog\/|mcp\/package.json$|mcp\/bun.lock$|README.md$|CLAUDE.md$|\.mcp(?:-urls)?\.json$)/,
   analyze: /^skills\/analyze-usage\//,

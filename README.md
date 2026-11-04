@@ -197,7 +197,7 @@ From a terminal, the same line starts with `claude plugin install`. The first in
 | `usage-meter` | Mod: one tool that reads the five-hour and seven-day usage windows ([mods](mods/README.md)) |
 | `compaction` | Mod: lets the main thread ask for `/compact` with instructions ([mods](mods/README.md)) |
 | `brainstorm-to-brief`, `image-gen`, `dotclaude-config`, `release`, `skill-building` | The skills of the same name, from `skills/` |
-| `shipyard` | The multi-seat development pattern: a reviewer seat that owns every review in a repository ([plugins](.claude-plugin/plugins/shipyard/README.md)) |
+| `shipyard` | The multi-seat development pattern: lead, reviewer and setup seats, plus a compaction hook ([plugins](.claude-plugin/plugins/shipyard/README.md)) |
 
 - `claude plugin marketplace update dotclaude` pulls the latest `main`; `claude plugin marketplace add fairchild/dotclaude@<branch>` tries a branch instead.
 - On a machine whose `~/.claude` is this repository, the skills are already there: install only the mods.

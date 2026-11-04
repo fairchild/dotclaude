@@ -87,8 +87,12 @@ beats a resolution the seat only believes happened.
 After posting, read the comment back and confirm its `VERDICT:` line carries the SHA you meant:
 
 ```bash
-gh api "repos/$SHIPYARD_REPO/issues/$PR/comments" --jq '.[-1].body' | grep '^VERDICT:'
-gh api "repos/$SHIPYARD_REPO/pulls/$PR/reviews" --jq '.[-1].body' | grep '^VERDICT:'
+gh api --paginate "repos/$SHIPYARD_REPO/issues/$PR/comments" --jq '.[].body' | grep '^VERDICT:' | tail -1
+gh api --paginate "repos/$SHIPYARD_REPO/pulls/$PR/reviews" --jq '.[].body' | grep '^VERDICT:' | tail -1
 ```
+
+`--paginate` and `tail -1`, not `.[-1]` on one page: past thirty items the default page no longer
+holds the last one, so an unpaginated read-back checks a body that is not the one you just posted
+and reports success for it.
 
 Read back the venue you posted to. A verdict is posted or it did not happen.

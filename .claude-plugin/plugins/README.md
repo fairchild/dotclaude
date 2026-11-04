@@ -9,16 +9,18 @@ They sit under `.claude-plugin/` rather than at a root `plugins/` because this r
 reserves that path. `.claude-plugin/plugins/<name>` is the layout the plugin tooling already
 recognizes for a plugin hosted in the repository that serves it.
 
-- **[`shipyard`](shipyard/)**: the multi-seat development pattern — a lead seat, a reviewer seat and
-  implementers between them. The reviewer seat ships first.
+- **[`shipyard`](shipyard/)**: the multi-seat development pattern — a lead seat, a reviewer seat,
+  implementers between them, and a setup seat that fits the three to one repository.
 
 Three homes, three shapes, and the shape decides:
 
 - `skills/<name>` with a marketplace entry whose `source` is `./` and whose `skills` array names one
   directory — a plugin that is one skill, and the same skill a machine running this repository as
   `~/.claude` already has.
-- `mods/<name>` — a plugin whose hooks module runs inside the engine. `mods/` means that, and
-  nothing here does it.
+- `mods/<name>` — a plugin whose hooks *module* runs inside the engine, with the session's
+  permissions, and can answer tools of its own. That is what `mods/` means. A plugin here may
+  still carry ordinary command hooks, which run as separate processes and can only read what they
+  are given; `shipyard` does, and it is not a mod.
 - `.claude-plugin/plugins/<name>` — several components under one name, installed as a unit.
 
 A plugin here pins no `version`, for the reason [`mods/README.md`](../../mods/README.md) gives: without
