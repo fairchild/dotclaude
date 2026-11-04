@@ -21,15 +21,23 @@ Delegation mechanism, by phrasing:
 - **fable team session** — `Agent`
 - **fable workflow session** — `Workflow`
 
-Model per delegated task, named on every call: the test is whether a stronger
-model would reach a different answer on *this* task, not how much the arc
-matters. Opus where the worker has to hold coupled pieces at once and decide
-something the brief has not named. Sonnet where the brief is complete and
-correctness is settled by something outside the model's judgement — a failing
-test, a gate, an exact wording, a named file to sweep. Fable where the work needs
-nuance. An omitted `model` on an `Agent` call inherits the orchestrator's, which
-here is Opus, so silence is the most expensive choice available; say the model
-and say why in one line.
+Model per delegated task, named on every call with one line saying why. An
+omitted `model` on an `Agent` call inherits the orchestrator's, which here is
+Opus, so silence is the most expensive choice available and the only one nobody
+weighed.
+
+The default is the stronger model, and the burden of proof sits on stepping
+down: quality is the thing being bought, and the budget constrains how much of
+it you can buy rather than competing with it. Step down to Sonnet only where
+that line can say what makes it safe — something other than the model's
+judgement settles correctness: a test shown failing on a mutant, a gate, a
+reviewer's exact wording to apply, a named file to sweep, a mechanical merge, a
+screenshot to capture. There the check decides and the model only executes, so a
+stronger one reaches the same answer. Where the worker has to hold several
+moving parts at once and decide something the brief has not named, a stronger
+model does reach a different answer, and that is worth paying for. Fable where
+the work needs nuance. Uncertainty resolves upward: if you cannot tell which
+case you are in, that is the answer.
 
 Each worker is short-lived: one task, its own worktree and scratch folder, and a
 brief naming the goal, the files in and out of scope, the done criterion and the
