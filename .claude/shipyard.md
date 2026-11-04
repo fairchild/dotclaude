@@ -17,8 +17,9 @@ serves several repositories at once.
   `.github/workflows/ci.yml`'s companion review workflow was gated on this label, nobody applied
   it, and the gate was dropped — the review now fires on `opened`, `synchronize`,
   `ready_for_review` and `reopened`, label or no label. **A reviewer seat polling for this label
-  here would see nothing**, so the lead seat has to apply it explicitly, and a seat run here before
-  the lead exists should poll on pull request state instead.
+  here would see nothing**, so either the lead applies it explicitly, or the seat runs with no
+  label at all — `SHIPYARD_LABEL` unset, which takes every open non-draft pull request — and that
+  is the mode to use here until a lead is running.
 - `code review passed` is applied by the review workflow at the end of a review, which re-triggers
   the workflow with a bot actor. A seat treating that label as its own signal would loop.
 - Seat-to-seat notes: none. This repository has no thread issue; a seat with something to say to the

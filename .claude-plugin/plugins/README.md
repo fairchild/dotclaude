@@ -23,6 +23,12 @@ Three homes, three shapes, and the shape decides:
   are given; `shipyard` does, and it is not a mod.
 - `.claude-plugin/plugins/<name>` — several components under one name, installed as a unit.
 
+A skill inside a plugin declares its tier in `SKILL.md` frontmatter like any other, but it is not
+in the README's generated tier tables: `scripts/catalog.py` globs `skills/*/SKILL.md`, and merging
+plugin skills into tables described as that directory would make both harder to read. The plugin's
+own README is where its skills and their tiers are listed. `.github/scripts/validate-config.py`
+does check their frontmatter, so the declaration is enforced wherever it lives.
+
 A plugin here pins no `version`, for the reason [`mods/README.md`](../../mods/README.md) gives: without
 one, a GitHub install resolves to the commit SHA and `claude plugin update` follows `main`. None
 carries a `bin/` directory either — claude.ai and Cowork refuse to install a plugin that has one, so
