@@ -4,8 +4,16 @@
 #
 #   <check name> <conclusion>
 #
-# Exits 0 when every check finished and none failed, 1 when one failed or was cancelled, 2 when
-# the wait timed out or the state could not be read — which is verification-incomplete, not green.
+# Exit 0  every check finished and none failed
+# Exit 1  a check failed, was cancelled or timed out
+# Exit 2  the state could not be read, or the wait timed out — verification-incomplete, not green
+# Exit 3  the commit exists and reports no checks at all
+#
+# 2 and 3 are different answers and the seat treats them differently. A check that exists and
+# cannot be read is state the seat is blind to, so it cannot approve. A repository that runs no CI
+# is not hiding anything: the seat records "repository reports no checks" under what it could not
+# verify and judges the rest on its own reading. Collapsing the two means a repository without CI
+# can never be approved, which would make the zero-config path useless.
 #
 #   SHIPYARD_REPO       owner/name (default: the repository of the current directory)
 #   SHIPYARD_SHA        the commit to watch (required; a full 40-character SHA)
@@ -32,8 +40,8 @@ while :; do
   }
 
   if [[ -z $runs ]]; then
-    echo "ci-wait: no checks reported for $sha" >&2
-    exit 2
+    echo "ci-wait: $sha reports no checks" >&2
+    exit 3
   fi
 
   if ! awk -F'\t' '$2 != "completed"' <<<"$runs" | grep -q .; then

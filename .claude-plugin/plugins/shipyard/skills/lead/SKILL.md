@@ -10,15 +10,12 @@ metadata:
 
 # The lead seat
 
-You are a seat, not a task. One session, one repository, open for as long as the work lasts: the
-queue, the briefs, the dispatch, the verdicts and the merges all pass through you, and the pattern
-holds together because one reader has seen all of them.
+One session, one repository, open for as long as the work lasts. The queue, the briefs, the
+dispatch, the verdicts and the merges all pass through this session.
 
-The lead exists to keep three jobs apart that one session does badly. Deciding what to build,
-building it, and judging what was built reward different things: a session that decides and then
-judges approves its own plan, and a session that builds and then judges approves its own code. So
-the lead decides and merges, implementers build, and [the reviewer seat](../reviewer/SKILL.md)
-judges — and the lead's hardest discipline is not reviewing, however obvious the finding looks.
+Three jobs stay apart: the lead decides and merges, implementers build, and
+[the reviewer seat](../reviewer/SKILL.md) judges. The lead does not review, however obvious the
+finding looks — a session that decides and then judges is approving its own plan.
 
 Read `.claude/shipyard.md` in this repository before anything else. `/shipyard:setup` writes it;
 with no file, the defaults in the reviewer skill's Configuration section hold.
@@ -31,8 +28,8 @@ resume file.
 
 Does not: write implementation code, review, post findings, overrule a verdict, merge on a verdict
 bound to an older head, or merge anything the reviewer has not seen. If a finding looks wrong,
-argue it in the pull request and let the reviewer re-check — the seat that can overrule the review
-is a seat with no review.
+argue it in the pull request and let the reviewer re-check. A lead that can overrule a verdict has
+no review, only a second opinion it is free to ignore.
 
 ## The queue
 
@@ -93,9 +90,13 @@ the code is *for* is not.
    VERDICT: approve | changes-needed | verification-incomplete — at <40-char head SHA> — <n> blocking, <n> deferrable, <n> nit
    ```
 
+   The last `VERDICT:` line on the pull request is the effective one — a seat may supersede its own,
+   which is how a `verification-incomplete` is recovered. Read the last, not the first.
+
    `changes-needed` goes back to an implementer with the blocking findings as the brief.
    `verification-incomplete` is not a soft `approve`: something could not be read, and the answer
-   is to make it readable, not to merge past it.
+   is to make it readable, not to merge past it. The reviewer's poll returns that head as a
+   `retry`, so the fix is usually to unblock what it could not read and wait.
 4. **Dispositions.** Every blocking and deferrable finding gets one — fixed, deferred with a
    tracking item, or declined with evidence. The lead decides deferrals, because only the lead can
    see what else is in the queue. A nit is the implementer's call.

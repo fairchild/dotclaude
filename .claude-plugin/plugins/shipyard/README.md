@@ -1,10 +1,10 @@
 # shipyard
 
 A development pattern with seats rather than tasks. A **lead** session plans, assigns and merges; a
-**reviewer** session owns every fresh review and re-check in a repository; short-lived
-**implementers** work in their own worktrees between them. The seats are long-lived because a
-reviewer that has read every pull request in a repository says things a reviewer handed one diff
-cannot, and because the author of a change is the worst available judge of it.
+**reviewer** session owns every fresh review and re-check in one repository; short-lived
+**implementers** work in their own worktrees between them. The seats are long-lived so that one
+reader has seen every pull request in the repository, and separate so that no session judges work
+it decided on or wrote.
 
 All three seats are here — `/shipyard:lead`, `/shipyard:reviewer` and `/shipyard:setup` — with a
 compaction hook that names each seat's resume file at the moment it is about to lose its context.
@@ -69,9 +69,8 @@ find finds it — reads the verdict, gives every finding a disposition, and merg
 with `--match-head-commit` once the verdict is `approve` at the current head and the required
 checks are green on it.
 
-It does not write implementation code, does not review, and cannot overrule a verdict. A seat that
-can overrule the review is a seat with no review; if a finding looks wrong, the lead argues it in
-the pull request and the reviewer re-checks.
+It does not write implementation code, does not review, and cannot overrule a verdict: if a finding
+looks wrong, the lead argues it in the pull request and the reviewer re-checks.
 [`references/brief.md`](skills/lead/references/brief.md) is the brief's shape and the four ways one
 goes wrong.
 
@@ -103,9 +102,12 @@ Two values are the user's, so they live in the plugin's `userConfig` (`/config`,
 Everything else is the repository's, and lives in one tracked file in the repository under review,
 `.claude/shipyard.md` — the venue, the review label, the gate and test commands, the required check
 names, the finding classes that are never deferrable, and the model-and-effort table.
-[`project-template.md`](skills/reviewer/references/project-template.md) is the blank. `userConfig`
-is scoped per user, not per repository, which is why a value like a review label cannot live there:
-one seat serves several repositories at once and they do not agree.
+[`project-template.md`](skills/reviewer/references/project-template.md) is the blank.
+
+The split follows from what each value describes. `userConfig` is scoped per user, so the two
+values there are the ones about the machine and the account: where worktrees are cut, and how much
+context a session keeps. A review label is not a property of either, and a repository has no
+standing to set them.
 
 A repository with no config file still gets a working reviewer — comments as the venue, a `review`
 label, gate and test commands detected from the lockfile, required checks read from CI. Configuring

@@ -56,8 +56,8 @@ decision, while a wrong value is a decision nobody made.
 Two rules about what must not enter this file. It is tracked, and in a public repository it is
 world-readable: no credential, no token, no internal hostname, no private repository name, and no
 path that only exists on one machine. And nothing user-level belongs in it — `goal_tokens` and
-`scratch_root` are the user's, declared in the plugin's own config, because one user's seat serves
-several repositories and they do not agree.
+`scratch_root` are declared in the plugin's own config, because they describe the machine the seat
+runs on and the account it runs as, not this repository.
 
 Then say, in the file, what you could not detect and why. The next reader of the file is a seat
 deciding whether to trust it.
@@ -98,6 +98,69 @@ Setup is not done when the file is written. It is done when the seat has used it
 Report what each printed. A setup reported as complete without these three is the failure this
 skill exists to prevent: a configuration file that is wrong in a way nobody notices until a
 verdict is wrong.
+
+## Session wiring for a seat
+
+A seat is a session that will compact several times before the work is done, so part of setting up
+a repository is making a new session survive that. This is the part the plugin cannot do for the
+operator, and being clear about the split is most of the value here.
+
+**What the plugin ships.** A `PreCompact` hook that names the seat's resume file and when it was
+last written, and a `SessionStart` hook that tells a new session the file exists and needs
+re-checking. Both come from `scripts/seat-resume.sh` and are silent in a session that is not a
+seat. `goal_tokens` and `scratch_root` come from the plugin's `userConfig` and reach the hook as
+`CLAUDE_PLUGIN_OPTION_GOAL_TOKENS` and `CLAUDE_PLUGIN_OPTION_SCRATCH_ROOT`.
+
+**What the operator sets.** The engine's own automatic compaction point. The plugin does not try to
+set it from the manifest — set it where it is definitely read, and verify by reading it back, which
+is the only claim worth making about a setting:
+
+```json
+{
+  "autoCompactWindow": 300000
+}
+```
+
+The number is `goal_tokens`. The engine compacts at `min((W - 20000) * P / 100, W - 33000)`, so at
+`W = 300000` the second arm binds and the backstop lands at 267,000 — about 33,000 below the goal.
+That ordering is the point: the seat compacts deliberately at its prepare point (the goal less
+80,000, so 220,000), with instructions about what the summary must keep, and the engine's point is
+the backstop that compacts without them. Set the two from different numbers and the backstop can
+fire first, which is the one case where a seat loses its state without being asked.
+
+Per session instead of per machine: `claude --autocompact 300000`.
+`CLAUDE_CODE_AUTO_COMPACT_WINDOW` does the same through the environment, and
+`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` moves the `P` in that formula.
+
+**Verify by reading it back.** The `compaction` mod reports both numbers and says when they
+disagree, which is a better check than re-reading the file you just wrote:
+
+```text
+Points: a goal of 300,000; requests from 150,000; the prepare point at 220,000;
+        automatic compaction at 667,000 (the engine's threshold).
+Note: the engine compacts at 667,000, not the 267,000 this goal implies. Only the
+      `autoCompactWindow` setting moves that one; set it to 300,000 to line them up.
+```
+
+That is the unwired state on a million-token model: the goal advises a compaction 400,000 tokens
+before the engine would do anything. Wired, the note goes away.
+
+## What is true when setup is done
+
+Say which of these now holds, and which the operator still has to do by hand:
+
+- [ ] `.claude/shipyard.md` committed in the repository under review, with detected values and the
+      blanks left blank.
+- [ ] The review label exists, and something applies it — or the file says the seat runs with no
+      label.
+- [ ] The gate and test commands run from a clean checkout.
+- [ ] `watch.sh` exits 0 and lists what you expect; `watch.sh --self-test` passes.
+- [ ] `ci-wait.sh` prints the check names the required-checks line claims.
+- [ ] `shipyard` installed, with `goal_tokens` and `scratch_root` set — the operator's, per machine,
+      not per repository.
+- [ ] `autoCompactWindow` set to the same number as `goal_tokens`, and the `compaction` mod's report
+      no longer notes a disagreement.
+- [ ] The seat's resume directory exists under `scratch_root`.
 
 ## Handing over
 
