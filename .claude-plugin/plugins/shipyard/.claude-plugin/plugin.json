@@ -2,6 +2,7 @@
   "name": "shipyard",
   "description": "The multi-seat development pattern as a plugin: long-lived lead and reviewer seats with short-lived implementers between them. This slice ships the reviewer seat, which owns every fresh review and re-check in a repository and posts one parseable verdict per head.",
   "license": "Apache-2.0",
+  "hooks": "./hooks/hooks.json",
   "dependencies": [
     "compaction",
     "usage-meter"
