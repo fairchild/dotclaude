@@ -1,0 +1,114 @@
+# Template for the consequential-check skill. Copy it to .github/workflows/consequential-check.yml,
+# and copy scripts/consequential.py and assets/rubric.md to .github/consequential/ on the default
+# branch.
+#
+# It labels a pull request `consequential` when the owner should be the one to merge it, and posts
+# the verdict as one comment it keeps current. It never merges, approves, or removes the label: a
+# later push cannot clear a raise, only the owner can.
+#
+# The script and rubric run from the base commit, so a pull request cannot rewrite its own judge.
+# The diff is read through the API as data. Pull requests from forks get no secrets and a read-only
+# token, so they are skipped; a fork's PR is the owner's to merge regardless.
+#
+# Secrets: DECISION_MODEL_API_KEY (optional), ANTHROPIC_API_KEY. Variable: DECISION_MODEL, set to the
+# exact model id the rubric was tuned against.
+name: Consequential check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: consequential-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  route:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/consequential
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+
+      - name: Read the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # The API refuses very large diffs; an empty file routes the PR to the owner.
+          gh pr diff "$PR" --repo "$GITHUB_REPOSITORY" > "$RUNNER_TEMP/pr.diff" || : > "$RUNNER_TEMP/pr.diff"
+          printf '%s' "$BODY" > "$RUNNER_TEMP/body.md"
+
+      # `shell: bash` adds pipefail, so a crash in the script fails this step instead of hiding
+      # behind `tee`. The steps after it run on failure and treat a missing verdict as a raise.
+      - name: Route
+        id: route
+        shell: bash
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          DECISION_MODEL_API_KEY: ${{ secrets.DECISION_MODEL_API_KEY }}
+          DECISION_MODEL: ${{ vars.DECISION_MODEL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          uv run --script .github/consequential/consequential.py \
+            --rubric .github/consequential/rubric.md \
+            --title "$TITLE" \
+            --body-file "$RUNNER_TEMP/body.md" \
+            --diff-file "$RUNNER_TEMP/pr.diff" | tee "$RUNNER_TEMP/verdict.json"
+
+      - name: Label
+        if: ${{ !cancelled() && steps.route.outputs.consequential != 'false' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh label create consequential --repo "$GITHUB_REPOSITORY" --color B60205 \
+            --description "The owner merges this one" 2>/dev/null || true
+          gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label consequential
+
+      - name: Post the verdict
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          marker='<!-- consequential-check -->'
+          {
+            echo "$marker"
+            if ! jq -e 'has("consequential")' "$RUNNER_TEMP/verdict.json" > /dev/null 2>&1; then
+              echo "**Consequential: yes** at \`${HEAD:0:12}\`"
+              echo
+              echo 'The router failed before reaching a verdict; routed to the owner. The run log has the error.'
+            else
+              jq -r --arg head "$HEAD" '"**Consequential: \(if .consequential then "yes" else "no" end)** at `\($head[0:12])`\n\n\(.reason)\n\n" +
+                ((.trail | last // {answers: {}}) as $t | "| question | p |\n|---|---|\n" +
+                  ($t.answers | to_entries | map("| \(.key) | \(.value.p) |") | join("\n")) +
+                  "\n\nJudged by `\($t.model // "nothing")`.")' "$RUNNER_TEMP/verdict.json"
+            fi
+            echo
+            echo 'Reply `consequential: right`, or `consequential: wrong <question-id> <why>`.'
+          } > "$RUNNER_TEMP/comment.md"
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq "map(select(.body | startswith(\"$marker\"))) | .[0].id // empty" | head -n1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@"$RUNNER_TEMP/comment.md" > /dev/null
+          else
+            gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/comment.md"
+          fi

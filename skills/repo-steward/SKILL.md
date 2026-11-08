@@ -54,6 +54,9 @@ Workers run in isolated checkouts under whatever tool the operator gives you —
 before the first dispatch: `references/workspaces.md` for WorkSpaces.app, `references/worktrees.md`
 as the fallback for plain git worktrees. Whatever the operator names instead overrides both.
 
+When workers run as cloud sessions instead of local checkouts, read `references/cloud-sessions.md`;
+when they are coordinated through chat channels, one per task, read `references/chat-channels.md`.
+
 ## Standing posture
 
 - Main is the operator's. You touch only branches you created. No merge, no tag, no push to main.
