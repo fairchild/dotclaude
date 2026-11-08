@@ -64,6 +64,7 @@ jobs:
           bash skills/agent-inbox/scripts/test-hooks.sh
           bash skills/claude-as/tests/test.sh
           python skills/image-gen/scripts/check_protocol.py
+          python skills/consequential-check/scripts/consequential.py --self-test
   package:
     needs: changes
     if: needs.changes.outputs.package == 'true'
