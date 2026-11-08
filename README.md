@@ -126,6 +126,7 @@ Claude loads these when the task matches the description.
 | `retrospective` | Run a retrospective on a session, PR or milestone — find the mistakes that repeated, fix each at the strongest layer… | Replaces the session-scoring retro command; no eval yet. |
 | `review-pr` | Review a pull request, yours before opening it or someone else's, then re-check each later push for blockers only, with… | Consolidates the old review-pr and code-review commands with practice from the user's other repositories; no eval yet. |
 | `runner-optin` | Run one reviewed commit of one pull request on this laptop while hosted runners are blocked. | No eval and no invocations yet; the machinery it drives has never run against a real pull request. |
+| `self-hosted` | Run a pull request's CI on this machine instead of GitHub-hosted runners. | Written 2026-11-08 for lede-design while hosted Actions billing is blocked; no run has gone through it yet. |
 | `skill-seeker` | Generate Claude Code skills from docs sites, GitHub repos, or local codebases using Skill Seekers. | Generated skill quality varies by source corpus and still requires explicit human review before installation. |
 | `vocal` | Speak text aloud (TTS) and transcribe speech (STT). | Voice workflows depend on local audio devices and optional ElevenLabs credentials, so reliability is environment-sensitive. |
 
