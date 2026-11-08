@@ -55,8 +55,11 @@ jobs:
           gh pr diff "$PR" --repo "$GITHUB_REPOSITORY" > "$RUNNER_TEMP/pr.diff" || : > "$RUNNER_TEMP/pr.diff"
           printf '%s' "$BODY" > "$RUNNER_TEMP/body.md"
 
+      # `shell: bash` adds pipefail, so a crash in the script fails this step instead of hiding
+      # behind `tee`. The steps after it run on failure and treat a missing verdict as a raise.
       - name: Route
         id: route
+        shell: bash
         env:
           TITLE: ${{ github.event.pull_request.title }}
           DECISION_MODEL_API_KEY: ${{ secrets.DECISION_MODEL_API_KEY }}
@@ -70,7 +73,7 @@ jobs:
             --diff-file "$RUNNER_TEMP/pr.diff" | tee "$RUNNER_TEMP/verdict.json"
 
       - name: Label
-        if: steps.route.outputs.consequential == 'true'
+        if: ${{ !cancelled() && steps.route.outputs.consequential != 'false' }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
@@ -80,6 +83,7 @@ jobs:
           gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label consequential
 
       - name: Post the verdict
+        if: ${{ !cancelled() }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
@@ -88,10 +92,16 @@ jobs:
           marker='<!-- consequential-check -->'
           {
             echo "$marker"
-            jq -r --arg head "$HEAD" '"**Consequential: \(if .consequential then "yes" else "no" end)** at `\($head[0:12])`\n\n\(.reason)\n\n" +
-              ((.trail | last // {answers: {}}) as $t | "| question | p |\n|---|---|\n" +
-                ($t.answers | to_entries | map("| \(.key) | \(.value.p) |") | join("\n")) +
-                "\n\nJudged by `\($t.model // "nothing")`.")' "$RUNNER_TEMP/verdict.json"
+            if ! jq -e 'has("consequential")' "$RUNNER_TEMP/verdict.json" > /dev/null 2>&1; then
+              echo "**Consequential: yes** at \`${HEAD:0:12}\`"
+              echo
+              echo 'The router failed before reaching a verdict; routed to the owner. The run log has the error.'
+            else
+              jq -r --arg head "$HEAD" '"**Consequential: \(if .consequential then "yes" else "no" end)** at `\($head[0:12])`\n\n\(.reason)\n\n" +
+                ((.trail | last // {answers: {}}) as $t | "| question | p |\n|---|---|\n" +
+                  ($t.answers | to_entries | map("| \(.key) | \(.value.p) |") | join("\n")) +
+                  "\n\nJudged by `\($t.model // "nothing")`.")' "$RUNNER_TEMP/verdict.json"
+            fi
             echo
             echo 'Reply `consequential: right`, or `consequential: wrong <question-id> <why>`.'
           } > "$RUNNER_TEMP/comment.md"

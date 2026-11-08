@@ -63,6 +63,8 @@ gh api "repos/OWNER/REPO/issues/comments" --paginate \
   --jq '.[] | select(.body | test("^consequential: (right|wrong)")) | {pr: .issue_url, body}'
 ```
 
+The title, body and diff reach the judge as untrusted text written by the PR's author, and the prompt tells the model to treat them as data. A wrong "no" on a PR whose title or body argues for its own safety is worth reading as attempted prompt injection.
+
 Read each wrong verdict against the verdict comment on the same PR. A miss that a rubric situation
 would have caught becomes a new situation; a question that is repeatedly wrong in one direction gets
 its line moved. Move `ESCALATE_BELOW` only when the escalation rate or the misses say so — it is a
