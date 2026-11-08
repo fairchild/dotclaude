@@ -11,9 +11,10 @@
   merge-ready. A subagent's claim is not evidence.
 - End decisions with one recommended next action.
 - A PR handed to the user to merge is one they can merge as it stands: out of
-  draft, checks green on its head, every finding answered, the body current.
-  Finish your part before naming it; a draft is never waiting on the user, and
-  a nit never holds a PR in draft.
+  draft, every check green on its head except one that fails by design to route
+  the merge to the user, every finding answered, the body current. Finish your
+  part before naming it; a draft is never waiting on the user, and a nit never
+  holds a PR in draft.
 - Exploration stays exploration. Don't cross into production changes without
   saying so.
 - New verification tooling — gates, scripts, workflows — states what it replaces
