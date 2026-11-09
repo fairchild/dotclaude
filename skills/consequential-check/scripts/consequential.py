@@ -7,8 +7,9 @@
 
 Jev, TypeSafe's decision model, answers five yes/no questions about the diff and decides. A cheap
 Claude model (the benchmark) answers the same questions on every run, never decides, and is kept
-beside Jev's answers so the two can be compared. When any of Jev's answers sits too close to even
-odds, a stronger Claude model answers them instead and its answers are final.
+beside Jev's answers so the two can be compared; it gets a bounded wait and never holds the verdict
+up. When an answer sits close enough to its question's line that it could flip the verdict, a
+stronger Claude model answers the whole set instead and its answers are final.
 
 Without a Jev key, or when Jev cannot take the diff, the benchmark model decides, escalating to the
 stronger model the same way. Without any key, the PR is routed to the owner: nothing was judged.
@@ -40,11 +41,18 @@ import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-ESCALATE_BELOW = 0.75
+# An answer within this distance of its question's line is uncertain. Uncertain answers escalate
+# only when they could flip the verdict: any of them while nothing is raised, or when every raised
+# question is itself uncertain.
+ESCALATE_MARGIN = 0.1
+# How long the verdict waits for the benchmark once Jev has answered, and the benchmark's own
+# request timeout. A slower benchmark is recorded as unavailable.
+SHADOW_WAIT_SECONDS = 45.0
 MAX_DIFF_CHARS = 400_000
 # Jev reads at most 32k tokens per question (state plus question); past this the benchmark decides.
 JEV_MAX_STATE_CHARS = 80_000
@@ -183,11 +191,38 @@ def clamp(answers: Answers) -> Answers:
 
 
 def unsure(answers: Answers) -> list[str]:
-    return [q.id for q in QUESTIONS if max(p := answers[q.id]["p"], 1 - p) < ESCALATE_BELOW]
+    return [q.id for q in QUESTIONS if abs(answers[q.id]["p"] - q.raise_at) < ESCALATE_MARGIN]
 
 
 def raised(answers: Answers) -> list[str]:
     return [q.id for q in QUESTIONS if answers[q.id]["p"] >= q.raise_at]
+
+
+def could_flip(answers: Answers) -> list[str]:
+    """The uncertain answers that could change the verdict, and so escalate."""
+    doubtful, hits = unsure(answers), raised(answers)
+    if not hits:
+        return doubtful
+    return hits if set(hits) <= set(doubtful) else []
+
+
+KEY_SHAPE = re.compile(r"[\x21-\x7e]{8,512}")
+
+
+def usable(key: str) -> bool:
+    """A key is sent only as printable ASCII with no whitespace: anything else would end up in an
+    error message, and error messages reach the public comment."""
+    return bool(KEY_SHAPE.fullmatch(key))
+
+
+def scrub(text: str, keys: list[str]) -> str:
+    for key in keys:
+        if key:
+            text = text.replace(key, "[redacted:key]")
+            for part in key.split():
+                if len(part) >= 6:
+                    text = text.replace(part, "[redacted:key]")
+    return redact(text)
 
 
 def parse_jev(response: dict) -> Reply:
@@ -204,6 +239,8 @@ def ask_jev(key: str, model: str, state: dict, rubric: str) -> Reply:
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
                 return parse_jev(json.load(response))
+        except ValueError as error:  # a header urllib refuses; its message can carry the header
+            raise RuntimeError(f"Jev request could not be sent ({error.__class__.__name__})") from None
         except urllib.error.HTTPError as error:
             if error.code not in (429, 500, 502, 503, 529) or attempt == 2:
                 raise RuntimeError(f"Jev answered HTTP {error.code}") from None
@@ -214,10 +251,10 @@ def ask_jev(key: str, model: str, state: dict, rubric: str) -> Reply:
     raise AssertionError("unreachable")
 
 
-def ask_claude(key: str, model: str, text: str) -> Reply:
+def ask_claude(key: str, model: str, text: str, timeout: float = 120.0) -> Reply:
     import anthropic
 
-    response = anthropic.Anthropic(api_key=key).messages.create(
+    response = anthropic.Anthropic(api_key=key, timeout=timeout, max_retries=1).messages.create(
         model=model,
         max_tokens=4000,
         output_config={"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
@@ -233,7 +270,7 @@ def ask_claude(key: str, model: str, text: str) -> Reply:
 class Models:
     """The calls decide() makes; the self-test swaps in stubs."""
     jev: Callable[[str, str, dict, str], Reply] = ask_jev
-    claude: Callable[[str, str, str], Reply] = ask_claude
+    claude: Callable[[str, str, str, float], Reply] = ask_claude
 
 
 # ---------------------------------------------------------------- deciding
@@ -249,6 +286,7 @@ class Run:
 def decide(pull: Pull, env: dict[str, str], models: Models | None = None) -> dict:
     models = models or Models()
     jev_key, claude_key = env.get("TYPESAFE_API_KEY", "").strip(), env.get("ANTHROPIC_API_KEY", "").strip()
+    keys = [jev_key, claude_key]
     jev_model = env.get("JEV_MODEL") or DEFAULT_JEV_MODEL
     benchmark_model = env.get("BENCHMARK_MODEL") or DEFAULT_BENCHMARK_MODEL
     strong_model = env.get("STRONG_MODEL") or DEFAULT_STRONG_MODEL
@@ -256,47 +294,85 @@ def decide(pull: Pull, env: dict[str, str], models: Models | None = None) -> dic
     state = jev_state(pull)
     text = prompt(pull)
 
-    if not jev_key:
-        run.notes.append(f"No Jev key: {benchmark_model} decided, as before Jev was added.")
-    elif state is None:
-        run.notes.append(f"The diff is too large for Jev's context: {benchmark_model} decided.")
+    if jev_key and not usable(jev_key):
+        run.notes.append("The Jev key is malformed, so Jev was not asked.")
+        jev_key = ""
+    elif not jev_key:
+        run.notes.append("No Jev key, so Jev was not asked.")
+    if claude_key and not usable(claude_key):
+        run.notes.append("The Anthropic key is malformed, so no Claude model was asked.")
+        claude_key = ""
+    if jev_key and state is None:
+        run.notes.append("The diff is too large for Jev's context, so Jev was not asked.")
     if not claude_key:
         run.notes.append("No Anthropic key: no benchmark answers and no escalation.")
 
-    with ThreadPoolExecutor(2) as pool:
+    pool = ThreadPoolExecutor(2)
+    try:
         jev_call = pool.submit(models.jev, jev_key, jev_model, state, pull.rubric) if jev_key and state else None
-        bench_call = pool.submit(models.claude, claude_key, benchmark_model, text) if claude_key else None
+        shadow = jev_call is not None
+        bench_call = (pool.submit(models.claude, claude_key, benchmark_model, text,
+                                  SHADOW_WAIT_SECONDS if shadow else 120.0) if claude_key else None)
         if jev_call:
             try:
                 run.jev = jev_call.result()
             except Exception as error:  # noqa: BLE001 - the benchmark takes over
-                run.notes.append(f"Jev failed ({error}): {benchmark_model} decided.")
+                run.notes.append(f"Jev failed ({scrub(str(error), keys)}).")
         if bench_call:
             try:
-                run.benchmark = bench_call.result()
+                run.benchmark = bench_call.result(timeout=SHADOW_WAIT_SECONDS if run.jev else None)
+            except FuturesTimeout:
+                run.notes.append(f"Shadow unavailable: {benchmark_model} did not answer within {SHADOW_WAIT_SECONDS:.0f}s.")
             except Exception as error:  # noqa: BLE001
-                run.notes.append(f"The benchmark model failed ({error}).")
+                label = "Shadow unavailable" if run.jev else "The benchmark model failed"
+                run.notes.append(f"{label} ({scrub(str(error), keys)}).")
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
 
     decider = run.jev or run.benchmark
     if decider is None and not claude_key:
         return {"consequential": True, "raised": [], "reason": "no model answered: nothing judged",
                 "notes": run.notes, "questions": {}, "disagreements": []}
-    if claude_key and (decider is None or unsure(decider.answers)):
-        run.strong = models.claude(claude_key, strong_model, text)
+    if claude_key and (decider is None or could_flip(decider.answers)):
+        run.strong = models.claude(claude_key, strong_model, text, 120.0)
         decider = run.strong
     assert decider is not None
+    if run.jev is None:
+        if decider is run.benchmark:
+            how = ""
+        elif run.benchmark:
+            how = f", after `{run.benchmark.model}` gave an answer near its line that could flip the verdict"
+        else:
+            how = ", as no cheaper model answered"
+        run.notes.append(f"`{decider.model}` decided in Jev's place{how}.")
     return verdict(run, decider)
+
+
+def route(pull: Pull, env: dict[str, str], models: Models | None = None) -> dict:
+    """decide(), with any failure routed to the owner and every key scrubbed from what is written."""
+    keys = [env.get("TYPESAFE_API_KEY", ""), env.get("ANTHROPIC_API_KEY", "")]
+    try:
+        result = decide(pull, env, models)
+    except Exception as error:  # noqa: BLE001 - any failure routes to the owner
+        result = {"consequential": True, "raised": [], "questions": {}, "disagreements": [], "notes": [],
+                  "reason": f"model call failed: {error}"}
+    return json.loads(scrub(json.dumps(result), keys))
 
 
 def verdict(run: Run, decider: Reply) -> dict:
     hits = raised(decider.answers)
     questions = {}
     for q in QUESTIONS:
+        final = decider.answers[q.id]["p"] >= q.raise_at
         why, source = "", ""
+        # A reason is borrowed only from a model on the same side of the line as the verdict.
         for reply in (decider, run.strong, run.benchmark):
-            if reply and reply.answers[q.id]["why"]:
+            if reply and reply.answers[q.id]["why"] and (reply.answers[q.id]["p"] >= q.raise_at) == final:
                 why, source = str(reply.answers[q.id]["why"]), reply.model
                 break
+        if not why and final and run.benchmark and run.benchmark is not decider:
+            why = (f"{short(decider.model) or decider.model} raised it; {short(run.benchmark.model)} disagreed "
+                   f"(p {run.benchmark.answers[q.id]['p']:.2f})")
         jev = run.jev.answers[q.id]["p"] if run.jev else None
         bench = run.benchmark.answers[q.id]["p"] if run.benchmark else None
         questions[q.id] = {
@@ -316,7 +392,7 @@ def verdict(run: Run, decider: Reply) -> dict:
         "raised": hits,
         "decided_by": decider.model,
         "reason": "; ".join(f"{h}: {questions[h]['why'] or 'no reason given'}" for h in hits) or "no question raised",
-        "escalate_below": ESCALATE_BELOW,
+        "escalate_margin": ESCALATE_MARGIN,
         "escalated": run.strong is not None and decider is run.strong,
         "disagreements": [k for k, v in questions.items() if v["disagree"]],
         "questions": questions,
@@ -335,6 +411,8 @@ def pct(p: float | None) -> str:
 
 
 def short(model: str | None) -> str:
+    if (model or "").startswith("jev"):
+        return "Jev"
     return {"claude-haiku-5-5": "Haiku", "claude-opus-5-5": "Opus"}.get(model or "", model or "")
 
 
@@ -381,7 +459,7 @@ def render(result: dict, head: str) -> str:
             out.append(f"| {qid}{flag} | {q['raise_at']:.2f} | " + " | ".join(pct(q[k]) for k, _ in cols) + f" | {final} |")
         out.append("")
         if result.get("escalated") and "jev" in models:
-            out += [f"Jev was unsure on at least one question (neither side reached {result['escalate_below']}), "
+            out += [f"An answer within {result['escalate_margin']} of its line could have flipped the verdict, "
                     f"so `{result['decided_by']}` decided.", ""]
     out += [f"_{note}_" for note in result.get("notes", [])]
     if result.get("notes"):
@@ -399,11 +477,16 @@ def self_test() -> None:
         return {q.id: {"p": ps.get(q.id, 0.02), "why": why if q.id in ps else ""} for q in QUESTIONS}
 
     assert unsure(a()) == [] and raised(a()) == []
-    assert unsure(a(costs_money=0.6)) == ["costs_money"]
-    assert unsure(a(costs_money=0.75)) == []
+    assert unsure(a(costs_money=0.45)) == ["costs_money"] and unsure(a(costs_money=0.55)) == ["costs_money"]
+    assert unsure(a(costs_money=0.65)) == [] and unsure(a(weakens_security=0.25)) == ["weakens_security"]
     assert raised(a(weakens_security=0.3)) == ["weakens_security"]
     assert raised(a(product_decision=0.59)) == []
     assert clamp({"x": {"p": 1.7, "why": ""}})["x"]["p"] == 1.0
+    # Uncertain answers escalate only when they could flip the verdict.
+    assert could_flip(a(costs_money=0.45)) == ["costs_money"]  # nothing raised; this one could cross
+    assert could_flip(a(costs_money=0.55)) == ["costs_money"]  # the only raise could drop
+    three_mid = a(weakens_security=0.95, hard_to_undo=0.45, costs_money=0.55, product_decision=0.65)
+    assert len(unsure(three_mid)) == 3 and could_flip(three_mid) == []
 
     rubric = "\n\n".join(f"## {q.id}\n\nYes:\n- yes {q.id}\n\nNo:\n- no {q.id}" for q in QUESTIONS)
     assert rubric_sections(rubric)["costs_money"] == ("- yes costs_money", "- no costs_money")
@@ -414,10 +497,12 @@ def self_test() -> None:
     assert redact("key sk-abcdefghijklmnopqrstu end") == "key [redacted:secret] end"
 
     H, O = DEFAULT_BENCHMARK_MODEL, DEFAULT_STRONG_MODEL
+    J_KEY, C_KEY = "jevkey-0123456789", "claudekey-0123456789"
     pull = Pull(rubric, "t", "b", "+x")
-    both = {"TYPESAFE_API_KEY": "j", "ANTHROPIC_API_KEY": "k"}
-    replies: dict[str, Answers | Exception] = {}
+    both = {"TYPESAFE_API_KEY": J_KEY, "ANTHROPIC_API_KEY": C_KEY}
+    replies: dict[str, object] = {}
     calls: list[str] = []
+    delays: dict[str, float] = {}
 
     def jev(key: str, model: str, state: dict, rub: str) -> Reply:
         calls.append("jev")
@@ -425,63 +510,90 @@ def self_test() -> None:
             raise reply
         return Reply("jev-1.14.0", {k: {**v, "why": ""} for k, v in reply.items()}, 1000)  # Jev gives no reasons
 
-    def claude(key: str, model: str, text: str) -> Reply:
+    def claude(key: str, model: str, text: str, timeout: float) -> Reply:
         calls.append(model)
-        return Reply(model, replies[model], 1000, 100)  # type: ignore[arg-type]
+        time.sleep(delays.get(model, 0))
+        if isinstance(reply := replies[model], Exception):
+            raise reply
+        return Reply(model, reply, 1000, 100)  # type: ignore[arg-type]
 
     stubs = Models(jev, claude)
 
-    def run(env: dict[str, str], jev: object = None, haiku: Answers | None = None, opus: Answers | None = None,
-            subject: Pull = pull) -> dict:
+    def run(env: dict[str, str], jev: object = None, haiku: object = None, opus: object = None,
+            subject: Pull = pull, models: Models = stubs) -> dict:
         calls.clear()
-        replies.update({"jev": jev if jev is not None else a(), H: haiku or a(), O: opus or a()})
-        return decide(subject, env, stubs)
+        replies.update({"jev": jev if jev is not None else a(), H: haiku if haiku is not None else a(),
+                        O: opus if opus is not None else a()})
+        return route(subject, env, models)
 
     # Jev decides; the benchmark runs beside it; they agree; nothing escalates.
     v = run(both)
     assert sorted(calls) == sorted(["jev", H]) and v["decided_by"] == "jev-1.14.0" and not v["consequential"]
-    assert v["disagreements"] == [] and v["questions"]["costs_money"]["benchmark"] == 0.02
+    assert v["disagreements"] == [] and v["questions"]["costs_money"]["benchmark"] == 0.02 and v["notes"] == []
 
-    # Jev raises, Haiku does not: consequential on Jev's word, the disagreement named, the why from Haiku.
-    v = run(both, jev=a(costs_money=0.9), haiku=a("adds a nightly job against a billed API", costs_money=0.1))
+    # Jev raises, Haiku does not: consequential on Jev's word, the disagreement named, and Haiku's
+    # reason (an argument for "no") is not offered as the why.
+    v = run(both, jev=a(costs_money=0.9), haiku=a("only a docs change", costs_money=0.1))
     assert v["consequential"] and v["raised"] == ["costs_money"] and v["disagreements"] == ["costs_money"]
-    assert v["questions"]["costs_money"]["why"] == "adds a nightly job against a billed API"
+    assert v["questions"]["costs_money"]["why"] == "Jev raised it; Haiku disagreed (p 0.10)"
     body = render(v, "0123456789abcdef")
     assert body.startswith(MARKER) and body.rstrip().endswith(AGENT_NOTE)
     assert "Why the owner merges this one" in body and "Jev and Haiku disagree" in body
-    assert "`costs_money`: Jev 0.90 raises, Haiku 0.10 does not" in body and "_(Haiku)_" in body
+    assert "`costs_money`: Jev 0.90 raises, Haiku 0.10 does not" in body and "only a docs change" not in body
 
-    # Both raise: no disagreement.
+    # Both raise: no disagreement, and Haiku's reason is the why.
     v = run(both, jev=a(weakens_security=0.8), haiku=a("widens a token scope", weakens_security=0.9))
     assert v["disagreements"] == [] and "disagree" not in render(v, "")
+    assert v["questions"]["weakens_security"]["why"] == "widens a token scope" and "_(Haiku)_" in render(v, "")
     # Haiku alone raising does not make it consequential: it is a benchmark.
     v = run(both, haiku=a("x", costs_money=0.95))
     assert not v["consequential"] and v["disagreements"] == ["costs_money"]
     assert "Why the owner" not in render(v, "") and "Jev and Haiku disagree" in render(v, "")
 
-    # Escalation keys off Jev's uncertainty, not Haiku's.
-    v = run(both, jev=a(costs_money=0.6), opus=a("raises a replica count", costs_money=0.9))
-    assert O in calls and v["decided_by"] == O and v["escalated"] and v["questions"]["costs_money"]["jev"] == 0.6
-    v = run(both, haiku=a(costs_money=0.6))
+    # Escalation keys off Jev's answers, and only when they could flip the verdict.
+    v = run(both, jev=a(costs_money=0.55), opus=a("raises a replica count", costs_money=0.9))
+    assert O in calls and v["decided_by"] == O and v["escalated"] and v["questions"]["costs_money"]["jev"] == 0.55
+    v = run(both, haiku=a(costs_money=0.55))
     assert O not in calls and v["decided_by"] == "jev-1.14.0"
+    v = run(both, jev=three_mid)
+    assert O not in calls and v["decided_by"] == "jev-1.14.0", (calls, v["decided_by"], v["raised"])
+    assert v["raised"] == ["weakens_security", "costs_money", "product_decision"]
 
-    # No Jev key: today's behaviour, Haiku decides and escalates; the note says so.
-    v = run({"ANTHROPIC_API_KEY": "k"}, haiku=a(costs_money=0.6), opus=a("x", costs_money=0.9))
+    # No Jev key: Haiku decides and escalates as before; the note names the model that decided.
+    v = run({"ANTHROPIC_API_KEY": C_KEY}, haiku=a(costs_money=0.55), opus=a("x", costs_money=0.9))
     assert calls == [H, O] and v["decided_by"] == O and v["consequential"] and "jev" not in v["models"]
-    assert any("No Jev key" in n for n in v["notes"]) and "No Jev key" in render(v, "")
-    v = run({"ANTHROPIC_API_KEY": "k"})
-    assert calls == [H] and v["decided_by"] == H and not v["consequential"]
+    assert v["notes"][0] == "No Jev key, so Jev was not asked."
+    assert any(n.startswith(f"`{O}` decided in Jev's place, after `{H}`") for n in v["notes"])
+    v = run({"ANTHROPIC_API_KEY": C_KEY})
+    assert calls == [H] and v["decided_by"] == H and f"`{H}` decided in Jev's place." in v["notes"]
 
-    # Jev fails: Haiku decides, and the note names the failure.
+    # Jev fails: Haiku decides, and the note names the failure and the decider.
     v = run(both, jev=RuntimeError("Jev answered HTTP 529"))
-    assert v["decided_by"] == H and any("HTTP 529" in n for n in v["notes"])
+    assert v["decided_by"] == H and "Jev failed (Jev answered HTTP 529)." in v["notes"]
 
     # A diff too large for Jev: Haiku decides and Jev is never asked.
     v = run(both, subject=Pull(rubric, "t", "b", "+" * JEV_MAX_STATE_CHARS))
     assert "jev" not in calls and v["decided_by"] == H and any("too large" in n for n in v["notes"])
 
+    # A slow benchmark never holds up Jev's verdict: past the wait it is recorded as unavailable.
+    global SHADOW_WAIT_SECONDS
+    wait, SHADOW_WAIT_SECONDS = SHADOW_WAIT_SECONDS, 0.2
+    try:
+        delays[H] = 1.0
+        started = time.monotonic()
+        v = run(both, jev=a(costs_money=0.9))
+        assert time.monotonic() - started < 0.8
+        assert v["decided_by"] == "jev-1.14.0" and v["consequential"] and v["questions"]["costs_money"]["benchmark"] is None
+        assert any(n.startswith("Shadow unavailable") for n in v["notes"])
+        delays.clear()
+        v = run(both, haiku=RuntimeError("overloaded"))
+        assert "Shadow unavailable (overloaded)." in v["notes"]
+    finally:
+        SHADOW_WAIT_SECONDS = wait
+        delays.clear()
+
     # Jev only: it decides, with no benchmark and no escalation possible.
-    v = run({"TYPESAFE_API_KEY": "j"}, jev=a(costs_money=0.6))
+    v = run({"TYPESAFE_API_KEY": J_KEY}, jev=a(costs_money=0.55))
     assert calls == ["jev"] and v["decided_by"] == "jev-1.14.0" and v["consequential"]
     assert "no model gave a reason" in render(v, "")
 
@@ -489,8 +601,29 @@ def self_test() -> None:
     v = run({})
     assert v["consequential"] is True and calls == [] and "nothing judged" in render(v, "")
 
+    # A key never reaches anything written: a malformed key is never sent, an error that quotes a
+    # key is scrubbed, and a failed final call routes to the owner without the key.
+    secret = "SECRETVALUE123456"
+    for env, jev_error, opus in (
+        ({"TYPESAFE_API_KEY": f"abc\n{secret}", "ANTHROPIC_API_KEY": C_KEY}, None, None),
+        ({"TYPESAFE_API_KEY": f"jev-{secret}", "ANTHROPIC_API_KEY": C_KEY},
+         ValueError(f"Invalid header value b'Bearer jev-{secret}'"), None),
+        ({"TYPESAFE_API_KEY": J_KEY, "ANTHROPIC_API_KEY": f"ck-{secret}"},
+         None, RuntimeError(f"401 for key ck-{secret}")),
+    ):
+        v = run(env, jev=jev_error if jev_error else a(costs_money=0.55), opus=opus)
+        written = json.dumps(v) + render(v, "head")
+        assert secret not in written, written
+        if "\n" in env["TYPESAFE_API_KEY"]:
+            assert "jev" not in calls and "The Jev key is malformed, so Jev was not asked." in v["notes"]
+    try:
+        ask_jev(f"abc\n{secret}", "jev-1.14.0", {"diff": "+x"}, rubric)
+        raise AssertionError("a key with a newline was sent")
+    except RuntimeError as error:
+        assert secret not in str(error) and "could not be sent" in str(error)
+
     # Cost is summed over every model that answered.
-    v = run(both, jev=a(costs_money=0.6), opus=a("x", costs_money=0.9))
+    v = run(both, jev=a(costs_money=0.55), opus=a("x", costs_money=0.9))
     assert abs(v["cost_usd"] - (1000 * 0.042 + 1000 * 0.10 + 100 * 0.50 + 1000 * 4.0 + 100 * 20.0) / 1e6) < 1e-9
     print("self-test: ok")
 
@@ -524,10 +657,7 @@ def main() -> None:
     elif len(diff) > MAX_DIFF_CHARS:
         result = {**owner, "reason": f"diff over {MAX_DIFF_CHARS} chars: too large to judge whole"}
     else:
-        try:
-            result = decide(Pull(rubric, redact(args.title), redact(body), redact(diff)), dict(os.environ))
-        except Exception as e:  # noqa: BLE001 - any failure routes to the owner
-            result = {**owner, "reason": f"model call failed: {e}"}
+        result = route(Pull(rubric, redact(args.title), redact(body), redact(diff)), dict(os.environ))
 
     print(json.dumps(result, indent=2))
     comment = render(result, args.head)

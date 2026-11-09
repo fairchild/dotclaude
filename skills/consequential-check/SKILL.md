@@ -4,7 +4,7 @@ description: Route a pull request to its owner when merging it is consequential 
 license: Apache-2.0
 metadata:
   status: experimental
-  experimental_reason: "Not yet installed on a repository. The rubric, the per-question lines, and the 0.75 escalation threshold are starting values with no tuning data behind them, and the lines were set for a Claude model before Jev decided."
+  experimental_reason: "Not yet installed on a repository. The rubric, the per-question lines, and the 0.1 escalation margin are starting values with no tuning data behind them, and the lines were set for a Claude model before Jev decided."
 ---
 
 # Consequential check
@@ -24,22 +24,31 @@ The router never merges and never removes the label.
    0.3, the others at 0.5–0.6.
 2. **A cheap Claude model answers beside it, as a benchmark.** It sees the same pull request and the
    whole rubric, answers the same five questions with a one-line reason each, and never decides.
+   Once Jev has answered, the verdict waits at most `SHADOW_WAIT_SECONDS` for it; a slower or failed
+   benchmark is recorded as "shadow unavailable" and the verdict, label and comment go ahead.
    Its answers are recorded next to Jev's so the two models can be compared over many PRs. When they
    land on opposite sides of a question's line, the run says so: a warning annotation, a line in the
    job summary and a line in the PR comment.
-3. **Unsure answers escalate.** An answer is unsure when neither yes nor no reaches 0.75 —
-   `max(p, 1 - p) < 0.75`. Any unsure answer from the deciding model sends the whole question set to
-   a stronger model, whose answers are final. The benchmark's uncertainty never escalates.
+3. **Answers that could flip the verdict escalate.** An answer is uncertain when it lies within
+   `ESCALATE_MARGIN` (0.1) of its own question's line. Uncertain answers escalate only when they
+   could change the verdict: any of them while no question is raised, or when every raised question
+   is itself uncertain. A confident raise settles the verdict, so uncertain answers beside it do not
+   escalate. An escalation sends the whole question set to a stronger model, whose answers are
+   final, so one model stands behind each verdict. The benchmark's uncertainty never escalates.
 4. **No Jev key, a diff too large for Jev's context, or a failed Jev call** means the benchmark model
    decides, escalating the same way: the behaviour before Jev was added. The comment says which.
 5. **No key at all, an unreadable or oversized diff, or a failed final model call routes to the
    owner.** Nothing was judged, so the PR is labelled.
 
 Jev gives probabilities, not reasons, so the "why" beside each raised question comes from the
-stronger model when it answered, otherwise from the benchmark. With no Anthropic key there is no
-reason to show, and the comment says so.
+stronger model when it answered, otherwise from the benchmark, but only from a model on the same
+side of the line. When the benchmark disagrees, the why says that Jev raised the question and the
+benchmark disagreed. With no Anthropic key there is no reason to show, and the comment says so.
 
-The thresholds live in `scripts/consequential.py` (`QUESTIONS`, `ESCALATE_BELOW`). The rubric in
+Keys are sent only when they are printable ASCII with no whitespace, and every error text is
+scrubbed of both keys before it reaches the comment, the summary or the artifact.
+
+The thresholds live in `scripts/consequential.py` (`QUESTIONS`, `ESCALATE_MARGIN`). The rubric in
 `assets/rubric.md` is written as concrete situations, yes and no, per question; a model scores a
 diff against examples more consistently than against "low/medium/high".
 
@@ -81,7 +90,7 @@ The title, body and diff reach the judge as untrusted text written by the PR's a
 
 Read each wrong verdict against the verdict comment on the same PR. A miss that a rubric situation
 would have caught becomes a new situation; a question that is repeatedly wrong in one direction gets
-its line moved. Move `ESCALATE_BELOW` only when the escalation rate or the misses say so — it is a
+its line moved. Move `ESCALATE_MARGIN` only when the escalation rate or the misses say so — it is a
 number, nothing more.
 
 **Pin the decision model once it is tuned.** Set `JEV_MODEL` to the exact version the replies were
@@ -91,6 +100,6 @@ replies before switching.
 ## Checks
 
 `scripts/consequential.py --self-test` covers the thresholds, Jev deciding with the benchmark beside
-it, the disagreement highlight, escalation keyed off the deciding model, every fallback (no Jev key,
-a diff too large for Jev, a failed Jev call, no key at all), the comment, and the cost sum. It makes
-no model calls.
+it, the disagreement highlight, escalation only when an answer could flip the verdict, the bounded
+benchmark wait, every fallback (no Jev key, a diff too large for Jev, a failed Jev call, no key at
+all), keys kept out of everything written, the comment, and the cost sum. It makes no model calls.
