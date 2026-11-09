@@ -33,14 +33,17 @@ verdict; non-zero only on bad input.
 from __future__ import annotations
 
 import argparse
+import io
 import json
+import subprocess
 import os
 import re
 import sys
 import time
 import urllib.error
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor
+import threading
+from concurrent.futures import Future
 from concurrent.futures import TimeoutError as FuturesTimeout
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -215,14 +218,51 @@ def usable(key: str) -> bool:
     return bool(KEY_SHAPE.fullmatch(key))
 
 
-def scrub(text: str, keys: list[str]) -> str:
-    for key in keys:
-        if key:
-            text = text.replace(key, "[redacted:key]")
-            for part in key.split():
-                if len(part) >= 6:
-                    text = text.replace(part, "[redacted:key]")
-    return redact(text)
+KEY_WINDOW = 8
+
+
+def key_pattern(keys: list[str]) -> re.Pattern | None:
+    """Matches at every position where a run of KEY_WINDOW characters taken from a key begins, so a
+    prefix, a suffix or an escaped fragment of a key is caught as well as the whole key."""
+    pieces: set[str] = set()
+    for key in filter(None, keys):
+        pieces |= {key} if len(key) < KEY_WINDOW else {key[i:i + KEY_WINDOW] for i in range(len(key) - KEY_WINDOW + 1)}
+    if not pieces:
+        return None
+    return re.compile("(?=(" + "|".join(map(re.escape, sorted(pieces, key=len, reverse=True))) + "))")
+
+
+def without_keys(text: str, pattern: re.Pattern) -> str:
+    covered = [False] * len(text)
+    for match in pattern.finditer(text):
+        for i in range(match.start(), match.start() + len(match.group(1))):
+            covered[i] = True
+    out, i = [], 0
+    while i < len(text):
+        if covered[i]:
+            while i < len(text) and covered[i]:
+                i += 1
+            out.append("[redacted:key]")
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out)
+
+
+def scrub(value: object, keys: list[str]) -> object:
+    """Every string in a structure, keys removed, before anything is serialized."""
+    pattern = key_pattern(keys)
+
+    def clean(item: object) -> object:
+        if isinstance(item, str):
+            return redact(without_keys(item, pattern) if pattern else item)
+        if isinstance(item, list):
+            return [clean(v) for v in item]
+        if isinstance(item, dict):
+            return {k: clean(v) for k, v in item.items()}
+        return item
+
+    return clean(value)
 
 
 def parse_jev(response: dict) -> Reply:
@@ -239,6 +279,8 @@ def ask_jev(key: str, model: str, state: dict, rubric: str) -> Reply:
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
                 return parse_jev(json.load(response))
+        except json.JSONDecodeError:
+            raise RuntimeError("Jev's answer was not JSON") from None
         except ValueError as error:  # a header urllib refuses; its message can carry the header
             raise RuntimeError(f"Jev request could not be sent ({error.__class__.__name__})") from None
         except urllib.error.HTTPError as error:
@@ -275,6 +317,21 @@ class Models:
 
 # ---------------------------------------------------------------- deciding
 
+def background(fn: Callable[..., Reply], *args: object) -> Future:
+    """A call on a daemon thread: the process can exit without waiting for it, so a slow benchmark
+    never holds up the label and the comment, which run as soon as this script exits."""
+    future: Future = Future()
+
+    def work() -> None:
+        try:
+            future.set_result(fn(*args))
+        except BaseException as error:  # noqa: BLE001 - handed to whoever waits
+            future.set_exception(error)
+
+    threading.Thread(target=work, daemon=True).start()
+    return future
+
+
 @dataclass
 class Run:
     jev: Reply | None = None
@@ -307,27 +364,23 @@ def decide(pull: Pull, env: dict[str, str], models: Models | None = None) -> dic
     if not claude_key:
         run.notes.append("No Anthropic key: no benchmark answers and no escalation.")
 
-    pool = ThreadPoolExecutor(2)
-    try:
-        jev_call = pool.submit(models.jev, jev_key, jev_model, state, pull.rubric) if jev_key and state else None
-        shadow = jev_call is not None
-        bench_call = (pool.submit(models.claude, claude_key, benchmark_model, text,
-                                  SHADOW_WAIT_SECONDS if shadow else 120.0) if claude_key else None)
-        if jev_call:
-            try:
-                run.jev = jev_call.result()
-            except Exception as error:  # noqa: BLE001 - the benchmark takes over
-                run.notes.append(f"Jev failed ({scrub(str(error), keys)}).")
-        if bench_call:
-            try:
-                run.benchmark = bench_call.result(timeout=SHADOW_WAIT_SECONDS if run.jev else None)
-            except FuturesTimeout:
-                run.notes.append(f"Shadow unavailable: {benchmark_model} did not answer within {SHADOW_WAIT_SECONDS:.0f}s.")
-            except Exception as error:  # noqa: BLE001
-                label = "Shadow unavailable" if run.jev else "The benchmark model failed"
-                run.notes.append(f"{label} ({scrub(str(error), keys)}).")
-    finally:
-        pool.shutdown(wait=False, cancel_futures=True)
+    jev_call = background(models.jev, jev_key, jev_model, state, pull.rubric) if jev_key and state else None
+    shadow = jev_call is not None
+    bench_call = (background(models.claude, claude_key, benchmark_model, text,
+                             SHADOW_WAIT_SECONDS if shadow else 120.0) if claude_key else None)
+    if jev_call:
+        try:
+            run.jev = jev_call.result()
+        except Exception as error:  # noqa: BLE001 - the benchmark takes over
+            run.notes.append(f"Jev failed ({scrub(str(error), keys)}).")
+    if bench_call:
+        try:
+            run.benchmark = bench_call.result(timeout=SHADOW_WAIT_SECONDS if run.jev else None)
+        except FuturesTimeout:
+            run.notes.append(f"Shadow unavailable: {benchmark_model} did not answer within {SHADOW_WAIT_SECONDS:.0f}s.")
+        except Exception as error:  # noqa: BLE001
+            label = "Shadow unavailable" if run.jev else "The benchmark model failed"
+            run.notes.append(f"{label} ({scrub(str(error), keys)}).")
 
     decider = run.jev or run.benchmark
     if decider is None and not claude_key:
@@ -356,7 +409,7 @@ def route(pull: Pull, env: dict[str, str], models: Models | None = None) -> dict
     except Exception as error:  # noqa: BLE001 - any failure routes to the owner
         result = {"consequential": True, "raised": [], "questions": {}, "disagreements": [], "notes": [],
                   "reason": f"model call failed: {error}"}
-    return json.loads(scrub(json.dumps(result), keys))
+    return scrub(result, keys)  # type: ignore[return-value]
 
 
 def verdict(run: Run, decider: Reply) -> dict:
@@ -370,9 +423,10 @@ def verdict(run: Run, decider: Reply) -> dict:
             if reply and reply.answers[q.id]["why"] and (reply.answers[q.id]["p"] >= q.raise_at) == final:
                 why, source = str(reply.answers[q.id]["why"]), reply.model
                 break
-        if not why and final and run.benchmark and run.benchmark is not decider:
+        bench_p = run.benchmark.answers[q.id]["p"] if run.benchmark else None
+        if not why and final and bench_p is not None and run.benchmark is not decider and bench_p < q.raise_at:
             why = (f"{short(decider.model) or decider.model} raised it; {short(run.benchmark.model)} disagreed "
-                   f"(p {run.benchmark.answers[q.id]['p']:.2f})")
+                   f"(p {bench_p:.2f})")
         jev = run.jev.answers[q.id]["p"] if run.jev else None
         bench = run.benchmark.answers[q.id]["p"] if run.benchmark else None
         questions[q.id] = {
@@ -440,7 +494,7 @@ def render(result: dict, head: str) -> str:
             q = result["questions"][qid]
             source = f" _({short(q['why_from'])})_" if q["why_from"] and q["why_from"] != result["decided_by"] else ""
             out.append(f"- **{qid}** (p {q['final']:.2f}, line {q['raise_at']:.2f}): "
-                       f"{q['why'] or 'no model gave a reason'}{source}")
+                       f"{q['why'] or 'no reason given'}{source}")
         out.append("")
     if lines := disagreement_lines(result):
         bench = short(result["models"].get("benchmark"))
@@ -595,7 +649,7 @@ def self_test() -> None:
     # Jev only: it decides, with no benchmark and no escalation possible.
     v = run({"TYPESAFE_API_KEY": J_KEY}, jev=a(costs_money=0.55))
     assert calls == ["jev"] and v["decided_by"] == "jev-1.14.0" and v["consequential"]
-    assert "no model gave a reason" in render(v, "")
+    assert "no reason given" in render(v, "")
 
     # No key at all: routed to the owner, nothing judged.
     v = run({})
@@ -621,6 +675,67 @@ def self_test() -> None:
         raise AssertionError("a key with a newline was sent")
     except RuntimeError as error:
         assert secret not in str(error) and "could not be sent" in str(error)
+
+    # Both raise and neither gives a reason: that is no reason, not a disagreement.
+    v = run(both, jev=a(weakens_security=0.9), haiku=a("", weakens_security=0.9))
+    assert v["questions"]["weakens_security"]["why"] == "" and "no reason given" in render(v, "")
+    assert "disagreed" not in render(v, "")
+
+    # A key with quotes and backslashes, or a fragment of one, never survives serialization.
+    odd = 'ck-ab"cd\\ef-0123456789zz'
+    windows = {odd[i:i + KEY_WINDOW] for i in range(len(odd) - KEY_WINDOW + 1)}
+
+    def strings(item: object) -> list[str]:
+        if isinstance(item, str):
+            return [item]
+        if isinstance(item, dict):
+            return [t for v in item.values() for t in strings(v)]
+        return [t for v in item for t in strings(v)] if isinstance(item, list) else []
+
+    for leak in (f"401 for {odd}", f"prefix {odd[:12]} only", f"suffix {odd[-10:]} only", repr(odd)):
+        v = run({"TYPESAFE_API_KEY": J_KEY, "ANTHROPIC_API_KEY": odd}, jev=a(costs_money=0.55), opus=RuntimeError(leak))
+        written = strings(v) + [json.dumps(v), render(v, "head")]
+        assert not any(w in t for w in windows for t in written), leak
+    assert scrub({"a": [f"x{J_KEY}y"]}, [J_KEY]) == {"a": ["x[redacted:key]y"]}
+
+    # A Jev answer that is not JSON is reported as such, not as a send failure.
+    real_urlopen = urllib.request.urlopen
+
+    class NotJson:
+        def __enter__(self):
+            return io.BytesIO(b"<html>busy</html>")
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+    urllib.request.urlopen = lambda *a, **k: NotJson()  # type: ignore[assignment]
+    try:
+        ask_jev(J_KEY, "jev-1.14.0", {"diff": "+x"}, rubric)
+        raise AssertionError("a non-JSON answer parsed")
+    except RuntimeError as error:
+        assert str(error) == "Jev's answer was not JSON"
+    finally:
+        urllib.request.urlopen = real_urlopen
+
+    # The whole process exits once the verdict is written, without waiting for a slow benchmark.
+    probe = f"""
+import importlib.util, sys, time
+spec = importlib.util.spec_from_file_location("c", {str(Path(__file__).resolve())!r})
+c = importlib.util.module_from_spec(spec); sys.modules["c"] = c; spec.loader.exec_module(c)
+c.SHADOW_WAIT_SECONDS = 0.2
+answers = {{q.id: {{"p": 0.02, "why": ""}} for q in c.QUESTIONS}}
+def claude(key, model, text, timeout):
+    time.sleep(5)
+    return c.Reply(model, answers)
+models = c.Models(lambda *a: c.Reply("jev-1.14.0", answers), claude)
+pull = c.Pull({rubric!r}, "t", "b", "+x")
+print(c.route(pull, {{"TYPESAFE_API_KEY": "jevkey-0123456789", "ANTHROPIC_API_KEY": "claudekey-0123456789"}}, models)["decided_by"])
+"""
+    started = time.monotonic()
+    out = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, timeout=30)
+    elapsed = time.monotonic() - started
+    assert out.returncode == 0 and out.stdout.strip() == "jev-1.14.0", out.stderr
+    assert elapsed < 3.0, f"the process waited {elapsed:.1f}s for the benchmark"
 
     # Cost is summed over every model that answered.
     v = run(both, jev=a(costs_money=0.55), opus=a("x", costs_money=0.9))
