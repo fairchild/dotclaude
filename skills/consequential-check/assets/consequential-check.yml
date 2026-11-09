@@ -10,8 +10,13 @@
 # The diff is read through the API as data. Pull requests from forks get no secrets and a read-only
 # token, so they are skipped; a fork's PR is the owner's to merge regardless.
 #
-# Secrets: DECISION_MODEL_API_KEY (optional), ANTHROPIC_API_KEY. Variable: DECISION_MODEL, set to the
-# exact model id the rubric was tuned against.
+# Jev decides; a cheap Claude model answers the same questions beside it as a benchmark, and every
+# model's answers land in the `consequential-verdict` artifact and the job summary. A Jev/benchmark
+# disagreement shows as a warning, a line in the summary and a line in the comment.
+#
+# Secrets: TYPESAFE_API_KEY (Jev; without it the benchmark model decides, as before Jev), and
+# ANTHROPIC_API_KEY (the benchmark and the stronger model). Variable: JEV_MODEL, set to the exact
+# Jev version the rubric was tuned against.
 name: Consequential check
 
 on:
@@ -62,15 +67,28 @@ jobs:
         shell: bash
         env:
           TITLE: ${{ github.event.pull_request.title }}
-          DECISION_MODEL_API_KEY: ${{ secrets.DECISION_MODEL_API_KEY }}
-          DECISION_MODEL: ${{ vars.DECISION_MODEL }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          JEV_MODEL: ${{ vars.JEV_MODEL }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           uv run --script .github/consequential/consequential.py \
             --rubric .github/consequential/rubric.md \
             --title "$TITLE" \
+            --head "$HEAD" \
             --body-file "$RUNNER_TEMP/body.md" \
-            --diff-file "$RUNNER_TEMP/pr.diff" | tee "$RUNNER_TEMP/verdict.json"
+            --diff-file "$RUNNER_TEMP/pr.diff" \
+            --comment-file "$RUNNER_TEMP/comment.md" \
+            --summary-file "$GITHUB_STEP_SUMMARY" | tee "$RUNNER_TEMP/verdict.json"
+
+      # Every model's answer per question, for comparing Jev with the benchmark across many PRs.
+      - name: Keep the verdict
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: consequential-verdict
+          path: ${{ runner.temp }}/verdict.json
+          if-no-files-found: ignore
 
       - name: Label
         if: ${{ !cancelled() && steps.route.outputs.consequential != 'false' }}
@@ -90,21 +108,10 @@ jobs:
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           marker='<!-- consequential-check -->'
-          {
-            echo "$marker"
-            if ! jq -e 'has("consequential")' "$RUNNER_TEMP/verdict.json" > /dev/null 2>&1; then
-              echo "**Consequential: yes** at \`${HEAD:0:12}\`"
-              echo
-              echo 'The router failed before reaching a verdict; routed to the owner. The run log has the error.'
-            else
-              jq -r --arg head "$HEAD" '"**Consequential: \(if .consequential then "yes" else "no" end)** at `\($head[0:12])`\n\n\(.reason)\n\n" +
-                ((.trail | last // {answers: {}}) as $t | "| question | p |\n|---|---|\n" +
-                  ($t.answers | to_entries | map("| \(.key) | \(.value.p) |") | join("\n")) +
-                  "\n\nJudged by `\($t.model // "nothing")`.")' "$RUNNER_TEMP/verdict.json"
-            fi
-            echo
-            echo 'Reply `consequential: right`, or `consequential: wrong <question-id> <why>`.'
-          } > "$RUNNER_TEMP/comment.md"
+          if [ ! -s "$RUNNER_TEMP/comment.md" ]; then
+            printf '%s\n**Consequential: yes** at `%s`\n\nThe router failed before reaching a verdict; routed to the owner. The run log has the error.\n\n<!-- agent-note -->\n' \
+              "$marker" "${HEAD:0:12}" > "$RUNNER_TEMP/comment.md"
+          fi
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
             --jq "map(select(.body | startswith(\"$marker\"))) | .[0].id // empty" | head -n1)
           if [ -n "$id" ]; then
