@@ -342,9 +342,14 @@ class Run:
     notes: list[str] = field(default_factory=list)
 
 
+def env_keys(env: dict[str, str]) -> tuple[str, str]:
+    """The Jev and Anthropic keys exactly as they are sent, so what is scrubbed is what was used."""
+    return env.get("TYPESAFE_API_KEY", "").strip(), env.get("ANTHROPIC_API_KEY", "").strip()
+
+
 def decide(pull: Pull, env: dict[str, str], models: Models | None = None) -> dict:
     models = models or Models()
-    jev_key, claude_key = env.get("TYPESAFE_API_KEY", "").strip(), env.get("ANTHROPIC_API_KEY", "").strip()
+    jev_key, claude_key = env_keys(env)
     keys = [jev_key, claude_key]
     jev_model = env.get("JEV_MODEL") or DEFAULT_JEV_MODEL
     benchmark_model = env.get("BENCHMARK_MODEL") or DEFAULT_BENCHMARK_MODEL
@@ -405,7 +410,7 @@ def decide(pull: Pull, env: dict[str, str], models: Models | None = None) -> dic
 
 def route(pull: Pull, env: dict[str, str], models: Models | None = None) -> dict:
     """decide(), with any failure routed to the owner and every key scrubbed from what is written."""
-    keys = [env.get("TYPESAFE_API_KEY", ""), env.get("ANTHROPIC_API_KEY", "")]
+    keys = list(env_keys(env))
     try:
         result = decide(pull, env, models)
     except Exception as error:  # noqa: BLE001 - any failure routes to the owner
@@ -702,6 +707,15 @@ def self_test() -> None:
     assert scrub({"costs_money": ["costs_money"]}, ["_"]) == {"costs_money": ["costs_money"]}
     assert scrub({J_KEY: f"v{J_KEY}"}, [J_KEY]) == {J_KEY: "v[redacted:key]"}
     assert not usable("placeholder") and not usable("_") and usable(J_KEY)
+
+    # A key with trailing whitespace is sent stripped, and scrubbed in that same form, including in
+    # a failure that only route() sees.
+    padded = "claudekey-PADDEDSECRET-0123456789"
+    for raw in (padded + "\n", padded + " "):
+        v = run({"TYPESAFE_API_KEY": J_KEY, "ANTHROPIC_API_KEY": raw}, jev=a(costs_money=0.55),
+                opus=RuntimeError(f"rejected {padded[2:29]}"))
+        assert O in calls and padded[2:29] not in json.dumps(v) + render(v, "h"), repr(raw)
+        assert v["reason"] == "model call failed: rejected [redacted:key]", v["reason"]
 
     # A placeholder key shorter than 16 characters is malformed: never sent, never a scrub pattern.
     v = run({"TYPESAFE_API_KEY": "_", "ANTHROPIC_API_KEY": C_KEY}, haiku=a("x", costs_money=0.9))
