@@ -1,6 +1,12 @@
 ---
 name: fable-session
-description: Hand off long-arc work to a fable session — an Opus 5.5 orchestrator at xhigh effort verifies while delegating the implementation. Triggers on "fable session", "fable team session", "fable workflow session".
+description: >-
+  Hand off long-arc work to a fable session — an Opus 5.5 orchestrator at xhigh
+  effort verifies while delegating the implementation — and the operating rules
+  for any agent fan-out — whether to fan out at all, a model named per spawn,
+  one port and one writer per agent, and the lenses a review looks through.
+  Triggers on "fable session", "fable team session", "fable workflow session",
+  "fan out", "orchestrate".
 license: Apache-2.0
 ---
 
@@ -10,6 +16,15 @@ A session owning a piece of work end to end, in a worktree of its own. Its
 orchestrator runs on Opus 5.5 at `xhigh` effort unless the brief names another.
 
 ## Roles
+
+Fan out only where the work has that shape. Serial and coupled work — one config
+hub, a feedback loop where each step's output decides the next edit, a rewrite
+that has to go green as a whole — goes to one agent at high effort, since
+fanning it out buys merge overhead and no wall clock. Independent items — docs
+alongside code, N review lenses, N host cutovers, design options for a judge —
+fan out. The usual shape is hybrid: one implementer, a parallel docs writer in
+an isolated worktree, then a review fan-out. Say which parts are which in the
+plan you show the owner, and name the cost in rough agent count and wall clock.
 
 The orchestrator holds the arc and checks coherence across pieces. It delegates the
 implementation rather than doing it, keeping its own context inside the goal the
@@ -41,7 +56,13 @@ case you are in, that is the answer.
 
 Each worker is short-lived: one task, its own worktree and scratch folder, and a
 brief naming the goal, the files in and out of scope, the done criterion and the
-evidence expected. Run the first task of a kind alone and fan out once it has
+evidence expected. The brief also names what is off limits — no push, tag, PR or
+`main`, and no file another agent owns — says to commit only its own files by
+explicit path under conventional commits with the trailer, and asks for facts it
+ran, with inferences and unknowns labelled and no pass claimed it did not read.
+Its final message is data for an orchestrator rather than prose: `status`,
+`commits`, `verification` with a line per command (pass / fail: why / not run:
+why), `deviations`, `handoff`. Run the first task of a kind alone and fan out once it has
 passed review. After two failures for the same reason, move the task up a model.
 A review runs on a model at least as strong as the work it reviews.
 
@@ -58,6 +79,34 @@ Each change passes these in order:
    Blocking findings hold the merge. Each deferrable finding gets a fix or a
    tracked home, named in a reply. Re-checks go to the same reviewer and cover
    only the change since their last review, plus their own earlier findings.
+
+A reviewer is pointed at lenses rather than left to browse: residue (stale paths
+and names), contract (the script or module against its documented contract — run
+it), docs truthfulness (every command, path and claim against the tree; present
+tense is true), CI parity (the workflow runs exactly the local sequence),
+boundary (module and host rules, checked mechanically), and one lens for anything
+new against its own contract. A finding needs file:line evidence and a concrete
+fix; style is not a finding. Each one goes to a verifier told to refute by
+default, and a 100% confirmation rate is a smell worth noting rather than a
+result to celebrate.
+
+## Shared machine
+
+Agents running at once on one machine collide through what the prompt leaves
+unnamed, so name it per agent:
+
+- An explicit **port**, never "an unused port".
+- **No `pkill -f`** or other pattern kill — only PIDs that agent started.
+- **One runner at a time** for anything that empties shared output (a build, a
+  clean, a release candidate); the orchestrator's own gate run comes after the
+  agents are done.
+- **One writer per file**, with disjoint file lists stated up front. A parallel
+  writer on the same tree gets worktree isolation; cherry-pick its commit and
+  check `git patch-id` equality before deleting its branch.
+- Evidence — screenshots, logs — lives where no script wipes it.
+
+Before touching a file yourself after sending a late instruction, check `git
+status`: the agent may already be editing it.
 
 ## Decisions
 
