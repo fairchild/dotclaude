@@ -13,9 +13,10 @@ license: Apache-2.0
 # Fable Session
 
 A session owning a piece of work end to end, in a worktree of its own. Its
-orchestrator runs on Opus 5.5 at `xhigh` effort unless the brief names another.
+orchestrator runs on Opus 5.5 at `xhigh` effort unless the session brief names
+another.
 
-## Roles
+## Fan out
 
 Fan out only where the work has that shape. Serial and coupled work — one config
 hub, a feedback loop where each step's output decides the next edit, a rewrite
@@ -25,6 +26,8 @@ alongside code, N review lenses, N host cutovers, design options for a judge —
 fan out. The usual shape is hybrid: one implementer, a parallel docs writer in
 an isolated worktree, then a review fan-out. Say which parts are which in the
 plan you show the owner, and name the cost in rough agent count and wall clock.
+
+## Roles
 
 The orchestrator holds the arc and checks coherence across pieces. It delegates the
 implementation rather than doing it, keeping its own context inside the goal the
@@ -36,10 +39,12 @@ Delegation mechanism, by phrasing:
 - **fable team session** — `Agent`
 - **fable workflow session** — `Workflow`
 
-Model per delegated task, named on every call with one line saying why. An
-omitted `model` on an `Agent` call inherits the orchestrator's, which here is
-Opus, so silence is the most expensive choice available and the only one nobody
-weighed.
+## Model
+
+A model is named on every delegated call, with one line in the brief saying why
+that one. An omitted `model` on an `Agent` call inherits the orchestrator's,
+which here is Opus, so silence is the most expensive choice available and the
+only one nobody weighed.
 
 The default is the stronger model, and the burden of proof sits on stepping
 down: quality is the thing being bought, and the budget constrains how much of
@@ -54,6 +59,8 @@ model does reach a different answer, and that is worth paying for. Fable where
 the work needs nuance. Uncertainty resolves upward: if you cannot tell which
 case you are in, that is the answer.
 
+## Worker brief
+
 Each worker is short-lived: one task, its own worktree and scratch folder, and a
 brief naming the goal, the files in and out of scope, the done criterion and the
 evidence expected. The brief also names what is off limits — no push, tag, PR or
@@ -62,9 +69,11 @@ explicit path under conventional commits with the trailer, and asks for facts it
 ran, with inferences and unknowns labelled and no pass claimed it did not read.
 Its final message is data for an orchestrator rather than prose: `status`,
 `commits`, `verification` with a line per command (pass / fail: why / not run:
-why), `deviations`, `handoff`. Run the first task of a kind alone and fan out once it has
-passed review. After two failures for the same reason, move the task up a model.
-A review runs on a model at least as strong as the work it reviews.
+why), `deviations`, `handoff`.
+
+Run the first task of a kind alone and fan out once it has passed review. After
+two failures for the same reason, move the task up a model. A review runs on a
+model at least as strong as the work it reviews.
 
 ## Review
 
@@ -104,6 +113,12 @@ unnamed, so name it per agent:
   writer on the same tree gets worktree isolation; cherry-pick its commit and
   check `git patch-id` equality before deleting its branch.
 - Evidence — screenshots, logs — lives where no script wipes it.
+- **Stop what you started.** A dev server, a preview, a watcher or a browser an
+  agent started outlives the agent unless someone ends it, and a machine carrying
+  several arcs' leftovers thrashes: load climbs, suites time out, and a timeout
+  that isn't a real failure gets retried at full price. The agent kills its own
+  PIDs when it reports; the orchestrator checks the machine before the next
+  fan-out, not after.
 
 Before touching a file yourself after sending a late instruction, check `git
 status`: the agent may already be editing it.
@@ -145,7 +160,13 @@ A commit plus a demonstrated run — an e2e recording where there's a UI. The ar
 closes once a fresh verifier that did not build it has reproduced each done
 criterion from a tag or commit, and its findings are fixed or tracked.
 
-## Brief
+Three parts of closing are the orchestrator's own and don't delegate. Re-run the
+gate on the final commit, since a gate that passed on an earlier head says
+nothing about what actually merges. Look at the rendered result — a 200 is not
+evidence. And write the pull request body from what was verified, naming the
+commit the gate ran on, so a reader can tell which head the claims belong to.
+
+## Session brief
 
 A written plan the session can read, pointed at rather than pasted, plus a
 short who-does-what naming the split above. Point at whatever already holds the
