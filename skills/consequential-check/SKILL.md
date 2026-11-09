@@ -45,8 +45,9 @@ stronger model when it answered, otherwise from the benchmark, but only from a m
 side of the line. When the benchmark disagrees, the why says that Jev raised the question and the
 benchmark disagreed. With no Anthropic key there is no reason to show, and the comment says so.
 
-Keys are sent only when they are printable ASCII with no whitespace. Before anything is serialized,
-every string in the verdict loses any run of eight or more characters taken from either key, so a
+Keys are sent only when they are 16 or more printable ASCII characters with no whitespace; a
+shorter value is a placeholder and is neither sent nor used to scrub. Before anything is serialized,
+every string value in the verdict loses any run of eight or more characters taken from either key, so a
 whole key, a prefix or a fragment never reaches the comment, the summary or the artifact. The
 benchmark runs on a daemon thread, so the process exits once the verdict is written.
 

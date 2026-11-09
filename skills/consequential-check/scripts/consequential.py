@@ -209,12 +209,13 @@ def could_flip(answers: Answers) -> list[str]:
     return hits if set(hits) <= set(doubtful) else []
 
 
-KEY_SHAPE = re.compile(r"[\x21-\x7e]{8,512}")
+KEY_SHAPE = re.compile(r"[\x21-\x7e]{16,512}")
 
 
 def usable(key: str) -> bool:
-    """A key is sent only as printable ASCII with no whitespace: anything else would end up in an
-    error message, and error messages reach the public comment."""
+    """A key is sent only as 16 or more printable ASCII characters with no whitespace. Anything else
+    is a placeholder or damaged: it is never sent, and never becomes a scrub pattern, where a short
+    one would eat ordinary text such as question ids."""
     return bool(KEY_SHAPE.fullmatch(key))
 
 
@@ -225,7 +226,7 @@ def key_pattern(keys: list[str]) -> re.Pattern | None:
     """Matches at every position where a run of KEY_WINDOW characters taken from a key begins, so a
     prefix, a suffix or an escaped fragment of a key is caught as well as the whole key."""
     pieces: set[str] = set()
-    for key in filter(None, keys):
+    for key in filter(usable, keys):
         pieces |= {key} if len(key) < KEY_WINDOW else {key[i:i + KEY_WINDOW] for i in range(len(key) - KEY_WINDOW + 1)}
     if not pieces:
         return None
@@ -250,7 +251,8 @@ def without_keys(text: str, pattern: re.Pattern) -> str:
 
 
 def scrub(value: object, keys: list[str]) -> object:
-    """Every string in a structure, keys removed, before anything is serialized."""
+    """Every string value in a structure, keys removed, before anything is serialized. Dict keys
+    are this script's own field names and are left alone."""
     pattern = key_pattern(keys)
 
     def clean(item: object) -> object:
@@ -697,6 +699,14 @@ def self_test() -> None:
         written = strings(v) + [json.dumps(v), render(v, "head")]
         assert not any(w in t for w in windows for t in written), leak
     assert scrub({"a": [f"x{J_KEY}y"]}, [J_KEY]) == {"a": ["x[redacted:key]y"]}
+    assert scrub({"costs_money": ["costs_money"]}, ["_"]) == {"costs_money": ["costs_money"]}
+    assert scrub({J_KEY: f"v{J_KEY}"}, [J_KEY]) == {J_KEY: "v[redacted:key]"}
+    assert not usable("placeholder") and not usable("_") and usable(J_KEY)
+
+    # A placeholder key shorter than 16 characters is malformed: never sent, never a scrub pattern.
+    v = run({"TYPESAFE_API_KEY": "_", "ANTHROPIC_API_KEY": C_KEY}, haiku=a("x", costs_money=0.9))
+    assert "jev" not in calls and "The Jev key is malformed, so Jev was not asked." in v["notes"]
+    assert v["raised"] == ["costs_money"] and "costs_money" in v["questions"] and "**costs_money**" in render(v, "h")
 
     # A Jev answer that is not JSON is reported as such, not as a send failure.
     real_urlopen = urllib.request.urlopen
