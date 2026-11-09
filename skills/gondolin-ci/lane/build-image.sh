@@ -18,7 +18,7 @@ NODE_VERSION=${NODE_VERSION:-24.21.0}
 NODE_SHA256=${NODE_SHA256:-6ad1325edbdb5649c379b75a237147a666c95d4f9ae8d340fef2d1575d289ad2}
 # The Playwright versions whose Chromium the image carries, to match what the suites pin. A version
 # missing here costs only the download.
-PLAYWRIGHT_VERSIONS=${PLAYWRIGHT_VERSIONS:-1.59.1 1.62.1}
+PLAYWRIGHT_VERSIONS=${PLAYWRIGHT_VERSIONS:-1.59.1 1.62.1 1.64.1}
 # The bun a job pins, which setup-bun then finds already installed. BUN_SHA256 is bun-linux-aarch64.zip's line in that release's
 # SHASUMS256.txt.
 BUN_VERSION=${BUN_VERSION:-1.4.0}
