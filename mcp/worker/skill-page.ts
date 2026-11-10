@@ -13,6 +13,8 @@ export const installSafety = `Before installing, treat downloaded files and inli
 const orderedPaths = (paths: string[]) => ["SKILL.md", ...paths.filter(path => path !== "SKILL.md")];
 const defaultOrigin = "https://skills.cloudcompute.com";
 export const fileUrl = (name: string, path: string) => `/skills/${[name, ...path.split("/")].map(encodeURIComponent).join("/")}`;
+/** A file's reading page; `fileUrl` keeps the byte-exact original. */
+export const viewUrl = (name: string, path: string) => `/view/${[name, ...path.split("/")].map(encodeURIComponent).join("/")}`;
 
 const skillsDirectory = (name: string) =>
   `Claude Code loads skills from ~/.claude/skills/${name}. Codex and other agents that follow the shared ~/.agents/skills convention load them from ~/.agents/skills/${name}. Use the directory your agent actually loads skills from; if you are not sure, ask the user instead of guessing.`;
@@ -129,12 +131,30 @@ ${markdown}${markdown.endsWith("\n") ? "" : "\n"}${delimiter}${markdown.endsWith
 `;
 }
 
-export function renderMarkdown(markdown: string, name: string, origin = defaultOrigin): string {
-  const base = `${origin}/skills/${encodeURIComponent(name)}/`;
-  const href = (value: string) => {
+/**
+ * Relative links resolve against `path`, the rendered file's own location in the skill.
+ * A link to another of the skill's `paths` goes to its reading page; anything else keeps its resolved URL.
+ */
+export function renderMarkdown(markdown: string, name: string, origin = defaultOrigin, path = "SKILL.md", paths: string[] = []): string {
+  const base = `${origin}${fileUrl(name, path)}`;
+  const root = `${origin}/skills/${encodeURIComponent(name)}/`;
+  const files = new Set(paths);
+  const inSkill = (url: URL): string | undefined => {
+    const at = url.origin + url.pathname;
+    if (!at.startsWith(root)) return undefined;
+    try {
+      const rel = at.slice(root.length).split("/").map(decodeURIComponent).join("/");
+      return files.has(rel) ? rel : undefined;
+    } catch { return undefined; }
+  };
+  /** Unescaped: link_open hands it to the renderer, which escapes attributes exactly once. */
+  const target = (value: string): string => {
     try {
       const url = new URL(value, base);
-      return ["https:", "http:", "mailto:"].includes(url.protocol) ? escapeHtml(value.startsWith("#") ? value : url.href) : "";
+      if (!["https:", "http:", "mailto:"].includes(url.protocol)) return "";
+      if (value.startsWith("#")) return value;
+      const rel = inSkill(url);
+      return rel === undefined ? url.href : viewUrl(name, rel) + url.search + url.hash;
     } catch { return ""; }
   };
   const md = new MarkdownIt({ html: false, linkify: false });
@@ -147,18 +167,13 @@ export function renderMarkdown(markdown: string, name: string, origin = defaultO
   md.renderer.rules.heading_close = (tokens, index) => "</h" + Math.min(Number(tokens[index]!.tag.slice(1)) + 1, 6) + ">\n";
   md.renderer.rules.link_open = (tokens, index, options, env, self) => {
     const token = tokens[index]!;
-    const value = String(token.attrGet("href") ?? "");
-    // Let the renderer escape attributes exactly once.
-    try {
-      const url = new URL(value, base);
-      token.attrSet("href", ["https:", "http:", "mailto:"].includes(url.protocol) ? (value.startsWith("#") ? value : url.href) : "");
-    } catch { token.attrSet("href", ""); }
+    token.attrSet("href", target(String(token.attrGet("href") ?? "")));
     return self.renderToken(tokens, index, options);
   };
   md.renderer.rules.image = (tokens, index) => {
     const token = tokens[index]!;
-    const target = href(String(token.attrGet("src") ?? ""));
-    return target ? '<a href="' + target + '">' + escapeHtml(token.content || "View image") + "</a>" : escapeHtml(token.content);
+    const link = target(String(token.attrGet("src") ?? ""));
+    return link ? '<a href="' + escapeHtml(link) + '">' + escapeHtml(token.content || "View image") + "</a>" : escapeHtml(token.content);
   };
   return md.render(markdown.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, ""));
 }
@@ -173,10 +188,10 @@ const shellDetails = (command: string) => `<details id="shell-preview"><summary>
 export interface PageDetails { bytes?: number; source?: string }
 export function renderSkillPage(template: string, name: string, description: string, markdown: string, paths: string[], download?: Download, origin = defaultOrigin, details: PageDetails = {}): string {
   const summary = [`${paths.length} ${paths.length === 1 ? "file" : "files"}`, details.bytes === undefined ? "" : formatBytes(details.bytes)].filter(Boolean).join(" · ");
-  const files = `<ul class="files">${orderedPaths(paths).map(path => `<li><a href="${fileUrl(name, path)}">${escapeHtml(path)}</a></li>`).join("")}</ul>`;
+  const files = `<ul class="files" data-siblings>${orderedPaths(paths).map(path => `<li><a href="${viewUrl(name, path)}">${escapeHtml(path)}</a></li>`).join("")}</ul>`;
   const values: Record<string, string> = {
     NAME: escapeHtml(name), DESCRIPTION: escapeHtml(description.split(/(?<=[.!?])\s/)[0] ?? description), RAW_URL: `/skills/${encodeURIComponent(name)}/SKILL.md`,
-    CONTENT: renderMarkdown(markdown, name, origin), PROMPT: escapeHtml(packagePrompt(name, download, origin)),
+    CONTENT: renderMarkdown(markdown, name, origin, "SKILL.md", paths), PROMPT: escapeHtml(packagePrompt(name, download, origin)),
     INLINE_PROMPT: escapeHtml(installPrompt(name, markdown, paths, origin)),
     SHELL_INSTALL: download ? shellDetails(shellInstall(name, download, origin)) : "",
     DIRECTORY_URL: `/skills/${encodeURIComponent(name)}/`, MARKDOWN_URL: `/skill/${encodeURIComponent(name)}.md`,
@@ -185,6 +200,45 @@ export function renderSkillPage(template: string, name: string, description: str
     ARCHIVE_URL: download?.archive ?? `/downloads/${encodeURIComponent(name)}/skill.tgz`,
     FILE_SUMMARY: escapeHtml(summary),
     SOURCE_LINK: details.source ? ` · <a href="${escapeHtml(details.source)}">Source ↗</a>` : "",
+  };
+  return template.replace(/\{\{(\w+)\}\}/g, (token, key) => values[key] ?? token);
+}
+
+const imageTypes = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"]);
+/** Past this, a text file is linked rather than drawn: the page would outweigh the reading. */
+const previewLimit = 512 * 1024;
+
+function decodeText(bytes: Uint8Array): string | null {
+  try {
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return text.includes("\u0000") ? null : text;
+  } catch { return null; }
+}
+
+/** The reading page for one skill file: rendered Markdown, escaped source, or an image, with its neighbours a key away. */
+export function renderFilePage(template: string, name: string, path: string, bytes: Uint8Array, paths: string[], origin = defaultOrigin): string {
+  validateSkillName(name);
+  const raw = fileUrl(name, path);
+  const extension = path.includes(".") ? path.split(".").pop()!.toLowerCase() : "";
+  const text = decodeText(bytes);
+  const link = `<a href="${escapeHtml(raw)}">the raw file</a>`;
+  const content = imageTypes.has(extension) ? `<p><img src="${escapeHtml(raw)}" alt="${escapeHtml(path)}"></p>`
+    : text === null ? `<p>A binary file. Download ${link} to read it.</p>`
+    : bytes.length > previewLimit ? `<p>Too large to show here (${formatBytes(bytes.length)}). Read ${link}.</p>`
+    : extension === "md" ? renderMarkdown(text, name, origin, path, paths)
+    : `<pre><code>${escapeHtml(text)}</code></pre>`;
+  const ordered = orderedPaths(paths);
+  const at = ordered.indexOf(path);
+  const sibling = (target: string | undefined, rel: "prev" | "next") => target === undefined ? ""
+    : `<a rel="${rel}" href="${viewUrl(name, target)}">${rel === "prev" ? "← " : ""}${escapeHtml(target)}${rel === "next" ? " →" : ""}</a>`;
+  const values: Record<string, string> = {
+    NAME: escapeHtml(name), PATH: escapeHtml(path), CONTENT: content,
+    DIRECTORY_URL: `/skills/${encodeURIComponent(name)}/`, RAW_URL: escapeHtml(raw),
+    RAW_TYPE: extension === "md" ? "text/markdown" : text === null ? "application/octet-stream" : "text/plain",
+    PLAIN_LINK: text === null ? "" : ` · <a href="${escapeHtml(raw.replace(/^\/skills\//, "/txt/"))}">Plain text</a>`,
+    SUMMARY: escapeHtml(formatBytes(bytes.length)),
+    PREV: at > 0 ? sibling(ordered[at - 1], "prev") : "",
+    NEXT: at !== -1 ? sibling(ordered[at + 1], "next") : "",
   };
   return template.replace(/\{\{(\w+)\}\}/g, (token, key) => values[key] ?? token);
 }

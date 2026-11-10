@@ -3,10 +3,11 @@ import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, existsSync
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { spawnSync } from "node:child_process";
-import { escapeHtml, installSafety, packagePrompt, directoryMarkdown, installPrompt, renderMarkdown, renderSkillPage, shellInstall } from "../worker/skill-page.ts";
+import { escapeHtml, installSafety, packagePrompt, directoryMarkdown, installPrompt, renderFilePage, renderMarkdown, renderSkillPage, shellInstall } from "../worker/skill-page.ts";
 import { buildSnapshot, libraryIntro } from "../worker/snapshot.ts";
 
 const template = readFileSync(join(import.meta.dir, "../worker/skill.html"), "utf8");
+const fileTemplate = readFileSync(join(import.meta.dir, "../worker/file.html"), "utf8");
 describe("skill reading and installation", () => {
   const digest = "0123456789abcdef".repeat(4);
   const pinned = { archive: `/downloads/example/${digest}.tgz`, manifest: `/downloads/example/${digest}.json`, digest };
@@ -57,10 +58,10 @@ describe("skill reading and installation", () => {
     const small = renderSkillPage(template, "example", "A useful skill.", "# Example\n", few, undefined, "https://example.org", { bytes: 2_600_000, source: "https://example.org/repo/tree/abc1234/skills/example" });
     expect(small).toContain('<p class="meta">10 files · 2.6 MB · <a href="https://example.org/repo/tree/abc1234/skills/example">Source ↗</a>');
     expect(small).toContain('<meta property="og:url" content="https://example.org/skills/example/">');
-    expect(small.indexOf("<article")).toBeLessThan(small.indexOf('<ul class="files">'));
+    expect(small.indexOf("<article")).toBeLessThan(small.indexOf('<ul class="files" data-siblings>'));
     expect(small).not.toContain('<details class="file-list">');
     const large = renderSkillPage(template, "example", "A useful skill.", "# Example\n", [...few, "references/10.md"], undefined, undefined, { bytes: 1234 });
-    expect(large).toContain('<details class="file-list"><summary>11 files · 1.2 KB</summary><ul class="files">');
+    expect(large).toContain('<details class="file-list"><summary>11 files · 1.2 KB</summary><ul class="files" data-siblings>');
     expect(large).not.toContain("Source ↗");
   });
   test("the landing page and llms.txt share one intro and pin source links to the commit", () => {
@@ -360,5 +361,89 @@ describe("adversarial rendering snapshot", () => {
     expect(liveEventHandlerAttrs(page)).toBe(false);
     expect(unsafeAttrs(template)).toEqual([expect.stringMatching(/^data:image\/svg\+xml,/)]);
     expect(unsafeAttrs(page)).toEqual(unsafeAttrs(template));
+  });
+});
+
+describe("file reading pages", () => {
+  const paths = ["SKILL.md", "references/guide.md", "scripts/run.py", "assets/logo.png", "assets/blob.bin"];
+  const text = (value: string) => new TextEncoder().encode(value);
+  const page = (path: string, bytes: Uint8Array) => renderFilePage(fileTemplate, "example", path, bytes, paths, "https://example.org");
+  const article = (html: string) => /<article[^>]*>([\s\S]*?)<\/article>/.exec(html)?.[1] ?? "";
+
+  test("the skill page lists its files as reading pages, in SKILL.md-first order", () => {
+    const skill = renderSkillPage(template, "example", "A useful skill.", "# Example\n", ["references/a b.md", "SKILL.md"]);
+    expect(skill).toContain('<ul class="files" data-siblings><li><a href="/view/example/SKILL.md">SKILL.md</a></li><li><a href="/view/example/references/a%20b.md">references/a b.md</a></li></ul>');
+  });
+
+  test("Markdown renders with links resolved from the file's own directory", () => {
+    const html = page("references/guide.md", text("# Guide\n\n[Next door](other.md) · [Up](../SKILL.md)\n"));
+    expect(article(html)).toContain('<h2 id="guide">Guide</h2>');
+    // other.md is not one of the skill's files, so it keeps its resolved URL.
+    expect(html).toContain('href="https://example.org/skills/example/references/other.md"');
+    expect(html).toContain('href="/view/example/SKILL.md"');
+    expect(html).toContain('<a href="/skills/example/references/guide.md">Raw</a> · <a href="/txt/example/references/guide.md">Plain text</a>');
+  });
+
+  test("links to the skill's own files go to their reading pages, so the keyboard walk never dead-ends on raw bytes", () => {
+    const markdown = "[Guide](references/guide.md#setup) [Run](./scripts/run.py?x=1) [Logo](assets/logo.png) ![Logo](assets/logo.png)"
+      + " [Missing](references/missing.md) [Other skill](/skills/other/SKILL.md) [Abs](https://example.org/skills/example/scripts/run.py)"
+      + " [Elsewhere](https://elsewhere.test/skills/example/SKILL.md) [Anchor](#top) [Bad](%E0%A4%A.md)\n";
+    const rendered = renderMarkdown(markdown, "example", "https://example.org", "SKILL.md", paths);
+    for (const href of ["/view/example/references/guide.md#setup", "/view/example/scripts/run.py?x=1", "/view/example/assets/logo.png",
+      "https://example.org/skills/example/references/missing.md", "https://example.org/skills/other/SKILL.md",
+      "/view/example/scripts/run.py", "https://elsewhere.test/skills/example/SKILL.md", "#top", "https://example.org/skills/example/%E0%A4%25A.md"]) {
+      expect(rendered).toContain(`href="${href}"`);
+    }
+    expect(rendered).toContain('<a href="/view/example/assets/logo.png">Logo</a>');
+    // Without the file list there is nothing to map, so links keep their resolved URLs.
+    expect(renderMarkdown(markdown, "example", "https://example.org")).not.toContain("/view/");
+    // The skill page's own instructions follow the same rule.
+    const skill = renderSkillPage(template, "example", "A useful skill.", "See [the guide](references/a%20b.md).\n", ["SKILL.md", "references/a b.md"]);
+    expect(skill).toContain('<a href="/view/example/references/a%20b.md">the guide</a>');
+  });
+
+  test("source is escaped, never run, and its neighbours are rel=prev and rel=next", () => {
+    const html = page("scripts/run.py", text("print('</code><script>alert(1)</script>')\n"));
+    expect(article(html)).toBe("<pre><code>print(&#39;&lt;/code&gt;&lt;script&gt;alert(1)&lt;/script&gt;&#39;)\n</code></pre>");
+    expect(html).toContain('<a rel="prev" href="/view/example/references/guide.md">← references/guide.md</a>');
+    expect(html).toContain('<a rel="next" href="/view/example/assets/logo.png">assets/logo.png →</a>');
+    // The template's own /library.js is the only script on the page.
+    expect(html.match(/<script\b[^>]*>/g)).toEqual(['<script src="/library.js" defer>']);
+  });
+
+  test("the first and last files have one neighbour; images show, other binaries link out", () => {
+    const first = page("SKILL.md", text("# Example\n"));
+    expect(first).not.toContain('rel="prev"');
+    expect(first).toContain('rel="next" href="/view/example/references/guide.md"');
+    const last = page("assets/blob.bin", new Uint8Array([0, 159, 146, 150]));
+    expect(last).not.toContain('rel="next"');
+    expect(article(last)).toContain("A binary file.");
+    expect(last).not.toContain("Plain text");
+    expect(article(page("assets/logo.png", new Uint8Array([137, 80, 78, 71])))).toBe('<p><img src="/skills/example/assets/logo.png" alt="assets/logo.png"></p>');
+  });
+
+  test("a text file too large to draw is linked instead", () => {
+    expect(article(page("scripts/run.py", text("x".repeat(512 * 1024 + 1))))).toContain("Too large to show here (524.3 KB)");
+  });
+
+  test("hostile names and content stay text, and placeholders in content are not re-expanded", () => {
+    const html = page("references/guide.md", text("{{NAME}} <img src=x onerror=alert(1)> [x](javascript:alert(1))\n"));
+    expect(article(html)).toContain("{{NAME}}");
+    expect(article(html)).not.toContain("<img");
+    expect(html).not.toContain('href="javascript:');
+    expect(() => renderFilePage(fileTemplate, "../outside", "SKILL.md", text(""), ["SKILL.md"])).toThrow("unsafe skill name");
+  });
+
+  test("the build writes a reading page beside every file, leaving the bytes alone", () => {
+    const root = mkdtempSync(join(tmpdir(), "file-pages-"));
+    try {
+      buildSnapshot({ root: join(import.meta.dir, "fixtures"), out: join(root, "site"), baseUrl: "https://example.org" });
+      const pub = join(root, "site/public");
+      for (const path of ["SKILL.md", "references/FORMS.md", "scripts/extract.py", "templates/regional/eu-invoice.md"]) {
+        expect(readFileSync(join(pub, "view/pdf-processing", `${path}.html`), "utf8")).toContain(`<h1>${path}</h1>`);
+        expect(readFileSync(join(pub, "skills/pdf-processing", path))).toEqual(readFileSync(join(import.meta.dir, "fixtures/pdf-processing", path)));
+      }
+      expect(readFileSync(join(pub, "library.js"), "utf8")).toContain("library:came-from");
+    } finally { rmSync(root, { recursive: true, force: true }); }
   });
 });

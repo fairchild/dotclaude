@@ -8,7 +8,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 rmSync(join(root, 'dist'), { recursive: true, force: true });
 execFileSync(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), '-p', 'tsconfig.package.json'], { cwd: root, stdio: 'inherit' });
 mkdirSync(join(root, 'dist/worker'), { recursive: true });
-for (const name of ['index.html', 'skill.html', 'library.css']) copyFileSync(join(root, 'worker', name), join(root, 'dist/worker', name));
+for (const name of ['index.html', 'skill.html', 'file.html', 'library.css', 'library.js']) copyFileSync(join(root, 'worker', name), join(root, 'dist/worker', name));
 cpSync(join(root, 'worker/fonts'), join(root, 'dist/worker/fonts'), { recursive: true });
 const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 writeFileSync(join(root, 'dist/version.js'), `export const version = ${JSON.stringify(version)};\n`);

@@ -4,7 +4,7 @@ import { cpSync, chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readF
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { directoryMarkdown, escapeHtml, renderSkillPage, validateSkillName, type Download } from "./skill-page.ts";
+import { directoryMarkdown, escapeHtml, renderFilePage, renderSkillPage, validateSkillName, type Download } from "./skill-page.ts";
 
 import { inside, readSkillFile } from "../core/files.ts";
 import { scanCatalog } from "../core/manifest.ts";
@@ -51,6 +51,7 @@ const publicDir = join(staging, "public");
 try {
   mkdirSync(join(publicDir, "skills"), { recursive: true });
   cpSync(join(templateDir, "library.css"), join(publicDir, "library.css"));
+  cpSync(join(templateDir, "library.js"), join(publicDir, "library.js"));
   cpSync(join(templateDir, "fonts"), join(publicDir, "fonts"), { recursive: true });
 
   const portable = catalog.skills.filter((s) => s.tier === "portable");
@@ -93,6 +94,7 @@ try {
 
   // Detail pages are separate from resource paths so skill files stay byte-exact.
   const detailTemplate = readFileSync(join(templateDir, "skill.html"), "utf-8");
+  const fileTemplate = readFileSync(join(templateDir, "file.html"), "utf-8");
   mkdirSync(join(publicDir, "skill"), { recursive: true });
   for (const { entry } of portable) {
     const name = String(entry.frontmatter.name);
@@ -104,6 +106,12 @@ try {
       detailTemplate, name, String(entry.frontmatter.description ?? ""), markdown,
       paths, downloads[name], origin, { bytes, source: source?.skill(name) },
     ));
+    // Reading pages sit beside the bytes, under /view/, so /skills/ stays byte-exact.
+    for (const path of paths) {
+      const target = join(publicDir, "view", name, `${path}.html`);
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, renderFilePage(fileTemplate, name, path, readFileSync(join(publicDir, "skills", name, path)), paths, origin));
+    }
   }
 
   const xml = (text: string) => text.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
