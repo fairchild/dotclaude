@@ -362,12 +362,13 @@ COLUMNS:
     is_sidechain    BOOLEAN     TRUE if subagent message
     input_tokens    INTEGER     Input tokens (assistant only)
     output_tokens   INTEGER     Output tokens (assistant only)
-    cache_write_tokens INTEGER  Cache write tokens
+    cache_write_tokens INTEGER  Cache write tokens, all TTLs
     cache_read_tokens  INTEGER  Cache read tokens
     tool_use_count  INTEGER     Number of tool_use blocks in this turn
     source_file     VARCHAR     JSONL file this record was loaded from
     search_id       VARCHAR     Analyzer-generated unique key used by the FTS index
     message_id      VARCHAR     API message id (Claude Code); one turn spans several records
+    cache_write_1h_tokens INTEGER  1-hour-TTL subset of cache_write_tokens (Claude Code)
 
 ================================================================================
 TABLE: system_events
@@ -722,6 +723,13 @@ provider_usage_with_cost normalizes these token columns:
     output_tokens           Output tokens; Codex includes reasoning output
     reasoning_output_tokens Reasoning subset (do not add to output again)
 
+model_pricing prices Claude cache writes by TTL: cache_write_rate is the
+5-minute rate and cache_write_1h_rate the 1-hour rate, applied to the
+cache_write_1h_tokens subset. A row without a 1-hour rate prices those
+writes at its 5-minute rate. long_context_threshold and the two multipliers
+raise every rate for a turn whose prompt (input + cache reads + cache writes)
+exceeds the threshold; usage_with_cost flags those turns is_long_context.
+
 Cost columns separate input/cache-write/cache-read/output components, the
 cost_usd total, a cost_without_cache_usd baseline, and cache_savings_usd.
 pricing_status distinguishes how dollars were derived: 'priced' rows are
@@ -896,9 +904,10 @@ SELECT CASE
         FROM information_schema.columns
         WHERE (table_name, column_name) IN (
             ('claude_tools', 'interface'),
-            ('messages', 'message_id')
+            ('messages', 'message_id'),
+            ('messages', 'cache_write_1h_tokens')
         )
-    ) = 2 THEN 0
+    ) = 3 THEN 0
     ELSE 1
 END;" 2>/dev/null || echo "0"
 }
@@ -946,7 +955,8 @@ CREATE TABLE IF NOT EXISTS messages (
     tool_use_count INTEGER,
     source_file VARCHAR,
     search_id VARCHAR,
-    message_id VARCHAR
+    message_id VARCHAR,
+    cache_write_1h_tokens INTEGER
 );
 CREATE TABLE IF NOT EXISTS system_events (uuid VARCHAR PRIMARY KEY, session_id VARCHAR, subtype VARCHAR, timestamp TIMESTAMP, project_dir VARCHAR, git_branch VARCHAR, duration_ms INTEGER, version VARCHAR, is_sidechain BOOLEAN, source_file VARCHAR, repo_name VARCHAR);
 CREATE TABLE IF NOT EXISTS queue_operations (session_id VARCHAR, timestamp TIMESTAMP, operation VARCHAR, content VARCHAR, source_file VARCHAR);
@@ -975,6 +985,7 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS source_file VARCHAR;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS interface VARCHAR;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS search_id VARCHAR;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS message_id VARCHAR;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS cache_write_1h_tokens INTEGER;
 ALTER TABLE _loaded_files ADD COLUMN IF NOT EXISTS size_bytes BIGINT;
 ALTER TABLE _loaded_files ADD COLUMN IF NOT EXISTS source_kind VARCHAR;
 ENSURE
@@ -1397,14 +1408,16 @@ CREATE TABLE IF NOT EXISTS messages (
     tool_use_count INTEGER,
     source_file VARCHAR,
     search_id VARCHAR,
-    message_id VARCHAR
+    message_id VARCHAR,
+    cache_write_1h_tokens INTEGER
 );
 
 INSERT INTO messages (
     uuid, parent_uuid, session_id, role, harness, interface, model,
     content, thinking, timestamp, project_dir, git_branch, repo_name,
     worktree_branch, is_worktree, is_sidechain, input_tokens, output_tokens,
-    cache_write_tokens, cache_read_tokens, tool_use_count, source_file, message_id
+    cache_write_tokens, cache_write_1h_tokens, cache_read_tokens, tool_use_count,
+    source_file, message_id
 )
 WITH raw_logs AS (
     SELECT json, filename
@@ -1432,6 +1445,7 @@ user_string AS (
         NULL as input_tokens,
         NULL as output_tokens,
         NULL as cache_write_tokens,
+        NULL as cache_write_1h_tokens,
         NULL as cache_read_tokens,
         0 as tool_use_count,
         logs.filename as source_file,
@@ -1464,6 +1478,7 @@ user_array AS (
         NULL as input_tokens,
         NULL as output_tokens,
         NULL as cache_write_tokens,
+        NULL as cache_write_1h_tokens,
         NULL as cache_read_tokens,
         0 as tool_use_count,
         logs.filename as source_file,
@@ -1519,6 +1534,10 @@ assistant_msgs AS (
             0
         ) as cache_write_tokens,
         COALESCE(
+            TRY_CAST(json_extract_string(logs.json, '\$.message.usage.cache_creation.ephemeral_1h_input_tokens') AS INTEGER),
+            0
+        ) as cache_write_1h_tokens,
+        COALESCE(
             TRY_CAST(json_extract_string(logs.json, '\$.message.usage.cache_read_input_tokens') AS INTEGER),
             0
         ) as cache_read_tokens,
@@ -1536,8 +1555,9 @@ assistant_msgs AS (
     WHERE json_extract_string(logs.json, '\$.type') = 'assistant'
     GROUP BY uuid, parent_uuid, session_id, model,
              timestamp, project_dir, is_sidechain, entrypoint,
-             input_tokens, output_tokens, cache_write_tokens, cache_read_tokens,
-             json_extract(logs.json, '\$.message.usage'), source_file, message_id
+             input_tokens, output_tokens, cache_write_tokens, cache_write_1h_tokens,
+             cache_read_tokens, json_extract(logs.json, '\$.message.usage'),
+             source_file, message_id
 ),
 all_messages AS (
     SELECT * FROM user_string
@@ -1561,8 +1581,8 @@ SELECT
     worktree_branch_calc as worktree_branch,
     is_worktree_calc as is_worktree,
     is_sidechain,
-    input_tokens, output_tokens, cache_write_tokens, cache_read_tokens,
-    tool_use_count, source_file, message_id
+    input_tokens, output_tokens, cache_write_tokens, cache_write_1h_tokens,
+    cache_read_tokens, tool_use_count, source_file, message_id
 FROM with_worktree
 WHERE timestamp IS NOT NULL;
 EOF
@@ -2353,7 +2373,8 @@ CREATE TABLE IF NOT EXISTS messages (
     tool_use_count INTEGER,
     source_file VARCHAR,
     search_id VARCHAR,
-    message_id VARCHAR
+    message_id VARCHAR,
+    cache_write_1h_tokens INTEGER
 );
 EOF
 
@@ -3257,31 +3278,57 @@ CREATE TABLE IF NOT EXISTS model_pricing (
     input_rate DECIMAL(10,4),
     output_rate DECIMAL(10,4),
     cache_write_rate DECIMAL(10,4),
-    cache_read_rate DECIMAL(10,4)
+    cache_read_rate DECIMAL(10,4),
+    cache_write_1h_rate DECIMAL(10,4),
+    long_context_threshold BIGINT,
+    long_context_input_multiplier DECIMAL(5,2),
+    long_context_output_multiplier DECIMAL(5,2)
 );
+ALTER TABLE model_pricing ADD COLUMN IF NOT EXISTS cache_write_1h_rate DECIMAL(10,4);
+ALTER TABLE model_pricing ADD COLUMN IF NOT EXISTS long_context_threshold BIGINT;
+ALTER TABLE model_pricing ADD COLUMN IF NOT EXISTS long_context_input_multiplier DECIMAL(5,2);
+ALTER TABLE model_pricing ADD COLUMN IF NOT EXISTS long_context_output_multiplier DECIMAL(5,2);
 
 -- Rates per MTok from platform.claude.com/docs/en/about-claude/pricing (2026-11-10).
--- cache_write_rate is the 5-minute write price.
--- claude-haiku-5-5 has no row: its rates step up 5x above 100K-token prompts,
--- which one row cannot express.
-INSERT OR IGNORE INTO model_pricing VALUES
-    ('claude-fable-5-2', 8.0, 40.0, 10.0, 0.20),
-    ('claude-mythos-5-2', 8.0, 40.0, 10.0, 0.20),
-    ('claude-fable-5-1', 10.0, 50.0, 12.50, 0.25),
-    ('claude-mythos-5-1', 10.0, 50.0, 12.50, 0.25),
-    ('claude-fable-5', 10.0, 50.0, 12.50, 1.00),
-    ('claude-mythos-5', 10.0, 50.0, 12.50, 1.00),
-    ('claude-opus-5-5', 4.0, 20.0, 5.0, 0.20),
-    ('claude-opus-4-5-20251101', 5.0, 25.0, 6.25, 0.50),
-    ('claude-sonnet-4-5-20250929', 3.0, 15.0, 3.75, 0.30),
-    ('claude-haiku-4-5-20251001', 1.0, 5.0, 1.25, 0.10),
-    ('claude-opus-4-6', 5.0, 25.0, 6.25, 0.50),
-    ('claude-opus-4-7', 5.0, 25.0, 6.25, 0.50),
-    ('claude-opus-4-8', 5.0, 25.0, 6.25, 0.50),
-    ('claude-opus-5', 5.0, 25.0, 6.25, 0.50),
-    ('claude-sonnet-4-6', 3.0, 15.0, 3.75, 0.30),
-    ('claude-sonnet-5', 2.0, 10.0, 2.50, 0.20),
-    ('claude-sonnet-5-5', 2.0, 10.0, 2.50, 0.10);
+-- cache_write_rate is the 5-minute write price; cache_write_1h_rate the 1-hour one.
+-- A prompt (input + cache reads + cache writes) over long_context_threshold
+-- tokens scales every input-side rate by long_context_input_multiplier and
+-- the output rate by long_context_output_multiplier.
+CREATE OR REPLACE TEMP TABLE _model_pricing_defaults AS
+SELECT
+    model,
+    input_rate::DECIMAL(10,4) AS input_rate,
+    output_rate::DECIMAL(10,4) AS output_rate,
+    cache_write_rate::DECIMAL(10,4) AS cache_write_rate,
+    cache_read_rate::DECIMAL(10,4) AS cache_read_rate,
+    cache_write_1h_rate::DECIMAL(10,4) AS cache_write_1h_rate,
+    long_context_threshold::BIGINT AS long_context_threshold,
+    long_context_input_multiplier::DECIMAL(5,2) AS long_context_input_multiplier,
+    long_context_output_multiplier::DECIMAL(5,2) AS long_context_output_multiplier
+FROM (VALUES
+    ('claude-fable-5-2', 8.0, 40.0, 10.0, 0.20, 16.0, NULL, NULL, NULL),
+    ('claude-mythos-5-2', 8.0, 40.0, 10.0, 0.20, 16.0, NULL, NULL, NULL),
+    ('claude-fable-5-1', 10.0, 50.0, 12.50, 0.25, 20.0, NULL, NULL, NULL),
+    ('claude-mythos-5-1', 10.0, 50.0, 12.50, 0.25, 20.0, NULL, NULL, NULL),
+    ('claude-fable-5', 10.0, 50.0, 12.50, 1.00, 20.0, NULL, NULL, NULL),
+    ('claude-mythos-5', 10.0, 50.0, 12.50, 1.00, 20.0, NULL, NULL, NULL),
+    ('claude-opus-5-5', 4.0, 20.0, 5.0, 0.20, 8.0, NULL, NULL, NULL),
+    ('claude-opus-4-5-20251101', 5.0, 25.0, 6.25, 0.50, 10.0, NULL, NULL, NULL),
+    ('claude-sonnet-4-5-20250929', 3.0, 15.0, 3.75, 0.30, 6.0, NULL, NULL, NULL),
+    ('claude-haiku-4-5-20251001', 1.0, 5.0, 1.25, 0.10, 2.0, NULL, NULL, NULL),
+    ('claude-haiku-5-5', 0.10, 0.50, 0.125, 0.01, 0.20, 100000, 5.0, 5.0),
+    ('claude-opus-4-6', 5.0, 25.0, 6.25, 0.50, 10.0, NULL, NULL, NULL),
+    ('claude-opus-4-7', 5.0, 25.0, 6.25, 0.50, 10.0, NULL, NULL, NULL),
+    ('claude-opus-4-8', 5.0, 25.0, 6.25, 0.50, 10.0, NULL, NULL, NULL),
+    ('claude-opus-5', 5.0, 25.0, 6.25, 0.50, 10.0, NULL, NULL, NULL),
+    ('claude-sonnet-4-6', 3.0, 15.0, 3.75, 0.30, 6.0, NULL, NULL, NULL),
+    ('claude-sonnet-5', 2.0, 10.0, 2.50, 0.20, 4.0, NULL, NULL, NULL),
+    ('claude-sonnet-5-5', 2.0, 10.0, 2.50, 0.10, 4.0, NULL, NULL, NULL)
+) AS d(model, input_rate, output_rate, cache_write_rate, cache_read_rate,
+       cache_write_1h_rate, long_context_threshold,
+       long_context_input_multiplier, long_context_output_multiplier);
+
+INSERT OR IGNORE INTO model_pricing BY NAME SELECT * FROM _model_pricing_defaults;
 
 -- Migrate only the obsolete built-in defaults; preserve user-edited rates.
 UPDATE model_pricing
@@ -3294,6 +3341,18 @@ SET input_rate=1.0, output_rate=5.0, cache_write_rate=1.25, cache_read_rate=0.10
 WHERE model='claude-haiku-4-5-20251001'
   AND input_rate=0.80 AND output_rate=4.0
   AND cache_write_rate=1.00 AND cache_read_rate=0.08;
+-- Rows that predate the 1-hour column get its built-in rate only while their
+-- other rates are still the built-in ones. Any row left without one prices
+-- 1-hour writes at its 5-minute rate.
+UPDATE model_pricing AS p
+SET cache_write_1h_rate = d.cache_write_1h_rate
+FROM _model_pricing_defaults d
+WHERE p.model = d.model
+  AND p.cache_write_1h_rate IS NULL
+  AND p.input_rate = d.input_rate AND p.output_rate = d.output_rate
+  AND p.cache_write_rate = d.cache_write_rate
+  AND p.cache_read_rate = d.cache_read_rate;
+DROP TABLE _model_pricing_defaults;
 
 -- Codex logs contain OpenAI token snapshots, but subscription and purchased-
 -- credit billing are not present. These rates therefore estimate the
@@ -3338,38 +3397,87 @@ WITH assistant_turns AS (
     WHERE harness = 'claude_code'
       AND role = 'assistant'
       AND model IS NOT NULL
+), turns AS (
+    SELECT
+        t.*,
+        LEAST(COALESCE(t.cache_write_1h_tokens, 0), COALESCE(t.cache_write_tokens, 0))
+            AS cache_write_1h,
+        COALESCE(t.cache_write_tokens, 0) - LEAST(
+            COALESCE(t.cache_write_1h_tokens, 0), COALESCE(t.cache_write_tokens, 0)
+        ) AS cache_write_5m,
+        p.model IS NOT NULL AS is_priced,
+        p.input_rate,
+        p.output_rate,
+        p.cache_write_rate,
+        COALESCE(p.cache_write_1h_rate, p.cache_write_rate) AS cache_write_1h_rate,
+        p.cache_read_rate,
+        COALESCE(
+            COALESCE(t.input_tokens, 0) + COALESCE(t.cache_read_tokens, 0) +
+                COALESCE(t.cache_write_tokens, 0) > p.long_context_threshold,
+            FALSE
+        ) AS is_long_context,
+        p.long_context_input_multiplier,
+        p.long_context_output_multiplier
+    FROM assistant_turns t
+    LEFT JOIN model_pricing p ON t.model = p.model
+    WHERE t.usage_rank = 1
+), rated AS (
+    SELECT *,
+        CASE WHEN is_long_context THEN COALESCE(long_context_input_multiplier, 1.0)
+            ELSE 1.0 END AS input_multiplier,
+        CASE WHEN is_long_context THEN COALESCE(long_context_output_multiplier, 1.0)
+            ELSE 1.0 END AS output_multiplier
+    FROM turns
+), costed AS (
+    SELECT *,
+        COALESCE(input_tokens, 0) * input_rate * input_multiplier / 1000000.0
+            AS input_cost,
+        COALESCE(cache_read_tokens, 0) * cache_read_rate * input_multiplier / 1000000.0
+            AS cache_read_cost,
+        (cache_write_5m * cache_write_rate + cache_write_1h * cache_write_1h_rate)
+            * input_multiplier / 1000000.0 AS cache_write_cost,
+        COALESCE(output_tokens, 0) * output_rate * output_multiplier / 1000000.0
+            AS output_cost,
+        (COALESCE(input_tokens, 0) + COALESCE(cache_read_tokens, 0) +
+            COALESCE(cache_write_tokens, 0)) * input_rate * input_multiplier / 1000000.0
+            AS input_cost_without_cache
+    FROM rated
 )
 SELECT
-    t.uuid AS usage_id,
-    t.timestamp,
-    t.session_id,
-    t.project_dir,
-    t.repo_name,
-    t.interface,
-    t.worktree_branch,
-    t.is_worktree,
-    t.model,
-    t.input_tokens,
-    t.output_tokens,
-    t.cache_write_tokens,
-    t.cache_read_tokens,
-    p.input_rate,
-    p.output_rate,
-    p.cache_write_rate,
-    p.cache_read_rate,
-    CASE WHEN p.model IS NULL THEN 'unknown_model' ELSE 'priced' END AS pricing_status,
-    CASE
-        WHEN p.model IS NULL THEN NULL
-        ELSE ROUND((
-            COALESCE(t.input_tokens, 0) * p.input_rate +
-            COALESCE(t.output_tokens, 0) * p.output_rate +
-            COALESCE(t.cache_write_tokens, 0) * p.cache_write_rate +
-            COALESCE(t.cache_read_tokens, 0) * p.cache_read_rate
-        ) / 1000000.0, 6)
-    END AS cost_usd
-FROM assistant_turns t
-LEFT JOIN model_pricing p ON t.model = p.model
-WHERE t.usage_rank = 1;
+    uuid AS usage_id,
+    timestamp,
+    session_id,
+    project_dir,
+    repo_name,
+    interface,
+    worktree_branch,
+    is_worktree,
+    model,
+    input_tokens,
+    output_tokens,
+    cache_write_tokens,
+    cache_write_1h AS cache_write_1h_tokens,
+    cache_read_tokens,
+    input_rate,
+    output_rate,
+    cache_write_rate,
+    cache_write_1h_rate,
+    cache_read_rate,
+    is_long_context,
+    CASE WHEN is_priced THEN 'priced' ELSE 'unknown_model' END AS pricing_status,
+    CASE WHEN is_priced THEN ROUND(input_cost, 6) END AS input_cost_usd,
+    CASE WHEN is_priced THEN ROUND(cache_read_cost, 6) END AS cache_read_cost_usd,
+    CASE WHEN is_priced THEN ROUND(cache_write_cost, 6) END AS cache_write_cost_usd,
+    CASE WHEN is_priced THEN ROUND(output_cost, 6) END AS output_cost_usd,
+    CASE WHEN is_priced THEN ROUND(
+        input_cost + cache_read_cost + cache_write_cost + output_cost, 6
+    ) END AS cost_usd,
+    CASE WHEN is_priced THEN ROUND(input_cost_without_cache + output_cost, 6)
+        END AS cost_without_cache_usd,
+    CASE WHEN is_priced THEN ROUND(
+        input_cost_without_cache - input_cost - cache_read_cost - cache_write_cost, 6
+    ) END AS cache_savings_usd
+FROM costed;
 
 -- ============================================================================
 -- CODEX USAGE WITH API-EQUIVALENT COST VIEW
@@ -3516,30 +3624,15 @@ SELECT
     cache_read_rate AS cached_input_rate,
     cache_write_rate,
     output_rate,
-    FALSE AS is_long_context,
+    is_long_context,
     pricing_status,
-    CASE WHEN pricing_status <> 'priced' THEN NULL ELSE ROUND(
-        COALESCE(input_tokens, 0) * input_rate / 1000000.0, 6
-    ) END AS input_cost_usd,
-    CASE WHEN pricing_status <> 'priced' THEN NULL ELSE ROUND(
-        COALESCE(cache_read_tokens, 0) * cache_read_rate / 1000000.0, 6
-    ) END AS cached_input_cost_usd,
-    CASE WHEN pricing_status <> 'priced' THEN NULL ELSE ROUND(
-        COALESCE(cache_write_tokens, 0) * cache_write_rate / 1000000.0, 6
-    ) END AS cache_write_cost_usd,
-    CASE WHEN pricing_status <> 'priced' THEN NULL ELSE ROUND(
-        COALESCE(output_tokens, 0) * output_rate / 1000000.0, 6
-    ) END AS output_cost_usd,
+    input_cost_usd,
+    cache_read_cost_usd AS cached_input_cost_usd,
+    cache_write_cost_usd,
+    output_cost_usd,
     cost_usd,
-    CASE WHEN pricing_status <> 'priced' THEN NULL ELSE ROUND((
-        (COALESCE(input_tokens, 0) + COALESCE(cache_read_tokens, 0) +
-         COALESCE(cache_write_tokens, 0)) * input_rate +
-        COALESCE(output_tokens, 0) * output_rate
-    ) / 1000000.0, 6) END AS cost_without_cache_usd,
-    CASE WHEN pricing_status <> 'priced' THEN NULL ELSE ROUND((
-        COALESCE(cache_read_tokens, 0) * (input_rate - cache_read_rate) -
-        COALESCE(cache_write_tokens, 0) * (cache_write_rate - input_rate)
-    ) / 1000000.0, 6) END AS cache_savings_usd
+    cost_without_cache_usd,
+    cache_savings_usd
 FROM usage_with_cost
 UNION ALL
 SELECT
