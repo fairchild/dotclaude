@@ -127,6 +127,28 @@ The context report reads the engine's point in three bands against the goal:
 | 257,000 to 300,000 | the goal's own backstop, from its implied point (the goal less 33,000) less 10,000 up to the goal | nothing |
 | below 257,000 | a fault | the goal is never reached; it names `autoCompactWindow`, then `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` for when the window already reaches the goal, and the goal that would fit |
 
+## Asking for a compaction
+
+A request carries three texts. `instructions` is what the summary keeps, named exactly: the
+user's briefs verbatim, open asks, agents and their states, the merge order, and what to drop.
+`reasoning` is why compacting now beats carrying on. `resume` is the prompt the next turn starts
+on: what to pick up first and where its state lives, such as a resume file or the arc's tracking
+issue. Without it the mod submits a generic prompt to continue from the summary, which knows only
+what the summary kept.
+
+The summary is a paraphrase of what the session believed, so the state worth keeping goes to disk
+or the tracker before the request, and the turn after the cut rebuilds from live reads of
+branches, pull requests, checks and processes rather than from the summary.
+
+Two cases resume nothing. A `/compact` the user types ends the turn, and the compacted session
+waits for whatever event arrives next. A request the mod drops — another compaction ran first, or
+the context sat below the floor when it fell due — or a `/compact` that fails submits no resume
+either; the context tool reports the last request's outcome. In both, a background timer started
+before the cut bounds the wait.
+
+The [`compaction-handoff`](../skills/compaction-handoff/SKILL.md) skill carries the procedure:
+reflect back, write durable state, request, and rebuild after.
+
 ## What a request leaves behind
 
 `mcp__compaction__request` takes `reasoning` beside `instructions`: why compacting now beats

@@ -28,7 +28,7 @@ to the operator. You rarely implement.
   They read the conversation; they do not read digests.
 - **Plan to be long-running.** Context fills. Keep the durable state in the repo — issues, PR comments,
   a brief file per worker, a handoff note — so a compaction or a handoff loses nothing. Before a cut,
-  write the next steps down; after it, rebuild from live reads, never from the summary.
+  write the next steps down; after it, rebuild from live reads, never from the summary (`compaction-handoff`).
 
 ## The loop, one issue at a time
 

@@ -16,7 +16,9 @@ own instructions override anything here, especially on merging.
 
 Fill the repo's PR template. Put evidence in the body — screenshots for UI, results for behavior —
 labelled with the commit and environment it came from. A green build is not a UI or runtime check.
-Open as a draft.
+Open as a draft, and keep it a draft until an independent review has been worked through on the
+head: another model's pass, or a fresh session running `/review-pr <PR url>`, never the author
+(`review-pr`, Rounds).
 
 ## Follow through
 
@@ -31,11 +33,21 @@ transient failure. Count unresolved threads even when outdated.
 Read all findings before touching code; they interact. Every blocking or deferrable finding gets a
 disposition, as a reply in its thread:
 
-- **Fixed:** the change, the pushed commit, the verification and its result.
-- **Deferred:** why it belongs elsewhere and where it is tracked.
+- **Fixed now:** the change, the pushed commit, the verification and its result.
+- **Follow-up:** why it belongs elsewhere, and the issue that tracks it.
 - **Declined:** why, with code or test evidence.
 
-Resolve a thread once its fix is pushed; leave Deferred and Declined threads open with the reply.
+Give each round its dispositions before asking for the next. A review with no threads, such as a
+local pass by another model, gets one PR comment per round:
+
+```text
+Round 2 at <head sha>: 1 fixed in <sha>; 2 follow-up #<n>; 3 declined — <reason>
+```
+
+When the same class of finding comes back, change the shape that produces it rather than patching
+the new instance.
+
+Resolve a thread once its fix is pushed; leave Follow-up and Declined threads open with the reply.
 Never bulk-resolve. A nit needs no push: fix it if small and agreed, otherwise reply in a line.
 Findings with no thread (a summary, check output) get a conversation reply naming each. Resolve
 base conflicts the way the repo merges.
@@ -47,8 +59,8 @@ the numeric ID, not the thread node ID), then resolve with GraphQL `resolveRevie
 ## Ready
 
 Make the final body edit while still a draft — an edit can restart review bots. Mark ready once
-every check is green on the head and every finding has a disposition. After that, every push
-repeats the follow-through.
+the independent review is worked through on the head, every check is green there, and every
+finding has a disposition. After that, every push repeats the follow-through.
 
 Before reporting, capture head and base SHAs, read checks, reviews and threads, then re-read the
 PR. If either SHA moved, start over. Report one of:

@@ -230,7 +230,10 @@ const REQUEST_TOOL: ToolSpec = {
     "other starts within a few seconds, runs /compact with these instructions, then submits " +
     "the resume prompt (or a generic one) so the next turn starts on its own. One request " +
     "waits at a time, and a second replaces it. Refused from a subagent, below the request " +
-    "floor, or while the context is not measured. Its reasoning is kept across sessions.",
+    "floor, or while the context is not measured. Its reasoning is kept across sessions. " +
+    "Write what must survive to disk or the tracker first and say where in the resume prompt: " +
+    "the summary is a paraphrase, so the next turn rebuilds from live reads (the " +
+    "compaction-handoff skill has the procedure).",
   inputSchema: {
     type: "object",
     properties: { instructions: INSTRUCTIONS, reasoning: REASONING, resume: RESUME },
