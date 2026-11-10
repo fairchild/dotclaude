@@ -123,6 +123,30 @@ is named, and "read-only, no push" is declared up front.
    still reads "gated: ready" two months on. Close-out is part of the loop; the reconcile catches what
    a turn missed.
 
+## Instrument guards go in the command, not in your head
+
+A rule about an instrument does not fire at the moment the instrument is used. One session in this
+role (2026-09-15) wrote itself a memory about reading the clock before stamping a time, after a
+six-hour drift across five PR bodies, and then labelled two more sections from a feel for elapsed
+time, with that memory in its own context. What changed the behaviour was a shape, not a rule: its
+earlier briefs had no `date -u` anywhere, and its later ones put the command inside the instruction
+("one body edit refreshing `## Mergeability`, dated with `date -u`").
+
+So carry these as text you paste into the brief, not as things to remember:
+
+- **A stamp comes from `date -u` in the same call that writes it.** Never from elapsed feel, never
+  from a stamp you read earlier. Write the command into every brief that produces a dated line.
+- **An age is epoch arithmetic**, not a formatted time read by eye.
+- **Name the shell.** In zsh, quote every URL carrying `?` or `&`, split a list with `${=VAR}` or an
+  array rather than bare `$VAR`, brace a variable before a colon, and remember that an apostrophe
+  inside a single-quoted program ends the quoting.
+- **Verify a kill with `ps -p <pid>` per pid**, never by re-expanding the variable that failed.
+- **Prove a paged fetch reached the end before quoting a count from it.** A truncated fetch returns a
+  prefix and reads exactly like a complete one.
+
+Where a guard protects an instrument, put it in the command text your worker executes. A guard held
+only as a memory fires after the mistake.
+
 ## On boot
 
 1. Read the repo's books, the open PRs and issues, and the branch rules: whether any approval gates a
