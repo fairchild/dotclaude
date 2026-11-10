@@ -134,7 +134,9 @@ carrying on. Each request is appended to `$.store` under `requests` — the newe
 (200), the oldest dropped — with the outcome (`recorded`, `refused`, `ran`, `dropped`, `failed`; `dropped` also when another compaction runs first),
 the context and the points it was judged against, the instructions, the reasoning and the resume
 prompt when one was given. A request that ran adds a second entry for the resume prompt: `resumed`
-when it was submitted, `unresumed`, with the reason, when the submit failed after `/compact` ran.
+when it was submitted, `unresumed`, with the reason, when the submit failed or a hook dropped it.
+`ran` means the compaction went through: a `/compact` that answers "Not enough messages to
+compact." is `failed`, and nothing is submitted after it.
 
 That reading is what makes the points answerable rather than asserted: a floor that refuses
 requests the thread keeps making is too high, a prepare point the engine's backstop keeps

@@ -265,33 +265,61 @@ test('a request below the floor is refused, the floor named as the goal implies 
 /** What a compaction leaves: one message, the summary. */
 const SUMMARY = [{ role: 'user' as const, text: 'the summary', toolUses: [] }]
 
+/** How the world beneath the mod answers: each call's failure shape, and the first compaction's. */
+type World = {
+  /** `throws` rejects; `fails` resolves with the output text, as the engine does when it cannot compact. */
+  readonly compact?: 'throws' | 'fails'
+  /** `throws` rejects; `drops` resolves `{ drop }`, as a hook's refusal does. */
+  readonly submit?: 'throws' | 'drops'
+  /** The first compaction is skipped by a hook beneath, or held until `release`. */
+  readonly first?: 'skipped' | 'held' | 'held, then skipped'
+  /** Runs after the turn ends and before the wait passes; `after`, once it has. */
+  readonly meanwhile?: () => Promise<unknown>
+  readonly after?: () => Promise<unknown>
+}
+
+/** A gate the held compaction waits on. */
+let release: () => void = () => undefined
+
 /** A session at 240k with a request made and its turn ended, its command and submits recorded. */
-async function compacted(
-  $: Engine,
-  on: On,
-  request: Readonly<Record<string, string>>,
-  fail: { readonly compact?: boolean; readonly submit?: boolean } = {},
-  meanwhile: () => Promise<unknown> = async () => undefined,
-) {
+async function compacted($: Engine, on: On, request: Readonly<Record<string, string>>, world: World = {}) {
   const log = kept(on)
   const clock = mock.clock(on)
   const commands: { command: string; args?: string }[] = []
   const submitted: string[] = []
+  let compactions = 0
   on('session.usage', () => ({ value: usage(240_000, 267_000) }))
   on('tool.register', (_, e) => ({ value: { tool: e.name } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
-  on('session.compact', () => ({ messages: SUMMARY }))
+  on('session.compact', async () => {
+    compactions += 1
+    if (compactions === 1 && world.first === 'skipped') return { skip: 'a hook beneath said no' }
+    if (compactions === 1 && world.first?.startsWith('held')) {
+      await new Promise<void>((resolve) => {
+        release = resolve
+      })
+      if (world.first === 'held, then skipped') return { skip: 'a hook beneath said no' }
+    }
+    if (world.compact === 'fails') throw new Error('Not enough messages to compact.')
+
+    return { messages: SUMMARY }
+  })
   on('command.run', async (_, e) => {
     commands.push({ command: e.command, args: e.args })
-    if (fail.compact) throw new Error('compact broke')
-    await $.session.compact({ trigger: 'manual', messages: SUMMARY })
+    if (world.compact === 'throws') throw new Error('compact broke')
+    try {
+      await $.session.compact({ trigger: 'manual', messages: SUMMARY })
+    } catch {
+      return { text: 'Not enough messages to compact.' }
+    }
 
-    return {}
+    return { text: 'Compacted' }
   })
   on('prompt.submit', (_, e) => {
     submitted.push(e.text)
-    if (fail.submit) throw new Error('submit broke')
+    if (world.submit === 'throws') throw new Error('submit broke')
+    if (world.submit === 'drops') return { drop: 'a Stop hook stands' }
     if (e.text.startsWith('/')) throw new Error('a text beginning with / would run a command (host check)')
 
     return { text: e.text }
@@ -306,7 +334,9 @@ async function compacted(
     turnId: 't1',
     reason: 'answer',
   })
-  await meanwhile()
+  await world.meanwhile?.()
+  await clock.advance(IDLE_MS)
+  await world.after?.()
   await clock.advance(IDLE_MS)
 
   const last = String((await $.tool.call({ tool: 'mcp__compaction__context' })).result)
@@ -332,7 +362,7 @@ test('a request with no resume prompt submits the default', async ($, on) => {
 })
 
 test('a submit that fails is its own outcome, the compaction kept as ran', async ($, on) => {
-  const run = await compacted($, on, ASKED, { submit: true })
+  const run = await compacted($, on, ASKED, { submit: 'throws' })
 
   expect(run.outcomes).toEqual(['recorded', 'ran', 'unresumed'])
   expect(run.last).toContain('ran /compact at 240,000 tokens, but the resume prompt did not submit')
@@ -340,7 +370,7 @@ test('a submit that fails is its own outcome, the compaction kept as ran', async
 })
 
 test('a /compact that fails submits nothing', async ($, on) => {
-  const run = await compacted($, on, ASKED, { compact: true })
+  const run = await compacted($, on, ASKED, { compact: 'throws' })
 
   expect(run.submitted).toEqual([])
   expect(run.outcomes).toEqual(['recorded', 'failed'])
@@ -387,9 +417,9 @@ test('a resume prompt past its length is refused, the refusal naming it', async 
 })
 
 test('a /compact typed during the wait drops the request: no second compaction, no resume', async ($, on) => {
-  const run = await compacted($, on, { ...ASKED, resume: 'MANGO' }, {}, () =>
-    $.session.compact({ trigger: 'manual', messages: SUMMARY }),
-  )
+  const run = await compacted($, on, { ...ASKED, resume: 'MANGO' }, {
+    meanwhile: () => $.session.compact({ trigger: 'manual', messages: SUMMARY }),
+  })
 
   expect(run.commands).toEqual([])
   expect(run.submitted).toEqual([])
@@ -398,9 +428,70 @@ test('a /compact typed during the wait drops the request: no second compaction, 
 })
 
 test("a subagent's compaction leaves the main thread's request standing", async ($, on) => {
-  const run = await compacted($, on, ASKED, {}, () =>
-    $.session.compact({ trigger: 'auto', agentId: 'a1', messages: SUMMARY }),
-  )
+  const run = await compacted($, on, ASKED, {
+    meanwhile: () => $.session.compact({ trigger: 'auto', agentId: 'a1', messages: SUMMARY }),
+  })
+
+  expect(run.commands).toEqual([{ command: 'compact', args: 'keep the merge order' }])
+  expect(run.outcomes).toEqual(['recorded', 'ran', 'resumed'])
+})
+
+test('a /compact that resolves with its failure is failed, and submits nothing', async ($, on) => {
+  const run = await compacted($, on, ASKED, { compact: 'fails' })
+
+  expect(run.commands).toHaveLength(1)
+  expect(run.submitted).toEqual([])
+  expect(run.outcomes).toEqual(['recorded', 'failed'])
+  expect(run.last).toContain('/compact did not run: Not enough messages to compact.')
+})
+
+test('a resume prompt a hook drops is unresumed, with the reason', async ($, on) => {
+  const run = await compacted($, on, ASKED, { submit: 'drops' })
+
+  expect(run.outcomes).toEqual(['recorded', 'ran', 'unresumed'])
+  expect(run.last).toContain('the resume prompt did not submit: a Stop hook stands')
+})
+
+test('a typed /compact that a hook skips leaves the request to run', async ($, on) => {
+  const run = await compacted($, on, ASKED, {
+    first: 'skipped',
+    meanwhile: () => $.session.compact({ trigger: 'manual', messages: SUMMARY }),
+  })
+
+  expect(run.commands).toEqual([{ command: 'compact', args: 'keep the merge order' }])
+  expect(run.outcomes).toEqual(['recorded', 'ran', 'resumed'])
+})
+
+test('a typed /compact still running when the wait passes holds the request, then drops it', async ($, on) => {
+  let typed: Promise<unknown> = Promise.resolve()
+  const run = await compacted($, on, ASKED, {
+    first: 'held',
+    meanwhile: async () => {
+      typed = $.session.compact({ trigger: 'manual', messages: SUMMARY })
+    },
+    after: async () => {
+      release()
+      await typed
+    },
+  })
+
+  expect(run.commands).toEqual([])
+  expect(run.submitted).toEqual([])
+  expect(run.outcomes).toEqual(['recorded', 'dropped'])
+})
+
+test('a typed /compact skipped after the wait passed arms the wait again, and the request runs', async ($, on) => {
+  let typed: Promise<unknown> = Promise.resolve()
+  const run = await compacted($, on, ASKED, {
+    first: 'held, then skipped',
+    meanwhile: async () => {
+      typed = $.session.compact({ trigger: 'manual', messages: SUMMARY })
+    },
+    after: async () => {
+      release()
+      await typed
+    },
+  })
 
   expect(run.commands).toEqual([{ command: 'compact', args: 'keep the merge order' }])
   expect(run.outcomes).toEqual(['recorded', 'ran', 'resumed'])
