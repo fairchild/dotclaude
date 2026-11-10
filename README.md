@@ -77,6 +77,7 @@ Claude loads these when the task matches the description.
 | `backlog` | Markdown task backlog and project roadmap (backlog/{todo,doing,done,failed}/, backlog/ROADMAP.md) for adding,… |
 | `chronicle` | Session continuity for coding work. |
 | `dotclaude-config` | Work with Claude Code configuration at global (~/.claude) or project (.claude/) level. |
+| `dotfiles-checkup` | Check this machine's dotfiles against the public repo and bring them back to clean. |
 | `fable-session` | Hand off long-arc work to a fable session — an Opus 5.5 orchestrator at xhigh effort verifies while delegating the… |
 | `gh-apps` | Create, authenticate, and manage GitHub Apps. |
 | `git-worktree` | Manage Git worktrees for concurrent local development. |
