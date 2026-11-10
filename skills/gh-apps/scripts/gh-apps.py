@@ -374,6 +374,7 @@ def _exchange_manifest_code(code: str) -> dict:
 
 
 APP_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+APP_NAME_MAX = 34
 
 
 def _name_problem(name: str) -> str | None:
@@ -382,6 +383,8 @@ def _name_problem(name: str) -> str | None:
     The local config folder is named after NAME and GitHub derives the slug its own way;
     restricting NAME to lowercase letters, digits and hyphens keeps the two the same.
     """
+    if len(name) > APP_NAME_MAX:
+        return f"app name '{name}' is {len(name)} characters; GitHub allows {APP_NAME_MAX}."
     if APP_NAME.fullmatch(name):
         return None
     suggestion = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")

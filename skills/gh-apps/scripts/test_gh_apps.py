@@ -405,6 +405,12 @@ def test_name_rejects():
     assert "'my-bot'" in gh_apps._name_problem("My Bot")
 
 
+@test("name_problem: enforces GitHub's 34-character limit")
+def test_name_length():
+    assert gh_apps._name_problem("a" * 34) is None
+    assert "34" in (gh_apps._name_problem("a" * 35) or "")
+
+
 @test("create: refuses a bad name before contacting GitHub")
 def test_create_refuses_bad_name():
     import io
@@ -560,6 +566,7 @@ UNIT_TESTS = [
     test_list_apps,
     test_name_accepts,
     test_name_rejects,
+    test_name_length,
     test_create_refuses_bad_name,
     test_token_body_empty,
     test_token_body_narrowed,

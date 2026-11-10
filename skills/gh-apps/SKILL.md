@@ -58,8 +58,8 @@ scripts/gh-apps.py create my-bot --no-browser --permissions issues:write
 scripts/gh-apps.py create org-bot --org my-org --permissions contents:read
 ```
 
-Names are lowercase letters, digits and hyphens; `create` refuses anything else, because the local
-credential folder and GitHub's slug must match.
+Names are lowercase letters, digits and hyphens, at most 34 characters; `create` refuses anything
+else, because the local credential folder and GitHub's slug must match.
 
 Four things catch people the first time:
 
@@ -67,7 +67,9 @@ Four things catch people the first time:
 2. Creating does not install. `token` fails with "no installations found" until the app is
    installed on a repository. Install it on selected repositories only.
 3. A private app still has a public page at `github.com/apps/<slug>`, so its name is visible to
-   anyone. A name nobody has taken returns 404 there, which is a quick availability check.
+   anyone. A taken app name answers there, but a 404 does not mean the name is free: it must
+   also differ from every GitHub user and organization login except your own, so check
+   `github.com/<name>` too. Only submitting the form settles it.
 4. After a permission change, each installation must accept the new permission before tokens
    carry it.
 
