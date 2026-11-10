@@ -378,9 +378,28 @@ describe("file reading pages", () => {
   test("Markdown renders with links resolved from the file's own directory", () => {
     const html = page("references/guide.md", text("# Guide\n\n[Next door](other.md) · [Up](../SKILL.md)\n"));
     expect(article(html)).toContain('<h2 id="guide">Guide</h2>');
+    // other.md is not one of the skill's files, so it keeps its resolved URL.
     expect(html).toContain('href="https://example.org/skills/example/references/other.md"');
-    expect(html).toContain('href="https://example.org/skills/example/SKILL.md"');
+    expect(html).toContain('href="/view/example/SKILL.md"');
     expect(html).toContain('<a href="/skills/example/references/guide.md">Raw</a> · <a href="/txt/example/references/guide.md">Plain text</a>');
+  });
+
+  test("links to the skill's own files go to their reading pages, so the keyboard walk never dead-ends on raw bytes", () => {
+    const markdown = "[Guide](references/guide.md#setup) [Run](./scripts/run.py?x=1) [Logo](assets/logo.png) ![Logo](assets/logo.png)"
+      + " [Missing](references/missing.md) [Other skill](/skills/other/SKILL.md) [Abs](https://example.org/skills/example/scripts/run.py)"
+      + " [Elsewhere](https://elsewhere.test/skills/example/SKILL.md) [Anchor](#top) [Bad](%E0%A4%A.md)\n";
+    const rendered = renderMarkdown(markdown, "example", "https://example.org", "SKILL.md", paths);
+    for (const href of ["/view/example/references/guide.md#setup", "/view/example/scripts/run.py?x=1", "/view/example/assets/logo.png",
+      "https://example.org/skills/example/references/missing.md", "https://example.org/skills/other/SKILL.md",
+      "/view/example/scripts/run.py", "https://elsewhere.test/skills/example/SKILL.md", "#top", "https://example.org/skills/example/%E0%A4%25A.md"]) {
+      expect(rendered).toContain(`href="${href}"`);
+    }
+    expect(rendered).toContain('<a href="/view/example/assets/logo.png">Logo</a>');
+    // Without the file list there is nothing to map, so links keep their resolved URLs.
+    expect(renderMarkdown(markdown, "example", "https://example.org")).not.toContain("/view/");
+    // The skill page's own instructions follow the same rule.
+    const skill = renderSkillPage(template, "example", "A useful skill.", "See [the guide](references/a%20b.md).\n", ["SKILL.md", "references/a b.md"]);
+    expect(skill).toContain('<a href="/view/example/references/a%20b.md">the guide</a>');
   });
 
   test("source is escaped, never run, and its neighbours are rel=prev and rel=next", () => {

@@ -14,7 +14,10 @@ list, so browsing leads and the endpoint stays one anchor away. Each skill page
 lists SKILL.md first, then its supporting files, and offers a complete package
 download. Each file in that list opens a reading page at `/view/{name}/{path}`:
 Markdown rendered, source escaped, images drawn, with links to the raw bytes and
-to the files before and after it. The bytes themselves stay at
+to the files before and after it. A link in rendered Markdown, on a skill page or
+a reading page, that points at one of the skill's own files goes to that file's
+reading page, keeping any query or fragment; links anywhere else keep their
+resolved URL. The bytes themselves stay at
 `/skills/{name}/{path}`, unchanged whatever the `Accept` header asks for, so an
 agent fetching a supporting file never receives the reading page instead.
 Markdown discovery and downloads extend the same library.

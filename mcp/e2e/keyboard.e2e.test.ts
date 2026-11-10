@@ -226,6 +226,22 @@ test("on a file, ← and → step through the skill's files, and Esc still goes 
   await expect(page.getByRole("link", { name: "git-worktree", exact: true })).toBeFocused();
 });
 
+test("a link in a skill's instructions to one of its files opens that file's reading page, and Esc comes back to it", async ({ page }) => {
+  await page.goto("/skills/release/");
+  const inline = page.locator('article a[href^="/view/release/"]').first();
+  const href = await inline.getAttribute("href");
+  expect(href).toBe("/view/release/references/troubleshooting.md");
+
+  await tabTo(page, inline);
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(new RegExp(`${href}$`));
+  await expect(page.locator("h1")).toHaveText("references/troubleshooting.md");
+
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/\/skills\/release\/$/);
+  await expect(inline).toBeFocused();
+});
+
 test("/skills, one level above a skill, is the catalog", async ({ page }) => {
   await page.goto("/skills/");
   await expect(page).toHaveURL(/\/$/);

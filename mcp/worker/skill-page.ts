@@ -131,13 +131,30 @@ ${markdown}${markdown.endsWith("\n") ? "" : "\n"}${delimiter}${markdown.endsWith
 `;
 }
 
-/** Relative links resolve against `path`, the rendered file's own location in the skill. */
-export function renderMarkdown(markdown: string, name: string, origin = defaultOrigin, path = "SKILL.md"): string {
+/**
+ * Relative links resolve against `path`, the rendered file's own location in the skill.
+ * A link to another of the skill's `paths` goes to its reading page; anything else keeps its resolved URL.
+ */
+export function renderMarkdown(markdown: string, name: string, origin = defaultOrigin, path = "SKILL.md", paths: string[] = []): string {
   const base = `${origin}${fileUrl(name, path)}`;
-  const href = (value: string) => {
+  const root = `${origin}/skills/${encodeURIComponent(name)}/`;
+  const files = new Set(paths);
+  const inSkill = (url: URL): string | undefined => {
+    const at = url.origin + url.pathname;
+    if (!at.startsWith(root)) return undefined;
+    try {
+      const rel = at.slice(root.length).split("/").map(decodeURIComponent).join("/");
+      return files.has(rel) ? rel : undefined;
+    } catch { return undefined; }
+  };
+  /** Unescaped: link_open hands it to the renderer, which escapes attributes exactly once. */
+  const target = (value: string): string => {
     try {
       const url = new URL(value, base);
-      return ["https:", "http:", "mailto:"].includes(url.protocol) ? escapeHtml(value.startsWith("#") ? value : url.href) : "";
+      if (!["https:", "http:", "mailto:"].includes(url.protocol)) return "";
+      if (value.startsWith("#")) return value;
+      const rel = inSkill(url);
+      return rel === undefined ? url.href : viewUrl(name, rel) + url.search + url.hash;
     } catch { return ""; }
   };
   const md = new MarkdownIt({ html: false, linkify: false });
@@ -150,18 +167,13 @@ export function renderMarkdown(markdown: string, name: string, origin = defaultO
   md.renderer.rules.heading_close = (tokens, index) => "</h" + Math.min(Number(tokens[index]!.tag.slice(1)) + 1, 6) + ">\n";
   md.renderer.rules.link_open = (tokens, index, options, env, self) => {
     const token = tokens[index]!;
-    const value = String(token.attrGet("href") ?? "");
-    // Let the renderer escape attributes exactly once.
-    try {
-      const url = new URL(value, base);
-      token.attrSet("href", ["https:", "http:", "mailto:"].includes(url.protocol) ? (value.startsWith("#") ? value : url.href) : "");
-    } catch { token.attrSet("href", ""); }
+    token.attrSet("href", target(String(token.attrGet("href") ?? "")));
     return self.renderToken(tokens, index, options);
   };
   md.renderer.rules.image = (tokens, index) => {
     const token = tokens[index]!;
-    const target = href(String(token.attrGet("src") ?? ""));
-    return target ? '<a href="' + target + '">' + escapeHtml(token.content || "View image") + "</a>" : escapeHtml(token.content);
+    const link = target(String(token.attrGet("src") ?? ""));
+    return link ? '<a href="' + escapeHtml(link) + '">' + escapeHtml(token.content || "View image") + "</a>" : escapeHtml(token.content);
   };
   return md.render(markdown.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, ""));
 }
@@ -179,7 +191,7 @@ export function renderSkillPage(template: string, name: string, description: str
   const files = `<ul class="files" data-siblings>${orderedPaths(paths).map(path => `<li><a href="${viewUrl(name, path)}">${escapeHtml(path)}</a></li>`).join("")}</ul>`;
   const values: Record<string, string> = {
     NAME: escapeHtml(name), DESCRIPTION: escapeHtml(description.split(/(?<=[.!?])\s/)[0] ?? description), RAW_URL: `/skills/${encodeURIComponent(name)}/SKILL.md`,
-    CONTENT: renderMarkdown(markdown, name, origin), PROMPT: escapeHtml(packagePrompt(name, download, origin)),
+    CONTENT: renderMarkdown(markdown, name, origin, "SKILL.md", paths), PROMPT: escapeHtml(packagePrompt(name, download, origin)),
     INLINE_PROMPT: escapeHtml(installPrompt(name, markdown, paths, origin)),
     SHELL_INSTALL: download ? shellDetails(shellInstall(name, download, origin)) : "",
     DIRECTORY_URL: `/skills/${encodeURIComponent(name)}/`, MARKDOWN_URL: `/skill/${encodeURIComponent(name)}.md`,
@@ -213,7 +225,7 @@ export function renderFilePage(template: string, name: string, path: string, byt
   const content = imageTypes.has(extension) ? `<p><img src="${escapeHtml(raw)}" alt="${escapeHtml(path)}"></p>`
     : text === null ? `<p>A binary file. Download ${link} to read it.</p>`
     : bytes.length > previewLimit ? `<p>Too large to show here (${formatBytes(bytes.length)}). Read ${link}.</p>`
-    : extension === "md" ? renderMarkdown(text, name, origin, path)
+    : extension === "md" ? renderMarkdown(text, name, origin, path, paths)
     : `<pre><code>${escapeHtml(text)}</code></pre>`;
   const ordered = orderedPaths(paths);
   const at = ordered.indexOf(path);
