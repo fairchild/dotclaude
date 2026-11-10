@@ -4,6 +4,8 @@
 #   gondolin-ci.sh run <pr> [suite] [sha]
 #                                    run one at the commit you read; sha defaults to today's head,
 #                                    and suite to the workflow's first
+#   gondolin-ci.sh why [pid]         which run a pid belongs to, who started it, when it should end;
+#                                    no pid: every run in progress
 #   gondolin-ci.sh check             say what this laptop and repository still need
 #   gondolin-ci.sh setup             install the lane's dependencies and build the guest
 #
@@ -23,7 +25,7 @@ else
   dim=''; bold=''; cyan=''; green=''; yellow=''; off=''
 fi
 
-usage() { sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; }
 
 find_repo() {
   [ -z "${GONDOLIN_CI_REPO:-}" ] || return 0
@@ -159,6 +161,10 @@ case "${1:-list}" in
     show_list "Next" 5 "$pr"
     printf '\n  %sgondolin-ci.sh run <pr> [suite] [sha]%s\n\n' "$dim" "$off"
     exit "$status"
+    ;;
+  why)
+    need_lane
+    node "${lane}/why.mjs" ${2:+"$2"}
     ;;
   check)
     need_lane

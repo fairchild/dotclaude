@@ -48,7 +48,7 @@ The VM borrows the user's laptop, and a busy host makes the run slow and its tim
 Check, in this order:
 
 - **Idle CPU** — `top -l 2 -n 0 | grep "CPU usage" | tail -1`. Below about 40% idle, wait.
-- **The slot** — `node lane/lib/slot.mjs who` names the holder. One VM at a time: a run waits for
+- **The slot** — `bash scripts/gondolin-ci.sh why` shows any run in progress, or `node lane/lib/slot.mjs who` names the holder. One VM at a time: a run waits for
   the slot, because two VMs make each other's tests fail on timeouts that say nothing about the
   code.
 - **Free disk** — a run needs a few GB for the copy-on-write disk.
@@ -110,8 +110,40 @@ and hands off to `lane/run-optin.sh`, which does the real work:
 5. **Discard.** The runner exits on its own after one job, the copy-on-write disk goes away with
    the VM, and the registration deregisters itself.
 
-Each run leaves its runner log, steps and egress report under
-`~/.local/state/gondolin-runner/runs/`.
+Each run leaves its runner log, steps, egress report and record under
+`~/.local/state/gondolin-runner/runs/`, all named `job-optin-pr-<N>-<HHMMSS>`.
+
+## From a pid back to its run
+
+A VM shows up in `ps` and Activity Monitor as a QEMU using gigabytes. To find out whose it is:
+
+```sh
+bash scripts/gondolin-ci.sh why 47863   # any pid in the run: QEMU, run-job.mjs, run-optin.sh
+bash scripts/gondolin-ci.sh why         # every run in progress
+```
+
+It names the pull request, suite and commit, the GitHub run, what started the run (the wrapper
+script and the Claude or Codex session above it, with its directory), the step it is on, and an
+estimate of when it ends. The estimate is the median of each remaining step across the last ten
+successful runs of the same repository and suite, so a suite's first run has none. It runs slow
+while the VM yields to the laptop, and `why` says when it is.
+
+Three things make that lookup hold up:
+
+- **The record.** `run-optin.sh` writes `job-<suffix>.json` when the run starts: the pull request,
+  suite and sha, the chain of processes that started it, `$CLAUDE_PID` and the directory, and
+  `$GONDOLIN_REASON` if the caller set one. The pids and the GitHub run join it as they appear,
+  and the conclusion when it ends. The summary then goes to `runs.jsonl`, which is the history the
+  estimate reads.
+- **The environment.** Every process under the run, QEMU included, inherits
+  `GONDOLIN_RUN_RECORD`. `ps -E -p <pid>` reads it, so a QEMU whose parents died still names its
+  run.
+- **The name.** QEMU starts through `lane/named-qemu-system-aarch64`, so `ps` shows
+  `gondolin-vm <repo>#<pr> <suite> <suffix>` and `pgrep -f optin-pr-37` finds it. Activity Monitor
+  lists the executable, which keeps QEMU's own name.
+
+Set `GONDOLIN_REASON` when a script or agent starts a run, so the record says why:
+`GONDOLIN_REASON="pre-merge check" bash scripts/gondolin-ci.sh run 37`.
 
 ## When a run dies mid-flight
 
@@ -119,7 +151,8 @@ Each run leaves its runner log, steps and egress report under
 registration behind:
 
 ```sh
-pkill -f run-optin.sh; pkill -f run-job.mjs; pkill -f 'qemu-system-aarch64.*gondolin'
+bash scripts/gondolin-ci.sh why    # which runs, and their pids
+pkill -f run-optin.sh; pkill -f run-job.mjs; pkill -f '^gondolin-vm '
 gh api repos/<owner>/<name>/actions/runners --jq '.runners[] | select(.name|startswith("gondolin")) | .id'
 gh api -X DELETE repos/<owner>/<name>/actions/runners/<id>
 rm -f ~/.local/state/gondolin-runner/runs/.jit-*

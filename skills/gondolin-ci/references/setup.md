@@ -67,6 +67,7 @@ directory, and the lane reads it on top of the shipped one.
 | `GONDOLIN_ASSETS` | where the guest lives, default `~/.cache/gondolin-runner/assets`. |
 | `GONDOLIN_STATE` | where run records, the slot and a refreshed allowlist live, default `~/.local/state/gondolin-runner`. |
 | `GONDOLIN_RUNNER_DIR` | run another checkout of the lane, for example a worktree. |
+| `GONDOLIN_REASON` | why this run was started, kept in its record and shown by `gondolin-ci.sh why`. |
 | `GONDOLIN_RUN_ID_FILE` | a file to receive the run id, for a wrapper. The output cannot be parsed for it, because it carries the pull request's title. |
 | `GONDOLIN_MIN_IDLE` | the idle CPU percentage below which a run warns, default `40`. |
 | `VM_MEMORY`, `VM_CPUS` | guest size, default `6G` and `4`. A bigger VM costs the laptop and rarely buys speed. |
