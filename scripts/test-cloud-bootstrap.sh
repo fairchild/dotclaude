@@ -142,14 +142,24 @@ zero="$tmp/zero/.claude"
 DOTCLAUDE_COMPACT_WINDOW=700000 DOTCLAUDE_COMPACT_GOAL=0 bootstrap "file://$bundle" "$zero"
 jq -e '.pluginConfigs.compaction.goalTokens == 300000' "$zero/settings.json" >/dev/null \
   || fail "a goal of 0 was written instead of falling back"
-grep -q '; compaction goal 0 ignored, not a whole number above zero; compaction goal 300000 under a 700000 window$' \
+grep -q '; compaction goal 0 ignored, not a whole number from 1 to 999999999; compaction goal 300000 under a 700000 window$' \
   "$zero/cloud-bootstrap.status" || fail "an ignored goal was not reported: $(cat "$zero/cloud-bootstrap.status")"
 word="$tmp/word/.claude"
 DOTCLAUDE_COMPACT_GOAL=lots bootstrap "file://$bundle" "$word"
 jq -e 'has("pluginConfigs") | not' "$word/settings.json" >/dev/null \
   || fail "a goal that is not a number reached the settings"
-grep -q '; compaction goal lots ignored, not a whole number above zero$' "$word/cloud-bootstrap.status" \
+grep -q '; compaction goal lots ignored, not a whole number from 1 to 999999999$' "$word/cloud-bootstrap.status" \
   || fail "an ignored goal was not reported: $(cat "$word/cloud-bootstrap.status")"
+padded="$tmp/padded/.claude"
+DOTCLAUDE_COMPACT_WINDOW=0200000 bootstrap "file://$bundle" "$padded"
+jq -e '.pluginConfigs.compaction.goalTokens == 200000' "$padded/settings.json" >/dev/null \
+  || fail "a window with a leading zero was not read as its number"
+huge="$tmp/huge/.claude"
+DOTCLAUDE_COMPACT_WINDOW=9223372036854775808 bootstrap "file://$bundle" "$huge"
+jq -e 'has("pluginConfigs") | not' "$huge/settings.json" >/dev/null \
+  || fail "a window too long for arithmetic produced a goal"
+grep -q '; compaction goal not taken from window 9223372036854775808, not a whole number from 1 to 999999999$' \
+  "$huge/cloud-bootstrap.status" || fail "an unread window was not reported: $(cat "$huge/cloud-bootstrap.status")"
 jq -e 'has("pluginConfigs") | not' "$none/settings.json" >/dev/null \
   || fail "a goal was set for a run with no mods"
 

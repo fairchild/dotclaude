@@ -12,7 +12,8 @@
 # DOTCLAUDE_COMPACT_GOAL sets the compaction mod's goal, the default target the thread may run past
 # on judgement up to the engine's point; unset, the goal follows a window up to 300,000 and stays
 # at 300,000 for a wider one, leaving the gap as room. The status line says when that default
-# holds under a wider window, or when a goal that is not a whole number above zero is ignored.
+# holds under a wider window, or when a goal or window that is not a whole number from 1 to
+# 999999999 is not read.
 # Setup must exit 0, so every outcome lands in the status file instead.
 set -u
 
@@ -239,25 +240,39 @@ installed_of_kind() {
   printf '%s' "$out"
 }
 
-# The compaction mod's goal: DOTCLAUDE_COMPACT_GOAL when it is a whole number above zero, else
-# the window up to the mod's own 300,000 default, else nothing and the mod keeps that default.
+# A whole number from 1 to 999999999, leading zeros dropped, or nothing: nine digits keep bash
+# arithmetic from wrapping.
+as_tokens() {
+  local value="${1#"${1%%[!0]*}"}"
+  [[ "$value" =~ ^[1-9][0-9]{0,8}$ ]] && printf '%s' "$value"
+}
+
+# The compaction mod's goal: DOTCLAUDE_COMPACT_GOAL when as_tokens reads it, else the window up
+# to the mod's own 300,000 default, else nothing and the mod keeps that default.
 compact_goal() {
-  local goal="${DOTCLAUDE_COMPACT_GOAL:-}" window="${DOTCLAUDE_COMPACT_WINDOW:-}"
-  if [[ "$goal" =~ ^[1-9][0-9]*$ ]]; then
+  local goal window
+  goal="$(as_tokens "${DOTCLAUDE_COMPACT_GOAL:-}")"
+  window="$(as_tokens "${DOTCLAUDE_COMPACT_WINDOW:-}")"
+  if [[ -n "$goal" ]]; then
     printf '%s' "$goal"
-  elif [[ "$window" =~ ^[1-9][0-9]*$ ]]; then
+  elif [[ -n "$window" ]]; then
     printf '%s' "$((window < 300000 ? window : 300000))"
   fi
 }
 
-# A goal named and ignored, or a wide window that leaves the goal at its default, says so.
+# A goal or window named and not read, or a wide window that leaves the goal at its default,
+# says so.
 compact_note() {
-  local goal="${DOTCLAUDE_COMPACT_GOAL:-}" window="${DOTCLAUDE_COMPACT_WINDOW:-}"
+  local named_goal="${DOTCLAUDE_COMPACT_GOAL:-}" named_window="${DOTCLAUDE_COMPACT_WINDOW:-}"
+  local goal window range="not a whole number from 1 to 999999999"
   [[ -d "$runtime/mods/compaction" ]] || return 0
-  [[ -z "$goal" || "$goal" =~ ^[1-9][0-9]*$ ]] \
-    || printf '; compaction goal %s ignored, not a whole number above zero' "$goal"
-  [[ "$goal" =~ ^[1-9][0-9]*$ || ! "$window" =~ ^[1-9][0-9]*$ ]] || ((window <= 300000)) \
-    || printf '; compaction goal 300000 under a %s window' "$window"
+  goal="$(as_tokens "$named_goal")"
+  window="$(as_tokens "$named_window")"
+  [[ -z "$named_goal" || -n "$goal" ]] || printf '; compaction goal %s ignored, %s' "$named_goal" "$range"
+  [[ -n "$goal" ]] && return 0
+  [[ -z "$named_window" || -n "$window" ]] \
+    || printf '; compaction goal not taken from window %s, %s' "$named_window" "$range"
+  [[ -z "$window" ]] || ((window <= 300000)) || printf '; compaction goal 300000 under a %s window' "$window"
 }
 
 mods_note() {

@@ -294,15 +294,22 @@ function placed(p: Points, count: number, compactAt: number | undefined): string
  * the thread may run into on judgement. From the goal's implied point (less DRIFT_TOKENS) up to
  * the goal, the engine's point is the goal's own backstop, and there is nothing to say. Below
  * that, the goal is never reached; the mod never moves the engine's point, so the note names the
- * settings that do: the window, or the percentage when the window already reaches the goal.
+ * settings that do: the window, or the percentage when the window already reaches the goal. A goal
+ * wider than the model's window is out of every setting's reach, so only the goal can move.
  */
-function settingLine(p: Points, at: number): string | null {
+function settingLine(p: Points, at: number, window: number): string | null {
   if (at > p.goalTokens)
     return (
       `Note: the engine compacts at ${tokens(at)}; past the ${tokens(p.goalTokens)} goal, ` +
       "compacting is the thread's call up to there."
     );
   if (at >= backstop(p) - DRIFT_TOKENS) return null;
+  if (p.goalTokens > window)
+    return (
+      `Note: the ${tokens(p.goalTokens)} goal is wider than this model's ${tokens(window)}-token ` +
+      `window, so it is never reached and no setting moves the engine, at ${tokens(at)}, past it. ` +
+      `Set the goal to ${tokens(Math.min(window, at + BACKSTOP_TOKENS))}.`
+    );
   return (
     `Note: the engine compacts at ${tokens(at)}, below the ${tokens(backstop(p))} this goal ` +
     "implies, so the goal is never reached. Set `autoCompactWindow` to at least " +
@@ -319,7 +326,7 @@ function contextLines(p: Points, context: ContextUsage): string[] {
   const line =
     `Points: a goal of ${tokens(p.goalTokens)}; requests from ${tokens(p.floorTokens)}; the ` +
     `prepare point at ${tokens(p.prepareTokens)}; automatic compaction ${auto}.`;
-  const note = at === undefined ? null : settingLine(p, at);
+  const note = at === undefined ? null : settingLine(p, at, context.window);
   const drift = note === null ? [] : [note];
   if (context.tokens === undefined) {
     const unmeasured = "Context: not measured since the session started or last compacted";

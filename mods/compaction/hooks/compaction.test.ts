@@ -12,13 +12,13 @@ import {
 const WINDOW = 1_000_000
 
 /** The usage the session answers beneath the mod: `tokens` used, the engine compacting at `autoAt`. */
-const usage = (tokens: number, autoAt: number) =>
+const usage = (tokens: number, autoAt: number, window = WINDOW) =>
   ({
     startedAt: 0,
     context: {
       tokens,
-      window: WINDOW,
-      percent: Math.round((tokens / WINDOW) * 100),
+      window,
+      percent: Math.round((tokens / window) * 100),
       breakdown: { autoCompactThreshold: autoAt },
     },
     rateLimits: [],
@@ -123,6 +123,22 @@ test("an engine point below the goal's names autoCompactWindow, since the goal i
   expect(text).toContain('`autoCompactWindow`')
   expect(text).toContain('`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`')
   expect(text).toContain('set the goal to 233,000')
+})
+
+test("a goal wider than the model's window is set lower, since no setting moves the engine past it", async ($, on) => {
+  mock.store(on)
+  mock.clock(on)
+  on('session.usage', () => ({ value: usage(100_000, 167_000, 200_000) }))
+  on('tool.register', (_, e) => ({ value: { tool: e.name } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const text = String((await $.tool.call({ tool: 'mcp__compaction__context' })).result)
+
+  expect(text).toContain("the 300,000 goal is wider than this model's 200,000-token window")
+  expect(text).toContain('Set the goal to 200,000')
+  expect(text).not.toContain('`autoCompactWindow`')
+  expect(text).not.toContain('CLAUDE_AUTOCOMPACT_PCT_OVERRIDE')
 })
 
 test("an engine point above its implied point is neither room nor a fault, so no note", async ($, on) => {
