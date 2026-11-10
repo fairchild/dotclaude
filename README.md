@@ -77,6 +77,7 @@ Claude loads these when the task matches the description.
 | `backlog` | Markdown task backlog and project roadmap (backlog/{todo,doing,done,failed}/, backlog/ROADMAP.md) for adding,… |
 | `chronicle` | Session continuity for coding work. |
 | `dotclaude-config` | Work with Claude Code configuration at global (~/.claude) or project (.claude/) level. |
+| `dotfiles-checkup` | Check this machine's dotfiles against the public repo and bring them back to clean. |
 | `fable-session` | Hand off long-arc work to a fable session — an Opus 5.5 orchestrator at xhigh effort verifies while delegating the… |
 | `gh-apps` | Create, authenticate, and manage GitHub Apps. |
 | `git-worktree` | Manage Git worktrees for concurrent local development. |
@@ -101,6 +102,7 @@ Claude loads these when the task matches the description.
 | `/codespaces` | Manage GitHub Codespaces lifecycle via gh CLI. |
 | `/excalidraw-diagrams` | Create diagrams and visual artifacts using Excalidraw with real-time canvas preview. |
 | `/fork` | Fork the current session with context carried over. |
+| `/macos-agent-pressure` | Diagnose live macOS memory, swap, load, and concurrent AI-agent process pressure. |
 | `/release` | Create semantic versioned releases with AI-generated changelogs, for repos that do not already have a release pipeline… |
 | `/skill-building` | Guide for creating, editing, and evaluating skills. |
 | `/team-memory` | Persistent AI teammate memory framework. |

@@ -147,7 +147,6 @@ skills/personal-writing-style
 skills/orca-cli
 skills/orchestration
 skills/computer-use
-skills/macos-agent-pressure
 # Ecosystem skills are managed in the sync-dotagents block at the bottom of this file.
 
 # Local-only skills (kept off the public repo by choice)
