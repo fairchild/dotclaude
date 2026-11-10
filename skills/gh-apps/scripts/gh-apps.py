@@ -503,13 +503,12 @@ def _finish_create(result: dict, slug: str) -> None:
 
 def _parse_permissions(spec: str | None) -> dict[str, str] | None:
     """'issues:write,contents' -> {'issues': 'write', 'contents': 'write'}."""
-    if not spec:
-        return None
     permissions = {}
-    for pair in spec.split(","):
+    for pair in (spec or "").split(","):
         k, _, v = pair.strip().partition(":")
-        permissions[k.strip()] = v.strip() or "write"
-    return permissions
+        if k.strip():
+            permissions[k.strip()] = v.strip() or "write"
+    return permissions or None
 
 
 def _parse_repos(values: list[str] | None) -> list[str] | None:

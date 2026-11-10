@@ -478,6 +478,13 @@ def test_token_posts_body():
         gh_apps.urlopen, gh_apps._generate_jwt = real_urlopen, real_jwt
 
 
+@test("parse_permissions: empty segments are skipped, bare keys default to write")
+def test_parse_permissions_empty_segments():
+    assert gh_apps._parse_permissions("pull_requests:write,") == {"pull_requests": "write"}
+    assert gh_apps._parse_permissions(" , issues ,, :read") == {"issues": "write"}
+    assert gh_apps._parse_permissions(",") is None
+
+
 @test("token command: --permissions and --repo reach the token request")
 def test_token_cli_passthrough():
     import io
@@ -557,6 +564,7 @@ UNIT_TESTS = [
     test_token_body_empty,
     test_token_body_narrowed,
     test_token_posts_body,
+    test_parse_permissions_empty_segments,
     test_token_cli_passthrough,
     test_finish_create_install_reminder,
 ]
