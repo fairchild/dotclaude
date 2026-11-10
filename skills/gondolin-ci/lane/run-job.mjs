@@ -4,13 +4,16 @@
 // guest before the runner starts. It stays on the runner's command line, which is why the commands
 // below that report on the guest name processes by comm, never by args: their output reaches the
 // host's log.
+import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { VM, MemoryProvider } from "@earendil-works/gondolin";
 import { createProxy, loadAllowlist } from "./lib/proxy.mjs";
 import { createCap, createSanitizer, sanitize } from "./lib/terminal.mjs";
 import { asRunner, assetsPath, ROOT_SETUP } from "./lib/guest.mjs";
 import { followSteps } from "./lib/steps.mjs";
+import { updateRecord } from "./lib/record.mjs";
 
 const { values } = parseArgs({
   options: {
@@ -76,7 +79,12 @@ const removeJit = () => {
   } catch {}
 };
 const vm = await VM.create({
-  sandbox: { imagePath: assetsPath(), ...(debug ? { debug: ["net"] } : {}) },
+  // QEMU runs under the run's name; see named-qemu-system-aarch64.
+  sandbox: {
+    imagePath: assetsPath(),
+    qemuPath: fileURLToPath(new URL("./named-qemu-system-aarch64", import.meta.url)),
+    ...(debug ? { debug: ["net"] } : {}),
+  },
   rootfs: { mode: "cow" },
   memory: values.memory,
   cpus: Number(values.cpus),
@@ -93,7 +101,7 @@ const vm = await VM.create({
       }
     : {}),
   vfs: { mounts: { "/scratch": new MemoryProvider() } },
-  sessionLabel: "gondolin-runner-job",
+  sessionLabel: `gondolin-runner-job ${process.env.GONDOLIN_RUN ?? ""}`.trim(),
 }).catch((error) => {
   removeJit();
   throw error;
@@ -128,6 +136,11 @@ try {
   mark(`vm up (profile ${values.profile}, ${ALLOWED.length} allowed hosts, egress policy ${enforceEgress ? "enforced" : "REPORT ONLY"}); handing in the runner config`);
   await vm.fs.writeFile("/run/jit", jitConfig(), { mode: 0o600 });
   removeJit();
+  // QEMU starts with the first guest operation, so only now is there a pid to name. The record
+  // holds this process and its QEMU, so either leads back to the run.
+  if (process.env.GONDOLIN_RUN_RECORD) {
+    updateRecord(process.env.GONDOLIN_RUN_RECORD, { job_pid: process.pid, qemu_pid: qemuPid() });
+  }
   const proc = vm.exec(
     [
       "cd /home/runner/actions-runner",
@@ -203,4 +216,14 @@ process.exit(exitCode);
 
 function jitConfig() {
   return readFileSync(values.jit, "utf8").trim();
+}
+
+/** QEMU is this process's child, under the wrapper's name or its own. */
+function qemuPid() {
+  try {
+    const found = execFileSync("pgrep", ["-n", "-f", "-P", String(process.pid), "(gondolin-vm|qemu-system)"], { encoding: "utf8" });
+    return Number(found.trim()) || undefined;
+  } catch {
+    return undefined;
+  }
 }

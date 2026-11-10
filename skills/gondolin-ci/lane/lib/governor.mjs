@@ -16,6 +16,7 @@ import { cpus } from "node:os";
 import { realpathSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
+import { updateRecord } from "./record.mjs";
 
 /** @typedef {"yield" | "full"} Mode */
 
@@ -119,5 +120,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
     console.error("usage: node lib/governor.mjs <pid> [--summary <file>]");
     process.exit(2);
   }
-  await govern(root, { summary: flag === "--summary" ? file : undefined });
+  // The run's record carries the current band, so `gondolin-ci.sh why` can say an estimate is
+  // running slow because the laptop is in use.
+  const record = process.env.GONDOLIN_RUN_RECORD;
+  const log = (line) => {
+    console.error(line);
+    if (record) updateRecord(record, { mode: line.includes("yielding") ? "yield" : "full" });
+  };
+  await govern(root, { summary: flag === "--summary" ? file : undefined, log });
 }

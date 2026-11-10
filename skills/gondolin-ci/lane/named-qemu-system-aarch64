@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# QEMU under the run's name. run-job.mjs hands this to gondolin as its qemuPath, so `ps` and
+# `pgrep -f` show "gondolin-vm <repo>#<pr> <suite> <suffix>" where they would show a bare QEMU.
+# The executable keeps QEMU's own name, which is what Activity Monitor lists. The file name keeps
+# "aarch64" because gondolin reads the guest's architecture from it.
+set -euo pipefail
+qemu=${GONDOLIN_QEMU:-$(command -v qemu-system-aarch64)}
+exec -a "gondolin-vm ${GONDOLIN_VM_NAME:-}" "$qemu" "$@"

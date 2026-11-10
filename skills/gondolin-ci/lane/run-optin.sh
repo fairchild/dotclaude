@@ -107,7 +107,7 @@ have_what_a_run_needs() {
 # on timeouts. The slot is taken before anything is read or minted, so that what follows is about
 # the pull request as it is when the run can actually start. lib/slot.mjs is the mechanism.
 wait_for_the_vm_slot() {
-  runner_pid=""
+  runner_pid="" record=""
   trap leave EXIT
   node "${here}/lib/slot.mjs" take $$ "pr ${pr} ${suite}"
   started=$SECONDS
@@ -119,6 +119,7 @@ leave() {
   [ -z "$runner_pid" ] || kill "$runner_pid" 2> /dev/null || true
   [ -z "${jit:-}" ] || rm -f "$jit"
   forget_the_runner
+  [ -z "${record:-}" ] || node "${here}/lib/record.mjs" close "$record" conclusion="${conclusion:-aborted}"
   node "${here}/lib/slot.mjs" release $$
 }
 
@@ -218,6 +219,13 @@ introduce_the_run() {
   egress="${state}/runs/job-${suffix}.egress"
   yielding="${state}/runs/job-${suffix}.yield"
   steps="${state}/runs/job-${suffix}.steps"
+  record="${state}/runs/job-${suffix}.json"
+
+  # Everything started from here on carries the run's name, QEMU included: `ps -E` on any of its
+  # pids reads GONDOLIN_RUN_RECORD, and `gondolin-ci.sh why <pid>` reads the record.
+  export GONDOLIN_RUN=$suffix GONDOLIN_RUN_RECORD=$record GONDOLIN_VM_NAME="${repo#*/}#${pr} ${suite} ${suffix}"
+  node "${here}/lib/record.mjs" open "$record" $$ suffix="$suffix" repo="$repo" pr="$pr" suite="$suite" \
+    sha="$sha" workflow="$workflow" title="$title"
 
   say ""
   say "${bold}pr ${pr}${off}  ${title}"
@@ -284,6 +292,8 @@ boot_the_vm_until_github_sees_it() {
     node "${here}/lib/governor.mjs" "$runner_pid" --summary "$yielding" 2>> "$log" &
     governor_pid=$!
   fi
+  note governor_pid="${governor_pid:-}" \
+    mode="$([ "${GONDOLIN_PRIORITY:-low}" = normal ] && echo full || echo yield)"
 
   printf '  %sbooting the VM%s' "$dim" "$off"
   local status="" _
@@ -348,6 +358,7 @@ dispatch_the_workflow_and_find_our_run() {
   fi
   run_id=$dispatched
   [ -z "${GONDOLIN_RUN_ID_FILE:-}" ] || printf '%s\n' "$run_id" > "$GONDOLIN_RUN_ID_FILE"
+  note run_id="$run_id" run_url="https://github.com/${repo}/actions/runs/${run_id}"
   say "  ${dim}run ${run_id}${off}  https://github.com/${repo}/actions/runs/${run_id}"
   say ""
 }
@@ -480,6 +491,7 @@ point_at_the_records() {
   say "  ${dim}full runner log: ${log}${off}"
   say "  ${dim}steps:           ${steps}${off}"
   say "  ${dim}egress report:   ${egress}${off}"
+  say "  ${dim}run record:      ${record}${off}"
 }
 
 # --- Plumbing ------------------------------------------------------------------------------------
@@ -521,6 +533,9 @@ tell_the_steps_so_far() {
   done < <(sed -n "$((told + 1)),${total}p" "$steps" | clean)
   told=$total
 }
+
+# Add fields to the run's record, once it has one.
+note() { [ -z "${record:-}" ] || node "${here}/lib/record.mjs" set "$record" "$@"; }
 
 elapsed() { printf '%dm%02ds' $(((SECONDS - started) / 60)) $(((SECONDS - started) % 60)); }
 
