@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
       bash ca-certificates curl git jq unzip zstd xz-utils tar \
       iproute2 kmod procps util-linux e2fsprogs openssh-client \
-      python3 python3-venv build-essential tini \
+      python3 python3-venv build-essential tini fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 # ubuntu-latest ships node and npm; actions and repo scripts assume both.
 RUN curl -fsSL -o node.tar.xz "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-arm64.tar.xz" \
