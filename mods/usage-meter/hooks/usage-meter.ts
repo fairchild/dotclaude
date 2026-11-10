@@ -16,10 +16,9 @@
  * engine's own declarations (`claude-code`, about 22,600 lines) are generated per build and are
  * not in this repository. Each name and field is copied from that file's shape, narrowed to what
  * the mod reads or calls, so a call to any other noun (`$.http`, `$.process`, `$.prompt`, `$.fs`,
- * `$.env`) does not type-check here. It proves nothing about the engine: `pnpm gates mods` checks
- * what the engine sees, through `claude plugin validate`. It is in this file because the gate lets
- * a mod hold no file but its manifest, its hooks file and the modules that file names; the types
- * are erased, and the test imports them from here.
+ * `$.env`) does not type-check here. It proves nothing about the engine: `claude plugin validate`
+ * reports what the engine sees. The types live in this module, beside the hooks, and are erased
+ * at load.
  */
 
 /** One rate-limit window as the engine reports it (`SessionRateLimit`). */

@@ -292,6 +292,7 @@ async function compacted(
   on('prompt.submit', (_, e) => {
     submitted.push(e.text)
     if (fail.submit) throw new Error('submit broke')
+    if (e.text.startsWith('/')) throw new Error('a text beginning with / would run a command (host check)')
 
     return { text: e.text }
   })
@@ -344,6 +345,27 @@ test('a /compact that fails submits nothing', async ($, on) => {
   expect(run.submitted).toEqual([])
   expect(run.outcomes).toEqual(['recorded', 'failed'])
   expect(run.last).toContain('/compact did not run:')
+})
+
+test('a resume prompt that is a slash command is refused, never recorded', async ($, on) => {
+  const log = kept(on)
+  mock.clock(on)
+  on('session.usage', () => ({ value: usage(240_000, 267_000) }))
+  on('tool.register', (_, e) => ({ value: { tool: e.name } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const answered = await $.tool.call({
+    tool: 'mcp__compaction__request',
+    ...ASKED,
+    resume: '  /compact again',
+  })
+
+  expect(String(answered.result)).toContain('Refused:')
+  expect(String(answered.result)).toContain('not beginning with "/"')
+  expect(log.entries().map((e) => e.outcome)).toEqual(['refused'])
+  const text = String((await $.tool.call({ tool: 'mcp__compaction__context' })).result)
+  expect(text).toContain('Pending request: none.')
 })
 
 test('a resume prompt past its length is refused, the refusal naming it', async ($, on) => {

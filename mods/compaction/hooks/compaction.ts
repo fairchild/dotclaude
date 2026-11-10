@@ -15,8 +15,10 @@
  * through the command call. Once it has run, the mod submits the request's `resume` prompt, or
  * RESUME_DEFAULT, through `$.prompt.submit`: a compaction lands between turns, and without a
  * prompt of its own the session sits idle until something else arrives. A failed `/compact`
- * submits nothing. A main-loop compaction the mod did not run, a typed `/compact` (which starts
- * no turn) or the engine's own, drops the pending request, so the session never compacts twice.
+ * submits nothing, and a resume beginning with "/" is refused, as the engine submits no command
+ * for a mod. Any main-loop compaction but a `precompute` that starts while a request waits (a
+ * typed `/compact`, which starts no turn, the engine's own, or another plugin's) drops the
+ * request, so the session never compacts twice; a subagent's compaction leaves it standing.
  * State is lost on a reload. Its other hooks pass each event on unchanged; its
  * tool hooks answer only its own two tools. `claude plugin validate --json mods/compaction`
  * lists its hooks and `$` calls, the tests hold the command to `compact` and the submitted text
@@ -210,7 +212,7 @@ const RESUME = {
   description:
     "The prompt the mod submits once the compaction has run, starting the first turn after it: " +
     "what to pick up and where its state lives, as you would want to read it then. Absent, a " +
-    `generic prompt to continue. 1 to ${tokens(MAX_RESUME)} characters.`,
+    `generic prompt to continue. 1 to ${tokens(MAX_RESUME)} characters, not beginning with "/".`,
 };
 
 const CONTEXT_TOOL: ToolSpec = {
@@ -405,7 +407,7 @@ async function refusal($: Engine, p: Points, e: Input<"tool.call">, request: Req
     return `only the main thread compacts the session, and this call came from a subagent (${e.agentId}).`;
   }
   if (request === null) {
-    return `"instructions" must be text of 1 to ${tokens(MAX_INSTRUCTIONS)} characters naming what the summary must keep, "reasoning" text of 1 to ${tokens(MAX_REASONING)} characters saying why compact now, and "resume", when given, text of 1 to ${tokens(MAX_RESUME)} characters to start the next turn on.`;
+    return `"instructions" must be text of 1 to ${tokens(MAX_INSTRUCTIONS)} characters naming what the summary must keep, "reasoning" text of 1 to ${tokens(MAX_REASONING)} characters saying why compact now, and "resume", when given, text of 1 to ${tokens(MAX_RESUME)} characters to start the next turn on, not beginning with "/", since the engine submits no command for a mod.`;
   }
   const { context } = await $.session.usage();
   if (context.tokens === undefined) {
@@ -423,10 +425,13 @@ function text(e: Input<"tool.call">, field: string, most: number): string | null
   return trimmed.length > 0 && trimmed.length <= most ? trimmed : null;
 }
 
+/** A resume prompt that reads as prose: one beginning with "/" is a command, which `$.prompt.submit` refuses. */
+const prose = (given: string | null): string | null => (given?.startsWith("/") ? null : given);
+
 async function requestAnswer($: Engine, p: Points, e: Input<"tool.call">, state: Store) {
   const instructions = text(e, "instructions", MAX_INSTRUCTIONS);
   const reasoning = text(e, "reasoning", MAX_REASONING);
-  const resume = e["resume"] === undefined ? undefined : text(e, "resume", MAX_RESUME);
+  const resume = e["resume"] === undefined ? undefined : prose(text(e, "resume", MAX_RESUME));
   const request =
     instructions === null || reasoning === null || resume === null
       ? null
@@ -507,8 +512,8 @@ async function submitResume(
 }
 
 /**
- * A main-loop compaction the mod did not run (a typed /compact, or the engine's own) drops the
- * pending request: its context is spent, and running it as well would compact twice and resume
+ * A main-loop compaction other than a precompute, starting while a request waits (a typed
+ * /compact, the engine's own, another plugin's), drops the pending request: its context is spent, and running it as well would compact twice and resume
  * on a summary the request never asked for. The mod's own compaction finds nothing pending, as
  * the request leaves the state before its /compact runs. The hook never stands in its way.
  */

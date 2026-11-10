@@ -208,7 +208,7 @@ From a terminal, the same line starts with `claude plugin install`. The first in
 
 ## Mods
 
-A mod is a plugin whose hooks module runs inside the engine, so it can answer tools of its own and act between turns. These two observe and answer; neither makes a network, process or file-system call. [`mods/`](mods/README.md) has the full rules.
+A mod is a plugin whose hooks module runs inside the engine, so it can answer tools of its own and act between turns. `usage-meter` only observes; `compaction` answers its tools, runs `/compact` when the thread asks, and then submits a prompt to start the next turn. Neither makes a network, process or file-system call of its own. [`mods/`](mods/README.md) has the full rules.
 
 ```
 /plugin install usage-meter --marketplace fairchild/dotclaude

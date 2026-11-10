@@ -11,15 +11,16 @@ so rerun `claude plugin validate --json mods/<name>` when Claude Code updates.
   reasoning for compacting now, which the mod runs from a timer once the main thread's turn ends
   and the session goes idle. Once `/compact` has run, the mod submits the request's `resume`
   prompt, or a generic one, so the first turn after the compaction starts on its own instead of
-  waiting for the next event to arrive. A compaction the mod did not run, a typed `/compact` or
-  the engine's own, drops a pending request instead of compacting twice. Each request is kept in
-  the mod's store, reasoning included.
+  waiting for the next event to arrive. A main-thread `/compact` typed during the wait, or the
+  engine's automatic compaction, drops a pending request instead of compacting twice; a
+  subagent's compaction does not. Each request is kept in the mod's store, reasoning included.
 
-Each mod observes, answers its own tools or acts on its own tool's request, and makes no network or process call, and no
-file-system call of its own: the compaction mod's reading goes through `$.store`, the JSON file
-the engine keeps for a plugin under the configuration directory, and nothing else is written.
-The compaction mod's one command call runs `compact`, and its one prompt call submits the resume
-prompt after it. The validator's notes list each mod's hooks
+`usage-meter` only observes. `compaction` answers its own tools and acts on its own tool's
+request: its one command call runs `compact`, and its one prompt call submits the resume prompt
+after it, which starts a model turn as a typed prompt would. Neither mod makes a network or
+process call of its own, nor a file-system call: the compaction mod's reading goes through
+`$.store`, the JSON file the engine keeps for a plugin under the configuration directory, and
+nothing else is written. The validator's notes list each mod's hooks
 and `$` calls, and a change to either list is a change to what the mod can do.
 
 ## Install
