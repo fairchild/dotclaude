@@ -8,6 +8,10 @@ The database is useful when the unit behind each number stays visible. Refresh f
 SELECT value AS last_loaded
 FROM _metadata WHERE key = 'last_load';
 
+-- Harnesses the last load could not refresh; they hold their previous rows.
+SELECT value AS stale_harnesses
+FROM _metadata WHERE key = 'failed_harnesses';
+
 SELECT harness, COUNT(DISTINCT session_id) AS sessions,
        COUNT(*) AS messages, MIN(timestamp) AS first_seen,
        MAX(timestamp) AS last_seen

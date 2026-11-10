@@ -150,6 +150,10 @@ ENVIRONMENT VARIABLES
     PI_AGENT_DIR            Path to Pi agent directory
                             Default: ~/.pi/agent
 
+    ANALYZE_USAGE_CODEX_BATCH_FILES
+                            Codex session files read per load batch; memory
+                            follows this, not the archive size. Default: 100
+
 DATA SOURCES
     Claude Code     ~/.claude/projects/*/*.jsonl
                     Contains: tool invocations, messages, token usage,
@@ -363,6 +367,7 @@ COLUMNS:
     tool_use_count  INTEGER     Number of tool_use blocks in this turn
     source_file     VARCHAR     JSONL file this record was loaded from
     search_id       VARCHAR     Analyzer-generated unique key used by the FTS index
+    message_id      VARCHAR     API message id (Claude Code); one turn spans several records
 
 ================================================================================
 TABLE: system_events
@@ -880,14 +885,20 @@ DELETE FROM cursor_workspaces;
 EOF
 }
 
-needs_interface_backfill() {
+# Columns derived from Claude transcripts that older databases lack. Rows
+# loaded before a column existed hold NULL there, so adding one means
+# re-reading every Claude transcript once.
+needs_claude_backfill() {
     duckdb -csv -noheader "$DB_PATH" -c "
 SELECT CASE
-    WHEN EXISTS (
-        SELECT 1
+    WHEN (
+        SELECT COUNT(*)
         FROM information_schema.columns
-        WHERE table_name = 'claude_tools' AND column_name = 'interface'
-    ) THEN 0
+        WHERE (table_name, column_name) IN (
+            ('claude_tools', 'interface'),
+            ('messages', 'message_id')
+        )
+    ) = 2 THEN 0
     ELSE 1
 END;" 2>/dev/null || echo "0"
 }
@@ -934,7 +945,8 @@ CREATE TABLE IF NOT EXISTS messages (
     cache_read_tokens INTEGER,
     tool_use_count INTEGER,
     source_file VARCHAR,
-    search_id VARCHAR
+    search_id VARCHAR,
+    message_id VARCHAR
 );
 CREATE TABLE IF NOT EXISTS system_events (uuid VARCHAR PRIMARY KEY, session_id VARCHAR, subtype VARCHAR, timestamp TIMESTAMP, project_dir VARCHAR, git_branch VARCHAR, duration_ms INTEGER, version VARCHAR, is_sidechain BOOLEAN, source_file VARCHAR, repo_name VARCHAR);
 CREATE TABLE IF NOT EXISTS queue_operations (session_id VARCHAR, timestamp TIMESTAMP, operation VARCHAR, content VARCHAR, source_file VARCHAR);
@@ -962,6 +974,7 @@ ALTER TABLE claude_tools ADD COLUMN IF NOT EXISTS interface VARCHAR;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS source_file VARCHAR;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS interface VARCHAR;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS search_id VARCHAR;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS message_id VARCHAR;
 ALTER TABLE _loaded_files ADD COLUMN IF NOT EXISTS size_bytes BIGINT;
 ALTER TABLE _loaded_files ADD COLUMN IF NOT EXISTS source_kind VARCHAR;
 ENSURE
@@ -1208,6 +1221,18 @@ FROM _pending_file_changes
 WHERE source_kind = ${source_sql} AND change_kind = ${change_sql};"
 }
 
+# Prints the pending file paths of one source kind, one per line.
+pending_file_paths() {
+    local source_sql change_sql
+    source_sql=$(sql_quote_literal "$1")
+    change_sql=$(sql_quote_literal "${2:-changed}")
+    duckdb -list -noheader "$DB_PATH" -c "
+SELECT file_path
+FROM _pending_file_changes
+WHERE source_kind = ${source_sql} AND change_kind = ${change_sql}
+ORDER BY file_path;"
+}
+
 commit_file_tracking() {
     duckdb "$DB_PATH" << 'EOF'
 DELETE FROM _loaded_files;
@@ -1371,14 +1396,15 @@ CREATE TABLE IF NOT EXISTS messages (
     cache_read_tokens INTEGER,
     tool_use_count INTEGER,
     source_file VARCHAR,
-    search_id VARCHAR
+    search_id VARCHAR,
+    message_id VARCHAR
 );
 
 INSERT INTO messages (
     uuid, parent_uuid, session_id, role, harness, interface, model,
     content, thinking, timestamp, project_dir, git_branch, repo_name,
     worktree_branch, is_worktree, is_sidechain, input_tokens, output_tokens,
-    cache_write_tokens, cache_read_tokens, tool_use_count, source_file
+    cache_write_tokens, cache_read_tokens, tool_use_count, source_file, message_id
 )
 WITH raw_logs AS (
     SELECT json, filename
@@ -1408,7 +1434,8 @@ user_string AS (
         NULL as cache_write_tokens,
         NULL as cache_read_tokens,
         0 as tool_use_count,
-        logs.filename as source_file
+        logs.filename as source_file,
+        NULL as message_id
     FROM raw_logs logs
     WHERE json_extract_string(logs.json, '\$.type') = 'user'
     AND json_type(json_extract(logs.json, '\$.message.content')) = 'VARCHAR'
@@ -1439,7 +1466,8 @@ user_array AS (
         NULL as cache_write_tokens,
         NULL as cache_read_tokens,
         0 as tool_use_count,
-        logs.filename as source_file
+        logs.filename as source_file,
+        NULL as message_id
     FROM raw_logs logs,
     LATERAL UNNEST(
         CASE
@@ -1495,7 +1523,8 @@ assistant_msgs AS (
             0
         ) as cache_read_tokens,
         COUNT(CASE WHEN json_extract_string(c.value, '\$.type') = 'tool_use' THEN 1 END) as tool_use_count,
-        logs.filename as source_file
+        logs.filename as source_file,
+        json_extract_string(logs.json, '\$.message.id') as message_id
     FROM raw_logs logs,
     LATERAL UNNEST(
         CASE
@@ -1508,7 +1537,7 @@ assistant_msgs AS (
     GROUP BY uuid, parent_uuid, session_id, model,
              timestamp, project_dir, is_sidechain, entrypoint,
              input_tokens, output_tokens, cache_write_tokens, cache_read_tokens,
-             json_extract(logs.json, '\$.message.usage'), source_file
+             json_extract(logs.json, '\$.message.usage'), source_file, message_id
 ),
 all_messages AS (
     SELECT * FROM user_string
@@ -1533,7 +1562,7 @@ SELECT
     is_worktree_calc as is_worktree,
     is_sidechain,
     input_tokens, output_tokens, cache_write_tokens, cache_read_tokens,
-    tool_use_count, source_file
+    tool_use_count, source_file, message_id
 FROM with_worktree
 WHERE timestamp IS NOT NULL;
 EOF
@@ -1918,6 +1947,36 @@ EOF
 # Codex Loaders
 # ============================================================================
 
+# Codex loads read their session files a batch at a time. Each query joins
+# every event of the files it reads, so memory follows the batch, not the
+# corpus: one pass over a thousand sessions holds millions of token
+# snapshots at once.
+CODEX_BATCH_FILES="${ANALYZE_USAGE_CODEX_BATCH_FILES:-100}"
+
+# Writes the Codex session paths to load, one per line, to a temp file and
+# prints its path. With an argument, that file's paths; otherwise every
+# session file.
+codex_session_paths_file() {
+    local paths_file
+    paths_file=$(mktemp)
+    if [ "$#" -gt 0 ]; then
+        cat "$1" > "$paths_file"
+    else
+        emit_codex_session_files > "$paths_file"
+    fi
+    echo "$paths_file"
+}
+
+for_each_codex_batch() {
+    local paths_file="$1" batch_fn="$2" batch_dir batch
+    batch_dir=$(mktemp -d)
+    split -l "$CODEX_BATCH_FILES" "$paths_file" "$batch_dir/batch."
+    for batch in "$batch_dir"/batch.*; do
+        "$batch_fn" "[$(sql_list_from_paths_file "$batch")]"
+    done
+    rm -rf "$batch_dir"
+}
+
 load_codex_session_index() {
     duckdb "$DB_PATH" << 'EOF'
 CREATE OR REPLACE TABLE codex_session_index (
@@ -2017,26 +2076,32 @@ CREATE TABLE IF NOT EXISTS codex_developer_messages (
 );
 EOF
 
-    local codex_file_count codex_file_list_sql
-    if [ "$#" -gt 0 ]; then
-        codex_file_list_sql="$1"
-        codex_file_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT LEN(${codex_file_list_sql});")
-    else
-        local codex_files
-        codex_files=$(mktemp)
-        emit_codex_session_files > "$codex_files"
-        codex_file_count=$(wc -l < "$codex_files" | tr -d ' ')
-        codex_file_list_sql="[$(sql_list_from_paths_file "$codex_files")]"
-        rm -f "$codex_files"
-    fi
+    local codex_files codex_file_count
+    codex_files=$(codex_session_paths_file "$@")
+    codex_file_count=$(wc -l < "$codex_files" | tr -d ' ')
 
     if [ "$codex_file_count" -eq 0 ]; then
+        rm -f "$codex_files"
         echo "  Codex: No session files to load"
         return
     fi
 
     echo "  Codex: Loading from $codex_file_count session files..."
+    for_each_codex_batch "$codex_files" load_codex_data_batch
+    rm -f "$codex_files"
 
+    local codex_tool_count codex_token_count codex_developer_count
+    codex_tool_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM codex_tools;" 2>/dev/null || echo "0")
+    codex_token_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM codex_token_counts;" 2>/dev/null || echo "0")
+    codex_developer_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM codex_developer_messages;" 2>/dev/null || echo "0")
+
+    echo "  Codex: $codex_tool_count tool invocations"
+    echo "  Codex: $codex_token_count token snapshots"
+    echo "  Codex: $codex_developer_count developer prompts"
+}
+
+load_codex_data_batch() {
+    local codex_file_list_sql="$1"
     duckdb "$DB_PATH" << EOF
 CREATE OR REPLACE TEMP VIEW codex_raw AS
 SELECT
@@ -2070,7 +2135,10 @@ SELECT
 FROM codex_raw raw
 ASOF LEFT JOIN codex_context ctx
     ON raw.session_id = ctx.session_id
-    AND raw.event_timestamp >= ctx.timestamp;
+    AND raw.event_timestamp >= ctx.timestamp
+WHERE json_extract_string(raw.json, '\$.payload.type') IN (
+    'function_call', 'custom_tool_call', 'token_count', 'message'
+);
 
 INSERT INTO codex_session_meta
 WITH session_meta_rows AS (
@@ -2257,15 +2325,6 @@ DROP TABLE codex_event_context;
 DROP VIEW codex_context;
 DROP VIEW codex_raw;
 EOF
-
-    local codex_tool_count codex_token_count codex_developer_count
-    codex_tool_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM codex_tools;" 2>/dev/null || echo "0")
-    codex_token_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM codex_token_counts;" 2>/dev/null || echo "0")
-    codex_developer_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM codex_developer_messages;" 2>/dev/null || echo "0")
-
-    echo "  Codex: $codex_tool_count tool invocations"
-    echo "  Codex: $codex_token_count token snapshots"
-    echo "  Codex: $codex_developer_count developer prompts"
 }
 
 load_codex_messages() {
@@ -2293,29 +2352,30 @@ CREATE TABLE IF NOT EXISTS messages (
     cache_read_tokens INTEGER,
     tool_use_count INTEGER,
     source_file VARCHAR,
-    search_id VARCHAR
+    search_id VARCHAR,
+    message_id VARCHAR
 );
 EOF
 
-    local codex_file_count codex_file_list_sql
-    if [ "$#" -gt 0 ]; then
-        codex_file_list_sql="$1"
-        codex_file_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT LEN(${codex_file_list_sql});")
-    else
-        local codex_files
-        codex_files=$(mktemp)
-        emit_codex_session_files > "$codex_files"
-        codex_file_count=$(wc -l < "$codex_files" | tr -d ' ')
-        codex_file_list_sql="[$(sql_list_from_paths_file "$codex_files")]"
-        rm -f "$codex_files"
-    fi
+    local codex_files
+    codex_files=$(codex_session_paths_file "$@")
 
-    if [ "$codex_file_count" -eq 0 ]; then
+    if [ ! -s "$codex_files" ]; then
+        rm -f "$codex_files"
         return
     fi
 
     echo "  Codex: Bridging user and assistant messages..."
+    for_each_codex_batch "$codex_files" load_codex_messages_batch
+    rm -f "$codex_files"
 
+    local codex_msg_count
+    codex_msg_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM messages WHERE harness='codex';" 2>/dev/null || echo "0")
+    echo "  Codex: $codex_msg_count searchable messages"
+}
+
+load_codex_messages_batch() {
+    local codex_file_list_sql="$1"
     duckdb "$DB_PATH" << EOF
 CREATE OR REPLACE TEMP VIEW codex_raw AS
 SELECT
@@ -2343,7 +2403,9 @@ SELECT
 FROM codex_raw raw
 ASOF LEFT JOIN codex_context ctx
     ON raw.session_id = ctx.session_id
-    AND raw.event_timestamp >= ctx.timestamp;
+    AND raw.event_timestamp >= ctx.timestamp
+WHERE json_extract_string(raw.json, '\$.type') = 'response_item'
+AND json_extract_string(raw.json, '\$.payload.type') = 'message';
 
 INSERT INTO messages (
     uuid, parent_uuid, session_id, role, harness, interface, model,
@@ -2426,10 +2488,6 @@ DROP TABLE codex_event_context;
 DROP VIEW codex_context;
 DROP VIEW codex_raw;
 EOF
-
-    local codex_msg_count
-    codex_msg_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM messages WHERE harness='codex';" 2>/dev/null || echo "0")
-    echo "  Codex: $codex_msg_count searchable messages"
 }
 
 # ============================================================================
@@ -3261,8 +3319,8 @@ CREATE OR REPLACE VIEW usage_with_cost AS
 WITH assistant_turns AS (
     SELECT *,
         ROW_NUMBER() OVER (
-            PARTITION BY COALESCE(uuid, search_id)
-            ORDER BY timestamp, source_file
+            PARTITION BY COALESCE(message_id, uuid, search_id)
+            ORDER BY output_tokens DESC NULLS LAST, timestamp DESC, source_file
         ) AS usage_rank
     FROM messages
     WHERE harness = 'claude_code'
@@ -3752,11 +3810,12 @@ EOF
 populate_loaded_files() {
     echo "  Tracking loaded files..."
     stage_current_files
-    duckdb "$DB_PATH" << 'EOF'
+    duckdb "$DB_PATH" << EOF
 DELETE FROM _loaded_files;
 INSERT INTO _loaded_files (file_path, mtime_ns, size_bytes, source_kind)
 SELECT file_path, mtime_ns, size_bytes, source_kind
-FROM _current_files;
+FROM _current_files
+WHERE NOT list_contains(string_split($(sql_quote_literal "$HARNESS_FAILURES"), ','), source_kind);
 DROP TABLE _current_files;
 EOF
 
@@ -3775,22 +3834,44 @@ build_all_data() {
     ensure_reference_schema
     ensure_cursor_tables
     ensure_current_tables
+    run_harness claude load_claude_all
+    load_sessions_index
+    load_cursor_data
+    load_cursor_messages
+    run_harness codex load_codex_all
+    run_harness pi load_pi_all
+    create_views
+    create_fts_index
+    record_harness_failures
+    populate_loaded_files
+}
+
+load_claude_all() {
     load_claude_data
     load_claude_messages
     load_system_events
     load_queue_operations
     load_pr_links
-    load_sessions_index
-    load_cursor_data
-    load_cursor_messages
+}
+
+load_codex_all() {
     load_codex_session_index
     load_codex_data
     load_codex_messages
+}
+
+load_pi_all() {
     load_pi_data
     load_pi_messages
-    create_views
-    create_fts_index
-    populate_loaded_files
+}
+
+# Names the harnesses the last load could not refresh, or nothing.
+warn_failed_harnesses() {
+    local failed
+    failed=$(duckdb -list -noheader "$DB_PATH" -c \
+        "SELECT value FROM _metadata WHERE key = 'failed_harnesses';" 2>/dev/null || true)
+    [ -z "$failed" ] && return 0
+    echo "Warning: not refreshed in this load: ${failed}. See the warnings above; the next update retries." >&2
 }
 
 load_all_data() {
@@ -3820,49 +3901,107 @@ load_all_data() {
 
     echo ""
     echo "Data loaded to: $original_db"
+    warn_failed_harnesses
+}
+
+# ============================================================================
+# Per-harness commit
+# ============================================================================
+
+# Each file-tracked harness (Claude Code, Codex, Pi) loads as its own unit.
+# When one fails, the others still publish; the failed one keeps what the
+# previous database held for it, and its files stay pending so the next
+# update retries them.
+HARNESS_FAILURES=""
+PREVIOUS_DB_PATH=""
+
+harness_tables() {
+    case "$1" in
+        claude) printf '%s\n' "claude_tools|" "messages|harness = 'claude_code'" \
+                    "system_events|" "queue_operations|" "pr_links|" ;;
+        codex)  printf '%s\n' "codex_session_meta|" "codex_tools|" "codex_token_counts|" \
+                    "codex_developer_messages|" "messages|harness = 'codex'" ;;
+        pi)     printf '%s\n' "pi_session_meta|" "pi_tools|" "pi_usage|" "messages|harness = 'pi'" ;;
+    esac
+}
+
+run_harness() {
+    local kind="$1"; shift
+    set +e
+    ( set -e; "$@" )
+    local status=$?
+    set -e
+    [ "$status" -eq 0 ] && return 0
+
+    echo "  Warning: the $kind load failed (exit $status); its data is held at the previous load and retried next update." >&2
+    HARNESS_FAILURES="${HARNESS_FAILURES:+$HARNESS_FAILURES,}$kind"
+    restore_harness "$kind"
+}
+
+# Puts back a failed harness's rows for its pending files, as the previous
+# database had them, and keeps those files pending. During a full reload
+# there is no previous state to keep: the harness is emptied and left
+# untracked, so the next update loads it from scratch.
+restore_harness() {
+    local kind="$1" kind_sql scope prev_tables="" sql="" table filter cond
+    kind_sql=$(sql_quote_literal "$kind")
+
+    if [ -n "$PREVIOUS_DB_PATH" ]; then
+        scope="source_file IN (SELECT file_path FROM _pending_file_changes WHERE source_kind = ${kind_sql})"
+        sql="ATTACH $(sql_quote_literal "$PREVIOUS_DB_PATH") AS prev (READ_ONLY);"$'\n'
+        prev_tables=$(duckdb -list -noheader "$PREVIOUS_DB_PATH" -c \
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main';")
+    else
+        scope="TRUE"
+    fi
+
+    while IFS='|' read -r table filter; do
+        cond="${scope}${filter:+ AND $filter}"
+        sql+="DELETE FROM main.${table} WHERE ${cond};"$'\n'
+        if grep -qx "$table" <<< "$prev_tables"; then
+            sql+="INSERT INTO main.${table} BY NAME SELECT * FROM prev.${table} WHERE ${cond};"$'\n'
+        fi
+    done < <(harness_tables "$kind")
+
+    if [ "$kind" = "codex" ]; then
+        sql+="CREATE TABLE IF NOT EXISTS main.codex_session_index (session_id VARCHAR PRIMARY KEY, thread_name VARCHAR, updated_at TIMESTAMP, source_file VARCHAR);"$'\n'
+        sql+="DELETE FROM main.codex_session_index;"$'\n'
+        if grep -qx codex_session_index <<< "$prev_tables"; then
+            sql+="INSERT INTO main.codex_session_index BY NAME SELECT * FROM prev.codex_session_index;"$'\n'
+        fi
+    fi
+
+    if [ -n "$PREVIOUS_DB_PATH" ]; then
+        sql+="DELETE FROM _current_files WHERE file_path IN (
+    SELECT file_path FROM _pending_file_changes WHERE source_kind = ${kind_sql});
+INSERT INTO _current_files (file_path, mtime_ns, size_bytes, source_kind)
+SELECT file_path, mtime_ns, size_bytes, source_kind FROM _loaded_files
+WHERE file_path IN (
+    SELECT file_path FROM _pending_file_changes WHERE source_kind = ${kind_sql});"$'\n'
+    fi
+
+    duckdb "$DB_PATH" <<< "$sql"
+}
+
+record_harness_failures() {
+    duckdb "$DB_PATH" << EOF
+CREATE TABLE IF NOT EXISTS _metadata (
+    key VARCHAR PRIMARY KEY,
+    value VARCHAR,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+DELETE FROM _metadata WHERE key = 'failed_harnesses';
+INSERT INTO _metadata (key, value, updated_at)
+SELECT 'failed_harnesses', $(sql_quote_literal "$HARNESS_FAILURES"), CURRENT_TIMESTAMP
+WHERE $(sql_quote_literal "$HARNESS_FAILURES") <> '';
+EOF
 }
 
 # ============================================================================
 # Incremental Load
 # ============================================================================
 
-incremental_load() {
-    ensure_db_dir
-    ensure_reference_schema
-    ensure_cursor_tables
-
-    local needs_backfill
-    needs_backfill=$(needs_interface_backfill)
-    ensure_current_tables
-    refresh_file_changes
-
-    if [ "$needs_backfill" -eq 1 ]; then
-        echo "  Schema change detected: rebuilding Claude interface metadata from all session logs..."
-        duckdb "$DB_PATH" << 'EOF'
-DELETE FROM _pending_file_changes WHERE source_kind = 'claude';
-INSERT INTO _pending_file_changes
-SELECT file_path, mtime_ns, size_bytes, source_kind, 'changed'
-FROM _current_files
-WHERE source_kind = 'claude';
-EOF
-    fi
-
-    local count
-    count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM _pending_file_changes;")
-
-    if [ "$count" -eq 0 ]; then
-        # Derived schema can change even when source logs do not. Recreate
-        # pricing tables and views so an analyzer upgrade is applied on the
-        # first `update` instead of waiting for unrelated log activity.
-        create_views
-        duckdb "$DB_PATH" -c "DROP TABLE _pending_file_changes; DROP TABLE _current_files;"
-        echo "Data is current. No new or changed files."
-        return 0
-    fi
-
-    echo "Updating $count changed or deleted files..."
-    echo ""
-
+update_claude() {
     local claude_affected_count claude_changed_count
     claude_affected_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM _pending_file_changes WHERE source_kind='claude';")
     claude_changed_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM _pending_file_changes WHERE source_kind='claude' AND change_kind='changed';")
@@ -3897,19 +4036,12 @@ EOF
         load_queue_operations "$file_list_sql"
         load_pr_links "$file_list_sql"
     fi
+}
 
-    # Always reload sessions-index (small, not file-tracked)
-    load_sessions_index
-
-    local cursor_affected_count codex_affected_count codex_changed_count
-    cursor_affected_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM _pending_file_changes WHERE source_kind='cursor';")
+update_codex() {
+    local codex_affected_count codex_changed_count
     codex_affected_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM _pending_file_changes WHERE source_kind='codex';")
     codex_changed_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM _pending_file_changes WHERE source_kind='codex' AND change_kind='changed' AND file_path LIKE '%.jsonl';")
-
-    if [ "$cursor_affected_count" -gt 0 ]; then
-        load_cursor_data
-        load_cursor_messages
-    fi
 
     if [ "$codex_affected_count" -gt 0 ]; then
         load_codex_session_index
@@ -3931,13 +4063,17 @@ DELETE FROM messages WHERE harness='codex' AND source_file IN (
 );
 EOF
         if [ "$codex_changed_count" -gt 0 ]; then
-            local codex_file_list_sql
-            codex_file_list_sql=$(pending_file_list_sql codex changed)
-            load_codex_data "$codex_file_list_sql"
-            load_codex_messages "$codex_file_list_sql"
+            local codex_files
+            codex_files=$(mktemp)
+            pending_file_paths codex changed > "$codex_files"
+            load_codex_data "$codex_files"
+            load_codex_messages "$codex_files"
+            rm -f "$codex_files"
         fi
     fi
+}
 
+update_pi() {
     local pi_affected_count pi_changed_count
     pi_affected_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM _pending_file_changes WHERE source_kind='pi';")
     pi_changed_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM _pending_file_changes WHERE source_kind='pi' AND change_kind='changed';")
@@ -3964,11 +4100,67 @@ EOF
             load_pi_messages "$pi_file_list_sql"
         fi
     fi
+}
+
+incremental_load() {
+    ensure_db_dir
+    ensure_reference_schema
+    ensure_cursor_tables
+
+    local needs_backfill
+    needs_backfill=$(needs_claude_backfill)
+    ensure_current_tables
+    refresh_file_changes
+
+    if [ "$needs_backfill" -eq 1 ]; then
+        echo "  Schema change detected: rebuilding Claude metadata from all session logs..."
+        duckdb "$DB_PATH" << 'EOF'
+DELETE FROM _pending_file_changes WHERE source_kind = 'claude';
+INSERT INTO _pending_file_changes
+SELECT file_path, mtime_ns, size_bytes, source_kind, 'changed'
+FROM _current_files
+WHERE source_kind = 'claude';
+EOF
+    fi
+
+    local count
+    count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM _pending_file_changes;")
+
+    if [ "$count" -eq 0 ]; then
+        # Derived schema can change even when source logs do not. Recreate
+        # pricing tables and views so an analyzer upgrade is applied on the
+        # first `update` instead of waiting for unrelated log activity.
+        create_views
+        duckdb "$DB_PATH" -c "DROP TABLE _pending_file_changes; DROP TABLE _current_files;"
+        echo "Data is current. No new or changed files."
+        return 0
+    fi
+
+    echo "Updating $count changed or deleted files..."
+    echo ""
+
+    run_harness claude update_claude
+
+    # Always reload sessions-index (small, not file-tracked)
+    load_sessions_index
+
+    local cursor_affected_count
+    cursor_affected_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(*) FROM _pending_file_changes WHERE source_kind='cursor';")
+
+    if [ "$cursor_affected_count" -gt 0 ]; then
+        load_cursor_data
+        load_cursor_messages
+    fi
+
+    run_harness codex update_codex
+
+    run_harness pi update_pi
 
     # Recreate views and FTS
     create_views
     create_fts_index
 
+    record_harness_failures
     commit_file_tracking
 
     echo ""
@@ -3983,6 +4175,7 @@ atomic_incremental_load() {
     working_db=$(mktemp "$DB_DIR/.analyze-usage-update.XXXXXX")
     cp "$original_db" "$working_db"
     DB_PATH="$working_db"
+    PREVIOUS_DB_PATH="$original_db"
 
     set +e
     ( set -e; incremental_load )
@@ -3998,6 +4191,7 @@ atomic_incremental_load() {
 
     chmod 600 "$working_db" 2>/dev/null || true
     mv "$working_db" "$original_db"
+    warn_failed_harnesses
 }
 
 # ============================================================================

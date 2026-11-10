@@ -1128,6 +1128,111 @@ def test_update_failure_is_atomic() -> None:
         ) == ["hello"]
 
 
+@test("a failed Codex load keeps its previous rows and publishes Claude")
+def test_update_commits_each_harness() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_file = write_fixture(home)
+        _, codex_file = write_codex_fixture(home)
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        codex_rows = "SELECT COUNT(*) FROM messages WHERE harness='codex';"
+        assert duckdb_query(db_path, codex_rows) == ["2"]
+
+        good_codex = codex_file.read_text()
+        session_file.write_text(session_file.read_text().replace("hello", "changed"))
+        codex_file.write_text(good_codex + "{not json\n")
+        result = run([str(SCRIPT_PATH), "update"], env=env)
+        assert_ok(result)
+        assert "codex load failed" in result.stderr, result.stderr
+        assert duckdb_query(
+            db_path,
+            "SELECT content FROM messages WHERE harness='claude_code' AND role='user';",
+        ) == ["changed"]
+        assert duckdb_query(db_path, codex_rows) == ["2"]
+        assert duckdb_query(db_path, "SELECT COUNT(*) FROM codex_token_counts;") == ["1"]
+        assert duckdb_query(
+            db_path, "SELECT value FROM _metadata WHERE key='failed_harnesses';"
+        ) == ["codex"]
+
+        codex_file.write_text(good_codex.replace("working tree clean", "retried"))
+        result = run([str(SCRIPT_PATH), "update"], env=env)
+        assert_ok(result)
+        assert "codex load failed" not in result.stderr, result.stderr
+        assert duckdb_query(
+            db_path,
+            "SELECT content FROM messages WHERE harness='codex' AND role='assistant';",
+        ) == ["retried"]
+        assert duckdb_query(
+            db_path, "SELECT COUNT(*) FROM _metadata WHERE key='failed_harnesses';"
+        ) == ["0"]
+
+
+@test("a reload with a failing harness publishes the rest and retries it")
+def test_reload_commits_each_harness() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        write_fixture(home)
+        _, codex_file = write_codex_fixture(home)
+        good_codex = codex_file.read_text()
+        codex_file.write_text(good_codex + "{not json\n")
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        result = run([str(SCRIPT_PATH), "reload"], env=env)
+        assert_ok(result)
+        assert "codex load failed" in result.stderr, result.stderr
+        assert duckdb_query(
+            db_path, "SELECT COUNT(*) FROM messages WHERE harness='claude_code';"
+        ) == ["2"]
+        assert duckdb_query(db_path, "SELECT COUNT(*) FROM codex_token_counts;") == ["0"]
+        assert duckdb_query(
+            db_path, "SELECT COUNT(*) FROM _loaded_files WHERE source_kind='codex';"
+        ) == ["0"]
+
+        codex_file.write_text(good_codex)
+        assert_ok(run([str(SCRIPT_PATH), "update"], env=env))
+        assert duckdb_query(db_path, "SELECT COUNT(*) FROM codex_token_counts;") == ["1"]
+        assert duckdb_query(
+            db_path, "SELECT COUNT(*) FROM messages WHERE harness='codex';"
+        ) == ["2"]
+
+
+@test("Codex loads in batches match a single pass")
+def test_codex_batches_match_single_pass() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        for n in range(5):
+            write_codex_fixture(
+                home, session_id=f"019e6296-7f0f-7090-8572-a48ddfa5d3{n:02d}"
+            )
+        snapshots = []
+        for batch in ("1", "100"):
+            db_path = Path(tmp) / f"usage-{batch}.duckdb"
+            env = make_env(home, db_path)
+            env["ANALYZE_USAGE_CODEX_BATCH_FILES"] = batch
+            assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+            snapshots.append(
+                [
+                    duckdb_query(db_path, f"SELECT * FROM {table} ORDER BY ALL;")
+                    for table in ("codex_session_meta", "codex_tools", "codex_token_counts")
+                ]
+                + [
+                    duckdb_query(
+                        db_path,
+                        "SELECT uuid, session_id, role, model, content FROM messages "
+                        "WHERE harness='codex' ORDER BY ALL;",
+                    )
+                ]
+            )
+        assert snapshots[0] == snapshots[1]
+        assert len(snapshots[0][2]) == 5, snapshots[0][2]
+
+
 @test("cost accounting charges each assistant turn once")
 def test_turn_level_cost_accounting() -> None:
     with tempfile.TemporaryDirectory() as tmp:
@@ -1160,6 +1265,82 @@ def test_turn_level_cost_accounting() -> None:
             "SUM(cost_usd) FROM usage_with_cost;",
         )
         assert usage == ["1,10,5,0.000105"], usage
+
+
+def split_turn_into_block_records(session_file: Path) -> None:
+    """Rewrite the fixture's assistant turn the way Claude Code logs it: one
+    record per content block, each repeating the turn's usage, the earlier
+    ones carrying the partial output count seen while streaming."""
+    entries = [json.loads(line) for line in session_file.read_text().splitlines()]
+    index, assistant = next(
+        (i, e) for i, e in enumerate(entries) if e.get("type") == "assistant"
+    )
+    assistant["message"]["id"] = "msg_turn_1"
+    blocks = [
+        {"type": "thinking", "thinking": "plan"},
+        {"type": "text", "text": "hi"},
+        {"type": "tool_use", "name": "Bash", "input": {"command": "pwd"}},
+    ]
+    records = []
+    for n, block in enumerate(blocks):
+        record = json.loads(json.dumps(assistant))
+        record["uuid"] = f"a1-{n}"
+        record["message"]["content"] = [block]
+        record["message"]["usage"]["output_tokens"] = 1 if n < 2 else 5
+        records.append(record)
+    entries[index : index + 1] = records
+    session_file.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+
+
+@test("cost accounting counts a turn once across its content-block records")
+def test_turn_split_across_records_counts_once() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_file = write_fixture(home)
+        split_turn_into_block_records(session_file)
+        fork = session_file.with_name("forked-session.jsonl")
+        fork.write_text(session_file.read_text().replace('"a1-', '"fork-a1-'))
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        assert duckdb_query(
+            db_path,
+            "SELECT COUNT(*) FROM messages WHERE harness='claude_code' AND role='assistant';",
+        ) == ["6"]
+        usage = duckdb_query(
+            db_path,
+            "SELECT COUNT(*), SUM(input_tokens), SUM(output_tokens), "
+            "SUM(cost_usd) FROM usage_with_cost;",
+        )
+        assert usage == ["1,10,5,0.000105"], usage
+
+
+@test("update backfills message ids on a database that predates them")
+def test_update_backfills_message_ids() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_file = write_fixture(home)
+        split_turn_into_block_records(session_file)
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        subprocess.run(
+            ["duckdb", str(db_path), "-c",
+             "DROP VIEW IF EXISTS cost_summary; DROP VIEW IF EXISTS provider_cost_summary; "
+             "DROP VIEW IF EXISTS cache_efficiency_summary; DROP VIEW IF EXISTS provider_usage_with_cost; "
+             "DROP VIEW IF EXISTS usage_with_cost; ALTER TABLE messages DROP COLUMN message_id;"],
+            text=True, check=True, timeout=30,
+        )
+
+        assert_ok(run([str(SCRIPT_PATH), "update"], env=env))
+        usage = duckdb_query(
+            db_path, "SELECT COUNT(*), SUM(output_tokens) FROM usage_with_cost;"
+        )
+        assert usage == ["1,5"], usage
 
 
 @test("pricing is current, unknown-safe, and editable")
@@ -1687,7 +1868,12 @@ def main() -> None:
         test_update_detects_nanosecond_mtime_changes,
         test_special_character_paths_and_search,
         test_update_failure_is_atomic,
+        test_update_commits_each_harness,
+        test_reload_commits_each_harness,
+        test_codex_batches_match_single_pass,
         test_turn_level_cost_accounting,
+        test_turn_split_across_records_counts_once,
+        test_update_backfills_message_ids,
         test_model_pricing_semantics,
         test_provider_cost_and_cache_semantics,
         test_codex_managed_worktree_attribution,

@@ -10,7 +10,7 @@ Use `scripts/analyze-usage` to load local Claude Code, Codex, Cursor, and Pi log
 
 ## Required workflow
 
-1. Run `scripts/analyze-usage update` before current-state analysis. Stop if it fails; updates are atomic, so a failure leaves the prior database intact.
+1. Run `scripts/analyze-usage update` before current-state analysis. Stop if it fails; updates are atomic, so a failure leaves the prior database intact. A warning naming harnesses that were `not refreshed` means those harnesses still hold their previous load; report them as stale.
 2. Run `scripts/analyze-usage --schema` when constructing unfamiliar queries.
 3. Choose a metric whose unit matches the question. Read `references/analysis-guide.md` for query patterns and interpretation boundaries.
 4. Report the database refresh time, time window, included harnesses, and any unknown-priced models with the result.
@@ -31,7 +31,7 @@ scripts/analyze-usage shell
 scripts/analyze-usage reload
 ```
 
-`update` detects changed and deleted files with nanosecond mtime plus file size, then publishes the new database atomically. `reload` rebuilds atomically and keeps a timestamped backup of the prior database.
+`update` detects changed and deleted files with nanosecond mtime plus file size, then publishes the new database atomically. `reload` rebuilds atomically and keeps a timestamped backup of the prior database. Claude Code, Codex, and Pi each load as their own unit: when one fails, the others still publish, the failed harness keeps its previous rows (empty after a `reload`), its files stay pending for the next `update`, and `_metadata` key `failed_harnesses` names it. Codex sessions load in batches of `ANALYZE_USAGE_CODEX_BATCH_FILES` files (default 100), which bounds memory by batch rather than archive size.
 
 `report` emits the versioned `analyze-usage-report/v1` aggregate contract. Its default window is the full observed archive; `--from` is inclusive and `--to` is exclusive. The report includes overall and per-harness archive coverage beside report-window activity, provider/model/repository token and cost ledgers, cache effects, and priced/unpriced coverage. Cursor activity is present even when the focus window is empty and even though its source does not expose token accounting. Report output excludes prompts, responses, reasoning, tool arguments, paths, and session identifiers.
 
@@ -41,7 +41,7 @@ scripts/analyze-usage reload
 - `claude_tools`, `codex_tools`, `pi_tools`, and `tool_summary` support tool-call analysis.
 - `interactions`, `repo_activity`, `project_activity`, and time views support activity trends; preserve their per-source measurement units. `interactions.timestamp` is UTC and `local_timestamp` drives calendar views in DuckDB's system timezone.
 - `codex_token_counts` stores Codex token snapshots; `pi_usage` stores Pi per-message tokens with harness-recorded dollars.
-- `usage_with_cost` calculates Claude API-equivalent cost once per assistant turn; `codex_usage_with_cost` applies verified OpenAI Standard API rates and long-context rules to Codex token snapshots; `pi_usage_with_cost` exposes Pi's harness-recorded dollars (`pricing_status = 'native'`, not an estimate).
+- `usage_with_cost` calculates Claude API-equivalent cost once per assistant turn, keyed by API message id: Claude Code writes one record per content block, each repeating the turn's usage; `codex_usage_with_cost` applies verified OpenAI Standard API rates and long-context rules to Codex token snapshots; `pi_usage_with_cost` exposes Pi's harness-recorded dollars (`pricing_status = 'native'`, not an estimate).
 - `provider_usage_with_cost` normalizes Claude, Codex, and Pi tokens and cost components (plus Claude/Codex no-cache baselines and cache savings; Pi has no local rates, so its baseline columns are NULL). Aggregate with `provider_cost_summary` or `cache_efficiency_summary`.
 - `conversation_search` and `search` cover user text, assistant text, and optional reasoning traces.
 
