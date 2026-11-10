@@ -1174,17 +1174,24 @@ def test_model_pricing_semantics() -> None:
         assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
         rates = duckdb_query(
             db_path,
-            "SELECT model, CAST(input_rate AS DOUBLE), CAST(output_rate AS DOUBLE) "
+            "SELECT model, CAST(input_rate AS DOUBLE), CAST(output_rate AS DOUBLE), "
+            "CAST(cache_read_rate AS DOUBLE) "
             "FROM model_pricing WHERE model IN "
-            "('claude-fable-5', 'claude-opus-4-5-20251101', "
-            "'claude-haiku-4-5-20251001', 'claude-opus-5') "
+            "('claude-fable-5', 'claude-fable-5-1', 'claude-fable-5-2', "
+            "'claude-opus-4-5-20251101', 'claude-haiku-4-5-20251001', "
+            "'claude-opus-5', 'claude-opus-5-5', 'claude-sonnet-5-5', "
+            "'claude-haiku-5-5') "
             "ORDER BY model;",
         )
         assert rates == [
-            "claude-fable-5,10.0,50.0",
-            "claude-haiku-4-5-20251001,1.0,5.0",
-            "claude-opus-4-5-20251101,5.0,25.0",
-            "claude-opus-5,5.0,25.0",
+            "claude-fable-5,10.0,50.0,1.0",
+            "claude-fable-5-1,10.0,50.0,0.25",
+            "claude-fable-5-2,8.0,40.0,0.2",
+            "claude-haiku-4-5-20251001,1.0,5.0,0.1",
+            "claude-opus-4-5-20251101,5.0,25.0,0.5",
+            "claude-opus-5,5.0,25.0,0.5",
+            "claude-opus-5-5,4.0,20.0,0.2",
+            "claude-sonnet-5-5,2.0,10.0,0.1",
         ], rates
 
         subprocess.run(
