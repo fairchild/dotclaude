@@ -8,9 +8,10 @@
 # multi-component plugins (.claude-plugin/plugins/); "none" installs none of that kind. Both kinds
 # register as one directory marketplace named dotclaude, so they load from the first session and a
 # plugin ID matches a machine that added this repository's marketplace from GitHub.
-# DOTCLAUDE_COMPACT_WINDOW and DOTCLAUDE_COMPACT_PCT, when set, decide when sessions auto-compact,
-# and the window is also the compaction mod's goal, so the thread's point and the engine's
-# backstop follow one number.
+# DOTCLAUDE_COMPACT_WINDOW and DOTCLAUDE_COMPACT_PCT, when set, decide when sessions auto-compact.
+# DOTCLAUDE_COMPACT_GOAL sets the compaction mod's goal, the default target the thread may run past
+# on judgement up to the engine's point; unset, the goal follows a window up to 300,000 and stays
+# at 300,000 for a wider one, leaving the gap as room.
 # Setup must exit 0, so every outcome lands in the status file instead.
 set -u
 
@@ -200,7 +201,8 @@ merge_settings() {
     && mods="$(jq -r '[.plugins[].name] | join(" ")' "$runtime/mods/.claude-plugin/marketplace.json")"
   { cat "$target" 2>/dev/null || echo '{}'; } \
     | jq --slurpfile example "$example" --arg mods "$mods" --arg path "$runtime/mods" \
-        --arg window "${DOTCLAUDE_COMPACT_WINDOW:-}" --arg pct "${DOTCLAUDE_COMPACT_PCT:-}" '
+        --arg window "${DOTCLAUDE_COMPACT_WINDOW:-}" --arg pct "${DOTCLAUDE_COMPACT_PCT:-}" \
+        --arg goal "${DOTCLAUDE_COMPACT_GOAL:-}" '
         $example[0] as $carried
         | . + ($carried | {alwaysThinkingEnabled, effortLevel, skipWorkflowUsageWarning})
         | .env += ($carried.env | {CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY, CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS})
@@ -212,8 +214,11 @@ merge_settings() {
           else . end
         | if $window != "" then .env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = $window else . end
         | if $pct != "" then .env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = $pct else . end
-        | if $window != "" and ($installed | index("compaction")) and ($window | test("^[0-9]+$"))
-          then .pluginConfigs.compaction.goalTokens = ($window | tonumber)
+        | (if $goal | test("^[0-9]+$") then $goal | tonumber
+           elif $window | test("^[0-9]+$") then [$window | tonumber, 300000] | min
+           else null end) as $goalTokens
+        | if $goalTokens != null and ($installed | index("compaction"))
+          then .pluginConfigs.compaction.goalTokens = $goalTokens
           else . end
       ' >"$target.partial" \
     && mv "$target.partial" "$target" \

@@ -115,14 +115,23 @@ grep -q '; mods: compaction; plugins skipped: shipyard needs usage-meter$' "$par
 jq -e '[.plugins[].name] == ["compaction"]' "$partial/mods/.claude-plugin/marketplace.json" >/dev/null \
   || fail "the marketplace lists a plugin that was not installed"
 
-# Auto-compaction is set only when the environment names it, and the window is the mod's goal
-# too, so the thread's prepare point and the engine's backstop follow one number.
+# Auto-compaction is set only when the environment names it. The mod's goal is a default target
+# the thread may run past up to the engine's point: a window at or under 300,000 is the goal too,
+# a wider one leaves the goal at 300,000 and the gap as room, and DOTCLAUDE_COMPACT_GOAL names it.
 compact="$tmp/compact/.claude"
 DOTCLAUDE_COMPACT_WINDOW=300000 DOTCLAUDE_COMPACT_PCT=100 bootstrap "file://$bundle" "$compact"
 jq -e '.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW == "300000" and .env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE == "100"' \
   "$compact/settings.json" >/dev/null || fail "auto-compaction was not set"
 jq -e '.pluginConfigs.compaction.goalTokens == 300000' \
-  "$compact/settings.json" >/dev/null || fail "the compaction goal did not follow the window"
+  "$compact/settings.json" >/dev/null || fail "the compaction goal did not follow a 300,000 window"
+roomy="$tmp/roomy/.claude"
+DOTCLAUDE_COMPACT_WINDOW=700000 bootstrap "file://$bundle" "$roomy"
+jq -e '.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW == "700000" and .pluginConfigs.compaction.goalTokens == 300000' \
+  "$roomy/settings.json" >/dev/null || fail "a wide window moved the goal past its 300,000 default"
+named="$tmp/named/.claude"
+DOTCLAUDE_COMPACT_WINDOW=700000 DOTCLAUDE_COMPACT_GOAL=400000 bootstrap "file://$bundle" "$named"
+jq -e '.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW == "700000" and .pluginConfigs.compaction.goalTokens == 400000' \
+  "$named/settings.json" >/dev/null || fail "DOTCLAUDE_COMPACT_GOAL did not set the goal apart from the window"
 jq -e 'has("pluginConfigs") | not' "$none/settings.json" >/dev/null \
   || fail "a goal was set for a run with no mods"
 

@@ -4,9 +4,9 @@
  * its points and the engine's auto-compaction threshold, so no value here has to match the settings;
  * `mcp__compaction__request` records one pending request (a second replaces it), refusing a
  * subagent, bad instructions, and a context below the floor or not yet measured. Both points
- * derive from one goal, the context the session means to stay under, which the manifest's
- * `userConfig` carries: `/config` or `claude plugin configure compaction` moves it, and either
- * point takes an override. Every request is kept in `$.store`, its reasoning with it, so what
+ * derive from one goal, the default context target the thread may run past on judgement, which
+ * the manifest's `userConfig` carries: `/config` or `claude plugin configure compaction` moves
+ * it, and either point takes an override. Every request is kept in `$.store`, its reasoning with it, so what
  * the points are worth can be read back over sessions (LOG_KEY, LOG_LIMIT entries).
  *
  * A main turn that ends with an answer arms one timer (IDLE_MS); a main turn that starts cancels
@@ -120,7 +120,7 @@ export type Points = {
   readonly prepareTokens: number;
 };
 
-/** The context a session means to stay under when its manifest's goal is unset. */
+/** The default context target when the manifest's goal is unset; past it, compacting is the thread's judgement. */
 export const GOAL_TOKENS = 300_000;
 /**
  * What the prepare point leaves below the goal: a closing turn, a resume file, the request,
@@ -185,8 +185,8 @@ const CONTEXT_TOOL: ToolSpec = {
   name: "context",
   description:
     "The session's context: its tokens, window and percent as the engine measured them, where " +
-    "that sits against the compaction points (the request floor, the Stop hook's prepare point, " +
-    "automatic compaction), and the pending and last compaction request. Takes no input.",
+    "that sits against the goal and the compaction points (the request floor, the prepare point " +
+    "where a thread stopping at the goal starts getting ready, automatic compaction), and the pending and last compaction request. Takes no input.",
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
 };
 
@@ -290,14 +290,20 @@ function placed(p: Points, count: number, compactAt: number | undefined): string
 }
 
 /**
- * What to say when the engine compacts somewhere else than the goal implies: the mod reports
- * the engine's point and never moves it, and `autoCompactWindow` is where that one is set.
+ * What to say when the engine compacts somewhere else than the goal implies. Above it, the gap
+ * is the room the thread may run into on judgement; below it, the goal is never reached, and
+ * `autoCompactWindow` is where the engine's point is set, since the mod never moves it.
  */
 function settingLine(p: Points, at: number): string {
+  if (at > backstop(p))
+    return (
+      `Note: the engine compacts at ${tokens(at)}; past the ${tokens(p.goalTokens)} goal, ` +
+      "compacting is the thread's call up to there."
+    );
   return (
-    `Note: the engine compacts at ${tokens(at)}, not the ${tokens(backstop(p))} this goal ` +
-    "implies. Only the `autoCompactWindow` setting moves that one; set it to " +
-    `${tokens(p.goalTokens)} to line them up, or set the goal to ${tokens(at + BACKSTOP_TOKENS)}.`
+    `Note: the engine compacts at ${tokens(at)}, below the ${tokens(backstop(p))} this goal ` +
+    "implies, so the goal is never reached. Only the `autoCompactWindow` setting moves that " +
+    `one; set it to at least ${tokens(p.goalTokens)}, or set the goal to ${tokens(at + BACKSTOP_TOKENS)}.`
   );
 }
 
