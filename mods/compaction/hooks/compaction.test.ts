@@ -1,9 +1,12 @@
 import type { On } from 'claude-code'
-import { expect, mock, test } from 'claude-code/testing'
+import { type Engine, expect, mock, test } from 'claude-code/testing'
 
 import {
   BACKSTOP_TOKENS,
   GOAL_TOKENS,
+  IDLE_MS,
+  MAX_RESUME,
+  RESUME_DEFAULT,
   RUNWAY_TOKENS,
   type Entry,
   points,
@@ -257,4 +260,99 @@ test('a request below the floor is refused, the floor named as the goal implies 
   })
 
   expect(String(answered.result)).toContain('below the request floor (150,000)')
+})
+
+/** A session at 240k with a request made and its turn ended, its command and submits recorded. */
+async function compacted(
+  $: Engine,
+  on: On,
+  request: Readonly<Record<string, string>>,
+  fail: { readonly compact?: boolean; readonly submit?: boolean } = {},
+) {
+  const log = kept(on)
+  const clock = mock.clock(on)
+  const commands: { command: string; args?: string }[] = []
+  const submitted: string[] = []
+  on('session.usage', () => ({ value: usage(240_000, 267_000) }))
+  on('tool.register', (_, e) => ({ value: { tool: e.name } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('turn.complete', (_, e) => ({ text: e.answer }))
+  on('command.run', (_, e) => {
+    commands.push({ command: e.command, args: e.args })
+    if (fail.compact) throw new Error('compact broke')
+
+    return {}
+  })
+  on('prompt.submit', (_, e) => {
+    submitted.push(e.text)
+    if (fail.submit) throw new Error('submit broke')
+
+    return { text: e.text }
+  })
+
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await $.tool.call({ tool: 'mcp__compaction__request', ...request })
+  await $.turn.complete({
+    answer: 'done',
+    durationMs: 1,
+    isAborted: false,
+    turnId: 't1',
+    reason: 'answer',
+  })
+  await clock.advance(IDLE_MS)
+
+  const last = String((await $.tool.call({ tool: 'mcp__compaction__context' })).result)
+  return { commands, submitted, outcomes: log.entries().map((e) => e.outcome), last }
+}
+
+const ASKED = { instructions: 'keep the merge order', reasoning: 'the reviews are spent' }
+
+test('a request naming a resume prompt submits exactly that, after /compact', async ($, on) => {
+  const resume = 'Pick up the third merge; the queue is in RESUME.md.'
+  const run = await compacted($, on, { ...ASKED, resume })
+
+  expect(run.commands).toEqual([{ command: 'compact', args: 'keep the merge order' }])
+  expect(run.submitted).toEqual([resume])
+  expect(run.outcomes).toEqual(['recorded', 'ran', 'resumed'])
+  expect(run.last).toContain('then submitted the resume prompt')
+})
+
+test('a request with no resume prompt submits the default', async ($, on) => {
+  const run = await compacted($, on, ASKED)
+
+  expect(run.submitted).toEqual([RESUME_DEFAULT])
+})
+
+test('a submit that fails is its own outcome, the compaction kept as ran', async ($, on) => {
+  const run = await compacted($, on, ASKED, { submit: true })
+
+  expect(run.outcomes).toEqual(['recorded', 'ran', 'unresumed'])
+  expect(run.last).toContain('ran /compact at 240,000 tokens, but the resume prompt did not submit')
+  expect(run.last).not.toContain('/compact did not run')
+})
+
+test('a /compact that fails submits nothing', async ($, on) => {
+  const run = await compacted($, on, ASKED, { compact: true })
+
+  expect(run.submitted).toEqual([])
+  expect(run.outcomes).toEqual(['recorded', 'failed'])
+  expect(run.last).toContain('/compact did not run:')
+})
+
+test('a resume prompt past its length is refused, the refusal naming it', async ($, on) => {
+  mock.store(on)
+  mock.clock(on)
+  on('session.usage', () => ({ value: usage(240_000, 267_000) }))
+  on('tool.register', (_, e) => ({ value: { tool: e.name } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const answered = await $.tool.call({
+    tool: 'mcp__compaction__request',
+    ...ASKED,
+    resume: 'x'.repeat(MAX_RESUME + 1),
+  })
+
+  expect(String(answered.result)).toContain('Refused:')
+  expect(String(answered.result)).toContain('"resume"')
 })

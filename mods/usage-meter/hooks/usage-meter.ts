@@ -7,10 +7,9 @@
  * tool; its `tool.call` hook answers only its own tool, by name. It approves, denies or rewrites
  * no other tool call, adds nothing to any model call (the reading reaches the model only as this
  * tool's answer, so prompt caching is untouched), reads no environment, writes no file, logs
- * nothing and makes no network call. `pnpm gates mods` holds the module to that list
- * (mods/allowlist.json), through `claude plugin validate`, which reads it the way the engine
- * will: each `on(...)` names its event and matcher as literals, and each engine call is spelled
- * `$.noun.call(...)`.
+ * nothing and makes no network call. `claude plugin validate --json mods/usage-meter` lists its
+ * hooks and engine calls the way the engine will read them, so each `on(...)` names its event and
+ * matcher as literals, and each engine call is spelled `$.noun.call(...)`.
  */
 /*
  * The part of Claude Code's mod API (2.1.310) this mod uses, written as a local shape: the

@@ -141,7 +141,8 @@ a goal in two places drifts.
 At the prepare point, write a local, untracked resume file — the agents running and
 what each is doing, decisions not yet recorded, blockers, and what must survive —
 and then call `mcp__compaction__request` with what the summary must keep and why
-compacting now beats carrying on. The mod runs `/compact` once the turn ends. The
+compacting now beats carrying on, and a `resume` prompt naming the resume file. The mod
+runs `/compact` once the turn ends, then submits that prompt to start the next turn. The
 engine's own compaction is the backstop and takes no instructions, so a summary
 that matters is one the thread asked for. After a compaction or a handoff, rebuild
 state from live reads of branches, pull requests and checks; the resume file is a

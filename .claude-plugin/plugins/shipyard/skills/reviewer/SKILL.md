@@ -271,7 +271,8 @@ Write it when you take the seat and keep it current as you go. The plugin's comp
 the file at a compaction and again at the next session's start, but it keys off the file's
 existence and never writes it: a seat with no file is indistinguishable from a session that is not
 a seat, and gets no reminder at all. Update it before you compact, not after.
-`mcp__compaction__request` carries the instructions for the summary; the resume file carries what a
+`mcp__compaction__request` carries the instructions for the summary and a `resume` prompt that names
+the file, which the mod submits to start the first turn after; the resume file carries what a
 summary would lose.
 
 A verdict is posted or it did not happen: never report one from memory without reading it back off
