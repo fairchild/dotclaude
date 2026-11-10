@@ -13,7 +13,7 @@ import { createProxy, loadAllowlist } from "./lib/proxy.mjs";
 import { createCap, createSanitizer, sanitize } from "./lib/terminal.mjs";
 import { asRunner, assetsPath, ROOT_SETUP } from "./lib/guest.mjs";
 import { followSteps } from "./lib/steps.mjs";
-import { updateRecord } from "./lib/record.mjs";
+import { tryUpdateRecord } from "./lib/record.mjs";
 
 const { values } = parseArgs({
   options: {
@@ -139,7 +139,7 @@ try {
   // QEMU starts with the first guest operation, so only now is there a pid to name. The record
   // holds this process and its QEMU, so either leads back to the run.
   if (process.env.GONDOLIN_RUN_RECORD) {
-    updateRecord(process.env.GONDOLIN_RUN_RECORD, { job_pid: process.pid, qemu_pid: qemuPid() });
+    tryUpdateRecord(process.env.GONDOLIN_RUN_RECORD, { job_pid: process.pid, qemu_pid: qemuPid() });
   }
   const proc = vm.exec(
     [

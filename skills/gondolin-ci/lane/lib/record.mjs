@@ -10,7 +10,7 @@
 // run-optin.sh exports GONDOLIN_RUN_RECORD, so every process under it, QEMU included, carries the
 // record's path in its environment, where `ps -E` reads it even after its parents are gone.
 import { execFileSync } from "node:child_process";
-import { appendFileSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { statePath } from "./guest.mjs";
@@ -39,12 +39,47 @@ export function readRecord(file) {
   }
 }
 
-/** Merge `fields` in. A rename keeps a reader from seeing half a file. @param {string} file @param {Run} fields */
+/**
+ * Merge `fields` in. Three processes write a run's record (run-optin.sh, run-job.mjs and the
+ * governor), so each merge holds a lock directory, and a rename keeps a reader from seeing half a
+ * file. A lock older than a few seconds was left by a writer that died, and is taken over.
+ * @param {string} file @param {Run} fields
+ */
 export function updateRecord(file, fields) {
-  const next = { ...readRecord(file), ...fields };
-  writeFileSync(`${file}.tmp`, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
-  renameSync(`${file}.tmp`, file);
-  return next;
+  const lock = `${file}.lock`;
+  for (let tries = 0; ; tries++) {
+    try {
+      mkdirSync(lock);
+      break;
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      if (tries > 200) {
+        rmSync(lock, { recursive: true, force: true });
+        tries = 0;
+      }
+      Atomics.wait(PAUSE, 0, 0, 10);
+    }
+  }
+  try {
+    const next = { ...readRecord(file), ...fields };
+    const tmp = `${file}.${process.pid}.tmp`;
+    writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
+    renameSync(tmp, file);
+    return next;
+  } finally {
+    rmSync(lock, { recursive: true, force: true });
+  }
+}
+
+const PAUSE = new Int32Array(new SharedArrayBuffer(4));
+
+/** For the processes whose job is the run, not its record: a failed write is noted, never thrown. */
+export function tryUpdateRecord(file, fields) {
+  try {
+    return updateRecord(file, fields);
+  } catch (error) {
+    console.error(`run record not updated: ${error.message}`);
+  }
 }
 
 /** The processes above `pid`, nearest first. @param {number} pid @returns {Link[]} */

@@ -101,3 +101,14 @@ test("with no earlier runs of the suite there is no estimate, and the descriptio
   updateRecord(file, { suffix: "optin-pr-9-000009", repo: "o/new", pr: 9, suite: "e2e", optin_pid: 1, started: new Date().toISOString() });
   assert.match(describe(file), /no earlier successful e2e runs of o\/new/);
 });
+
+test("writers that overlap each keep their field", async () => {
+  const file = join(runsPath(), "job-optin-pr-4-000004.json");
+  const record = new URL("./lib/record.mjs", import.meta.url).pathname;
+  const writers = Array.from({ length: 12 }, (_, i) =>
+    new Promise((resolve) => spawn(process.execPath, [record, "set", file, `field_${i}=${i}`]).once("exit", resolve)),
+  );
+  assert.deepEqual(await Promise.all(writers), Array(12).fill(0));
+  const run = readRecord(file);
+  for (let i = 0; i < 12; i++) assert.equal(run[`field_${i}`], i);
+});

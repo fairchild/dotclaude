@@ -119,7 +119,7 @@ leave() {
   [ -z "$runner_pid" ] || kill "$runner_pid" 2> /dev/null || true
   [ -z "${jit:-}" ] || rm -f "$jit"
   forget_the_runner
-  [ -z "${record:-}" ] || node "${here}/lib/record.mjs" close "$record" conclusion="${conclusion:-aborted}"
+  [ -z "${record:-}" ] || node "${here}/lib/record.mjs" close "$record" conclusion="${conclusion:-aborted}" || true
   node "${here}/lib/slot.mjs" release $$
 }
 
@@ -225,7 +225,7 @@ introduce_the_run() {
   # pids reads GONDOLIN_RUN_RECORD, and `gondolin-ci.sh why <pid>` reads the record.
   export GONDOLIN_RUN=$suffix GONDOLIN_RUN_RECORD=$record GONDOLIN_VM_NAME="${repo#*/}#${pr} ${suite} ${suffix}"
   node "${here}/lib/record.mjs" open "$record" $$ suffix="$suffix" repo="$repo" pr="$pr" suite="$suite" \
-    sha="$sha" workflow="$workflow" title="$title"
+    sha="$sha" workflow="$workflow" title="$title" || say_err "no run record; gondolin-ci.sh why will not find this run"
 
   say ""
   say "${bold}pr ${pr}${off}  ${title}"
@@ -535,7 +535,8 @@ tell_the_steps_so_far() {
 }
 
 # Add fields to the run's record, once it has one.
-note() { [ -z "${record:-}" ] || node "${here}/lib/record.mjs" set "$record" "$@"; }
+# Bookkeeping never stops a run.
+note() { [ -z "${record:-}" ] || node "${here}/lib/record.mjs" set "$record" "$@" || true; }
 
 elapsed() { printf '%dm%02ds' $(((SECONDS - started) / 60)) $(((SECONDS - started) % 60)); }
 

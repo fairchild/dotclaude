@@ -16,7 +16,7 @@ import { cpus } from "node:os";
 import { realpathSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
-import { updateRecord } from "./record.mjs";
+import { tryUpdateRecord } from "./record.mjs";
 
 /** @typedef {"yield" | "full"} Mode */
 
@@ -125,7 +125,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
   const record = process.env.GONDOLIN_RUN_RECORD;
   const log = (line) => {
     console.error(line);
-    if (record) updateRecord(record, { mode: line.includes("yielding") ? "yield" : "full" });
+    if (record) tryUpdateRecord(record, { mode: line.includes("yielding") ? "yield" : "full" });
   };
   await govern(root, { summary: flag === "--summary" ? file : undefined, log });
 }
