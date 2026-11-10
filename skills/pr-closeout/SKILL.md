@@ -18,7 +18,8 @@ Fill the repo's PR template. Put evidence in the body — screenshots for UI, re
 labelled with the commit and environment it came from. A green build is not a UI or runtime check.
 Open as a draft, and keep it a draft until an independent review has been worked through on the
 head: another model's pass, or a fresh session running `/review-pr <PR url>`, never the author
-(`review-pr`, Rounds).
+(`review-pr`, Rounds). A review of a draft gives its verdict as a comment, not an approval; where
+the repo needs an approval, it comes from a pass on the head after the PR is marked ready.
 
 ## Follow through
 
@@ -37,8 +38,9 @@ disposition, as a reply in its thread:
 - **Follow-up:** why it belongs elsewhere, and the issue that tracks it.
 - **Declined:** why, with code or test evidence.
 
-Give each round its dispositions before asking for the next. A review with no threads, such as a
-local pass by another model, gets one PR comment per round:
+Give each round its dispositions before asking for the next: a re-check of the delta when the same
+reviewer carries its findings, a fresh round otherwise (`review-pr`, Re-checks and Rounds). A
+review with no threads, such as a local pass by another model, gets one PR comment per round:
 
 ```text
 Round 2 at <head sha>: 1 fixed in <sha>; 2 follow-up #<n>; 3 declined — <reason>
@@ -47,7 +49,9 @@ Round 2 at <head sha>: 1 fixed in <sha>; 2 follow-up #<n>; 3 declined — <reaso
 When the same class of finding comes back, change the shape that produces it rather than patching
 the new instance.
 
-Resolve a thread once its fix is pushed; leave Follow-up and Declined threads open with the reply.
+Resolve a thread once its fix is pushed; leave Follow-up and Declined threads open with the reply,
+unless the repo requires every conversation resolved before merge — then resolve them after the
+reply.
 Never bulk-resolve. A nit needs no push: fix it if small and agreed, otherwise reply in a line.
 Findings with no thread (a summary, check output) get a conversation reply naming each. Resolve
 base conflicts the way the repo merges.
@@ -65,7 +69,8 @@ finding has a disposition. After that, every push repeats the follow-through.
 Before reporting, capture head and base SHAs, read checks, reviews and threads, then re-read the
 PR. If either SHA moved, start over. Report one of:
 
-- **ready to merge:** green checks on that head, required approvals, no unresolved threads.
+- **ready to merge:** green checks on that head, required approvals, and no unresolved threads
+  but Follow-up and Declined ones that carry their reply.
 - **ready for review:** only a human's approval and merge remain. Out of draft.
 - **blocked:** the last verified head, what remains, why, the next action and its owner.
 

@@ -74,10 +74,15 @@ line findings as inline comments (GitHub MCP `pull_request_review_write` +
 `add_comment_to_pending_review`, or `gh api repos/<o>/<r>/pulls/<n>/reviews` with `commit_id` and
 `comments[]`), from a body file. Approve only when nothing blocks and nothing else stands: a red
 check, a draft, another reviewer's open blocker, or state you couldn't read (unknown fails
-closed) — then post a `COMMENT` naming it. On your own account's PR, always `COMMENT`. Post only when asked to review on the PR; otherwise report to the user. Never merge or
+closed) — then post a `COMMENT` naming it. The independent review of a draft therefore posts its
+verdict as a `COMMENT`; approval, where the repo needs one, comes from a pass on the head after
+the PR is marked ready. On your own account's PR, always `COMMENT`. Post only when asked to review on the PR; otherwise report to the user. Never merge or
 push to the author's branch.
 
 ## Re-checks
+
+A re-check is the same reviewer's next pass, carrying its earlier findings. A fresh pass that
+carries none is a round (Rounds, below).
 
 1. Review only what changed since your last head. A merge of the base: `git show --remerge-diff`.
    A rebase: `git range-diff`.
@@ -95,8 +100,9 @@ runs out of answers, because each fix is new code. Rounds converge:
 - **Rounds 1–3** review the whole PR, approach included.
 - **From round 4**, review the delta since the last round in full. For the rest of the PR, report
   only what a user, an operator or an agent following the PR's own procedures would actually hit,
-  or a security defect reachable in production. Everything else — hardening against inputs the
-  system cannot produce, test strength, wording — is a follow-up the author files, not a round.
+  a security defect reachable in production, a test that can't fail for its claim, or a doc claim
+  that misleads. Everything else — hardening against inputs the system cannot produce, a test that
+  could be stronger, wording — is a follow-up the author files, not a round.
 - **A class that recurs** — the same kind of defect in a new place, or a fix that reopens what the
   last round closed — is a finding about the shape. Name the class and the simpler shape that
   removes it; another patch buys another round.

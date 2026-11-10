@@ -377,13 +377,21 @@ test('a request naming a resume prompt submits exactly that, after /compact', as
   expect(run.last).toContain('then submitted the resume prompt')
 })
 
-test('a requested cut owes no rebuild note: its resume is the thread\'s own, and the default says it', async ($, on) => {
+test('a requested cut whose resume entered owes no rebuild note, and the default says it', async ($, on) => {
   const run = await compacted($, on, { ...ASKED, resume: 'Read RESUME.md.' })
   await $.prompt.submit({ text: 'later', wait: false, origin: { kind: 'composer' } })
 
   expect(run.carried).toHaveLength(2)
   expect(run.carried.flat()).not.toContain(AFTER_NOTE)
   expect(RESUME_DEFAULT).toContain('live reads')
+})
+
+test('a requested cut whose resume was dropped still owes the rebuild note', async ($, on) => {
+  const run = await compacted($, on, ASKED, { submit: 'drops' })
+  await $.prompt.submit({ text: 'later', wait: false, origin: { kind: 'composer' } })
+
+  expect(run.outcomes).toEqual(['recorded', 'ran', 'unresumed'])
+  expect(run.carried.at(-1)).toEqual([AFTER_NOTE])
 })
 
 test('a request with no resume prompt submits the default', async ($, on) => {
@@ -568,16 +576,31 @@ test('a main turn starting while the due timer reads the context keeps the reque
   expect(run.outcomes).toEqual(['recorded', 'ran', 'resumed'])
 })
 
-/** A session whose context reads `count` tokens, recording what each prompt carried beside it. */
-async function prompting($: Engine, on: On, count: () => number) {
+/** What the engine beneath the mod does with a prompt and a compaction, for the note tests. */
+type Beneath = {
+  /** Prompts whose text starts with this are dropped by a hook beneath, after the mod attached. */
+  readonly dropping?: string
+  /** A compaction a hook beneath skips. */
+  readonly skipCompaction?: boolean
+  /** Each context read waits on this. */
+  readonly gate?: Promise<void>
+}
+
+/** A session whose context reads `count` tokens, recording what each entered prompt carried beside it. */
+async function prompting($: Engine, on: On, count: () => number, beneath: Beneath = {}) {
   mock.store(on)
   mock.clock(on)
   const carried: (readonly string[])[] = []
-  on('session.usage', () => ({ value: usage(count(), 667_000) }))
+  on('session.usage', async () => {
+    await beneath.gate
+
+    return { value: usage(count(), 667_000) }
+  })
   on('tool.register', (_, e) => ({ value: { tool: e.name } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
-  on('session.compact', () => ({ messages: SUMMARY }))
+  on('session.compact', () => (beneath.skipCompaction ? { skip: 'a hook beneath said no' } : { messages: SUMMARY }))
   on('prompt.submit', (_, e) => {
+    if (beneath.dropping !== undefined && e.text.startsWith(beneath.dropping)) return { drop: 'a hook beneath said no' }
     carried.push(e.context ?? [])
 
     return { text: e.text }
@@ -588,41 +611,96 @@ async function prompting($: Engine, on: On, count: () => number) {
   return { carried, say }
 }
 
+const NOTE_AT = (count: number) => [prepareNote(points({}), count)]
+
 test('the first prompt past the prepare point carries the procedure, and only the first', async ($, on) => {
   const { carried, say } = await prompting($, on, () => 240_000)
 
   await say('next')
   await say('and the next')
 
-  expect(carried).toEqual([[prepareNote(points({}), 240_000)], []])
+  expect(carried).toEqual([NOTE_AT(240_000), []])
   expect(carried[0]?.[0]).toContain('mcp__compaction__request')
   expect(carried[0]?.[0]).toContain('"resume"')
 })
 
-test('a prompt below the prepare point carries nothing', async ($, on) => {
-  const { carried, say } = await prompting($, on, () => 200_000)
+test('a prompt below the prepare point carries nothing; one exactly at it carries the note', async ($, on) => {
+  let count = GOAL_TOKENS - RUNWAY_TOKENS - 1
+  const { carried, say } = await prompting($, on, () => count)
 
+  await say('just below')
+  count += 1
+  await say('at the point')
+
+  expect(carried).toEqual([[], NOTE_AT(GOAL_TOKENS - RUNWAY_TOKENS)])
+  expect(carried[1]?.[0]).toContain('at or past the prepare point')
+})
+
+test('with a request already pending, no prepare note', async ($, on) => {
+  const { carried, say } = await prompting($, on, () => 240_000)
+
+  await $.tool.call({ tool: 'mcp__compaction__request', ...ASKED })
   await say('next')
 
   expect(carried).toEqual([[]])
 })
 
-test('the first prompt after a compaction carries the rebuild note, and the prepare note can come again', async ($, on) => {
-  let count = 240_000
-  const { carried, say } = await prompting($, on, () => count)
+test("a slash command's prompt carries no note, and the next prompt still gets it", async ($, on) => {
+  const { carried } = await prompting($, on, () => 240_000)
 
+  await $.prompt.submit({ text: '/review', command: { name: 'review', args: '' }, wait: false, origin: { kind: 'composer' } })
+  await $.prompt.submit({ text: 'next', wait: false, origin: { kind: 'composer' } })
+
+  expect(carried).toEqual([[], NOTE_AT(240_000)])
+})
+
+test('a prompt a hook beneath drops takes no note with it: the next prompt carries it', async ($, on) => {
+  const { carried, say } = await prompting($, on, () => 240_000, { dropping: 'drop' })
+
+  await say('drop me')
   await say('next')
-  await $.session.compact({ trigger: 'manual', messages: SUMMARY })
-  count = 60_000
-  await say('after the cut')
-  await say('later')
-  count = 230_000
-  await say('long again')
 
-  expect(carried).toEqual([
-    [prepareNote(points({}), 240_000)],
-    [AFTER_NOTE],
-    [],
-    [prepareNote(points({}), 230_000)],
-  ])
+  expect(carried).toEqual([NOTE_AT(240_000)])
+})
+
+test('two prompts in flight at once carry one prepare note between them', async ($, on) => {
+  let open: () => void = () => undefined
+  const gate = new Promise<void>((resolve) => {
+    open = resolve
+  })
+  const { carried, say } = await prompting($, on, () => 240_000, { gate })
+
+  const both = Promise.all([say('one'), say('two')])
+  open()
+  await both
+
+  expect(carried.flat()).toEqual(NOTE_AT(240_000))
+})
+
+for (const trigger of ['manual', 'auto'] as const) {
+  test(`the first prompt after a compaction (${trigger}) carries the rebuild note, and the prepare note can come again`, async ($, on) => {
+    let count = 240_000
+    const { carried, say } = await prompting($, on, () => count)
+
+    await say('next')
+    await $.session.compact({ trigger, messages: SUMMARY })
+    count = 60_000
+    await say('after the cut')
+    await say('later')
+    count = 230_000
+    await say('long again')
+
+    expect(carried).toEqual([NOTE_AT(240_000), [AFTER_NOTE], [], NOTE_AT(230_000)])
+    expect(carried[1]?.[0]).toContain('The summary carries what the session believed')
+    expect(carried[1]?.[0]).toContain('rebuild from live reads')
+  })
+}
+
+test('a compaction a hook skips owes no rebuild note', async ($, on) => {
+  const { carried, say } = await prompting($, on, () => 60_000, { skipCompaction: true })
+
+  await $.session.compact({ trigger: 'manual', messages: SUMMARY })
+  await say('next')
+
+  expect(carried).toEqual([[]])
 })

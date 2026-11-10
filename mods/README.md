@@ -135,17 +135,21 @@ The context report reads the engine's point in three bands against the goal:
 The mod hands the thread the procedure when it is due, as context beside a prompt that the model
 reads and the person never sees, so a session that loaded no skill still gets it:
 
-- **The prepare note.** The first prompt past the prepare point, with no request pending, carries
-  it once until the next compaction: write what must survive to disk or the tracker first, then
+- **The prepare note.** The first prompt at or past the prepare point, with no request pending,
+  carries it once until the next compaction: write what must survive to disk or the tracker first, then
   call `mcp__compaction__request` with `instructions` (what the summary keeps, named exactly),
   `reasoning`, and `resume` (what to pick up first and where its state lives); carry on instead
   while compacting would lose live work.
 - **The after note.** The first prompt after a main-loop compaction that went through — a typed
   `/compact`, the engine's own, another plugin's — carries it once: the summary carries what the
-  session believed, so rebuild from live reads before acting on it. The mod's own cut owes none:
-  its resume prompt is the thread's own word, and the generic one says the same.
+  session believed, so rebuild from live reads before acting on it. The mod's own cut owes none
+  once its resume prompt has gone in: that prompt is the thread's own word, and the generic one
+  says the same. When the resume prompt does not go in, the next prompt carries the note.
 
-A slash command's prompt carries neither. A note rides on a prompt, so a session working through a
+A slash command's prompt carries neither, and a prompt that a hook drops after the mod attached a
+note leaves it owed to the next one. The notes are kept with the rest of the mod's state, which a
+reload loses: after `/reload-plugins` or an update, a prepare note may come again and an owed
+after note is forgotten. A note rides on a prompt, so a session working through a
 long turn of tool calls with no prompt arriving meets the prepare note at the next one, and a
 typed `/compact` still waits for whatever event comes next before anything runs; a background
 timer started before the cut bounds that wait. The

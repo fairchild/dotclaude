@@ -18,8 +18,8 @@
  * resume beginning with "/" is refused, as the engine submits no command for a mod. Any other
  * main-loop compaction but a precompute (a typed `/compact`, which starts no turn, the engine's,
  * another plugin's) that goes through drops a waiting request, so the session never compacts twice.
- * Beside the main thread's first prompt past the prepare point, and again beside the first after
- * any main-loop compaction but its own, the mod attaches a note the model reads and the person
+ * Beside the main thread's first prompt at or past the prepare point, and again beside the first
+ * after any main-loop compaction but its own (or its own, when the resume prompt did not enter), the mod attaches a note the model reads and the person
  * never sees: the procedure (prepareNote), then the rebuild from live reads (AFTER_NOTE). A
  * slash command's prompt carries neither. State is lost on a reload. Its other hooks pass each
  * event on unchanged; its tool hooks answer only its own two tools. `claude plugin validate
@@ -193,11 +193,11 @@ export const MAX_RESUME = 2000;
 export const RESUME_DEFAULT =
   "The compaction you requested has run. Pick the work in progress up from live reads (branches, pull requests, checks, running processes), with the summary as a guide to them; if it was waiting on someone, say what it waits on and stop.";
 /**
- * What the main thread reads beside its first prompt past the prepare point, once between
+ * What the main thread reads beside its first prompt at or past the prepare point, once between
  * compactions: the procedure, at the moment it is due.
  */
 export const prepareNote = (p: Points, count: number): string =>
-  `The context is at ${tokens(count)} tokens, past the prepare point (${tokens(p.prepareTokens)}) ` +
+  `The context is at ${tokens(count)} tokens, at or past the prepare point (${tokens(p.prepareTokens)}) ` +
   `of the ${tokens(p.goalTokens)} goal. To compact near the goal, write what must survive to disk ` +
   "or the tracker first (a resume file, the arc's tracking issue), then call " +
   'mcp__compaction__request with "instructions" (what the summary keeps, named exactly), ' +
@@ -565,7 +565,8 @@ async function runPending($: Engine, p: Points, state: Store): Promise<void> {
 
 /**
  * Starts the first turn after the compaction; its failure is its own, the compaction having run.
- * The resume prompt is the thread's own word on what comes next, so no after note is owed.
+ * A resume prompt that entered is the thread's own word on what comes next, so the after note is
+ * owed only when it did not.
  */
 async function submitResume(
   $: Engine,
@@ -575,12 +576,11 @@ async function submitResume(
   ran: string,
   state: Store,
 ): Promise<void> {
-  state.write({ compacted: false });
   try {
     const entered = await $.prompt.submit({ text: pending.resume ?? RESUME_DEFAULT });
     const dropped = said(entered, "drop");
     if (dropped !== undefined) throw new Error(dropped);
-    state.write({ last: `${ran}, then submitted the resume prompt.` });
+    state.write({ compacted: false, last: `${ran}, then submitted the resume prompt.` });
     await log($, p, pending, "resumed", context);
   } catch (error: unknown) {
     const why = reason(error);
@@ -631,18 +631,45 @@ async function compaction<R>($: Engine, p: Points, trigger: string, state: Store
   }
 }
 
-/** The note a prompt carries: the after note once a compaction went through, else the prepare note once. */
-async function noteFor($: Engine, p: Points, state: Store): Promise<string | null> {
-  const { compacted, prepared, pending } = state.read();
-  if (compacted) {
+/** A note claimed for one prompt, and the flags that put it back when that prompt never enters. */
+type Note = { readonly text: string; readonly owed: Partial<Fields> };
+
+/**
+ * The note a prompt carries: the after note once a compaction went through, else the prepare
+ * note once. It is claimed here, with no await between the last read and the write, so two
+ * prompts in flight never both carry it.
+ */
+async function noteFor($: Engine, p: Points, state: Store): Promise<Note | null> {
+  if (state.read().compacted) {
     state.write({ compacted: false });
-    return AFTER_NOTE;
+    return { text: AFTER_NOTE, owed: { compacted: true } };
   }
-  if (prepared || pending !== null) return null;
+  const due = (): boolean => !state.read().prepared && state.read().pending === null;
+  if (!due()) return null;
   const { context } = await $.session.usage();
-  if (context.tokens === undefined || context.tokens < p.prepareTokens) return null;
+  if (!due() || context.tokens === undefined || context.tokens < p.prepareTokens) return null;
   state.write({ prepared: true });
-  return prepareNote(p, context.tokens);
+  return { text: prepareNote(p, context.tokens), owed: { prepared: false } };
+}
+
+/** Attaches the note a prompt is owed; one the prompt never delivered stays owed. */
+async function noted(
+  $: Engine,
+  p: Points,
+  state: Store,
+  e: Input<"prompt.submit">,
+  next: Parameters<Hook<"prompt.submit">>[2],
+) {
+  const note = e.command === undefined ? await noteFor($, p, state).catch(() => null) : null;
+  if (note === null) return next(e);
+  try {
+    const entered = await next({ ...e, context: [...(e.context ?? []), note.text] });
+    if (said(entered, "drop") !== undefined) state.write(note.owed);
+    return entered;
+  } catch (error: unknown) {
+    state.write(note.owed);
+    throw error;
+  }
 }
 
 /** The timer's callback, outside every hook, so the command waits on no turn. */
@@ -670,11 +697,7 @@ export function register(on: On, options: Options): void {
       ? next(e)
       : compaction($, p, e.trigger, state, () => next(e)),
   );
-  on("prompt.submit", async ($, e, next) => {
-    if (e.command !== undefined) return next(e);
-    const note = await noteFor($, p, state).catch(() => null);
-    return next(note === null ? e : { ...e, context: [...(e.context ?? []), note] });
-  });
+  on("prompt.submit", ($, e, next) => noted($, p, state, e, next));
   on("turn.start", (_, e, next) => {
     if (e.agentId === undefined) {
       state.read().timer?.cancel();
