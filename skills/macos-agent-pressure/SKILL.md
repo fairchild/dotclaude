@@ -2,6 +2,7 @@
 name: macos-agent-pressure
 description: Diagnose live macOS memory, swap, load, and concurrent AI-agent process pressure. Use when the user asks for a Mac or agent-resource checkup, reports queued or stalled Codex/Claude work, suspects heavy swap or too many concurrent agents, asks whether to reboot, or wants a before-and-after reassessment after closing apps or processes.
 license: Apache-2.0
+disable-model-invocation: true
 ---
 
 # macOS Agent Pressure

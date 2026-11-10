@@ -82,7 +82,6 @@ Claude loads these when the task matches the description.
 | `gh-apps` | Create, authenticate, and manage GitHub Apps. |
 | `git-worktree` | Manage Git worktrees for concurrent local development. |
 | `image-gen` | Generate images from prompts using AI APIs (OpenAI GPT Image, Google Gemini/Nano Banana, Google Imagen, fal.ai Flux). |
-| `macos-agent-pressure` | Diagnose live macOS memory, swap, load, and concurrent AI-agent process pressure. |
 | `project-scripts` | Standardize project lifecycle scripts (setup, run, stop, archive) in scripts/ so agents can manage workspaces through a… |
 | `session-titles` | Session title generation, evaluation, and optimization. |
 | `signoz-log` | Send structured logs to SigNoz observability platform. |
@@ -103,6 +102,7 @@ Claude loads these when the task matches the description.
 | `/codespaces` | Manage GitHub Codespaces lifecycle via gh CLI. |
 | `/excalidraw-diagrams` | Create diagrams and visual artifacts using Excalidraw with real-time canvas preview. |
 | `/fork` | Fork the current session with context carried over. |
+| `/macos-agent-pressure` | Diagnose live macOS memory, swap, load, and concurrent AI-agent process pressure. |
 | `/release` | Create semantic versioned releases with AI-generated changelogs, for repos that do not already have a release pipeline… |
 | `/skill-building` | Guide for creating, editing, and evaluating skills. |
 | `/team-memory` | Persistent AI teammate memory framework. |
