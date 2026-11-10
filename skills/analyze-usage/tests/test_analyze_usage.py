@@ -1177,13 +1177,14 @@ def test_model_pricing_semantics() -> None:
             "SELECT model, CAST(input_rate AS DOUBLE), CAST(output_rate AS DOUBLE) "
             "FROM model_pricing WHERE model IN "
             "('claude-fable-5', 'claude-opus-4-5-20251101', "
-            "'claude-haiku-4-5-20251001') "
+            "'claude-haiku-4-5-20251001', 'claude-opus-5') "
             "ORDER BY model;",
         )
         assert rates == [
             "claude-fable-5,10.0,50.0",
             "claude-haiku-4-5-20251001,1.0,5.0",
             "claude-opus-4-5-20251101,5.0,25.0",
+            "claude-opus-5,5.0,25.0",
         ], rates
 
         subprocess.run(
