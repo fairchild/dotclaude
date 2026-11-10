@@ -10,18 +10,14 @@
  * the points are worth can be read back over sessions (LOG_KEY, LOG_LIMIT entries).
  *
  * A main turn that ends with an answer arms one timer (IDLE_MS); a main turn that starts cancels
- * it. When it fires the mod reads the context again: a main turn begun meanwhile keeps the request
- * for that turn's end, a context below the floor drops it, and otherwise `/compact` runs once
- * through the command call. Once it has run, the mod submits the request's `resume` prompt, or
- * RESUME_DEFAULT, through `$.prompt.submit`: a compaction lands between turns, and without a
- * prompt of its own the session sits idle until something else arrives. A `/compact` counts as
- * run only when its compaction went through the mod's `session.compact` hook, since the command
- * resolves with its output even when it could not compact; one that did not submits nothing. A
- * submit a hook drops is logged `unresumed`, and a resume beginning with "/" is refused, as the
- * engine submits no command for a mod. A main-loop compaction other than a `precompute` (a typed
- * `/compact`, which starts no turn, the engine's own, or another plugin's) holds the timer while
- * it runs and, once it goes through, drops a waiting request, so the session never compacts
- * twice; one that is skipped or fails leaves the request to run, and a subagent's is ignored.
+ * it. When it fires, a main turn running keeps the request for that turn's end, and another
+ * compaction under way or a context below the floor drops it; otherwise `/compact` runs once
+ * through the command call and, once its compaction went through the `session.compact` hook (the
+ * command resolves even when it could not compact), the mod submits the request's `resume`, or
+ * RESUME_DEFAULT: a compaction lands between turns, and the session would otherwise sit idle. A
+ * resume beginning with "/" is refused, as the engine submits no command for a mod. Any other
+ * main-loop compaction but a precompute (a typed `/compact`, which starts no turn, the engine's,
+ * another plugin's) that goes through drops a waiting request, so the session never compacts twice.
  * State is lost on a reload. Its other hooks pass each event on unchanged; its
  * tool hooks answer only its own two tools. `claude plugin validate --json mods/compaction`
  * lists its hooks and `$` calls, the tests hold the command to `compact` and the submitted text
@@ -270,15 +266,15 @@ export type Entry = Request & {
   readonly why?: string;
 };
 
-/** One registration's state; `turns` counts the main turns begun. */
+/** One registration's state: `ours` marks the mod's /compact sent, `through` its compaction done. */
 type Fields = {
   readonly pending: Request | null;
   readonly timer: Timer | null;
-  readonly turns: number;
+  readonly active: boolean;
   readonly last: string;
-  /** Main-loop compactions under way, and those that went through (neither skipped nor failed). */
   readonly compacting: number;
-  readonly compacted: number;
+  readonly ours: boolean;
+  readonly through: boolean;
 };
 
 type Store = { readonly read: () => Fields; readonly write: (change: Partial<Fields>) => void };
@@ -287,10 +283,11 @@ function store(): Store {
   let fields: Fields = {
     pending: null,
     timer: null,
-    turns: 0,
+    active: false,
     last: "none in this session.",
     compacting: 0,
-    compacted: 0,
+    ours: false,
+    through: false,
   };
   return {
     read: () => fields,
@@ -484,36 +481,46 @@ async function requestAnswer($: Engine, p: Points, e: Input<"tool.call">, state:
   );
 }
 
-/** Runs the pending request from the timer, unless a main turn began or the context fell. */
+/**
+ * Runs the pending request from the timer. A main turn running leaves it for that turn's end;
+ * another compaction under way, before or after the context is read, drops it.
+ */
 async function runPending($: Engine, p: Points, state: Store): Promise<void> {
-  const begun = state.read().turns;
+  const { pending, compacting } = state.read();
+  if (pending === null) return;
   const { context } = await $.session.usage({ breakdown: "summary" });
-  const { pending, turns, compacting } = state.read();
-  if (pending === null || turns !== begun || compacting > 0) return;
+  const now = state.read();
+  if (now.pending !== pending || now.active) return;
   state.write({ pending: null });
-  if (context.tokens === undefined || context.tokens < p.floorTokens) {
-    const was =
-      context.tokens === undefined
-        ? "not measured when it was due; a compaction may have run."
-        : `${tokens(context.tokens)} tokens when it was due, below ${floor(p)}; an automatic compaction may have run.`;
-    state.write({ last: `dropped, as the context was ${was}` });
-    await log($, p, pending, "dropped", context, was);
+  const count = context.tokens;
+  const why =
+    compacting + now.compacting > 0
+      ? "another compaction was under way when it was due."
+      : count === undefined
+        ? "the context was not measured when it was due; a compaction may have run."
+        : count < p.floorTokens
+          ? `the context was ${tokens(count)} tokens when it was due, below ${floor(p)}; an automatic compaction may have run.`
+          : null;
+  if (why !== null) {
+    state.write({ last: `dropped, as ${why}` });
+    await log($, p, pending, "dropped", context, why);
     return;
   }
-  const before = state.read().compacted;
+  state.write({ ours: true, through: false });
   let failed: string | null;
   try {
     const output = await $.command.run({ command: "compact", args: pending.instructions });
-    failed = state.read().compacted > before ? null : (said(output, "text") ?? "no compaction ran");
+    failed = state.read().through ? null : (said(output, "text") ?? "no compaction ran");
   } catch (error: unknown) {
     failed = reason(error);
   }
+  state.write({ ours: false, through: false });
   if (failed !== null) {
     state.write({ last: `/compact did not run: ${failed}.` });
     await log($, p, pending, "failed", context, failed);
     return;
   }
-  const ran = `ran /compact at ${tokens(context.tokens)} tokens`;
+  const ran = `ran /compact at ${tokens(count ?? 0)} tokens`;
   state.write({ last: `${ran}.` });
   await log($, p, pending, "ran", context);
   await submitResume($, p, pending, context, ran, state);
@@ -563,35 +570,22 @@ async function yieldTo($: Engine, p: Points, trigger: string, state: Store): Pro
 }
 
 /**
- * Wraps a main-loop compaction other than a precompute. While it runs the timer holds off; once
- * it goes through it counts, so the mod can tell its own /compact went through, and a request
- * waiting is dropped. One that a hook skips or that fails leaves the request standing, its
- * timer armed again if the wait had passed.
+ * A main-loop compaction other than a precompute. The first to start after the mod's /compact
+ * is sent is that /compact's, and going through marks it run; any other that goes through
+ * drops a waiting request. One skipped or failed changes nothing.
  */
 async function compaction<R>($: Engine, p: Points, trigger: string, state: Store, run: () => Promise<R>): Promise<R> {
-  state.write({ compacting: state.read().compacting + 1 });
-  let result: R;
+  const mine = state.read().ours;
+  state.write({ ours: false, compacting: state.read().compacting + 1 });
   try {
-    result = await run();
-  } catch (error: unknown) {
-    settle($, p, state);
-    throw error;
-  }
-  if (said(result, "skip") !== undefined) {
-    settle($, p, state);
+    const result = await run();
+    if (said(result, "skip") === undefined) {
+      if (mine) state.write({ through: true });
+      else await yieldTo($, p, trigger, state);
+    }
     return result;
-  }
-  state.write({ compacting: state.read().compacting - 1, compacted: state.read().compacted + 1 });
-  await yieldTo($, p, trigger, state);
-  return result;
-}
-
-/** After a compaction that did not go through: a request still waiting gets its timer back. */
-function settle($: Engine, p: Points, state: Store): void {
-  const { compacting, pending, timer } = state.read();
-  state.write({ compacting: compacting - 1 });
-  if (pending !== null && timer === null) {
-    state.write({ timer: $.clock.after(IDLE_MS, () => fire($, p, state)) });
+  } finally {
+    state.write({ compacting: state.read().compacting - 1 });
   }
 }
 
@@ -622,14 +616,14 @@ export function register(on: On, options: Options): void {
   );
   on("turn.start", (_, e, next) => {
     if (e.agentId === undefined) {
-      const { timer, turns } = state.read();
-      timer?.cancel();
-      state.write({ timer: null, turns: turns + 1 });
+      state.read().timer?.cancel();
+      state.write({ timer: null, active: true });
     }
     return next(e);
   });
   on("turn.complete", ($, e, next) => {
     if (e.agentId !== undefined) return next(e);
+    state.write({ active: false });
     const { pending, timer } = state.read();
     if (e.reason === "answer" && pending !== null && timer === null) {
       const fires = () => {

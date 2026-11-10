@@ -267,15 +267,20 @@ const SUMMARY = [{ role: 'user' as const, text: 'the summary', toolUses: [] }]
 
 /** How the world beneath the mod answers: each call's failure shape, and the first compaction's. */
 type World = {
-  /** `throws` rejects; `fails` resolves with the output text, as the engine does when it cannot compact. */
-  readonly compact?: 'throws' | 'fails'
+  /**
+   * `throws` rejects; `fails` resolves with the output text, as the engine does when it cannot
+   * compact; `fails beside another` does so while another compaction goes through within it.
+   */
+  readonly compact?: 'throws' | 'fails' | 'fails beside another'
   /** `throws` rejects; `drops` resolves `{ drop }`, as a hook's refusal does. */
   readonly submit?: 'throws' | 'drops'
   /** The first compaction is skipped by a hook beneath, or held until `release`. */
   readonly first?: 'skipped' | 'held' | 'held, then skipped'
   /** Runs after the turn ends and before the wait passes; `after`, once it has. */
   readonly meanwhile?: () => Promise<unknown>
-  readonly after?: () => Promise<unknown>
+  readonly after?: (commands: readonly unknown[]) => Promise<unknown>
+  /** As the timer reads the context: the held compaction is released, or a main turn starts. */
+  readonly onRead?: 'release' | 'turn'
 }
 
 /** A gate the held compaction waits on. */
@@ -288,9 +293,17 @@ async function compacted($: Engine, on: On, request: Readonly<Record<string, str
   const commands: { command: string; args?: string }[] = []
   const submitted: string[] = []
   let compactions = 0
-  on('session.usage', () => ({ value: usage(240_000, 267_000) }))
+  let reads = 0
+  on('session.usage', () => {
+    reads += 1
+    if (world.onRead === 'release' && reads > 2) release()
+    if (world.onRead === 'turn' && reads === 3) void $.turn.start({ text: 'more', turnId: 't2' })
+
+    return { value: usage(240_000, 267_000) }
+  })
   on('tool.register', (_, e) => ({ value: { tool: e.name } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
   on('session.compact', async () => {
     compactions += 1
@@ -301,7 +314,9 @@ async function compacted($: Engine, on: On, request: Readonly<Record<string, str
       })
       if (world.first === 'held, then skipped') return { skip: 'a hook beneath said no' }
     }
-    if (world.compact === 'fails') throw new Error('Not enough messages to compact.')
+    if (world.compact === 'fails' || (world.compact === 'fails beside another' && compactions === 1)) {
+      throw new Error('Not enough messages to compact.')
+    }
 
     return { messages: SUMMARY }
   })
@@ -311,6 +326,9 @@ async function compacted($: Engine, on: On, request: Readonly<Record<string, str
     try {
       await $.session.compact({ trigger: 'manual', messages: SUMMARY })
     } catch {
+      if (world.compact === 'fails beside another') {
+        await $.session.compact({ trigger: 'auto', messages: SUMMARY })
+      }
       return { text: 'Not enough messages to compact.' }
     }
 
@@ -336,7 +354,7 @@ async function compacted($: Engine, on: On, request: Readonly<Record<string, str
   })
   await world.meanwhile?.()
   await clock.advance(IDLE_MS)
-  await world.after?.()
+  await world.after?.(commands)
   await clock.advance(IDLE_MS)
 
   const last = String((await $.tool.call({ tool: 'mcp__compaction__context' })).result)
@@ -480,19 +498,59 @@ test('a typed /compact still running when the wait passes holds the request, the
   expect(run.outcomes).toEqual(['recorded', 'dropped'])
 })
 
-test('a typed /compact skipped after the wait passed arms the wait again, and the request runs', async ($, on) => {
+test('a held compaction skipped while the due timer reads the context drops the request, and nothing runs', async ($, on) => {
   let typed: Promise<unknown> = Promise.resolve()
   const run = await compacted($, on, ASKED, {
     first: 'held, then skipped',
+    onRead: 'release',
     meanwhile: async () => {
       typed = $.session.compact({ trigger: 'manual', messages: SUMMARY })
     },
-    after: async () => {
-      release()
-      await typed
+    after: () => typed,
+  })
+
+  expect(run.commands).toEqual([])
+  expect(run.outcomes).toEqual(['recorded', 'dropped'])
+  expect(run.last).toContain('another compaction was under way when it was due.')
+})
+
+test("another compaction going through inside the mod's failed /compact is not credited to it", async ($, on) => {
+  const run = await compacted($, on, ASKED, { compact: 'fails beside another' })
+
+  expect(run.commands).toHaveLength(1)
+  expect(run.submitted).toEqual([])
+  expect(run.outcomes).toEqual(['recorded', 'failed'])
+})
+
+test('an automatic compaction skipped mid-turn arms nothing; the request waits for the turn to end', async ($, on) => {
+  let midTurn = -1
+  const run = await compacted($, on, ASKED, {
+    first: 'skipped',
+    meanwhile: async () => {
+      await $.turn.start({ text: 'more', turnId: 't2' })
+      await $.session.compact({ trigger: 'auto', messages: SUMMARY })
+    },
+    after: async (commands) => {
+      midTurn = commands.length
+      await $.turn.complete({ answer: 'done', durationMs: 1, isAborted: false, turnId: 't2', reason: 'answer' })
     },
   })
 
+  expect(midTurn).toBe(0)
   expect(run.commands).toEqual([{ command: 'compact', args: 'keep the merge order' }])
+  expect(run.outcomes).toEqual(['recorded', 'ran', 'resumed'])
+})
+
+test('a main turn starting while the due timer reads the context keeps the request for its end', async ($, on) => {
+  let midTurn = -1
+  const run = await compacted($, on, ASKED, {
+    onRead: 'turn',
+    after: async (commands) => {
+      midTurn = commands.length
+      await $.turn.complete({ answer: 'done', durationMs: 1, isAborted: false, turnId: 't2', reason: 'answer' })
+    },
+  })
+
+  expect(midTurn).toBe(0)
   expect(run.outcomes).toEqual(['recorded', 'ran', 'resumed'])
 })
