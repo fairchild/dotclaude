@@ -9,12 +9,18 @@ so rerun `claude plugin validate --json mods/<name>` when Claude Code updates.
 - **`compaction`**: `mcp__compaction__context` reports the context against the points below;
   `mcp__compaction__request` records a `/compact` with instructions for the summary and the
   reasoning for compacting now, which the mod runs from a timer once the main thread's turn ends
-  and the session goes idle. Each request is kept in the mod's store, reasoning included.
+  and the session goes idle. Once `/compact` has run, the mod submits the request's `resume`
+  prompt, or a generic one, so the first turn after the compaction starts on its own instead of
+  waiting for the next event to arrive. A main-thread `/compact` typed during the wait, or the
+  engine's automatic compaction, drops a pending request instead of compacting twice; a
+  subagent's compaction does not. Each request is kept in the mod's store, reasoning included.
 
-Each mod only observes or answers its own tools, and makes no network or process call, and no
-file-system call of its own: the compaction mod's reading goes through `$.store`, the JSON file
-the engine keeps for a plugin under the configuration directory, and nothing else is written.
-The compaction mod's one command call runs `compact`. The validator's notes list each mod's hooks
+`usage-meter` only observes. `compaction` answers its own tools and acts on its own tool's
+request: its one command call runs `compact`, and its one prompt call submits the resume prompt
+after it, which starts a model turn as a typed prompt would. Neither mod makes a network or
+process call of its own, nor a file-system call: the compaction mod's reading goes through
+`$.store`, the JSON file the engine keeps for a plugin under the configuration directory, and
+nothing else is written. The validator's notes list each mod's hooks
 and `$` calls, and a change to either list is a change to what the mod can do.
 
 ## Install
@@ -57,6 +63,18 @@ On a machine, install them from this repository's marketplace, as the main READM
 
 The mods load only from user settings: declared in a repository's `.claude/settings.json`, they do
 not load.
+
+## Taking an update
+
+An install from GitHub tracks commits (no pinned `version`, above), so a merge to `main` reaches an
+installed copy only once the marketplace is refreshed, the plugin updated and the session
+restarted:
+
+```
+claude plugin marketplace update dotclaude && claude plugin update compaction@dotclaude
+```
+
+Then restart Claude Code; `usage-meter@dotclaude` updates the same way.
 
 ## Compaction points
 
@@ -113,8 +131,12 @@ The context report reads the engine's point in three bands against the goal:
 
 `mcp__compaction__request` takes `reasoning` beside `instructions`: why compacting now beats
 carrying on. Each request is appended to `$.store` under `requests` — the newest `LOG_LIMIT`
-(200), the oldest dropped — with the outcome (`recorded`, `refused`, `ran`, `dropped`, `failed`),
-the context and the points it was judged against, the instructions and the reasoning.
+(200), the oldest dropped — with the outcome (`recorded`, `refused`, `ran`, `dropped`, `failed`; `dropped` also when another compaction runs first),
+the context and the points it was judged against, the instructions, the reasoning and the resume
+prompt when one was given. A request that ran adds a second entry for the resume prompt: `resumed`
+when it was submitted, `unresumed`, with the reason, when the submit failed or a hook dropped it.
+`ran` means the compaction went through: a `/compact` that answers "Not enough messages to
+compact." is `failed`, and nothing is submitted after it.
 
 That reading is what makes the points answerable rather than asserted: a floor that refuses
 requests the thread keeps making is too high, a prepare point the engine's backstop keeps

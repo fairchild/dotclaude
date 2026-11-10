@@ -210,7 +210,7 @@ From a terminal, the same line starts with `claude plugin install`. The first in
 
 ## Mods
 
-A mod is a plugin whose hooks module runs inside the engine, so it can answer tools of its own and act between turns. These two observe and answer; neither makes a network, process or file-system call. [`mods/`](mods/README.md) has the full rules.
+A mod is a plugin whose hooks module runs inside the engine, so it can answer tools of its own and act between turns. `usage-meter` only observes; `compaction` answers its tools, runs `/compact` when the thread asks, and then submits a prompt to start the next turn. Neither makes a network, process or file-system call of its own. [`mods/`](mods/README.md) has the full rules.
 
 ```
 /plugin install usage-meter --marketplace fairchild/dotclaude
@@ -247,7 +247,7 @@ The mods become a directory marketplace named `dotclaude`, so their plugin IDs m
 |-----|------|--------------|
 | `usage-meter` | `mcp__usage-meter__reading` | The account's five-hour and seven-day windows: how much is used and when each resets. Ask "how much usage is left?" |
 | `compaction` | `mcp__compaction__context` | Where the session sits against its context goal, the request floor and the prepare point. Ask "how's my context?" |
-| | `mcp__compaction__request` | Records a `/compact` with instructions for the summary and the reasoning for compacting now; the mod runs it once the turn ends. Say "compact when this turn is done, keeping the merge order" |
+| | `mcp__compaction__request` | Records a `/compact` with instructions for the summary, the reasoning for compacting now, and optionally a `resume` prompt; the mod runs it once the turn ends, then submits the resume prompt (or a generic one) so the session carries on rather than waiting idle. Say "compact when this turn is done, keeping the merge order" |
 
 The point of `request` over plain `/compact`: the engine's automatic compaction takes no instructions, so it decides for itself what survives. A thread that asks gets to say what must not be lost. Each request is kept, reasoning included, so the points can be judged against the moments they were asked for.
 

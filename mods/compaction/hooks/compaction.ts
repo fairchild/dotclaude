@@ -1,7 +1,7 @@
 /**
  * The compaction mod: the main thread compacts at a moment it chooses, with
- * instructions for the summary. `mcp__compaction__context` answers `$.session.usage()` against
- * its points and the engine's auto-compaction threshold, so no value here has to match the settings;
+ * instructions for the summary and a prompt to resume on. `mcp__compaction__context` answers
+ * `$.session.usage()` against its points and the engine's auto-compaction threshold, so no value here has to match the settings;
  * `mcp__compaction__request` records one pending request (a second replaces it), refusing a
  * subagent, bad instructions, and a context below the floor or not yet measured. Both points
  * derive from one goal, the default context target the thread may run past on judgement, which
@@ -10,12 +10,18 @@
  * the points are worth can be read back over sessions (LOG_KEY, LOG_LIMIT entries).
  *
  * A main turn that ends with an answer arms one timer (IDLE_MS); a main turn that starts cancels
- * it. When it fires the mod reads the context again: a main turn begun meanwhile keeps the request
- * for that turn's end, a context below the floor drops it, and otherwise `/compact` runs once
- * through the command call, spike 10's route (`spikes/10-cloud-mods/`). State is lost on a reload.
- * Its other hooks pass each event on unchanged; its tool hooks answer only its own two tools.
- * `pnpm gates mods` holds its hooks and `$` calls to mods/allowlist.json, a test holds the command
- * to `compact`, and the types narrow Claude Code 2.1.316's mod API to what the mod uses.
+ * it. When it fires, a main turn running keeps the request for that turn's end, and another
+ * compaction under way or a context below the floor drops it; otherwise `/compact` runs once
+ * through the command call and, once its compaction went through the `session.compact` hook (the
+ * command resolves even when it could not compact), the mod submits the request's `resume`, or
+ * RESUME_DEFAULT: a compaction lands between turns, and the session would otherwise sit idle. A
+ * resume beginning with "/" is refused, as the engine submits no command for a mod. Any other
+ * main-loop compaction but a precompute (a typed `/compact`, which starts no turn, the engine's,
+ * another plugin's) that goes through drops a waiting request, so the session never compacts twice.
+ * State is lost on a reload. Its other hooks pass each event on unchanged; its
+ * tool hooks answer only its own two tools. `claude plugin validate --json mods/compaction`
+ * lists its hooks and `$` calls, the tests hold the command to `compact` and the submitted text
+ * to the request's, and the types narrow Claude Code 2.1.316's mod API to what the mod uses.
  */
 
 /**
@@ -43,7 +49,7 @@ export type ToolSpec = {
 
 export type Timer = { readonly cancel: () => void };
 
-/** The engine interface (`$`), narrowed to the four calls the mod makes. */
+/** The engine interface (`$`), narrowed to the calls the mod makes. */
 export type Engine = {
   readonly session: { readonly usage: Usage };
   readonly tool: { readonly register: (tool: ToolSpec) => Promise<{ readonly tool: string }> };
@@ -60,6 +66,10 @@ export type Engine = {
   /** `run` runs a slash command as if the person typed it, queued until the session is idle. */
   readonly command: {
     readonly run: (args: { readonly command: string; readonly args?: string }) => Promise<unknown>;
+  };
+  /** `submit` starts a turn of its own with `text` once the session is idle, framed as the mod's. */
+  readonly prompt: {
+    readonly submit: (args: { readonly text: string }) => Promise<unknown>;
   };
 };
 
@@ -83,6 +93,14 @@ type Events = {
     readonly input: { readonly text: string; readonly turnId: string; readonly agentId?: string };
     readonly result: { readonly turnId: string };
   };
+  readonly "session.compact": {
+    /** Who compacts, and the loop (absent on the main loop); the transcript is not read. */
+    readonly input: {
+      readonly trigger: "manual" | "auto" | "plugin" | "precompute";
+      readonly agentId?: string;
+    };
+    readonly result: unknown;
+  };
   readonly "turn.complete": {
     readonly input: {
       readonly answer: string;
@@ -105,12 +123,13 @@ export type Hook<E extends EventName> = (
   next: (e: Input<E>) => Promise<Result<E>>,
 ) => Promise<Result<E>>;
 
-/** `on(event, matcher?, hook)`, for the four events the mod hooks (`On`). */
+/** `on(event, matcher?, hook)`, for the five events the mod hooks (`On`). */
 export type On = {
   (event: "session.start", hook: Hook<"session.start">): unknown;
   (event: "tool.call", matcher: { readonly tool: string }, hook: Hook<"tool.call">): unknown;
   (event: "turn.start", hook: Hook<"turn.start">): unknown;
   (event: "turn.complete", hook: Hook<"turn.complete">): unknown;
+  (event: "session.compact", hook: Hook<"session.compact">): unknown;
 };
 
 /** The goal and the two points a request is judged against, in tokens. */
@@ -155,6 +174,10 @@ const backstop = (p: Points): number => p.goalTokens - BACKSTOP_TOKENS;
 export const IDLE_MS = 3000;
 export const MAX_INSTRUCTIONS = 2000;
 export const MAX_REASONING = 400;
+export const MAX_RESUME = 2000;
+/** What the thread is told after a compaction it asked for, when its request named no resume. */
+export const RESUME_DEFAULT =
+  "The compaction you requested has run. Continue the work in progress from the summary; if it was waiting on someone, say what it waits on and stop.";
 /** Where the requests are kept, and how many: the newest LOG_LIMIT, oldest dropped. */
 export const LOG_KEY = "requests";
 export const LOG_LIMIT = 200;
@@ -181,6 +204,16 @@ const REASONING = {
     `${tokens(MAX_REASONING)} characters.`,
 };
 
+const RESUME = {
+  type: "string",
+  minLength: 1,
+  maxLength: MAX_RESUME,
+  description:
+    "The prompt the mod submits once the compaction has run, starting the first turn after it: " +
+    "what to pick up and where its state lives, as you would want to read it then. Absent, a " +
+    `generic prompt to continue. 1 to ${tokens(MAX_RESUME)} characters, not beginning with "/".`,
+};
+
 const CONTEXT_TOOL: ToolSpec = {
   name: "context",
   description:
@@ -194,24 +227,36 @@ const REQUEST_TOOL: ToolSpec = {
   name: "request",
   description:
     "Asks for a compaction at the end of this turn: once the main thread's turn ends and no " +
-    "other starts within a few seconds, runs /compact with these instructions. One request " +
+    "other starts within a few seconds, runs /compact with these instructions, then submits " +
+    "the resume prompt (or a generic one) so the next turn starts on its own. One request " +
     "waits at a time, and a second replaces it. Refused from a subagent, below the request " +
     "floor, or while the context is not measured. Its reasoning is kept across sessions.",
   inputSchema: {
     type: "object",
-    properties: { instructions: INSTRUCTIONS, reasoning: REASONING },
+    properties: { instructions: INSTRUCTIONS, reasoning: REASONING, resume: RESUME },
     required: ["instructions", "reasoning"],
     additionalProperties: false,
   },
 };
 
-/** One request as the thread made it: what the summary must keep, and why now. */
-export type Request = { readonly instructions: string; readonly reasoning: string };
+/** One request as the thread made it: what the summary must keep, why now, and what to resume on. */
+export type Request = {
+  readonly instructions: string;
+  readonly reasoning: string;
+  readonly resume?: string;
+};
 
 /** One request as the store keeps it: what was asked, where, and what became of it. */
 export type Entry = Request & {
   readonly at: number;
-  readonly outcome: "recorded" | "refused" | "ran" | "dropped" | "failed";
+  readonly outcome:
+    | "recorded"
+    | "refused"
+    | "ran"
+    | "dropped"
+    | "failed"
+    | "resumed"
+    | "unresumed";
   readonly tokens: number | null;
   readonly window: number;
   readonly goalTokens: number;
@@ -221,18 +266,29 @@ export type Entry = Request & {
   readonly why?: string;
 };
 
-/** One registration's state; `turns` counts the main turns begun. */
+/** One registration's state: `ours` marks the mod's /compact sent, `through` its compaction done. */
 type Fields = {
   readonly pending: Request | null;
   readonly timer: Timer | null;
-  readonly turns: number;
+  readonly active: boolean;
   readonly last: string;
+  readonly compacting: number;
+  readonly ours: boolean;
+  readonly through: boolean;
 };
 
 type Store = { readonly read: () => Fields; readonly write: (change: Partial<Fields>) => void };
 
 function store(): Store {
-  let fields: Fields = { pending: null, timer: null, turns: 0, last: "none in this session." };
+  let fields: Fields = {
+    pending: null,
+    timer: null,
+    active: false,
+    last: "none in this session.",
+    compacting: 0,
+    ours: false,
+    through: false,
+  };
   return {
     read: () => fields,
     write: (change) => {
@@ -242,6 +298,16 @@ function store(): Store {
 }
 
 const reason = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
+/**
+ * The text an engine answer carries under `key`: a /compact's output (which resolves, not
+ * throws, when the compaction fails: "Not enough messages to compact."), a submit's `drop`.
+ */
+function said(answer: unknown, key: string): string | undefined {
+  if (typeof answer !== "object" || answer === null) return undefined;
+  const value: unknown = (answer as Readonly<Record<string, unknown>>)[key];
+  return typeof value === "string" ? value : undefined;
+}
 
 /**
  * Appends one request, the points and the context it was judged against stamped on it: the
@@ -361,7 +427,7 @@ async function refusal($: Engine, p: Points, e: Input<"tool.call">, request: Req
     return `only the main thread compacts the session, and this call came from a subagent (${e.agentId}).`;
   }
   if (request === null) {
-    return `"instructions" must be text of 1 to ${tokens(MAX_INSTRUCTIONS)} characters naming what the summary must keep, and "reasoning" text of 1 to ${tokens(MAX_REASONING)} characters saying why compact now.`;
+    return `"instructions" must be text of 1 to ${tokens(MAX_INSTRUCTIONS)} characters naming what the summary must keep, "reasoning" text of 1 to ${tokens(MAX_REASONING)} characters saying why compact now, and "resume", when given, text of 1 to ${tokens(MAX_RESUME)} characters to start the next turn on, not beginning with "/", since the engine submits no command for a mod.`;
   }
   const { context } = await $.session.usage();
   if (context.tokens === undefined) {
@@ -379,17 +445,24 @@ function text(e: Input<"tool.call">, field: string, most: number): string | null
   return trimmed.length > 0 && trimmed.length <= most ? trimmed : null;
 }
 
+/** A resume prompt that reads as prose: one beginning with "/" is a command, which `$.prompt.submit` refuses. */
+const prose = (given: string | null): string | null => (given?.startsWith("/") ? null : given);
+
 async function requestAnswer($: Engine, p: Points, e: Input<"tool.call">, state: Store) {
   const instructions = text(e, "instructions", MAX_INSTRUCTIONS);
   const reasoning = text(e, "reasoning", MAX_REASONING);
+  const resume = e["resume"] === undefined ? undefined : prose(text(e, "resume", MAX_RESUME));
   const request =
-    instructions === null || reasoning === null ? null : { instructions, reasoning };
+    instructions === null || reasoning === null || resume === null
+      ? null
+      : { instructions, reasoning, ...(resume === undefined ? {} : { resume }) };
   const refused = await refusal($, p, e, request);
   if (refused !== null || request === null) {
     const { context } = await $.session.usage({ breakdown: "summary" });
     const asked = request ?? {
       instructions: instructions ?? "",
       reasoning: reasoning ?? "",
+      ...(typeof resume === "string" ? { resume } : {}),
     };
     await log($, p, asked, "refused", context, refused ?? "");
     return answer(`Refused: ${refused ?? ""}`);
@@ -402,35 +475,117 @@ async function requestAnswer($: Engine, p: Points, e: Input<"tool.call">, state:
   await log($, p, request, "recorded", context);
   return answer(
     `Recorded. The mod runs /compact with these instructions ${String(IDLE_MS / 1000)} s after ` +
-      "this main turn ends, unless another turn starts first; automatic compaction stays the " +
-      `backstop.${replaced}`,
+      "this main turn ends, unless another turn starts first, then submits " +
+      `${request.resume === undefined ? "a generic prompt to continue" : "your resume prompt"}; ` +
+      `automatic compaction stays the backstop.${replaced}`,
   );
 }
 
-/** Runs the pending request from the timer, unless a main turn began or the context fell. */
+/**
+ * Runs the pending request from the timer. A main turn running leaves it for that turn's end;
+ * another compaction under way, before or after the context is read, drops it.
+ */
 async function runPending($: Engine, p: Points, state: Store): Promise<void> {
-  const begun = state.read().turns;
+  const { pending, compacting } = state.read();
+  if (pending === null) return;
   const { context } = await $.session.usage({ breakdown: "summary" });
-  const { pending, turns } = state.read();
-  if (pending === null || turns !== begun) return;
+  const now = state.read();
+  if (now.pending !== pending || now.active) return;
   state.write({ pending: null });
-  if (context.tokens === undefined || context.tokens < p.floorTokens) {
-    const was =
-      context.tokens === undefined
-        ? "not measured when it was due; a compaction may have run."
-        : `${tokens(context.tokens)} tokens when it was due, below ${floor(p)}; an automatic compaction may have run.`;
-    state.write({ last: `dropped, as the context was ${was}` });
-    await log($, p, pending, "dropped", context, was);
+  const count = context.tokens;
+  const why =
+    compacting + now.compacting > 0
+      ? "another compaction was under way when it was due."
+      : count === undefined
+        ? "the context was not measured when it was due; a compaction may have run."
+        : count < p.floorTokens
+          ? `the context was ${tokens(count)} tokens when it was due, below ${floor(p)}; an automatic compaction may have run.`
+          : null;
+  if (why !== null) {
+    state.write({ last: `dropped, as ${why}` });
+    await log($, p, pending, "dropped", context, why);
     return;
   }
+  state.write({ ours: true, through: false });
+  let failed: string | null;
   try {
-    await $.command.run({ command: "compact", args: pending.instructions });
-    state.write({ last: `ran /compact at ${tokens(context.tokens)} tokens.` });
-    await log($, p, pending, "ran", context);
+    const output = await $.command.run({ command: "compact", args: pending.instructions });
+    failed = state.read().through ? null : (said(output, "text") ?? "no compaction ran");
+  } catch (error: unknown) {
+    failed = reason(error);
+  }
+  state.write({ ours: false, through: false });
+  if (failed !== null) {
+    state.write({ last: `/compact did not run: ${failed}.` });
+    await log($, p, pending, "failed", context, failed);
+    return;
+  }
+  const ran = `ran /compact at ${tokens(count ?? 0)} tokens`;
+  state.write({ last: `${ran}.` });
+  await log($, p, pending, "ran", context);
+  await submitResume($, p, pending, context, ran, state);
+}
+
+/** Starts the first turn after the compaction; its failure is its own, the compaction having run. */
+async function submitResume(
+  $: Engine,
+  p: Points,
+  pending: Request,
+  context: ContextUsage,
+  ran: string,
+  state: Store,
+): Promise<void> {
+  try {
+    const entered = await $.prompt.submit({ text: pending.resume ?? RESUME_DEFAULT });
+    const dropped = said(entered, "drop");
+    if (dropped !== undefined) throw new Error(dropped);
+    state.write({ last: `${ran}, then submitted the resume prompt.` });
+    await log($, p, pending, "resumed", context);
   } catch (error: unknown) {
     const why = reason(error);
-    state.write({ last: `/compact did not run: ${why}.` });
-    await log($, p, pending, "failed", context, why);
+    state.write({ last: `${ran}, but the resume prompt did not submit: ${why}.` });
+    await log($, p, pending, "unresumed", context, why);
+  }
+}
+
+/**
+ * A main-loop compaction other than a precompute that goes through while a request waits (a
+ * typed /compact, the engine's own, another plugin's) drops the pending request: its context is
+ * spent, and running it as well would compact twice and resume on a summary the request never
+ * asked for. The mod's own compaction finds nothing pending, as the request leaves the state
+ * before its /compact runs.
+ */
+async function yieldTo($: Engine, p: Points, trigger: string, state: Store): Promise<void> {
+  const { pending, timer } = state.read();
+  if (pending === null) return;
+  timer?.cancel();
+  const why = `a ${trigger} compaction ran first.`;
+  state.write({ pending: null, timer: null, last: `dropped, as ${why}` });
+  try {
+    const { context } = await $.session.usage({ breakdown: "summary" });
+    await log($, p, pending, "dropped", context, why);
+  } catch {
+    // The reading is worth less than the compaction it describes.
+  }
+}
+
+/**
+ * A main-loop compaction other than a precompute. The first to start after the mod's /compact
+ * is sent is that /compact's, and going through marks it run; any other that goes through
+ * drops a waiting request. One skipped or failed changes nothing.
+ */
+async function compaction<R>($: Engine, p: Points, trigger: string, state: Store, run: () => Promise<R>): Promise<R> {
+  const mine = state.read().ours;
+  state.write({ ours: false, compacting: state.read().compacting + 1 });
+  try {
+    const result = await run();
+    if (said(result, "skip") === undefined) {
+      if (mine) state.write({ through: true });
+      else await yieldTo($, p, trigger, state);
+    }
+    return result;
+  } finally {
+    state.write({ compacting: state.read().compacting - 1 });
   }
 }
 
@@ -454,16 +609,21 @@ export function register(on: On, options: Options): void {
   });
   on("tool.call", { tool: "mcp__compaction__context" }, ($) => contextAnswer($, p, state));
   on("tool.call", { tool: "mcp__compaction__request" }, ($, e) => requestAnswer($, p, e, state));
+  on("session.compact", ($, e, next) =>
+    e.agentId !== undefined || e.trigger === "precompute"
+      ? next(e)
+      : compaction($, p, e.trigger, state, () => next(e)),
+  );
   on("turn.start", (_, e, next) => {
     if (e.agentId === undefined) {
-      const { timer, turns } = state.read();
-      timer?.cancel();
-      state.write({ timer: null, turns: turns + 1 });
+      state.read().timer?.cancel();
+      state.write({ timer: null, active: true });
     }
     return next(e);
   });
   on("turn.complete", ($, e, next) => {
     if (e.agentId !== undefined) return next(e);
+    state.write({ active: false });
     const { pending, timer } = state.read();
     if (e.reason === "answer" && pending !== null && timer === null) {
       const fires = () => {
