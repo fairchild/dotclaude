@@ -60,31 +60,42 @@ not load.
 
 ## Compaction points
 
-One number is worth setting, `goalTokens`: the context a session means to stay under, 300,000
-unless the manifest's `userConfig` says otherwise (`/config`, or
-`claude plugin configure compaction`). The two points the mod judges a request against follow
-from it, and either takes an override:
+The mod gives the main thread the choice of when to compact. It sets a default target, the goal,
+and leaves the thread free to run past it on judgement, up to the engine's own automatic
+compaction. Compacting at a moment the thread picks, with instructions for the summary, keeps
+more of what matters than a cut that lands mid-thought, and a thread that is in the middle of
+live work can do better by carrying on than by compacting on schedule.
 
-| Point | Derivation | At a 300k goal |
-| --- | --- | --- |
-| request floor | half the goal | 150,000 |
-| prepare point | the goal less `RUNWAY_TOKENS` (80,000) | 220,000 |
-| automatic compaction | the engine's; reported, never set | 267,000 |
+One number is worth setting, `goalTokens`: 300,000 unless the manifest's `userConfig` says
+otherwise (`/config`, or `claude plugin configure compaction`). The two points the mod judges a
+request against follow from it, and either takes an override:
+
+| Point | Derivation | At a 300k goal | What it does |
+| --- | --- | --- | --- |
+| request floor | half the goal | 150,000 | below it a request is refused, since compacting that early frees too little for its cost |
+| prepare point | the goal less `RUNWAY_TOKENS` (80,000) | 220,000 | where a thread that means to stop at the goal starts getting ready |
+| goal | `goalTokens` | 300,000 | the default target; past it, compacting is a judgement call |
+| automatic compaction | the engine's; reported, never set | `autoCompactWindow` less 33,000 | the top end, where the engine compacts without instructions |
 
 The floor is a share because half a budget is half a budget whatever the budget is. The runway
 is an absolute because what it pays for does not scale with the window: a closing turn, a resume
-file, the request, `IDLE_MS = 3000` of idle wait, and the `/compact` round trip. A request below
-the floor is refused, since compacting that early frees too little for its cost.
+file, the request, `IDLE_MS = 3000` of idle wait, and the `/compact` round trip.
+
+None of these points injects anything into the conversation. The thread sees them when it calls
+`mcp__compaction__context`, or through whatever it already reads — a status line or a heartbeat
+that prints the context against the goal. Past the goal, the thread compacts when what its context
+holds is spent (finished work, settled reviews, tool output whose conclusions are written down)
+and carries on while compacting would lose live threads.
 
 Claude Code compacts at `min((W - 20000) * P / 100, W - 33000)`, with `W` from the
 `autoCompactWindow` setting or `CLAUDE_CODE_AUTO_COMPACT_WINDOW` and `P` from
-`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`. At `W = 300000` the `W - 33000` arm binds and the engine
-compacts at 267k, which is why a 300k goal and that setting belong at the same number: the goal
-decides when the thread compacts on purpose, with instructions, and the engine's point is the
-backstop that compacts without them. The mod cannot move it — only the setting does — so when
-the two disagree by more than 10,000 the report says so and names both ways to line them up.
-With no window set, a 1M-token model compacts near 967k, which leaves a 300k goal advising a
-compaction 700k before anything would have happened on its own.
+`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`. The mod cannot move that point — only the setting does. Set
+`W` to how far a thread may run on judgement: at `W = 700000` the engine compacts at 667k, which
+leaves a thread with a 300k goal about 370k of room to choose in. Setting `W` to the goal instead
+(`W = 300000`, compacting at 267k) turns the goal into a hard ceiling and the choice away. When
+the two differ by more than 10,000 the context report says so and names both settings; that note
+describes the room, and a gap chosen on purpose needs no fix. With no window set, a 1M-token model
+compacts near 967k.
 
 ## What a request leaves behind
 
