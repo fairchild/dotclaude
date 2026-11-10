@@ -18,10 +18,14 @@
  * resume beginning with "/" is refused, as the engine submits no command for a mod. Any other
  * main-loop compaction but a precompute (a typed `/compact`, which starts no turn, the engine's,
  * another plugin's) that goes through drops a waiting request, so the session never compacts twice.
- * State is lost on a reload. Its other hooks pass each event on unchanged; its
- * tool hooks answer only its own two tools. `claude plugin validate --json mods/compaction`
- * lists its hooks and `$` calls, the tests hold the command to `compact` and the submitted text
- * to the request's, and the types narrow Claude Code 2.1.316's mod API to what the mod uses.
+ * Beside the main thread's first prompt at or past the prepare point, and again beside the first
+ * after any main-loop compaction but its own (or its own, when the resume prompt did not enter), the mod attaches a note the model reads and the person
+ * never sees: the procedure (prepareNote), then the rebuild from live reads (AFTER_NOTE). A
+ * slash command's prompt carries neither. State is lost on a reload. Its other hooks pass each
+ * event on unchanged; its tool hooks answer only its own two tools. `claude plugin validate
+ * --json mods/compaction` lists its hooks and `$` calls, the tests hold the command to `compact`
+ * and the submitted text to the request's, and the types narrow Claude Code 2.1.316's mod API to
+ * what the mod uses.
  */
 
 /**
@@ -93,6 +97,15 @@ type Events = {
     readonly input: { readonly text: string; readonly turnId: string; readonly agentId?: string };
     readonly result: { readonly turnId: string };
   };
+  readonly "prompt.submit": {
+    /** A prompt about to enter: a slash command's carries `command`; `context` is read beside it, never shown. */
+    readonly input: {
+      readonly text: string;
+      readonly command?: unknown;
+      readonly context?: readonly string[];
+    };
+    readonly result: unknown;
+  };
   readonly "session.compact": {
     /** Who compacts, and the loop (absent on the main loop); the transcript is not read. */
     readonly input: {
@@ -123,10 +136,11 @@ export type Hook<E extends EventName> = (
   next: (e: Input<E>) => Promise<Result<E>>,
 ) => Promise<Result<E>>;
 
-/** `on(event, matcher?, hook)`, for the five events the mod hooks (`On`). */
+/** `on(event, matcher?, hook)`, for the six events the mod hooks (`On`). */
 export type On = {
   (event: "session.start", hook: Hook<"session.start">): unknown;
   (event: "tool.call", matcher: { readonly tool: string }, hook: Hook<"tool.call">): unknown;
+  (event: "prompt.submit", hook: Hook<"prompt.submit">): unknown;
   (event: "turn.start", hook: Hook<"turn.start">): unknown;
   (event: "turn.complete", hook: Hook<"turn.complete">): unknown;
   (event: "session.compact", hook: Hook<"session.compact">): unknown;
@@ -177,7 +191,24 @@ export const MAX_REASONING = 400;
 export const MAX_RESUME = 2000;
 /** What the thread is told after a compaction it asked for, when its request named no resume. */
 export const RESUME_DEFAULT =
-  "The compaction you requested has run. Continue the work in progress from the summary; if it was waiting on someone, say what it waits on and stop.";
+  "The compaction you requested has run. Pick the work in progress up from live reads (branches, pull requests, checks, running processes), with the summary as a guide to them; if it was waiting on someone, say what it waits on and stop.";
+/**
+ * What the main thread reads beside its first prompt at or past the prepare point, once between
+ * compactions: the procedure, at the moment it is due.
+ */
+export const prepareNote = (p: Points, count: number): string =>
+  `The context is at ${tokens(count)} tokens, at or past the prepare point (${tokens(p.prepareTokens)}) ` +
+  `of the ${tokens(p.goalTokens)} goal. To compact near the goal, write what must survive to disk ` +
+  "first (a resume file; a pushed branch or a tracker comment only where the repo or the user " +
+  "has granted that), then call " +
+  'mcp__compaction__request with "instructions" (what the summary keeps, named exactly), ' +
+  '"reasoning", and "resume" (what to pick up first and where its state lives). Carry on instead ' +
+  "while compacting would lose live work. The compaction-handoff skill has the long form.";
+/** What the main thread reads beside its first prompt after a main-loop compaction went through. */
+export const AFTER_NOTE =
+  "This session has compacted. The summary carries what the session believed, mistakes included: " +
+  "rebuild from live reads (the resume file, branches, pull requests, checks, running processes) " +
+  "before acting on it.";
 /** Where the requests are kept, and how many: the newest LOG_LIMIT, oldest dropped. */
 export const LOG_KEY = "requests";
 export const LOG_LIMIT = 200;
@@ -266,7 +297,11 @@ export type Entry = Request & {
   readonly why?: string;
 };
 
-/** One registration's state: `ours` marks the mod's /compact sent, `through` its compaction done. */
+/**
+ * One registration's state: `ours` marks the mod's /compact sent, `through` the epoch its
+ * compaction went through at. `epoch` counts main-loop compactions gone through; a note is owed
+ * while the epoch it was last given at (`prepareNoted`, `afterNoted`) is behind it.
+ */
 type Fields = {
   readonly pending: Request | null;
   readonly timer: Timer | null;
@@ -274,7 +309,10 @@ type Fields = {
   readonly last: string;
   readonly compacting: number;
   readonly ours: boolean;
-  readonly through: boolean;
+  readonly through: number | null;
+  readonly epoch: number;
+  readonly prepareNoted: number;
+  readonly afterNoted: number;
 };
 
 type Store = { readonly read: () => Fields; readonly write: (change: Partial<Fields>) => void };
@@ -287,7 +325,10 @@ function store(): Store {
     last: "none in this session.",
     compacting: 0,
     ours: false,
-    through: false,
+    through: null,
+    epoch: 0,
+    prepareNoted: -1,
+    afterNoted: 0,
   };
   return {
     read: () => fields,
@@ -506,15 +547,17 @@ async function runPending($: Engine, p: Points, state: Store): Promise<void> {
     await log($, p, pending, "dropped", context, why);
     return;
   }
-  state.write({ ours: true, through: false });
+  state.write({ ours: true, through: null });
   let failed: string | null;
+  const cut = (): number | null => state.read().through;
   try {
     const output = await $.command.run({ command: "compact", args: pending.instructions });
-    failed = state.read().through ? null : (said(output, "text") ?? "no compaction ran");
+    failed = cut() !== null ? null : (said(output, "text") ?? "no compaction ran");
   } catch (error: unknown) {
     failed = reason(error);
   }
-  state.write({ ours: false, through: false });
+  const at = cut() ?? state.read().epoch;
+  state.write({ ours: false, through: null });
   if (failed !== null) {
     state.write({ last: `/compact did not run: ${failed}.` });
     await log($, p, pending, "failed", context, failed);
@@ -523,10 +566,14 @@ async function runPending($: Engine, p: Points, state: Store): Promise<void> {
   const ran = `ran /compact at ${tokens(count ?? 0)} tokens`;
   state.write({ last: `${ran}.` });
   await log($, p, pending, "ran", context);
-  await submitResume($, p, pending, context, ran, state);
+  await submitResume($, p, pending, context, ran, state, at);
 }
 
-/** Starts the first turn after the compaction; its failure is its own, the compaction having run. */
+/**
+ * Starts the first turn after the compaction; its failure is its own, the compaction having run.
+ * A resume prompt that entered is the thread's own word on what comes next, so it stands for the
+ * after note of the cut it follows (`at`), and of no later one.
+ */
 async function submitResume(
   $: Engine,
   p: Points,
@@ -534,12 +581,14 @@ async function submitResume(
   context: ContextUsage,
   ran: string,
   state: Store,
+  at: number,
 ): Promise<void> {
   try {
     const entered = await $.prompt.submit({ text: pending.resume ?? RESUME_DEFAULT });
     const dropped = said(entered, "drop");
     if (dropped !== undefined) throw new Error(dropped);
-    state.write({ last: `${ran}, then submitted the resume prompt.` });
+    const afterNoted = Math.max(state.read().afterNoted, at);
+    state.write({ afterNoted, last: `${ran}, then submitted the resume prompt.` });
     await log($, p, pending, "resumed", context);
   } catch (error: unknown) {
     const why = reason(error);
@@ -580,12 +629,61 @@ async function compaction<R>($: Engine, p: Points, trigger: string, state: Store
   try {
     const result = await run();
     if (said(result, "skip") === undefined) {
-      if (mine) state.write({ through: true });
-      else await yieldTo($, p, trigger, state);
+      const epoch = state.read().epoch + 1;
+      state.write({ epoch, ...(mine ? { through: epoch } : {}) });
+      if (!mine) await yieldTo($, p, trigger, state);
     }
     return result;
   } finally {
     state.write({ compacting: state.read().compacting - 1 });
+  }
+}
+
+/** A note claimed for one prompt, and how to hand the claim back if that prompt never enters. */
+type Note = { readonly text: string; readonly release: () => void };
+
+/** Marks `field` given at epoch `at`; the release puts it back only while that claim still stands. */
+function claim(state: Store, field: "prepareNoted" | "afterNoted", at: number): () => void {
+  const was = state.read()[field];
+  state.write({ [field]: at });
+  return () => {
+    if (state.read()[field] === at) state.write({ [field]: was });
+  };
+}
+
+/**
+ * The note a prompt carries: the after note while a compaction's is owed, else the prepare note
+ * once per epoch. It is claimed with no await between the last read and the write, so two prompts
+ * in flight never both carry it, and a compaction during the context read voids the read.
+ */
+async function noteFor($: Engine, p: Points, state: Store): Promise<Note | null> {
+  const { epoch, afterNoted, prepareNoted, pending } = state.read();
+  if (afterNoted < epoch) return { text: AFTER_NOTE, release: claim(state, "afterNoted", epoch) };
+  if (prepareNoted >= epoch || pending !== null) return null;
+  const { context } = await $.session.usage();
+  const now = state.read();
+  if (now.epoch !== epoch || now.prepareNoted >= epoch || now.pending !== null) return null;
+  if (context.tokens === undefined || context.tokens < p.prepareTokens) return null;
+  return { text: prepareNote(p, context.tokens), release: claim(state, "prepareNoted", epoch) };
+}
+
+/** Attaches the note a prompt is owed; one the prompt never delivered stays owed. */
+async function noted(
+  $: Engine,
+  p: Points,
+  state: Store,
+  e: Input<"prompt.submit">,
+  next: Parameters<Hook<"prompt.submit">>[2],
+) {
+  const note = e.command === undefined ? await noteFor($, p, state).catch(() => null) : null;
+  if (note === null) return next(e);
+  try {
+    const entered = await next({ ...e, context: [...(e.context ?? []), note.text] });
+    if (said(entered, "drop") !== undefined) note.release();
+    return entered;
+  } catch (error: unknown) {
+    note.release();
+    throw error;
   }
 }
 
@@ -614,6 +712,7 @@ export function register(on: On, options: Options): void {
       ? next(e)
       : compaction($, p, e.trigger, state, () => next(e)),
   );
+  on("prompt.submit", ($, e, next) => noted($, p, state, e, next));
   on("turn.start", (_, e, next) => {
     if (e.agentId === undefined) {
       state.read().timer?.cancel();
