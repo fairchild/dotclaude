@@ -125,24 +125,28 @@ is named, and "read-only, no push" is declared up front.
 
 ## Instrument guards go in the command, not in your head
 
-A rule about an instrument does not fire at the moment the instrument is used. One session in this
-role (2026-09-15) wrote itself a memory about reading the clock before stamping a time, after a
-six-hour drift across five PR bodies, and then labelled two more sections from a feel for elapsed
-time, with that memory in its own context. What changed the behaviour was a shape, not a rule: its
-earlier briefs had no `date -u` anywhere, and its later ones put the command inside the instruction
-("one body edit refreshing `## Mergeability`, dated with `date -u`").
-
-So carry these as text you paste into the brief, not as things to remember:
+A rule about an instrument does not fire at the moment the instrument is used. Nobody consults a
+list of rules while typing a command; a session that knows it should read the clock still stamps a
+time from its feel for how long it has been working, because the knowing and the stamping happen in
+different places. The command a worker executes is the one place the guard is sure to be present.
+So write the instrument into the instruction itself — "post the gate as a PR comment ending
+`$(date -u +%FT%TZ)`", not "post the gate, dated" — and carry these as text you paste into the
+brief, not as things to remember:
 
 - **A stamp comes from `date -u` in the same call that writes it.** Never from elapsed feel, never
   from a stamp you read earlier. Write the command into every brief that produces a dated line.
 - **An age is epoch arithmetic**, not a formatted time read by eye.
-- **Name the shell.** In zsh, quote every URL carrying `?` or `&`, split a list with `${=VAR}` or an
-  array rather than bare `$VAR`, brace a variable before a colon, and remember that an apostrophe
-  inside a single-quoted program ends the quoting.
-- **Verify a kill with `ps -p <pid>` per pid**, never by re-expanding the variable that failed.
-- **Prove a paged fetch reached the end before quoting a count from it.** A truncated fetch returns a
-  prefix and reads exactly like a complete one.
+- **Name the shell.** In zsh, quote every URL carrying `?` or `&`; brace a variable before a colon,
+  since `$VAR:h` is a modifier; remember that an apostrophe inside a single-quoted program ends the
+  quoting; and split a list with an array, never bare `$VAR`, which zsh passes as one argument.
+  `${=VAR}` splits on whitespace and is safe only for a list whose items hold no spaces or quotes.
+- **Verify a kill per pid.** `kill $PIDS` with a space-joined string in zsh passes one argument and
+  kills nothing, and checking with the same `$PIDS` repeats the mistake; check each pid on its own.
+  `ps -p <pid>` alone proves only that no process holds that number now, and a pid can be reused,
+  so record `ps -o lstart= -p <pid>` at launch and compare it before you kill and after.
+- **Prove a paged fetch reached the end before quoting a count from it.** A body-only read of one
+  page (`gh api` without `--paginate`) prints no sign that more pages exist. Check the REST `Link`
+  header for `rel="next"`, or `pageInfo.hasNextPage` in GraphQL, or fetch with `--paginate`.
 
 Where a guard protects an instrument, put it in the command text your worker executes. A guard held
 only as a memory fires after the mistake.
