@@ -76,7 +76,6 @@ Claude loads these when the task matches the description.
 | `analyze-usage` | Analyze local AI coding-assistant activity across Claude Code, Codex, Cursor, and Pi. |
 | `backlog` | Markdown task backlog and project roadmap (backlog/{todo,doing,done,failed}/, backlog/ROADMAP.md) for adding,… |
 | `chronicle` | Session continuity for coding work. |
-| `claude-code-cli` | Use when an agent needs to invoke the local Claude Code CLI from Codex, pi, or another shell agent; choose safe… |
 | `dotclaude-config` | Work with Claude Code configuration at global (~/.claude) or project (.claude/) level. |
 | `fable-session` | Hand off long-arc work to a fable session — an Opus 5.5 orchestrator at xhigh effort verifies while delegating the… |
 | `gh-apps` | Create, authenticate, and manage GitHub Apps. |
