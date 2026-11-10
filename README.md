@@ -248,15 +248,15 @@ The mods become a directory marketplace named `dotclaude`, so their plugin IDs m
 
 The point of `request` over plain `/compact`: the engine's automatic compaction takes no instructions, so it decides for itself what survives. A thread that asks gets to say what must not be lost. Each request is kept, reasoning included, so the points can be judged against the moments they were asked for.
 
-**One number to set.** `goalTokens` is the context a session means to stay under — 300,000 unless you change it, from which the request floor (half) and the prepare point (the goal less 80,000 of runway) follow:
+**One number to set.** `goalTokens` is the default context target — 300,000 unless you change it; past it, compacting is the thread's judgement. The request floor (half) and the prepare point (the goal less 80,000 of runway, never below the floor) follow from it:
 
 ```bash
 claude plugin configure compaction   # or /config in a session
 ```
 
-The engine's own compaction is separate and stays the engine's: it fires at `min((W - 20000) * P / 100, W - 33000)`, with `W` from the `autoCompactWindow` setting. At `W = 300000` that is 267k, which is why a 300k goal and that setting belong at the same number — the goal is when the thread compacts on purpose, and the engine's point is the backstop that compacts without instructions. The mod can't move it, so it reports the gap when the two disagree.
+The engine's own compaction is separate and stays the engine's: it fires at `min((W - 20000) * P / 100, W - 33000)`, with `W` from the `autoCompactWindow` setting. That point is the top end a thread may run into on judgement, and the gap above the goal is room by design: at `W = 700000` the engine compacts at 667k, leaving a thread with a 300k goal about 367k to choose in, while `W = 300000` (267k) makes the goal a hard ceiling. The mod can't move the engine's point; it describes the room when the point sits above the goal, says nothing when it sits between the goal and the goal less 43,000, and flags a setting only below that, where the goal could never be reached. [mods/README.md](mods/README.md#compaction-points) has the derivations.
 
-In a cloud environment the [Cloud sessions](#cloud-sessions) setup line installs both mods and sets the goal and the window together.
+In a cloud environment the [Cloud sessions](#cloud-sessions) setup line installs both mods and can set the window and the goal, each on its own.
 
 ## Development
 
@@ -294,7 +294,8 @@ Variables before `bash`, each optional:
 | `DOTCLAUDE_SKILLS` | Only these skills, separated by spaces or commas. A name it can't install, misspelled or `machine-bound`, is listed in the status line. |
 | `DOTCLAUDE_MODS` | Only these mods; `none` installs none. Unset, both install and load from the first session. |
 | `DOTCLAUDE_PLUGINS` | Only these plugins from [`.claude-plugin/plugins/`](.claude-plugin/plugins/README.md); `none` installs none. Unset, `shipyard` installs, so a cloud session can take a seat. A plugin declaring `dependencies` does not load without them, so narrowing a mod away takes a plugin that depends on it too — `DOTCLAUDE_MODS=none` leaves no `shipyard` either, and the status line names the dependency that was missing. |
-| `DOTCLAUDE_COMPACT_WINDOW`, `DOTCLAUDE_COMPACT_PCT` | When sessions auto-compact (`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`); `300000` and `100` compact at 267k. The window is also the compaction mod's `goalTokens`, so its prepare point lands 47k before that backstop. Unset, the platform's default stands and the mod keeps its own 300,000 goal. |
+| `DOTCLAUDE_COMPACT_WINDOW`, `DOTCLAUDE_COMPACT_PCT` | When sessions auto-compact (`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`); `300000` and `100` compact at 267k, `700000` and `100` at 667k. Unset, the platform's default stands. |
+| `DOTCLAUDE_COMPACT_GOAL` | The compaction mod's `goalTokens`, the default target a thread may run past on judgement up to the engine's point. Unset, the goal follows a window of 300,000 or less, and stays at 300,000 under a wider one, so the gap is room; with no window either, the mod keeps its own 300,000. The status line says when a wide window leaves the goal at 300,000, and when a goal or window that isn't a whole number from 1 to 999,999,999 is not read; leading zeros are dropped. |
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fairchild/dotclaude/main/scripts/cloud-bootstrap.sh | DOTCLAUDE_SKILLS="tight-docs fable-session" DOTCLAUDE_COMPACT_WINDOW=300000 DOTCLAUDE_COMPACT_PCT=100 bash

@@ -5,7 +5,7 @@
     "goalTokens": {
       "type": "number",
       "title": "Context goal (tokens)",
-      "description": "The context this session means to stay under. The request floor and the prepare point derive from it, and the mod says so when the engine's own automatic compaction does not match it (that one follows the autoCompactWindow setting, which this cannot move).",
+      "description": "The default context target; past it, compacting is the thread's judgement, up to the engine's own automatic compaction (set by autoCompactWindow, which this cannot move). The request floor and the prepare point derive from it, and the mod says so when the engine compacts before the goal can be reached.",
       "default": 300000
     },
     "floorTokens": {

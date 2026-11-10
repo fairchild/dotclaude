@@ -8,9 +8,12 @@
 # multi-component plugins (.claude-plugin/plugins/); "none" installs none of that kind. Both kinds
 # register as one directory marketplace named dotclaude, so they load from the first session and a
 # plugin ID matches a machine that added this repository's marketplace from GitHub.
-# DOTCLAUDE_COMPACT_WINDOW and DOTCLAUDE_COMPACT_PCT, when set, decide when sessions auto-compact,
-# and the window is also the compaction mod's goal, so the thread's point and the engine's
-# backstop follow one number.
+# DOTCLAUDE_COMPACT_WINDOW and DOTCLAUDE_COMPACT_PCT, when set, decide when sessions auto-compact.
+# DOTCLAUDE_COMPACT_GOAL sets the compaction mod's goal, the default target the thread may run past
+# on judgement up to the engine's point; unset, the goal follows a window up to 300,000 and stays
+# at 300,000 for a wider one, leaving the gap as room. The status line says when that default
+# holds under a wider window, or when a goal or window that is not a whole number from 1 to
+# 999999999 is not read.
 # Setup must exit 0, so every outcome lands in the status file instead.
 set -u
 
@@ -39,7 +42,7 @@ main() {
   or_report mods install_marketplace
   or_report settings merge_settings "$work/bundle/settings.example.json" "$runtime/settings.json"
 
-  report "ok $(bundle_revision)$(unavailable_named_skills)$(mods_note)$(plugins_note)"
+  report "ok $(bundle_revision)$(unavailable_named_skills)$(mods_note)$(plugins_note)$(compact_note)"
 }
 
 refuse_outside_a_cloud_vm() {
@@ -200,7 +203,8 @@ merge_settings() {
     && mods="$(jq -r '[.plugins[].name] | join(" ")' "$runtime/mods/.claude-plugin/marketplace.json")"
   { cat "$target" 2>/dev/null || echo '{}'; } \
     | jq --slurpfile example "$example" --arg mods "$mods" --arg path "$runtime/mods" \
-        --arg window "${DOTCLAUDE_COMPACT_WINDOW:-}" --arg pct "${DOTCLAUDE_COMPACT_PCT:-}" '
+        --arg window "${DOTCLAUDE_COMPACT_WINDOW:-}" --arg pct "${DOTCLAUDE_COMPACT_PCT:-}" \
+        --arg goal "$(compact_goal)" '
         $example[0] as $carried
         | . + ($carried | {alwaysThinkingEnabled, effortLevel, skipWorkflowUsageWarning})
         | .env += ($carried.env | {CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY, CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS})
@@ -212,8 +216,8 @@ merge_settings() {
           else . end
         | if $window != "" then .env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = $window else . end
         | if $pct != "" then .env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = $pct else . end
-        | if $window != "" and ($installed | index("compaction")) and ($window | test("^[0-9]+$"))
-          then .pluginConfigs.compaction.goalTokens = ($window | tonumber)
+        | if $goal != "" and ($installed | index("compaction"))
+          then .pluginConfigs.compaction.goalTokens = ($goal | tonumber)
           else . end
       ' >"$target.partial" \
     && mv "$target.partial" "$target" \
@@ -234,6 +238,41 @@ installed_of_kind() {
     [[ "$recorded" == *" $name "* ]] && out+=" $name"
   done
   printf '%s' "$out"
+}
+
+# A whole number from 1 to 999999999, leading zeros dropped, or nothing: nine digits keep bash
+# arithmetic from wrapping.
+as_tokens() {
+  local value="${1#"${1%%[!0]*}"}"
+  [[ "$value" =~ ^[1-9][0-9]{0,8}$ ]] && printf '%s' "$value"
+}
+
+# The compaction mod's goal: DOTCLAUDE_COMPACT_GOAL when as_tokens reads it, else the window up
+# to the mod's own 300,000 default, else nothing and the mod keeps that default.
+compact_goal() {
+  local goal window
+  goal="$(as_tokens "${DOTCLAUDE_COMPACT_GOAL:-}")"
+  window="$(as_tokens "${DOTCLAUDE_COMPACT_WINDOW:-}")"
+  if [[ -n "$goal" ]]; then
+    printf '%s' "$goal"
+  elif [[ -n "$window" ]]; then
+    printf '%s' "$((window < 300000 ? window : 300000))"
+  fi
+}
+
+# A goal or window named and not read, or a wide window that leaves the goal at its default,
+# says so.
+compact_note() {
+  local named_goal="${DOTCLAUDE_COMPACT_GOAL:-}" named_window="${DOTCLAUDE_COMPACT_WINDOW:-}"
+  local goal window range="not a whole number from 1 to 999999999"
+  [[ -d "$runtime/mods/compaction" ]] || return 0
+  goal="$(as_tokens "$named_goal")"
+  window="$(as_tokens "$named_window")"
+  [[ -z "$named_goal" || -n "$goal" ]] || printf '; compaction goal %s ignored, %s' "$named_goal" "$range"
+  [[ -n "$goal" ]] && return 0
+  [[ -z "$named_window" || -n "$window" ]] \
+    || printf '; compaction goal not taken from window %s, %s' "$named_window" "$range"
+  [[ -z "$window" ]] || ((window <= 300000)) || printf '; compaction goal 300000 under a %s window' "$window"
 }
 
 mods_note() {

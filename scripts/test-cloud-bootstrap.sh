@@ -115,14 +115,51 @@ grep -q '; mods: compaction; plugins skipped: shipyard needs usage-meter$' "$par
 jq -e '[.plugins[].name] == ["compaction"]' "$partial/mods/.claude-plugin/marketplace.json" >/dev/null \
   || fail "the marketplace lists a plugin that was not installed"
 
-# Auto-compaction is set only when the environment names it, and the window is the mod's goal
-# too, so the thread's prepare point and the engine's backstop follow one number.
+# Auto-compaction is set only when the environment names it. The mod's goal is a default target
+# the thread may run past up to the engine's point: a window at or under 300,000 is the goal too,
+# a wider one leaves the goal at 300,000 and the gap as room, and DOTCLAUDE_COMPACT_GOAL names it.
 compact="$tmp/compact/.claude"
 DOTCLAUDE_COMPACT_WINDOW=300000 DOTCLAUDE_COMPACT_PCT=100 bootstrap "file://$bundle" "$compact"
 jq -e '.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW == "300000" and .env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE == "100"' \
   "$compact/settings.json" >/dev/null || fail "auto-compaction was not set"
 jq -e '.pluginConfigs.compaction.goalTokens == 300000' \
-  "$compact/settings.json" >/dev/null || fail "the compaction goal did not follow the window"
+  "$compact/settings.json" >/dev/null || fail "the compaction goal did not follow a 300,000 window"
+roomy="$tmp/roomy/.claude"
+DOTCLAUDE_COMPACT_WINDOW=700000 bootstrap "file://$bundle" "$roomy"
+jq -e '.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW == "700000" and .pluginConfigs.compaction.goalTokens == 300000' \
+  "$roomy/settings.json" >/dev/null || fail "a wide window moved the goal past its 300,000 default"
+grep -q '; compaction goal 300000 under a 700000 window$' "$roomy/cloud-bootstrap.status" \
+  || fail "a wide window left the goal at its default without saying so: $(cat "$roomy/cloud-bootstrap.status")"
+! grep -q 'compaction goal' "$compact/cloud-bootstrap.status" \
+  || fail "a window that is the goal was reported: $(cat "$compact/cloud-bootstrap.status")"
+named="$tmp/named/.claude"
+DOTCLAUDE_COMPACT_WINDOW=700000 DOTCLAUDE_COMPACT_GOAL=400000 bootstrap "file://$bundle" "$named"
+jq -e '.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW == "700000" and .pluginConfigs.compaction.goalTokens == 400000' \
+  "$named/settings.json" >/dev/null || fail "DOTCLAUDE_COMPACT_GOAL did not set the goal apart from the window"
+! grep -q 'compaction goal' "$named/cloud-bootstrap.status" \
+  || fail "a named goal was reported: $(cat "$named/cloud-bootstrap.status")"
+zero="$tmp/zero/.claude"
+DOTCLAUDE_COMPACT_WINDOW=700000 DOTCLAUDE_COMPACT_GOAL=0 bootstrap "file://$bundle" "$zero"
+jq -e '.pluginConfigs.compaction.goalTokens == 300000' "$zero/settings.json" >/dev/null \
+  || fail "a goal of 0 was written instead of falling back"
+grep -q '; compaction goal 0 ignored, not a whole number from 1 to 999999999; compaction goal 300000 under a 700000 window$' \
+  "$zero/cloud-bootstrap.status" || fail "an ignored goal was not reported: $(cat "$zero/cloud-bootstrap.status")"
+word="$tmp/word/.claude"
+DOTCLAUDE_COMPACT_GOAL=lots bootstrap "file://$bundle" "$word"
+jq -e 'has("pluginConfigs") | not' "$word/settings.json" >/dev/null \
+  || fail "a goal that is not a number reached the settings"
+grep -q '; compaction goal lots ignored, not a whole number from 1 to 999999999$' "$word/cloud-bootstrap.status" \
+  || fail "an ignored goal was not reported: $(cat "$word/cloud-bootstrap.status")"
+padded="$tmp/padded/.claude"
+DOTCLAUDE_COMPACT_WINDOW=0200000 bootstrap "file://$bundle" "$padded"
+jq -e '.pluginConfigs.compaction.goalTokens == 200000' "$padded/settings.json" >/dev/null \
+  || fail "a window with a leading zero was not read as its number"
+huge="$tmp/huge/.claude"
+DOTCLAUDE_COMPACT_WINDOW=9223372036854775808 bootstrap "file://$bundle" "$huge"
+jq -e 'has("pluginConfigs") | not' "$huge/settings.json" >/dev/null \
+  || fail "a window too long for arithmetic produced a goal"
+grep -q '; compaction goal not taken from window 9223372036854775808, not a whole number from 1 to 999999999$' \
+  "$huge/cloud-bootstrap.status" || fail "an unread window was not reported: $(cat "$huge/cloud-bootstrap.status")"
 jq -e 'has("pluginConfigs") | not' "$none/settings.json" >/dev/null \
   || fail "a goal was set for a run with no mods"
 
