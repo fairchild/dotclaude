@@ -80,6 +80,30 @@ class AgentPressureTests(unittest.TestCase):
         self.assertEqual(result["overall"], "red")
         self.assertIn("active swap-out detected", result["reasons"])
 
+    def collect_with_second_vm_stat(self, second: tuple[str, str]) -> dict:
+        vm_text = "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free: 1000.\nSwapouts: 10.\n"
+        vm_replies = iter([(vm_text, ""), second])
+
+        def fake_run(command: list[str]) -> tuple[str, str]:
+            if command[0] == "vm_stat":
+                return next(vm_replies)
+            return {"uptime": ("load averages: 1.0 1.0 1.0", ""), "sysctl": ("8", "")}.get(command[0], ("", ""))
+
+        with patch.object(agent_pressure, "run_command", side_effect=fake_run):
+            return agent_pressure.collect_snapshot(0)
+
+    def test_failed_second_vm_stat_reports_unknown_swap_not_zero(self) -> None:
+        snapshot = self.collect_with_second_vm_stat(("", "vm_stat: timed out"))
+        self.assertIsNone(snapshot["memory"]["swapout_mib_per_minute"])
+        self.assertEqual(snapshot["assessment"]["dimensions"]["swap"], "unknown")
+        self.assertTrue(any("second vm_stat" in error for error in snapshot["errors"]))
+
+    def test_two_vm_stat_samples_report_a_swap_rate(self) -> None:
+        later = "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free: 1000.\nSwapouts: 10.\n"
+        snapshot = self.collect_with_second_vm_stat((later, ""))
+        self.assertEqual(snapshot["memory"]["swapout_mib_per_minute"], 0.0)
+        self.assertEqual(snapshot["assessment"]["dimensions"]["swap"], "green")
+
     def test_compare_snapshots_reports_direction(self) -> None:
         before = {
             "captured_at": "before",

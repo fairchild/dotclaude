@@ -284,6 +284,15 @@ def collect_snapshot(sample_seconds: float) -> dict[str, Any]:
     if after_error:
         errors.append(f"second vm_stat: {after_error}")
     after_vm = parse_vm_stat(after_text) if after_text else before_vm
+    # A rate needs two real samples; a missing reading is unknown, not zero swap.
+    vm_read = bool(after_vm.get("pages"))
+    vm_sampled = bool(before_vm.get("pages")) and bool(after_text) and not before_error and not after_error
+
+    def vm_mib(name: str) -> float | None:
+        return round(vm_page_value(after_vm, name) * page_size / BYTES_PER_MIB, 1) if vm_read else None
+
+    def vm_rate(name: str) -> float | None:
+        return round(page_delta_mib(before_vm, after_vm, name, elapsed), 2) if vm_sampled else None
 
     page_size = int(after_vm.get("page_size", 4096))
     physical_names = (
@@ -308,12 +317,12 @@ def collect_snapshot(sample_seconds: float) -> dict[str, Any]:
         "sample_seconds": round(elapsed, 3),
         "memory": {
             "free_percent": parse_memory_pressure(memory_text),
-            "compressor_mib": round(compressor_pages * page_size / BYTES_PER_MIB, 1),
+            "compressor_mib": vm_mib("Pages occupied by compressor"),
             "compressor_percent": round(compressor_percent, 1) if compressor_percent is not None else None,
-            "swapins_cumulative_mib": round(vm_page_value(after_vm, "Swapins") * page_size / BYTES_PER_MIB, 1),
-            "swapouts_cumulative_mib": round(vm_page_value(after_vm, "Swapouts") * page_size / BYTES_PER_MIB, 1),
-            "swapin_mib_per_minute": round(page_delta_mib(before_vm, after_vm, "Swapins", elapsed), 2),
-            "swapout_mib_per_minute": round(page_delta_mib(before_vm, after_vm, "Swapouts", elapsed), 2),
+            "swapins_cumulative_mib": vm_mib("Swapins"),
+            "swapouts_cumulative_mib": vm_mib("Swapouts"),
+            "swapin_mib_per_minute": vm_rate("Swapins"),
+            "swapout_mib_per_minute": vm_rate("Swapouts"),
         },
         "load": {
             "averages": load,
