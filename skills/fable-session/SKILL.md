@@ -147,8 +147,9 @@ engine's own compaction is the backstop and takes no instructions, so a summary
 that matters is one the thread asked for. After a compaction or a handoff, rebuild
 state from live reads of branches, pull requests and checks; the resume file is a
 guide to them.
-The `compaction-handoff` skill carries the whole procedure, including the two cases
-that resume nothing: a `/compact` typed by hand, and a request the mod dropped.
+The `compaction-handoff` skill carries the whole procedure, including the three cases
+that resume nothing: a `/compact` typed by hand, a request the mod dropped, and a cut
+whose resume prompt did not go in.
 
 Before taking on a long arc, `mcp__usage-meter__reading` says what is left of the
 account's five-hour and seven-day windows. That is the other budget: the context

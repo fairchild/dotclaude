@@ -199,7 +199,8 @@ export const RESUME_DEFAULT =
 export const prepareNote = (p: Points, count: number): string =>
   `The context is at ${tokens(count)} tokens, at or past the prepare point (${tokens(p.prepareTokens)}) ` +
   `of the ${tokens(p.goalTokens)} goal. To compact near the goal, write what must survive to disk ` +
-  "or the tracker first (a resume file, the arc's tracking issue), then call " +
+  "first (a resume file; a pushed branch or a tracker comment only where the repo or the user " +
+  "has granted that), then call " +
   'mcp__compaction__request with "instructions" (what the summary keeps, named exactly), ' +
   '"reasoning", and "resume" (what to pick up first and where its state lives). Carry on instead ' +
   "while compacting would lose live work. The compaction-handoff skill has the long form.";
@@ -297,8 +298,9 @@ export type Entry = Request & {
 };
 
 /**
- * One registration's state: `ours` marks the mod's /compact sent, `through` its compaction done,
- * `prepared` the prepare note given since the last compaction, `compacted` the after note owed.
+ * One registration's state: `ours` marks the mod's /compact sent, `through` the epoch its
+ * compaction went through at. `epoch` counts main-loop compactions gone through; a note is owed
+ * while the epoch it was last given at (`prepareNoted`, `afterNoted`) is behind it.
  */
 type Fields = {
   readonly pending: Request | null;
@@ -307,9 +309,10 @@ type Fields = {
   readonly last: string;
   readonly compacting: number;
   readonly ours: boolean;
-  readonly through: boolean;
-  readonly prepared: boolean;
-  readonly compacted: boolean;
+  readonly through: number | null;
+  readonly epoch: number;
+  readonly prepareNoted: number;
+  readonly afterNoted: number;
 };
 
 type Store = { readonly read: () => Fields; readonly write: (change: Partial<Fields>) => void };
@@ -322,9 +325,10 @@ function store(): Store {
     last: "none in this session.",
     compacting: 0,
     ours: false,
-    through: false,
-    prepared: false,
-    compacted: false,
+    through: null,
+    epoch: 0,
+    prepareNoted: -1,
+    afterNoted: 0,
   };
   return {
     read: () => fields,
@@ -543,15 +547,17 @@ async function runPending($: Engine, p: Points, state: Store): Promise<void> {
     await log($, p, pending, "dropped", context, why);
     return;
   }
-  state.write({ ours: true, through: false });
+  state.write({ ours: true, through: null });
   let failed: string | null;
+  const cut = (): number | null => state.read().through;
   try {
     const output = await $.command.run({ command: "compact", args: pending.instructions });
-    failed = state.read().through ? null : (said(output, "text") ?? "no compaction ran");
+    failed = cut() !== null ? null : (said(output, "text") ?? "no compaction ran");
   } catch (error: unknown) {
     failed = reason(error);
   }
-  state.write({ ours: false, through: false });
+  const at = cut() ?? state.read().epoch;
+  state.write({ ours: false, through: null });
   if (failed !== null) {
     state.write({ last: `/compact did not run: ${failed}.` });
     await log($, p, pending, "failed", context, failed);
@@ -560,13 +566,13 @@ async function runPending($: Engine, p: Points, state: Store): Promise<void> {
   const ran = `ran /compact at ${tokens(count ?? 0)} tokens`;
   state.write({ last: `${ran}.` });
   await log($, p, pending, "ran", context);
-  await submitResume($, p, pending, context, ran, state);
+  await submitResume($, p, pending, context, ran, state, at);
 }
 
 /**
  * Starts the first turn after the compaction; its failure is its own, the compaction having run.
- * A resume prompt that entered is the thread's own word on what comes next, so the after note is
- * owed only when it did not.
+ * A resume prompt that entered is the thread's own word on what comes next, so it stands for the
+ * after note of the cut it follows (`at`), and of no later one.
  */
 async function submitResume(
   $: Engine,
@@ -575,12 +581,14 @@ async function submitResume(
   context: ContextUsage,
   ran: string,
   state: Store,
+  at: number,
 ): Promise<void> {
   try {
     const entered = await $.prompt.submit({ text: pending.resume ?? RESUME_DEFAULT });
     const dropped = said(entered, "drop");
     if (dropped !== undefined) throw new Error(dropped);
-    state.write({ compacted: false, last: `${ran}, then submitted the resume prompt.` });
+    const afterNoted = Math.max(state.read().afterNoted, at);
+    state.write({ afterNoted, last: `${ran}, then submitted the resume prompt.` });
     await log($, p, pending, "resumed", context);
   } catch (error: unknown) {
     const why = reason(error);
@@ -621,9 +629,9 @@ async function compaction<R>($: Engine, p: Points, trigger: string, state: Store
   try {
     const result = await run();
     if (said(result, "skip") === undefined) {
-      state.write({ prepared: false, compacted: true });
-      if (mine) state.write({ through: true });
-      else await yieldTo($, p, trigger, state);
+      const epoch = state.read().epoch + 1;
+      state.write({ epoch, ...(mine ? { through: epoch } : {}) });
+      if (!mine) await yieldTo($, p, trigger, state);
     }
     return result;
   } finally {
@@ -631,25 +639,32 @@ async function compaction<R>($: Engine, p: Points, trigger: string, state: Store
   }
 }
 
-/** A note claimed for one prompt, and the flags that put it back when that prompt never enters. */
-type Note = { readonly text: string; readonly owed: Partial<Fields> };
+/** A note claimed for one prompt, and how to hand the claim back if that prompt never enters. */
+type Note = { readonly text: string; readonly release: () => void };
+
+/** Marks `field` given at epoch `at`; the release puts it back only while that claim still stands. */
+function claim(state: Store, field: "prepareNoted" | "afterNoted", at: number): () => void {
+  const was = state.read()[field];
+  state.write({ [field]: at });
+  return () => {
+    if (state.read()[field] === at) state.write({ [field]: was });
+  };
+}
 
 /**
- * The note a prompt carries: the after note once a compaction went through, else the prepare
- * note once. It is claimed here, with no await between the last read and the write, so two
- * prompts in flight never both carry it.
+ * The note a prompt carries: the after note while a compaction's is owed, else the prepare note
+ * once per epoch. It is claimed with no await between the last read and the write, so two prompts
+ * in flight never both carry it, and a compaction during the context read voids the read.
  */
 async function noteFor($: Engine, p: Points, state: Store): Promise<Note | null> {
-  if (state.read().compacted) {
-    state.write({ compacted: false });
-    return { text: AFTER_NOTE, owed: { compacted: true } };
-  }
-  const due = (): boolean => !state.read().prepared && state.read().pending === null;
-  if (!due()) return null;
+  const { epoch, afterNoted, prepareNoted, pending } = state.read();
+  if (afterNoted < epoch) return { text: AFTER_NOTE, release: claim(state, "afterNoted", epoch) };
+  if (prepareNoted >= epoch || pending !== null) return null;
   const { context } = await $.session.usage();
-  if (!due() || context.tokens === undefined || context.tokens < p.prepareTokens) return null;
-  state.write({ prepared: true });
-  return { text: prepareNote(p, context.tokens), owed: { prepared: false } };
+  const now = state.read();
+  if (now.epoch !== epoch || now.prepareNoted >= epoch || now.pending !== null) return null;
+  if (context.tokens === undefined || context.tokens < p.prepareTokens) return null;
+  return { text: prepareNote(p, context.tokens), release: claim(state, "prepareNoted", epoch) };
 }
 
 /** Attaches the note a prompt is owed; one the prompt never delivered stays owed. */
@@ -664,10 +679,10 @@ async function noted(
   if (note === null) return next(e);
   try {
     const entered = await next({ ...e, context: [...(e.context ?? []), note.text] });
-    if (said(entered, "drop") !== undefined) state.write(note.owed);
+    if (said(entered, "drop") !== undefined) note.release();
     return entered;
   } catch (error: unknown) {
-    state.write(note.owed);
+    note.release();
     throw error;
   }
 }

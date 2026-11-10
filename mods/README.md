@@ -14,8 +14,8 @@ so rerun `claude plugin validate --json mods/<name>` when Claude Code updates.
   waiting for the next event to arrive. A main-thread `/compact` typed during the wait, or the
   engine's automatic compaction, drops a pending request instead of compacting twice; a
   subagent's compaction does not. Each request is kept in the mod's store, reasoning included.
-  Past the prepare point, and after a compaction, it attaches a short note to the next prompt
-  (below, [Asking for a compaction](#asking-for-a-compaction)).
+  At or past the prepare point, and after any compaction but its own resumed one, it attaches a
+  short note to the next prompt (below, [Asking for a compaction](#asking-for-a-compaction)).
 
 `usage-meter` only observes. `compaction` answers its own tools and acts on its own tool's
 request: its one command call runs `compact`, and its one prompt call submits the resume prompt
@@ -104,7 +104,7 @@ a budget whatever the budget is. The runway is an absolute because what it pays 
 scale with the window: a closing turn, a resume file, the request, `IDLE_MS = 3000` of idle wait,
 and the `/compact` round trip.
 
-The prepare point is the one that speaks: the first prompt past it carries a note (below). The
+The prepare point is the one that speaks: the first prompt at or past it carries a note (below). The
 others the thread sees when it calls `mcp__compaction__context`, or through whatever it already
 reads — a status line or a heartbeat that prints the context against the goal. Past the goal, the thread compacts when what its context
 holds is spent (finished work, settled reviews, tool output whose conclusions are written down)
@@ -136,8 +136,9 @@ The mod hands the thread the procedure when it is due, as context beside a promp
 reads and the person never sees, so a session that loaded no skill still gets it:
 
 - **The prepare note.** The first prompt at or past the prepare point, with no request pending,
-  carries it once until the next compaction: write what must survive to disk or the tracker first, then
-  call `mcp__compaction__request` with `instructions` (what the summary keeps, named exactly),
+  carries it once until the next compaction: write what must survive to disk first (to a pushed
+  branch or the tracker only where the repo or the user has granted that), then call
+  `mcp__compaction__request` with `instructions` (what the summary keeps, named exactly),
   `reasoning`, and `resume` (what to pick up first and where its state lives); carry on instead
   while compacting would lose live work.
 - **The after note.** The first prompt after a main-loop compaction that went through — a typed
@@ -146,8 +147,9 @@ reads and the person never sees, so a session that loaded no skill still gets it
   once its resume prompt has gone in: that prompt is the thread's own word, and the generic one
   says the same. When the resume prompt does not go in, the next prompt carries the note.
 
-A slash command's prompt carries neither, and a prompt that a hook drops after the mod attached a
-note leaves it owed to the next one. The notes are kept with the rest of the mod's state, which a
+A slash command's prompt carries neither. A prompt that a hook beneath the mod drops, or throws
+on, after the mod attached a note leaves it owed to the next one; a hook above the mod that drops
+the prompt after the mod's hook returns is not seen, and that note counts as given. The notes are kept with the rest of the mod's state, which a
 reload loses: after `/reload-plugins` or an update, a prepare note may come again and an owed
 after note is forgotten. A note rides on a prompt, so a session working through a
 long turn of tool calls with no prompt arriving meets the prepare note at the next one, and a

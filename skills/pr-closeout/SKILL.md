@@ -1,6 +1,6 @@
 ---
 name: pr-closeout
-description: Own a pull request you opened from draft to ready to merge — CI green, every review finding given a disposition, threads resolved, state verified on the current head. Use after opening or pushing to a PR, when review comments arrive on your PR, and before reporting a PR ready.
+description: Own a pull request you opened from draft to ready to merge — CI green, every review finding given a disposition, fixed threads resolved, state verified on the current head. Use after opening or pushing to a PR, when review comments arrive on your PR, and before reporting a PR ready.
 license: Apache-2.0
 metadata:
   status: experimental

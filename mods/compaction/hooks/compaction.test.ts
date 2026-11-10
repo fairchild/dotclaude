@@ -283,6 +283,8 @@ type World = {
   readonly after?: (commands: readonly unknown[]) => Promise<unknown>
   /** As the timer reads the context: the held compaction is released, or a main turn starts. */
   readonly onRead?: 'release' | 'turn'
+  /** Runs while the first submitted prompt (the resume) is entering. */
+  readonly entering?: () => Promise<unknown>
 }
 
 /** A gate the held compaction waits on. */
@@ -337,9 +339,10 @@ async function compacted($: Engine, on: On, request: Readonly<Record<string, str
 
     return { text: 'Compacted' }
   })
-  on('prompt.submit', (_, e) => {
+  on('prompt.submit', async (_, e) => {
     submitted.push(e.text)
     carried.push(e.context ?? [])
+    if (submitted.length === 1) await world.entering?.()
     if (world.submit === 'throws') throw new Error('submit broke')
     if (world.submit === 'drops') return { drop: 'a Stop hook stands' }
     if (e.text.startsWith('/')) throw new Error('a text beginning with / would run a command (host check)')
@@ -391,6 +394,16 @@ test('a requested cut whose resume was dropped still owes the rebuild note', asy
   await $.prompt.submit({ text: 'later', wait: false, origin: { kind: 'composer' } })
 
   expect(run.outcomes).toEqual(['recorded', 'ran', 'unresumed'])
+  expect(run.carried.at(-1)).toEqual([AFTER_NOTE])
+})
+
+test('a compaction that lands while the resume is entering still owes its rebuild note', async ($, on) => {
+  const run = await compacted($, on, ASKED, {
+    entering: () => $.session.compact({ trigger: 'auto', messages: SUMMARY }),
+  })
+  await $.prompt.submit({ text: 'later', wait: false, origin: { kind: 'composer' } })
+
+  expect(run.outcomes).toEqual(['recorded', 'ran', 'resumed'])
   expect(run.carried.at(-1)).toEqual([AFTER_NOTE])
 })
 
@@ -582,6 +595,10 @@ type Beneath = {
   readonly dropping?: string
   /** A compaction a hook beneath skips. */
   readonly skipCompaction?: boolean
+  /** Prompts whose text starts with this make a hook beneath throw, after the mod attached. */
+  readonly throwing?: string
+  /** A prompt with this text is held beneath until `hold` settles, then dropped. */
+  readonly holding?: { readonly text: string; readonly hold: Promise<void> }
   /** Each context read waits on this. */
   readonly gate?: Promise<void>
 }
@@ -592,15 +609,22 @@ async function prompting($: Engine, on: On, count: () => number, beneath: Beneat
   mock.clock(on)
   const carried: (readonly string[])[] = []
   on('session.usage', async () => {
+    const read = count()
     await beneath.gate
 
-    return { value: usage(count(), 667_000) }
+    return { value: usage(read, 667_000) }
   })
   on('tool.register', (_, e) => ({ value: { tool: e.name } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.compact', () => (beneath.skipCompaction ? { skip: 'a hook beneath said no' } : { messages: SUMMARY }))
-  on('prompt.submit', (_, e) => {
+  on('prompt.submit', async (_, e) => {
     if (beneath.dropping !== undefined && e.text.startsWith(beneath.dropping)) return { drop: 'a hook beneath said no' }
+    if (beneath.throwing !== undefined && e.text.startsWith(beneath.throwing)) throw new Error('a hook beneath broke')
+    if (e.text === beneath.holding?.text) {
+      await beneath.holding.hold
+
+      return { drop: 'a hook beneath said no, late' }
+    }
     carried.push(e.context ?? [])
 
     return { text: e.text }
@@ -661,6 +685,49 @@ test('a prompt a hook beneath drops takes no note with it: the next prompt carri
   await say('next')
 
   expect(carried).toEqual([NOTE_AT(240_000)])
+})
+
+test('a prompt a hook beneath throws on takes no note with it: the next prompt carries it', async ($, on) => {
+  const { carried, say } = await prompting($, on, () => 240_000, { throwing: 'boom' })
+
+  await say('boom').catch(() => undefined)
+  await say('next')
+
+  expect(carried).toEqual([NOTE_AT(240_000)])
+})
+
+test('a prompt dropped late gives back no note a later compaction has already delivered', async ($, on) => {
+  let letGo: () => void = () => undefined
+  const hold = new Promise<void>((resolve) => {
+    letGo = resolve
+  })
+  const { carried, say } = await prompting($, on, () => 60_000, { holding: { text: 'held', hold } })
+
+  await $.session.compact({ trigger: 'manual', messages: SUMMARY })
+  const held = say('held')
+  await $.session.compact({ trigger: 'auto', messages: SUMMARY })
+  await say('delivers')
+  letGo()
+  await held
+  await say('later')
+
+  expect(carried).toEqual([[AFTER_NOTE], []])
+})
+
+test('a compaction during the context read voids that read: the prompt carries no stale prepare note', async ($, on) => {
+  let open: () => void = () => undefined
+  const gate = new Promise<void>((resolve) => {
+    open = resolve
+  })
+  const { carried, say } = await prompting($, on, () => 240_000, { gate })
+
+  const reading = say('reading')
+  await $.session.compact({ trigger: 'auto', messages: SUMMARY })
+  open()
+  await reading
+  await say('next')
+
+  expect(carried).toEqual([[], [AFTER_NOTE]])
 })
 
 test('two prompts in flight at once carry one prepare note between them', async ($, on) => {

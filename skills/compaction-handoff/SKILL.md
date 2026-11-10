@@ -55,7 +55,7 @@ With the `compaction` mod installed, call `mcp__compaction__request`:
   must not begin with `/`.
 
 The mod runs `/compact` once the turn ends and submits `resume` to start the next turn, so a
-requested cut picks itself up. Two cases resume nothing:
+requested cut picks itself up. Three cases resume nothing:
 
 - **A `/compact` the user types.** It starts no turn, so the compacted session waits for the next
   event. Before handing them the command, start a background timer (a `sleep 900` run in the
@@ -64,6 +64,9 @@ requested cut picks itself up. Two cases resume nothing:
   sat below the floor when it fell due, and nothing follows a `/compact` that fails.
   `mcp__compaction__context` shows the last request's outcome; if it was dropped or failed, the
   resume file still says what comes next.
+- **A resume prompt that did not go in.** The cut ran, but a hook dropped the resume prompt or
+  the submit threw; the request is logged `unresumed`, nothing starts the next turn, and the next
+  prompt carries the after note.
 
 Without the mod, give the user `/compact <instructions>` and set the timer as above.
 
