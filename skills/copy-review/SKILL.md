@@ -10,10 +10,8 @@ metadata:
 # Copy review
 
 A page's job is to inform. A reader decides in the first screen whether to keep going, so the page gives the fastest
-content first and opens detail one level at a time. This skill checks a page against that and, when asked, rewrites it.
-
-Sentence-level voice (throat-clearing, marketing words, hedges) belongs to the writing-voice or plain-writing skill.
-This one is about what a page carries and in what order.
+content first and opens detail one level at a time. This skill checks what a page carries and in what order and, when
+asked, rewrites it. Sentence-level wording is out of scope.
 
 ## Before reading the page
 
@@ -36,25 +34,20 @@ Read each page as a newcomer who has never seen the project.
 5. Links to the rest.
 
 Everything else goes a level down: a later section, the docs site or the API reference. A README links to the guide
-and doesn't repeat it. Count the words a reader passes before the install command; that number is the page's cost of
-entry.
+and doesn't repeat it. Count the words before the install command and report the number.
 
 **Purpose.** Each sentence says what a thing is, what it's for or how to use it. A sentence that argues the project
 is good is persuading. Cut it or replace it with the fact behind it.
 
-**Density.** These are the tells of a page that was generated and never edited:
+**Density.** Cut or move:
 
-- Every sentence carries its exception. State the rule in the overview and put the exceptions in the reference.
-- Names listed in running prose. Prose carries at most three examples of a kind. The full list is a table or the page
-  that owns it.
-- A coined term used before it is defined. Use a plain word, or define the term in the sentence where it first
-  appears.
-- Mechanism before intent. "Pages are cached by view and page size" becomes "it keeps pages per view, so switching
-  back is instant."
-- Process on a product page. Test file names, how the site is published and how CI picks what to run belong in
-  `CONTRIBUTING.md`.
-- One sentence shape repeated ("X, and Y." "X: a, b and c."), so the rhythm goes flat.
-- An abstraction where a fact would do: "adapts to every size and setting".
+- Exceptions. The overview states the rule. "Except" and "unless" clauses go in the reference.
+- Lists of names in a sentence. Keep three examples and link the full list.
+- A project term used before it's explained. Use a plain word, or explain the term where it first appears.
+- How it works before what it's for. "Pages are cached by view and page size" becomes "it keeps pages per view, so
+  switching back is instant."
+- Process details: test file names, how the site is published, how CI works. They go in `CONTRIBUTING.md`.
+- Vague claims, such as "adapts to every size and setting". Say the fact.
 
 **Visuals.** Mark each place where prose describes something a reader could see:
 
@@ -79,7 +72,7 @@ A README is sometimes an input to something else. Check before you change its st
 
 Lead with the verdict in one sentence, then:
 
-1. **What reads as machine-written**, as patterns, each with one quoted example from the page.
+1. **What to cut or move**, as patterns, each with one quoted example from the page.
 2. **Per page**, the changes in priority order. Name the section and say where it should go.
 3. **Where a visual would help**, each with what it would show.
 4. **What you read and what you didn't.**
@@ -96,5 +89,5 @@ reader: show the rendered page, since a passing build doesn't show how it reads.
 
 When a repo has no writing rules and the review found real problems, offer to add the Order list and the Density
 rules to its `CONTRIBUTING.md` under a Writing heading, with two or three before-and-after pairs taken from the
-repo's own pages. A rule that lives beside the docs is read by everyone who edits them. A lint for prose is rarely
-worth its upkeep: order and density don't reduce to patterns a script can match.
+repo's own pages. Rules kept beside the docs are read by everyone who edits them. Don't add a lint for this: a script
+can't check order or density.
