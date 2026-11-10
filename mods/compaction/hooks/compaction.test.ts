@@ -262,12 +262,16 @@ test('a request below the floor is refused, the floor named as the goal implies 
   expect(String(answered.result)).toContain('below the request floor (150,000)')
 })
 
+/** What a compaction leaves: one message, the summary. */
+const SUMMARY = [{ role: 'user' as const, text: 'the summary', toolUses: [] }]
+
 /** A session at 240k with a request made and its turn ended, its command and submits recorded. */
 async function compacted(
   $: Engine,
   on: On,
   request: Readonly<Record<string, string>>,
   fail: { readonly compact?: boolean; readonly submit?: boolean } = {},
+  meanwhile: () => Promise<unknown> = async () => undefined,
 ) {
   const log = kept(on)
   const clock = mock.clock(on)
@@ -277,9 +281,11 @@ async function compacted(
   on('tool.register', (_, e) => ({ value: { tool: e.name } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
-  on('command.run', (_, e) => {
+  on('session.compact', () => ({ messages: SUMMARY }))
+  on('command.run', async (_, e) => {
     commands.push({ command: e.command, args: e.args })
     if (fail.compact) throw new Error('compact broke')
+    await $.session.compact({ trigger: 'manual', messages: SUMMARY })
 
     return {}
   })
@@ -299,6 +305,7 @@ async function compacted(
     turnId: 't1',
     reason: 'answer',
   })
+  await meanwhile()
   await clock.advance(IDLE_MS)
 
   const last = String((await $.tool.call({ tool: 'mcp__compaction__context' })).result)
@@ -355,4 +362,24 @@ test('a resume prompt past its length is refused, the refusal naming it', async 
 
   expect(String(answered.result)).toContain('Refused:')
   expect(String(answered.result)).toContain('"resume"')
+})
+
+test('a /compact typed during the wait drops the request: no second compaction, no resume', async ($, on) => {
+  const run = await compacted($, on, { ...ASKED, resume: 'MANGO' }, {}, () =>
+    $.session.compact({ trigger: 'manual', messages: SUMMARY }),
+  )
+
+  expect(run.commands).toEqual([])
+  expect(run.submitted).toEqual([])
+  expect(run.outcomes).toEqual(['recorded', 'dropped'])
+  expect(run.last).toContain('dropped, as a manual compaction ran first.')
+})
+
+test("a subagent's compaction leaves the main thread's request standing", async ($, on) => {
+  const run = await compacted($, on, ASKED, {}, () =>
+    $.session.compact({ trigger: 'auto', agentId: 'a1', messages: SUMMARY }),
+  )
+
+  expect(run.commands).toEqual([{ command: 'compact', args: 'keep the merge order' }])
+  expect(run.outcomes).toEqual(['recorded', 'ran', 'resumed'])
 })

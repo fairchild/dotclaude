@@ -15,7 +15,9 @@
  * through the command call. Once it has run, the mod submits the request's `resume` prompt, or
  * RESUME_DEFAULT, through `$.prompt.submit`: a compaction lands between turns, and without a
  * prompt of its own the session sits idle until something else arrives. A failed `/compact`
- * submits nothing. State is lost on a reload. Its other hooks pass each event on unchanged; its
+ * submits nothing. A main-loop compaction the mod did not run, a typed `/compact` (which starts
+ * no turn) or the engine's own, drops the pending request, so the session never compacts twice.
+ * State is lost on a reload. Its other hooks pass each event on unchanged; its
  * tool hooks answer only its own two tools. `claude plugin validate --json mods/compaction`
  * lists its hooks and `$` calls, the tests hold the command to `compact` and the submitted text
  * to the request's, and the types narrow Claude Code 2.1.316's mod API to what the mod uses.
@@ -90,6 +92,14 @@ type Events = {
     readonly input: { readonly text: string; readonly turnId: string; readonly agentId?: string };
     readonly result: { readonly turnId: string };
   };
+  readonly "session.compact": {
+    /** Who compacts, and the loop (absent on the main loop); the transcript is not read. */
+    readonly input: {
+      readonly trigger: "manual" | "auto" | "plugin" | "precompute";
+      readonly agentId?: string;
+    };
+    readonly result: unknown;
+  };
   readonly "turn.complete": {
     readonly input: {
       readonly answer: string;
@@ -112,12 +122,13 @@ export type Hook<E extends EventName> = (
   next: (e: Input<E>) => Promise<Result<E>>,
 ) => Promise<Result<E>>;
 
-/** `on(event, matcher?, hook)`, for the four events the mod hooks (`On`). */
+/** `on(event, matcher?, hook)`, for the five events the mod hooks (`On`). */
 export type On = {
   (event: "session.start", hook: Hook<"session.start">): unknown;
   (event: "tool.call", matcher: { readonly tool: string }, hook: Hook<"tool.call">): unknown;
   (event: "turn.start", hook: Hook<"turn.start">): unknown;
   (event: "turn.complete", hook: Hook<"turn.complete">): unknown;
+  (event: "session.compact", hook: Hook<"session.compact">): unknown;
 };
 
 /** The goal and the two points a request is judged against, in tokens. */
@@ -495,6 +506,26 @@ async function submitResume(
   }
 }
 
+/**
+ * A main-loop compaction the mod did not run (a typed /compact, or the engine's own) drops the
+ * pending request: its context is spent, and running it as well would compact twice and resume
+ * on a summary the request never asked for. The mod's own compaction finds nothing pending, as
+ * the request leaves the state before its /compact runs. The hook never stands in its way.
+ */
+async function yieldTo($: Engine, p: Points, trigger: string, state: Store): Promise<void> {
+  const { pending, timer } = state.read();
+  if (pending === null) return;
+  timer?.cancel();
+  const why = `a ${trigger} compaction ran first.`;
+  state.write({ pending: null, timer: null, last: `dropped, as ${why}` });
+  try {
+    const { context } = await $.session.usage({ breakdown: "summary" });
+    await log($, p, pending, "dropped", context, why);
+  } catch {
+    // The reading is worth less than the compaction it describes.
+  }
+}
+
 /** The timer's callback, outside every hook, so the command waits on no turn. */
 function fire($: Engine, p: Points, state: Store): void {
   state.write({ timer: null });
@@ -515,6 +546,10 @@ export function register(on: On, options: Options): void {
   });
   on("tool.call", { tool: "mcp__compaction__context" }, ($) => contextAnswer($, p, state));
   on("tool.call", { tool: "mcp__compaction__request" }, ($, e) => requestAnswer($, p, e, state));
+  on("session.compact", async ($, e, next) => {
+    if (e.agentId === undefined && e.trigger !== "precompute") await yieldTo($, p, e.trigger, state);
+    return next(e);
+  });
   on("turn.start", (_, e, next) => {
     if (e.agentId === undefined) {
       const { timer, turns } = state.read();

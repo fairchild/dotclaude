@@ -11,7 +11,9 @@ so rerun `claude plugin validate --json mods/<name>` when Claude Code updates.
   reasoning for compacting now, which the mod runs from a timer once the main thread's turn ends
   and the session goes idle. Once `/compact` has run, the mod submits the request's `resume`
   prompt, or a generic one, so the first turn after the compaction starts on its own instead of
-  waiting for the next event to arrive. Each request is kept in the mod's store, reasoning included.
+  waiting for the next event to arrive. A compaction the mod did not run, a typed `/compact` or
+  the engine's own, drops a pending request instead of compacting twice. Each request is kept in
+  the mod's store, reasoning included.
 
 Each mod observes, answers its own tools or acts on its own tool's request, and makes no network or process call, and no
 file-system call of its own: the compaction mod's reading goes through `$.store`, the JSON file
@@ -60,6 +62,18 @@ On a machine, install them from this repository's marketplace, as the main READM
 
 The mods load only from user settings: declared in a repository's `.claude/settings.json`, they do
 not load.
+
+## Taking an update
+
+An install from GitHub tracks commits (no pinned `version`, above), so a merge to `main` reaches an
+installed copy only once the marketplace is refreshed, the plugin updated and the session
+restarted:
+
+```
+claude plugin marketplace update dotclaude && claude plugin update compaction@dotclaude
+```
+
+Then restart Claude Code; `usage-meter@dotclaude` updates the same way.
 
 ## Compaction points
 
@@ -116,7 +130,7 @@ The context report reads the engine's point in three bands against the goal:
 
 `mcp__compaction__request` takes `reasoning` beside `instructions`: why compacting now beats
 carrying on. Each request is appended to `$.store` under `requests` — the newest `LOG_LIMIT`
-(200), the oldest dropped — with the outcome (`recorded`, `refused`, `ran`, `dropped`, `failed`),
+(200), the oldest dropped — with the outcome (`recorded`, `refused`, `ran`, `dropped`, `failed`; `dropped` also when another compaction runs first),
 the context and the points it was judged against, the instructions, the reasoning and the resume
 prompt when one was given. A request that ran adds a second entry for the resume prompt: `resumed`
 when it was submitted, `unresumed`, with the reason, when the submit failed after `/compact` ran.
