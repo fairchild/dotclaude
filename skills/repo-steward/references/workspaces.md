@@ -95,18 +95,54 @@ already stale by then if the worker ran for any real time. The rebase can surfac
 bare in the worktree and read the output directly; don't trust a worker's own claim that a gate
 passed, since a worker can misread its own tool output or write a test that passes for the wrong
 reason. Post the gate result as a short PR comment, not folded into the body — a gate section inside
-the body is what makes bodies long. Then:
+the body is what makes bodies long.
+
+## Close out
+
+This is the SKILL's Close out ritual, done with WorkSpaces commands. Once steps 1–2 hold (nothing is
+local-only, and the report has its `closed:` line and lesson):
 
 ```bash
+workspaces automation workspace note <workspaceID> --text "closed: PR #<n> merged <sha>"
 # exit the agent first (send "/exit"), then end the tmux session, then archive
 tmux -L workspaces kill-session -t <handle>
-workspaces automation workspace archive <workspaceID> --teardown --json
+workspaces automation workspace archive <workspaceID> --teardown --json   # outcome: completed
+workspaces automation workspace list --json \
+  | jq -e --arg id <workspaceID> '.workspaces[] | select(.workspaceID==$id) | .isArchived'
 ```
+
+The reconcile lists this repo's active rows, then reads the PR for the branch each checkout is on
+now. A worker's checkout can be reused for a later issue, so the branch the row records may be out
+of date; the checkout's current branch is the one to look up. A row whose path no longer exists is
+also done, and archives without `--teardown`.
+
+```bash
+workspaces automation workspace list --json \
+  | jq -r --arg r <repoID> '.workspaces[] | select(.repoID==$r and (.isArchived|not)) | "\(.workspaceID) \(.path)"' \
+  | while read -r id dir; do
+      [ -d "$dir" ] || { echo "$id gone"; continue; }
+      branch=$(git -C "$dir" branch --show-current)
+      [ -n "$branch" ] || { echo "$id ${dir##*/} detached HEAD"; continue; }
+      echo "$id ${dir##*/} $(cd "$dir" && gh pr list --head "$branch" --state all --json number,state -q 'if length == 0 then "no PR" else .[0] | "#\(.number) \(.state)" end')"
+    done
+```
+
+Name the loop variable anything but `path`: in zsh `path` is tied to `$PATH`, and reading into it
+leaves the loop unable to find `git`.
+
+Skip your own seat and any row you didn't create; a row with no PR is either in flight or
+abandoned, and its brief and report say which.
 
 Teardown refuses while any process — the bare shell included — is still alive in the tile, because
 the app's own close-confirmation dialog can't be answered headlessly; ending the tmux session first
 clears that. If a fleet-wide monitor is also watching for the tile going quiet, stop that monitor
 before sending `/exit` — otherwise the intentional exit reads as the failure the monitor was built to
-catch. The archived workspace keeps its branch and worktree under the app's own archive location, so
-leave the base repo's own worktree list and local branches alone; the app owns that lifecycle, and a
+catch. The archived workspace keeps its branch and worktree under `~/workspaces/.archived/<repo>/<name>`,
+so leave the base repo's own worktree list and local branches alone; the app owns that lifecycle, and a
 merged remote branch is already gone once the operator merges.
+
+An archive can be restored from the sidebar, which is why a steward can run it without asking. Allow it
+in the user settings with `Bash(workspaces automation workspace archive *)`. If your
+permission rules refuse it anyway, use the batched close-out queue from the SKILL, not a paste
+per merge. In 2026-09 a refused `archive --teardown` sent 25 per-merge pastes to the operator; none
+were run, and 24 merged tiles sat as Active for two months.

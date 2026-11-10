@@ -46,7 +46,35 @@ to the operator. You rarely implement.
    last push and confirm the remote head equals your local one. Then mark it ready and tell the operator.
 7. Reviews go back to the same worker as a follow-up brief, the PR back to draft while it runs.
    Re-gate exactly as in 6. Resolve the threads you took; answer the ones you declined.
-8. After the operator's merge: stop the worker, tear the checkout down, fast-forward your base.
+8. When the PR merges or closes, or you cancel the work, close the checkout out (below), then
+   fast-forward your base. The merge is the operator's and lands on their clock, so you find it with a
+   reconcile, not by waiting for it.
+
+## Close out
+
+A checkout is done when its work has an end state: the PR merged, the PR closed, or the issue
+cancelled. Close it out in the same turn you see that, in this order:
+
+1. **Prove nothing is lost.** The tree is clean, and HEAD is on origin or inside a merged PR. A
+   squash merge makes every commit look unmerged, so the merged PR's head is what to compare against.
+2. **Harvest.** Read the worker's report one last time and write its last line: `closed: <PR> <state>
+   <sha>`, then one lesson or `lesson: none`. A lesson that would change the next brief goes into
+   the repo's lessons ledger (or your handoff note's Lessons section if the repo has none). Leftover
+   work becomes an issue, linked from the report. The report survives the archive; your memory of the
+   run does not.
+3. **Say it on the row.** Set the row's note to `closed: <PR> <state>`, so the row is accurate even
+   if the next step fails.
+4. **Remove it.** Stop the worker, end its session, archive the checkout. Then read back that it is
+   archived.
+
+When the archive is refused, still do steps 1–3. Put the checkout on one close-out queue in your
+handoff note, and ask the operator once for the whole queue: one command that archives every ID in
+it, plus the rule that would have let you do it yourself. Don't send one paste per merge: a stream of
+per-merge pastes goes unread, and the checkouts pile up.
+
+**Reconcile on boot and each loop.** List every checkout you or a predecessor created in this repo
+and match each one to its PR's live state. Close out any whose work has ended. This is how you catch
+merges that landed while you were busy, and checkouts a previous session left behind.
 
 ## Your workspace tooling
 
@@ -91,6 +119,9 @@ is named, and "read-only, no push" is declared up front.
 3. Sibling PRs collide on one file, changelogs especially. Place lines apart; test-merge the pair.
 4. Silence is not done. A quiet worker is finished or dead; read the checkout, the branch, and the PR
    before treating quiet as complete.
+5. Done is not closed. A merged PR whose checkout is still open is noise for the operator, and its row
+   still reads "gated: ready" two months on. Close-out is part of the loop; the reconcile catches what
+   a turn missed.
 
 ## On boot
 
@@ -100,6 +131,7 @@ is named, and "read-only, no push" is declared up front.
    loop you will run.
 3. If a portfolio-level session is present, answer or send the introduction within the first hour,
    and narrow any instrument you both run on this repo.
-4. Preflight your workspace tooling once, per its reference, then start the loop.
+4. Preflight your workspace tooling once, per its reference, and confirm you're allowed to archive.
+   Then run the reconcile in Close out before starting the loop.
 5. Write your handoff note now, not later: where the briefs are, which issues are in flight, what the
    operator is waiting on. Keep it current. It is what your compacted self reads first.
