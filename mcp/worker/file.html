@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{PATH}} · {{NAME}} · dotclaude skills</title>
+<meta name="description" content="{{PATH}} from the {{NAME}} skill.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23806020'/%3E%3Cpath d='M10 10h12M10 16h12M10 22h7' stroke='%23faf9f6' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="alternate" type="{{RAW_TYPE}}" href="{{RAW_URL}}">
+<link rel="describedby" href="/llms.txt">
+<link rel="preload" href="/fonts/source-serif-4-latin-8e38e3fb.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/library.css">
+<script src="/library.js" defer></script>
+</head>
+<body>
+<main>
+<nav aria-label="Breadcrumb"><div class="crumbs"><a href="/">All skills</a> / <a href="{{DIRECTORY_URL}}">{{NAME}}</a></div><span>dotclaude / skill library</span></nav>
+<header><p class="eyebrow">Skill file</p><h1>{{PATH}}</h1>
+<p class="meta">{{SUMMARY}} · <a href="{{RAW_URL}}">Raw</a>{{PLAIN_LINK}} · <a href="{{DIRECTORY_URL}}">Back to {{NAME}}</a></p>
+<p class="meta hint" data-keys hidden><kbd>←</kbd><kbd>→</kbd> previous and next file · <kbd>Tab</kbd> moves through links · <kbd>Esc</kbd> goes up to {{NAME}}</p></header>
+<article class="file" aria-label="{{PATH}}">{{CONTENT}}</article>
+<nav class="siblings" aria-label="Other files in {{NAME}}">{{PREV}}{{NEXT}}</nav>
+<footer><a href="{{DIRECTORY_URL}}">{{NAME}}</a> · Raw bytes are byte-exact at <a href="{{RAW_URL}}">{{RAW_URL}}</a>.</footer>
+</main>
+</body>
+</html>

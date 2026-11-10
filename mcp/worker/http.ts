@@ -35,6 +35,7 @@ const policy = { "Content-Security-Policy": framing, "Referrer-Policy": "strict-
 // Each format owns its asset selection, media type, and custom headers.
 const formats: Record<string, (name: string, path: string) => Representation> = {
   html: name => ({ asset: `/skill/${encoded(name)}.html`, contentType: "text/html; charset=utf-8" }),
+  view: (name, path) => ({ asset: `/view/${encoded(name + "/" + path)}.html`, contentType: "text/html; charset=utf-8" }),
   markdown: name => ({ asset: `/skill/${encoded(name)}.md`, contentType: "text/markdown; charset=utf-8" }),
   directoryPlain: name => ({ asset: `/skill/${encoded(name)}.md`, contentType: "text/plain; charset=utf-8" }),
   plain: (name, path) => ({ asset: `/skills/${encoded(name + "/" + path)}`, contentType: fileType(path, true), skillAuthored: true }),
@@ -49,6 +50,7 @@ const suffixFormats: Record<string, string> = { html: "html", md: "markdown", tx
 const routes: Array<{ pattern: RegExp; resolve: (match: RegExpMatchArray) => Route }> = [
   { pattern: /^\/(?:skill|skills)\/([^/]+)\.(html|md|txt|tgz|tar\.gz)$/, resolve: m => ({ name: m[1]!, path: "SKILL.md", formats: [suffixFormats[m[2]!]!] }) },
   { pattern: /^\/(?:skill|skills)\/([^/]+)\/?$/, resolve: m => ({ name: m[1]!, path: "SKILL.md", formats: preferred }) },
+  { pattern: /^\/view\/([^/]+)\/(.+)$/, resolve: m => ({ name: m[1]!, path: m[2]!, formats: ["view"] }) },
   { pattern: /^\/txt\/([^/]+)(?:\/(.+))?$/, resolve: m => ({ name: m[1]!, path: m[2] ?? "SKILL.md", formats: ["plain"] }) },
   { pattern: /^\/(?:skill|skills)\/([^/]+)\/(.+)$/, resolve: m => ({ name: m[1]!, path: m[2]!, formats: ["raw"] }) },
   { pattern: /^\/downloads\/([^/]+)\/skill\.(?:tgz|tar\.gz)$/, resolve: m => ({ name: m[1]!, path: "SKILL.md", formats: ["archive"] }) },
@@ -71,6 +73,10 @@ export async function serveHttp(request: Request, assets: Assets, skills: () => 
   const path = pathname(request);
   if (path === null) return error(400, "Invalid path");
   let candidates: Representation[];
+  // One level above a skill is the catalog, so the path stays walkable upward.
+  if (path === "/skills" || path === "/skills/" || path === "/skill" || path === "/skill/") {
+    return new Response(null, { status: 301, headers: { Location: "/", "Cache-Control": "max-age=3600", ...policy } });
+  }
   if (path === "/" || path === "/index.html") {
     candidates = [
       { asset: "/index.html", contentType: "text/html; charset=utf-8" },
@@ -85,8 +91,8 @@ export async function serveHttp(request: Request, assets: Assets, skills: () => 
     ];
   } else if (/^\/fonts\/[a-z0-9-]+\.woff2$/.test(path)) {
     candidates = [{ asset: path, contentType: "font/woff2" }];
-  } else if (path === "/version.json" || path === "/index.json" || path === "/manifest.json" || path === "/library.css" || path === "/sitemap.xml") {
-    const contentType = path.endsWith(".css") ? "text/css" : path.endsWith(".xml") ? "application/xml" : "application/json";
+  } else if (path === "/version.json" || path === "/index.json" || path === "/manifest.json" || path === "/library.css" || path === "/library.js" || path === "/sitemap.xml") {
+    const contentType = path.endsWith(".css") ? "text/css" : path.endsWith(".js") ? "text/javascript" : path.endsWith(".xml") ? "application/xml" : "application/json";
     candidates = [{ asset: path, contentType: `${contentType}; charset=utf-8` }];
   } else {
     const pinned = path.match(/^\/downloads\/([a-z0-9]+(?:-[a-z0-9]+)*)\/([a-f0-9]{64})\.(tgz|json)$/);

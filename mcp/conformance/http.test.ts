@@ -26,6 +26,8 @@ const assets = { async fetch(request: Request) {
   const body = path === "/skill/example.html" ? new TextEncoder().encode("<h1>Example</h1>")
     : path === "/skill/example.md" ? directoryBytes
     : path === "/sitemap.xml" ? new TextEncoder().encode("<urlset/>")
+    : path === "/library.js" ? new TextEncoder().encode("(() => {})();")
+    : path.startsWith("/view/example/") && path.endsWith(".html") && files[path.slice(14, -5)] ? new TextEncoder().encode("<h1>Reading page</h1>")
     : path === "/downloads/example/skill.tgz" ? new Uint8Array([31, 139, 8, 0, 255])
     : path.startsWith("/fonts/") && fontFiles.includes(path.slice(7)) ? readFileSync(join(fontDir, path.slice(7)))
     : files[path.replace("/skills/example/", "")];
@@ -136,6 +138,33 @@ describe("HTTP route and representation contract", () => {
       expect(response.headers.get("Content-Security-Policy")).toBe("frame-ancestors 'none'");
       expect(response.headers.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
     }
+  });
+
+  test("a file's reading page lives under /view/, as a generated page, for files the manifest holds", async () => {
+    for (const [path, asset] of [["/view/example/scripts/run.py", "/view/example/scripts/run.py.html"], ["/view/example/references/a%20b.md", "/view/example/references/a b.md.html"], ["/view/example/example.html", "/view/example/example.html.html"]]) {
+      const response = await get(path!, "text/html,application/xhtml+xml,*/*;q=0.8");
+      expect(response.status).toBe(200);
+      expect(decodeURIComponent(new URL(forwarded.url).pathname)).toBe(asset!);
+      expect(response.headers.get("Content-Type")).toBe("text/html; charset=utf-8");
+      expect(response.headers.get("Content-Security-Policy")).toBe("frame-ancestors 'none'");
+      expect(await response.text()).toBe("<h1>Reading page</h1>");
+    }
+    for (const path of ["/view/example", "/view/example/", "/view/example/missing.py", "/view/missing/SKILL.md"]) expect((await get(path)).status).toBe(404);
+    expect((await get("/view/example/scripts/run.py", "text/plain")).status).toBe(406);
+    // The raw route is unchanged by a browser's Accept: agents still get the bytes.
+    const raw = await get("/skills/example/scripts/run.py", "text/html,application/xhtml+xml,*/*;q=0.8");
+    expect(await raw.text()).toBe("print('hello')\n");
+  });
+
+  test("the level above a skill is the catalog, and the shared script serves as JavaScript", async () => {
+    for (const path of ["/skills", "/skills/", "/skill", "/skill/"]) {
+      const response = await get(path);
+      expect(response.status).toBe(301);
+      expect(response.headers.get("Location")).toBe("/");
+    }
+    const script = await get("/library.js");
+    expect(script.status).toBe(200);
+    expect(script.headers.get("Content-Type")).toBe("text/javascript; charset=utf-8");
   });
 
   test("directory representations retain navigation while SKILL.md stays pristine", async () => {

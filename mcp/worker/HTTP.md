@@ -12,17 +12,37 @@ skill names and descriptions with ordinary links to canonical `/skills/{name}/`
 directory pages. The connection endpoint and MCP client configuration follow that
 list, so browsing leads and the endpoint stays one anchor away. Each skill page
 lists SKILL.md first, then its supporting files, and offers a complete package
-download. Markdown discovery and downloads extend the same library.
+download. Each file in that list opens a reading page at `/view/{name}/{path}`:
+Markdown rendered, source escaped, images drawn, with links to the raw bytes and
+to the files before and after it. The bytes themselves stay at
+`/skills/{name}/{path}`, unchanged whatever the `Accept` header asks for, so an
+agent fetching a supporting file never receives the reading page instead.
+Markdown discovery and downloads extend the same library.
 
 ## Keyboard flow
 
+The site is a three-level hierarchy — the catalog at `/`, a skill at
+`/skills/{name}/`, a file at `/view/{name}/{path}` — and the keys move through it
+the same way on every page. Esc zooms out one level, Tab and the arrows move
+across a level, Enter goes deeper. Each page names its keys in one line under its
+heading. `/skills/` itself redirects to `/`, since the catalog is that level.
+
 Someone arriving with a keyboard lands in a filter field above the list. Typing
-narrows the catalog by name and description with the best match first, Tab reaches
-that match, Enter opens it, and the skill page puts the cursor on its install
-button so a second Enter copies the prompt. Escape clears the filter, or on a
-skill page returns to the list with the filter intact; `/` comes back to the
-field; arrows walk the results. `?q=` makes a filtered view linkable and survives
-a reload.
+narrows the catalog by name and description with the best match first, Tab or ↓
+reaches that match, ↑ and ↓ walk the results, Enter opens one, and the skill page
+puts the cursor on its install button so a second Enter copies the prompt. Tab
+reaches the file list a few stops later, where ↑ and ↓ walk the files and Enter
+opens one; on a file page ← and → step to the previous and next file. `?q=` makes
+a filtered view linkable and survives a reload.
+
+Esc unwinds one step at a time. On a skill page an open install prompt closes
+first. Otherwise the page goes up a level and focus lands on the link to the page
+just left, so the arrows carry on among its siblings. When the parent is the
+previous history entry, going up is a history step, which keeps the catalog's
+filter and scroll position; any other way in navigates to the parent. At the
+catalog, Esc moves from the list to the filter, then clears the filter, then does
+nothing. `/` comes back to the field. `library.js` holds the shared part of this,
+and a page claims a key for itself by handling it first.
 
 Each of those is a shortcut over the plain page rather than a replacement for it.
 The field stays hidden until its script runs, so a client without scripting keeps
@@ -48,11 +68,13 @@ Markdown and the catalog so clients do not have to guess URLs.
 | `/llms.txt`, `/index.md` | Markdown catalog, plain text |
 | `/manifest.json` | Catalog JSON |
 | `/sitemap.xml` | Sitemap of the landing page and each skill's directory page (`application/xml`) |
-| `/library.css` | Shared stylesheet |
+| `/library.css`, `/library.js` | Shared stylesheet and keyboard script |
+| `/skills`, `/skills/`, `/skill`, `/skill/` | 301 to `/` |
 | `/fonts/<name>.woff2` | Self-hosted fonts (`font/woff2`), referenced by `library.css` |
 | `/skill/{name}`, `/skills/{name}` | Directory HTML, directory Markdown, directory plain text, gzip archive |
 | `/skill/{name}.{html,md,txt,tgz,tar.gz}` | The explicit format; `/skills/` supports these suffixes too |
 | `/skills/{name}/{path}`, `/skill/{name}/{path}` | Original file bytes, with the file's MIME type |
+| `/view/{name}/{path}` | The file's reading page (HTML only) |
 | `/txt/{name}`, `/txt/{name}/SKILL.md` | Original SKILL.md bytes as `text/plain` |
 | `/txt/{name}/{path}` | Original supporting file bytes; known text extensions use `text/plain`, binary extensions keep their MIME type |
 | `/downloads/{name}/{sha256}.tgz`, `/downloads/{name}/{sha256}.json` | Pinned archive and matching file manifest |

@@ -16,6 +16,7 @@
 <link rel="describedby" href="/llms.txt">
 <link rel="preload" href="/fonts/source-serif-4-latin-8e38e3fb.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/library.css">
+<script src="/library.js" defer></script>
 </head>
 <body><main>
 <nav aria-label="Library"><span>dotclaude / skill library</span><a href="/llms.txt">For agents · Markdown</a></nav>
@@ -27,7 +28,7 @@
 <form class="search" id="search" role="search" action="/" method="get" hidden>
 <label for="q">Filter skills</label>
 <input id="q" name="q" type="search" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="Filter by name or description">
-<p class="meta hint"><kbd>Tab</kbd> to the first match · <kbd>Enter</kbd> to open it · <kbd>Esc</kbd> to clear · <kbd>/</kbd> to come back here</p>
+<p class="meta hint"><kbd>Tab</kbd> or <kbd>↓</kbd> to the matches · <kbd>↑</kbd><kbd>↓</kbd> walk them · <kbd>Enter</kbd> opens one · <kbd>Esc</kbd> backs out, then clears · <kbd>/</kbd> comes back here</p>
 </form>
 <p class="meta" id="search-status" role="status" aria-live="polite"></p>
 <ul class="catalog" id="catalog" aria-label="Skills">{{SKILL_ROWS}}</ul></section>

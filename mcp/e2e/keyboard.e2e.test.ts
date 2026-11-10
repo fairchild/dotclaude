@@ -148,6 +148,88 @@ test("Escape on a skill page hands the keyboard back to the filtered list", asyn
   await page.keyboard.press("Escape");
   await expect(page).toHaveURL(/\?q=git-work$/);
   await expect(filter(page)).toHaveValue("git-work");
+  // Back on the list, the keyboard is on the skill just left.
+  await expect(matches(page).first()).toHaveText("git-worktree");
+  await expect(matches(page).first()).toBeFocused();
+});
+
+const fileLinks = (page: Page) => page.locator("ul.files a");
+const focused = (page: Page) => page.evaluate(() => document.activeElement?.textContent ?? "");
+
+/** Tab until `target` holds focus; the count is part of what the walk records. */
+async function tabTo(page: Page, target: ReturnType<Page["locator"]>, limit = 40): Promise<number> {
+  for (let presses = 0; presses < limit; presses++) {
+    if (await target.evaluate((el) => el === document.activeElement)) return presses;
+    await page.keyboard.press("Tab");
+  }
+  throw new Error(`${limit} Tabs never reached the target`);
+}
+
+test("the walk: / to a skill's file and back to /, with only the arrows, Tab, Enter and Esc", async ({ page }) => {
+  await page.goto("/");
+  await expect(filter(page)).toBeFocused();
+
+  // Across the catalog with the arrows, then deeper with Enter.
+  const names = await matches(page).allInnerTexts();
+  const at = names.indexOf("git-worktree");
+  for (let step = 0; step <= at; step++) await page.keyboard.press("ArrowDown", typing);
+  await expect(matches(page).nth(at)).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/skills\/git-worktree\/$/);
+  await expect(page.locator("#install-hint")).toContainText("Esc goes up to the library");
+
+  // Across the skill page with Tab to its files, along them with the arrows.
+  await expect(copyButton(page)).toBeFocused();
+  await tabTo(page, fileLinks(page).first());
+  await page.keyboard.press("ArrowDown", typing);
+  await expect(fileLinks(page).nth(1)).toBeFocused();
+  // The focus ring is drawn, not just tracked.
+  expect(await fileLinks(page).nth(1).evaluate((el) => getComputedStyle(el).outlineStyle)).toBe("solid");
+  const file = await focused(page);
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(new RegExp(`/view/git-worktree/${file.replace(".", "\\.")}$`));
+  await expect(page.locator("h1")).toHaveText(file);
+  await expect(page.locator("article.file pre")).toBeVisible();
+  await expect(page.locator("p.hint")).toContainText("Esc goes up to git-worktree");
+
+  // Up a level at a time, landing each time on the item just left.
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/\/skills\/git-worktree\/$/);
+  await expect(fileLinks(page).nth(1)).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(matches(page).nth(at)).toBeFocused();
+  // At the root, Esc backs out of the list to the filter, and then does nothing.
+  await page.keyboard.press("Escape");
+  await expect(filter(page)).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(filter(page)).toBeFocused();
+});
+
+test("on a file, ← and → step through the skill's files, and Esc still goes up from a direct landing", async ({ page }) => {
+  await page.goto("/view/git-worktree/SKILL.md");
+  await expect(page.locator('a[rel="prev"]')).toHaveCount(0);
+  const next = await page.locator('a[rel="next"]').getAttribute("href");
+
+  await page.keyboard.press("ArrowRight");
+  await expect(page).toHaveURL(new RegExp(`${next}$`));
+  await page.keyboard.press("ArrowLeft");
+  await expect(page).toHaveURL(/\/view\/git-worktree\/SKILL\.md$/);
+
+  // No parent behind it in history, so Esc navigates up rather than back.
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/\/skills\/git-worktree\/$/);
+  await expect(fileLinks(page).first()).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("link", { name: "git-worktree", exact: true })).toBeFocused();
+});
+
+test("/skills, one level above a skill, is the catalog", async ({ page }) => {
+  await page.goto("/skills/");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(filter(page)).toBeFocused();
 });
 
 test("the pointer path is untouched: click through and click copy", async ({ page }) => {
@@ -164,6 +246,15 @@ test("the pointer path is untouched: click through and click copy", async ({ pag
 
 test.describe("without JavaScript", () => {
   test.use({ javaScriptEnabled: false });
+
+  test("file pages are plain links both ways", async ({ page }) => {
+    await page.goto("/skills/git-worktree/");
+    await fileLinks(page).nth(1).click();
+    await expect(page).toHaveURL(/\/view\/git-worktree\//);
+    await expect(page.locator("p.hint")).toBeHidden();
+    await page.getByRole("link", { name: "git-worktree", exact: true }).first().click();
+    await expect(page).toHaveURL(/\/skills\/git-worktree\/$/);
+  });
 
   test("the catalog stays a complete, linked list and hides the dead field", async ({ page }) => {
     await page.goto("/");
