@@ -173,8 +173,12 @@ CREATE TABLE IF NOT EXISTS agent_tokens (
     pricing_source VARCHAR,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    cache_write_1h_tokens INTEGER,
     UNIQUE (agent_event_id)
 );
+-- cache_write_tokens counts every cache write; cache_write_1h_tokens is the
+-- subset written with a 1-hour TTL, which providers price above 5-minute writes.
+ALTER TABLE agent_tokens ADD COLUMN IF NOT EXISTS cache_write_1h_tokens INTEGER;
 
 -- These indexes support the most common access paths: session timelines,
 -- hierarchical traversal, and tool/result joins.

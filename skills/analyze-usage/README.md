@@ -182,9 +182,9 @@ analyze-usage search "refactor" --user --repo myapp --since 7d -n 20
 
 | View | Description |
 |------|-------------|
-| `model_pricing` | Known Claude API rates per million tokens (editable) |
+| `model_pricing` | Known Claude API rates per million tokens, 5-minute and 1-hour cache writes, and long-context rules (editable) |
 | `codex_model_pricing` | Known OpenAI Standard API-equivalent token rates and long-context rules (editable) |
-| `usage_with_cost` | One Claude assistant turn per row with `pricing_status` and API-equivalent `cost_usd` |
+| `usage_with_cost` | One Claude assistant turn per row with cost components, cache-write TTL split, long-context flag, `pricing_status`, and API-equivalent `cost_usd` |
 | `codex_usage_with_cost` | One Codex token snapshot with token components, long-context handling, and API-equivalent cost |
 | `pi_usage_with_cost` | One Pi assistant message per row with harness-recorded (`native`) dollars |
 | `provider_usage_with_cost` | Unified provider/harness/model tokens, cost components, no-cache baseline, and cache savings |
@@ -314,9 +314,9 @@ uv run skills/analyze-usage/tests/test_analyze_usage.py
 ```
 
 The suite covers bootstrap and legacy migration plus deletion/same-second detection,
-atomic failures, quoted paths and search, provider-level token costs, long-context
-pricing, cache savings, editable pricing, Codex ingestion, Codex-managed worktrees,
-and Pi ingestion with native cost.
+atomic failures, quoted paths and search, provider-level token costs, cache-write
+TTL pricing, long-context pricing, cache savings, editable pricing, Codex ingestion,
+Codex-managed worktrees, and Pi ingestion with native cost.
 
 ## Interpretation and privacy
 

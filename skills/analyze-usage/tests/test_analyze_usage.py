@@ -978,6 +978,13 @@ def test_update_legacy_db_upgrade() -> None:
             f"conductor,claude-sonnet-4-5-20250929,{session_file}",
         ], model_rows
 
+        cache_write_1h = duckdb_query(
+            db_path,
+            "SELECT cache_write_1h_tokens FROM messages "
+            "WHERE harness='claude_code' AND role='assistant';",
+        )
+        assert cache_write_1h == ["0"], cache_write_1h
+
         canonical_count = duckdb_query(
             db_path,
             "SELECT COUNT(*) FROM information_schema.tables "
@@ -1343,6 +1350,149 @@ def test_update_backfills_message_ids() -> None:
         assert usage == ["1,5"], usage
 
 
+def set_assistant_turns(session_file: Path, turns: list[tuple[str, dict[str, object]]]) -> None:
+    """Replace the fixture's assistant turn with one turn per (model, usage)."""
+    entries = [json.loads(line) for line in session_file.read_text().splitlines()]
+    index, assistant = next(
+        (i, e) for i, e in enumerate(entries) if e.get("type") == "assistant"
+    )
+    records = []
+    for n, (model, usage) in enumerate(turns):
+        record = json.loads(json.dumps(assistant))
+        record["uuid"] = f"a{n + 1}"
+        record["message"]["id"] = f"msg_turn_{n + 1}"
+        record["message"]["model"] = model
+        record["message"]["usage"] = usage
+        records.append(record)
+    entries[index : index + 1] = records
+    session_file.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+
+
+# 100K 5-minute writes at $5 and 200K 1-hour writes at $8 per MTok.
+OPUS_MIXED_TTL_USAGE = {
+    "input_tokens": 10,
+    "output_tokens": 5,
+    "cache_creation_input_tokens": 300_000,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+        "ephemeral_5m_input_tokens": 100_000,
+        "ephemeral_1h_input_tokens": 200_000,
+    },
+}
+
+
+@test("1-hour cache writes are priced at the 1-hour rate")
+def test_cache_write_ttl_pricing() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_file = write_fixture(home)
+        set_assistant_turns(session_file, [("claude-opus-5-5", OPUS_MIXED_TTL_USAGE)])
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        usage = duckdb_query(
+            db_path,
+            "SELECT cache_write_tokens, cache_write_1h_tokens, cache_write_cost_usd, "
+            "cost_usd, cache_savings_usd FROM usage_with_cost;",
+        )
+        assert usage == ["300000,200000,2.1,2.10014,-0.9"], usage
+        provider = duckdb_query(
+            db_path,
+            "SELECT cache_write_cost_usd, cost_usd FROM provider_usage_with_cost;",
+        )
+        assert provider == ["2.1,2.10014"], provider
+
+
+@test("update adds 1-hour cache pricing to a database that predates it")
+def test_update_backfills_cache_write_ttl() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_file = write_fixture(home)
+        set_assistant_turns(session_file, [("claude-opus-5-5", OPUS_MIXED_TTL_USAGE)])
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        subprocess.run(
+            ["duckdb", str(db_path), "-c",
+             "DROP VIEW IF EXISTS cost_summary; DROP VIEW IF EXISTS provider_cost_summary; "
+             "DROP VIEW IF EXISTS cache_efficiency_summary; DROP VIEW IF EXISTS provider_usage_with_cost; "
+             "DROP VIEW IF EXISTS usage_with_cost; "
+             "ALTER TABLE messages DROP COLUMN cache_write_1h_tokens; "
+             "DELETE FROM model_pricing WHERE model='claude-haiku-5-5'; "
+             "ALTER TABLE model_pricing DROP COLUMN cache_write_1h_rate; "
+             "ALTER TABLE model_pricing DROP COLUMN long_context_threshold; "
+             "ALTER TABLE model_pricing DROP COLUMN long_context_input_multiplier; "
+             "ALTER TABLE model_pricing DROP COLUMN long_context_output_multiplier; "
+             "UPDATE model_pricing SET input_rate=99 WHERE model='claude-sonnet-4-5-20250929';"],
+            text=True, check=True, timeout=30,
+        )
+
+        assert_ok(run([str(SCRIPT_PATH), "update"], env=env))
+        rates = duckdb_query(
+            db_path,
+            "SELECT model, CAST(input_rate AS DOUBLE), CAST(cache_write_1h_rate AS DOUBLE), "
+            "long_context_threshold FROM model_pricing WHERE model IN "
+            "('claude-opus-5-5', 'claude-sonnet-4-5-20250929', 'claude-haiku-5-5') "
+            "ORDER BY model;",
+        )
+        assert rates == [
+            "claude-haiku-5-5,0.1,0.2,100000",
+            "claude-opus-5-5,4.0,8.0,NULL",
+            "claude-sonnet-4-5-20250929,99.0,NULL,NULL",
+        ], rates
+        usage = duckdb_query(
+            db_path, "SELECT cache_write_1h_tokens, cost_usd FROM usage_with_cost;"
+        )
+        assert usage == ["200000,2.10014"], usage
+
+
+@test("Haiku 5.5 prompts over 100K tokens pay the long-context rates")
+def test_haiku_long_context_pricing() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_file = write_fixture(home)
+        at_threshold = {
+            "input_tokens": 100_000,
+            "output_tokens": 1_000,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+        }
+        over_threshold = {
+            "input_tokens": 20,
+            "output_tokens": 1_000,
+            "cache_creation_input_tokens": 2_000,
+            "cache_read_input_tokens": 100_000,
+            "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 2_000,
+            },
+        }
+        set_assistant_turns(
+            session_file,
+            [("claude-haiku-5-5", at_threshold), ("claude-haiku-5-5", over_threshold)],
+        )
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        usage = duckdb_query(
+            db_path,
+            "SELECT is_long_context, cache_write_cost_usd, cost_usd "
+            "FROM usage_with_cost ORDER BY usage_id;",
+        )
+        assert usage == ["false,0.0,0.0105", "true,0.002,0.00951"], usage
+        summary = duckdb_query(
+            db_path,
+            "SELECT long_context_rows, cost_usd FROM provider_cost_summary;",
+        )
+        assert summary == ["1,0.02"], summary
+
+
 @test("pricing is current, unknown-safe, and editable")
 def test_model_pricing_semantics() -> None:
     with tempfile.TemporaryDirectory() as tmp:
@@ -1356,7 +1506,7 @@ def test_model_pricing_semantics() -> None:
         rates = duckdb_query(
             db_path,
             "SELECT model, CAST(input_rate AS DOUBLE), CAST(output_rate AS DOUBLE), "
-            "CAST(cache_read_rate AS DOUBLE) "
+            "CAST(cache_read_rate AS DOUBLE), CAST(cache_write_1h_rate AS DOUBLE) "
             "FROM model_pricing WHERE model IN "
             "('claude-fable-5', 'claude-fable-5-1', 'claude-fable-5-2', "
             "'claude-opus-4-5-20251101', 'claude-haiku-4-5-20251001', "
@@ -1365,14 +1515,15 @@ def test_model_pricing_semantics() -> None:
             "ORDER BY model;",
         )
         assert rates == [
-            "claude-fable-5,10.0,50.0,1.0",
-            "claude-fable-5-1,10.0,50.0,0.25",
-            "claude-fable-5-2,8.0,40.0,0.2",
-            "claude-haiku-4-5-20251001,1.0,5.0,0.1",
-            "claude-opus-4-5-20251101,5.0,25.0,0.5",
-            "claude-opus-5,5.0,25.0,0.5",
-            "claude-opus-5-5,4.0,20.0,0.2",
-            "claude-sonnet-5-5,2.0,10.0,0.1",
+            "claude-fable-5,10.0,50.0,1.0,20.0",
+            "claude-fable-5-1,10.0,50.0,0.25,20.0",
+            "claude-fable-5-2,8.0,40.0,0.2,16.0",
+            "claude-haiku-4-5-20251001,1.0,5.0,0.1,2.0",
+            "claude-haiku-5-5,0.1,0.5,0.01,0.2",
+            "claude-opus-4-5-20251101,5.0,25.0,0.5,10.0",
+            "claude-opus-5,5.0,25.0,0.5,10.0",
+            "claude-opus-5-5,4.0,20.0,0.2,8.0",
+            "claude-sonnet-5-5,2.0,10.0,0.1,4.0",
         ], rates
 
         subprocess.run(
@@ -1883,6 +2034,9 @@ def main() -> None:
         test_turn_split_across_records_counts_once,
         test_update_backfills_message_ids,
         test_model_pricing_semantics,
+        test_cache_write_ttl_pricing,
+        test_update_backfills_cache_write_ttl,
+        test_haiku_long_context_pricing,
         test_provider_cost_and_cache_semantics,
         test_codex_managed_worktree_attribution,
         test_calendar_views_use_local_timezone,
