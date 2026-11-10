@@ -14,10 +14,13 @@ so rerun `claude plugin validate --json mods/<name>` when Claude Code updates.
   waiting for the next event to arrive. A main-thread `/compact` typed during the wait, or the
   engine's automatic compaction, drops a pending request instead of compacting twice; a
   subagent's compaction does not. Each request is kept in the mod's store, reasoning included.
+  Past the prepare point, and after a compaction, it attaches a short note to the next prompt
+  (below, [Asking for a compaction](#asking-for-a-compaction)).
 
 `usage-meter` only observes. `compaction` answers its own tools and acts on its own tool's
 request: its one command call runs `compact`, and its one prompt call submits the resume prompt
-after it, which starts a model turn as a typed prompt would. Neither mod makes a network or
+after it, which starts a model turn as a typed prompt would. Its `prompt.submit` hook adds
+context beside a prompt and never changes the prompt's text. Neither mod makes a network or
 process call of its own, nor a file-system call: the compaction mod's reading goes through
 `$.store`, the JSON file the engine keeps for a plugin under the configuration directory, and
 nothing else is written. The validator's notes list each mod's hooks
@@ -101,9 +104,9 @@ a budget whatever the budget is. The runway is an absolute because what it pays 
 scale with the window: a closing turn, a resume file, the request, `IDLE_MS = 3000` of idle wait,
 and the `/compact` round trip.
 
-None of these points injects anything into the conversation. The thread sees them when it calls
-`mcp__compaction__context`, or through whatever it already reads — a status line or a heartbeat
-that prints the context against the goal. Past the goal, the thread compacts when what its context
+The prepare point is the one that speaks: the first prompt past it carries a note (below). The
+others the thread sees when it calls `mcp__compaction__context`, or through whatever it already
+reads — a status line or a heartbeat that prints the context against the goal. Past the goal, the thread compacts when what its context
 holds is spent (finished work, settled reviews, tool output whose conclusions are written down)
 and carries on while compacting would lose live threads.
 
@@ -129,25 +132,25 @@ The context report reads the engine's point in three bands against the goal:
 
 ## Asking for a compaction
 
-A request carries three texts. `instructions` is what the summary keeps, named exactly: the
-user's briefs verbatim, open asks, agents and their states, the merge order, and what to drop.
-`reasoning` is why compacting now beats carrying on. `resume` is the prompt the next turn starts
-on: what to pick up first and where its state lives, such as a resume file or the arc's tracking
-issue. Without it the mod submits a generic prompt to continue from the summary, which knows only
-what the summary kept.
+The mod hands the thread the procedure when it is due, as context beside a prompt that the model
+reads and the person never sees, so a session that loaded no skill still gets it:
 
-The summary is a paraphrase of what the session believed, so the state worth keeping goes to disk
-or the tracker before the request, and the turn after the cut rebuilds from live reads of
-branches, pull requests, checks and processes rather than from the summary.
+- **The prepare note.** The first prompt past the prepare point, with no request pending, carries
+  it once until the next compaction: write what must survive to disk or the tracker first, then
+  call `mcp__compaction__request` with `instructions` (what the summary keeps, named exactly),
+  `reasoning`, and `resume` (what to pick up first and where its state lives); carry on instead
+  while compacting would lose live work.
+- **The after note.** The first prompt after a main-loop compaction that went through — a typed
+  `/compact`, the engine's own, another plugin's — carries it once: the summary carries what the
+  session believed, so rebuild from live reads before acting on it. The mod's own cut owes none:
+  its resume prompt is the thread's own word, and the generic one says the same.
 
-Two cases resume nothing. A `/compact` the user types ends the turn, and the compacted session
-waits for whatever event arrives next. A request the mod drops — another compaction ran first, or
-the context sat below the floor when it fell due — or a `/compact` that fails submits no resume
-either; the context tool reports the last request's outcome. In both, a background timer started
-before the cut bounds the wait.
-
-The [`compaction-handoff`](../skills/compaction-handoff/SKILL.md) skill carries the procedure:
-reflect back, write durable state, request, and rebuild after.
+A slash command's prompt carries neither. A note rides on a prompt, so a session working through a
+long turn of tool calls with no prompt arriving meets the prepare note at the next one, and a
+typed `/compact` still waits for whatever event comes next before anything runs; a background
+timer started before the cut bounds that wait. The
+[`compaction-handoff`](../skills/compaction-handoff/SKILL.md) skill is the long form: reflecting
+back before the cut, and the manual cut when the mod is not installed.
 
 ## What a request leaves behind
 

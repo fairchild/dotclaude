@@ -1,6 +1,6 @@
 ---
 name: compaction-handoff
-description: Prepare a long-running session for compaction and pick the work up after it — write durable state before the cut, ask for the cut with instructions and a resume prompt, then rebuild from live reads instead of the summary. Use when the user says "prepare for compaction", "let's compact" or "we're getting long", when mcp__compaction__context reports the session past the prepare point, and before handing the user a /compact to type.
+description: Prepare a long-running session for compaction and pick the work up after it — write durable state before the cut, ask for the cut with instructions and a resume prompt, then rebuild from live reads instead of the summary. Use when the user says "prepare for compaction", "let's compact" or "we're getting long", when the compaction mod's prepare note arrives, and before handing the user a /compact to type.
 license: Apache-2.0
 metadata:
   status: experimental
@@ -15,7 +15,9 @@ paraphrase. The handoff makes the paraphrase unnecessary: by the cut, every fact
 disk or in the tracker, and the next turn has a short list of live reads to rebuild from.
 
 The engine's own compaction is the backstop. It takes no instructions and lands mid-thought, so a
-summary that matters is one the session asked for.
+summary that matters is one the session asked for. With the `compaction` mod installed, the short
+form of steps 2–4 arrives on its own, as a note beside the first prompt past the prepare point and
+another after a cut; this skill is the long form.
 
 ## 1. Reflect back
 

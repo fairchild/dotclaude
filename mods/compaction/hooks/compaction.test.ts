@@ -2,6 +2,7 @@ import type { On } from 'claude-code'
 import { type Engine, expect, mock, test } from 'claude-code/testing'
 
 import {
+  AFTER_NOTE,
   BACKSTOP_TOKENS,
   GOAL_TOKENS,
   IDLE_MS,
@@ -10,6 +11,7 @@ import {
   RUNWAY_TOKENS,
   type Entry,
   points,
+  prepareNote,
 } from './compaction'
 
 const WINDOW = 1_000_000
@@ -292,6 +294,7 @@ async function compacted($: Engine, on: On, request: Readonly<Record<string, str
   const clock = mock.clock(on)
   const commands: { command: string; args?: string }[] = []
   const submitted: string[] = []
+  const carried: (readonly string[])[] = []
   let compactions = 0
   let reads = 0
   on('session.usage', () => {
@@ -336,6 +339,7 @@ async function compacted($: Engine, on: On, request: Readonly<Record<string, str
   })
   on('prompt.submit', (_, e) => {
     submitted.push(e.text)
+    carried.push(e.context ?? [])
     if (world.submit === 'throws') throw new Error('submit broke')
     if (world.submit === 'drops') return { drop: 'a Stop hook stands' }
     if (e.text.startsWith('/')) throw new Error('a text beginning with / would run a command (host check)')
@@ -358,7 +362,7 @@ async function compacted($: Engine, on: On, request: Readonly<Record<string, str
   await clock.advance(IDLE_MS)
 
   const last = String((await $.tool.call({ tool: 'mcp__compaction__context' })).result)
-  return { commands, submitted, outcomes: log.entries().map((e) => e.outcome), last }
+  return { commands, submitted, carried, outcomes: log.entries().map((e) => e.outcome), last }
 }
 
 const ASKED = { instructions: 'keep the merge order', reasoning: 'the reviews are spent' }
@@ -371,6 +375,15 @@ test('a request naming a resume prompt submits exactly that, after /compact', as
   expect(run.submitted).toEqual([resume])
   expect(run.outcomes).toEqual(['recorded', 'ran', 'resumed'])
   expect(run.last).toContain('then submitted the resume prompt')
+})
+
+test('a requested cut owes no rebuild note: its resume is the thread\'s own, and the default says it', async ($, on) => {
+  const run = await compacted($, on, { ...ASKED, resume: 'Read RESUME.md.' })
+  await $.prompt.submit({ text: 'later', wait: false, origin: { kind: 'composer' } })
+
+  expect(run.carried).toHaveLength(2)
+  expect(run.carried.flat()).not.toContain(AFTER_NOTE)
+  expect(RESUME_DEFAULT).toContain('live reads')
 })
 
 test('a request with no resume prompt submits the default', async ($, on) => {
@@ -553,4 +566,63 @@ test('a main turn starting while the due timer reads the context keeps the reque
 
   expect(midTurn).toBe(0)
   expect(run.outcomes).toEqual(['recorded', 'ran', 'resumed'])
+})
+
+/** A session whose context reads `count` tokens, recording what each prompt carried beside it. */
+async function prompting($: Engine, on: On, count: () => number) {
+  mock.store(on)
+  mock.clock(on)
+  const carried: (readonly string[])[] = []
+  on('session.usage', () => ({ value: usage(count(), 667_000) }))
+  on('tool.register', (_, e) => ({ value: { tool: e.name } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.compact', () => ({ messages: SUMMARY }))
+  on('prompt.submit', (_, e) => {
+    carried.push(e.context ?? [])
+
+    return { text: e.text }
+  })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const say = (text: string) => $.prompt.submit({ text, wait: false, origin: { kind: 'composer' } })
+
+  return { carried, say }
+}
+
+test('the first prompt past the prepare point carries the procedure, and only the first', async ($, on) => {
+  const { carried, say } = await prompting($, on, () => 240_000)
+
+  await say('next')
+  await say('and the next')
+
+  expect(carried).toEqual([[prepareNote(points({}), 240_000)], []])
+  expect(carried[0]?.[0]).toContain('mcp__compaction__request')
+  expect(carried[0]?.[0]).toContain('"resume"')
+})
+
+test('a prompt below the prepare point carries nothing', async ($, on) => {
+  const { carried, say } = await prompting($, on, () => 200_000)
+
+  await say('next')
+
+  expect(carried).toEqual([[]])
+})
+
+test('the first prompt after a compaction carries the rebuild note, and the prepare note can come again', async ($, on) => {
+  let count = 240_000
+  const { carried, say } = await prompting($, on, () => count)
+
+  await say('next')
+  await $.session.compact({ trigger: 'manual', messages: SUMMARY })
+  count = 60_000
+  await say('after the cut')
+  await say('later')
+  count = 230_000
+  await say('long again')
+
+  expect(carried).toEqual([
+    [prepareNote(points({}), 240_000)],
+    [AFTER_NOTE],
+    [],
+    [prepareNote(points({}), 230_000)],
+  ])
 })

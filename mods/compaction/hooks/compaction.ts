@@ -18,10 +18,14 @@
  * resume beginning with "/" is refused, as the engine submits no command for a mod. Any other
  * main-loop compaction but a precompute (a typed `/compact`, which starts no turn, the engine's,
  * another plugin's) that goes through drops a waiting request, so the session never compacts twice.
- * State is lost on a reload. Its other hooks pass each event on unchanged; its
- * tool hooks answer only its own two tools. `claude plugin validate --json mods/compaction`
- * lists its hooks and `$` calls, the tests hold the command to `compact` and the submitted text
- * to the request's, and the types narrow Claude Code 2.1.316's mod API to what the mod uses.
+ * Beside the main thread's first prompt past the prepare point, and again beside the first after
+ * any main-loop compaction but its own, the mod attaches a note the model reads and the person
+ * never sees: the procedure (prepareNote), then the rebuild from live reads (AFTER_NOTE). A
+ * slash command's prompt carries neither. State is lost on a reload. Its other hooks pass each
+ * event on unchanged; its tool hooks answer only its own two tools. `claude plugin validate
+ * --json mods/compaction` lists its hooks and `$` calls, the tests hold the command to `compact`
+ * and the submitted text to the request's, and the types narrow Claude Code 2.1.316's mod API to
+ * what the mod uses.
  */
 
 /**
@@ -93,6 +97,15 @@ type Events = {
     readonly input: { readonly text: string; readonly turnId: string; readonly agentId?: string };
     readonly result: { readonly turnId: string };
   };
+  readonly "prompt.submit": {
+    /** A prompt about to enter: a slash command's carries `command`; `context` is read beside it, never shown. */
+    readonly input: {
+      readonly text: string;
+      readonly command?: unknown;
+      readonly context?: readonly string[];
+    };
+    readonly result: unknown;
+  };
   readonly "session.compact": {
     /** Who compacts, and the loop (absent on the main loop); the transcript is not read. */
     readonly input: {
@@ -123,10 +136,11 @@ export type Hook<E extends EventName> = (
   next: (e: Input<E>) => Promise<Result<E>>,
 ) => Promise<Result<E>>;
 
-/** `on(event, matcher?, hook)`, for the five events the mod hooks (`On`). */
+/** `on(event, matcher?, hook)`, for the six events the mod hooks (`On`). */
 export type On = {
   (event: "session.start", hook: Hook<"session.start">): unknown;
   (event: "tool.call", matcher: { readonly tool: string }, hook: Hook<"tool.call">): unknown;
+  (event: "prompt.submit", hook: Hook<"prompt.submit">): unknown;
   (event: "turn.start", hook: Hook<"turn.start">): unknown;
   (event: "turn.complete", hook: Hook<"turn.complete">): unknown;
   (event: "session.compact", hook: Hook<"session.compact">): unknown;
@@ -177,7 +191,23 @@ export const MAX_REASONING = 400;
 export const MAX_RESUME = 2000;
 /** What the thread is told after a compaction it asked for, when its request named no resume. */
 export const RESUME_DEFAULT =
-  "The compaction you requested has run. Continue the work in progress from the summary; if it was waiting on someone, say what it waits on and stop.";
+  "The compaction you requested has run. Pick the work in progress up from live reads (branches, pull requests, checks, running processes), with the summary as a guide to them; if it was waiting on someone, say what it waits on and stop.";
+/**
+ * What the main thread reads beside its first prompt past the prepare point, once between
+ * compactions: the procedure, at the moment it is due.
+ */
+export const prepareNote = (p: Points, count: number): string =>
+  `The context is at ${tokens(count)} tokens, past the prepare point (${tokens(p.prepareTokens)}) ` +
+  `of the ${tokens(p.goalTokens)} goal. To compact near the goal, write what must survive to disk ` +
+  "or the tracker first (a resume file, the arc's tracking issue), then call " +
+  'mcp__compaction__request with "instructions" (what the summary keeps, named exactly), ' +
+  '"reasoning", and "resume" (what to pick up first and where its state lives). Carry on instead ' +
+  "while compacting would lose live work. The compaction-handoff skill has the long form.";
+/** What the main thread reads beside its first prompt after a main-loop compaction went through. */
+export const AFTER_NOTE =
+  "This session has compacted. The summary carries what the session believed, mistakes included: " +
+  "rebuild from live reads (the resume file, branches, pull requests, checks, running processes) " +
+  "before acting on it.";
 /** Where the requests are kept, and how many: the newest LOG_LIMIT, oldest dropped. */
 export const LOG_KEY = "requests";
 export const LOG_LIMIT = 200;
@@ -230,10 +260,7 @@ const REQUEST_TOOL: ToolSpec = {
     "other starts within a few seconds, runs /compact with these instructions, then submits " +
     "the resume prompt (or a generic one) so the next turn starts on its own. One request " +
     "waits at a time, and a second replaces it. Refused from a subagent, below the request " +
-    "floor, or while the context is not measured. Its reasoning is kept across sessions. " +
-    "Write what must survive to disk or the tracker first and say where in the resume prompt: " +
-    "the summary is a paraphrase, so the next turn rebuilds from live reads (the " +
-    "compaction-handoff skill has the procedure).",
+    "floor, or while the context is not measured. Its reasoning is kept across sessions.",
   inputSchema: {
     type: "object",
     properties: { instructions: INSTRUCTIONS, reasoning: REASONING, resume: RESUME },
@@ -269,7 +296,10 @@ export type Entry = Request & {
   readonly why?: string;
 };
 
-/** One registration's state: `ours` marks the mod's /compact sent, `through` its compaction done. */
+/**
+ * One registration's state: `ours` marks the mod's /compact sent, `through` its compaction done,
+ * `prepared` the prepare note given since the last compaction, `compacted` the after note owed.
+ */
 type Fields = {
   readonly pending: Request | null;
   readonly timer: Timer | null;
@@ -278,6 +308,8 @@ type Fields = {
   readonly compacting: number;
   readonly ours: boolean;
   readonly through: boolean;
+  readonly prepared: boolean;
+  readonly compacted: boolean;
 };
 
 type Store = { readonly read: () => Fields; readonly write: (change: Partial<Fields>) => void };
@@ -291,6 +323,8 @@ function store(): Store {
     compacting: 0,
     ours: false,
     through: false,
+    prepared: false,
+    compacted: false,
   };
   return {
     read: () => fields,
@@ -529,7 +563,10 @@ async function runPending($: Engine, p: Points, state: Store): Promise<void> {
   await submitResume($, p, pending, context, ran, state);
 }
 
-/** Starts the first turn after the compaction; its failure is its own, the compaction having run. */
+/**
+ * Starts the first turn after the compaction; its failure is its own, the compaction having run.
+ * The resume prompt is the thread's own word on what comes next, so no after note is owed.
+ */
 async function submitResume(
   $: Engine,
   p: Points,
@@ -538,6 +575,7 @@ async function submitResume(
   ran: string,
   state: Store,
 ): Promise<void> {
+  state.write({ compacted: false });
   try {
     const entered = await $.prompt.submit({ text: pending.resume ?? RESUME_DEFAULT });
     const dropped = said(entered, "drop");
@@ -583,6 +621,7 @@ async function compaction<R>($: Engine, p: Points, trigger: string, state: Store
   try {
     const result = await run();
     if (said(result, "skip") === undefined) {
+      state.write({ prepared: false, compacted: true });
       if (mine) state.write({ through: true });
       else await yieldTo($, p, trigger, state);
     }
@@ -590,6 +629,20 @@ async function compaction<R>($: Engine, p: Points, trigger: string, state: Store
   } finally {
     state.write({ compacting: state.read().compacting - 1 });
   }
+}
+
+/** The note a prompt carries: the after note once a compaction went through, else the prepare note once. */
+async function noteFor($: Engine, p: Points, state: Store): Promise<string | null> {
+  const { compacted, prepared, pending } = state.read();
+  if (compacted) {
+    state.write({ compacted: false });
+    return AFTER_NOTE;
+  }
+  if (prepared || pending !== null) return null;
+  const { context } = await $.session.usage();
+  if (context.tokens === undefined || context.tokens < p.prepareTokens) return null;
+  state.write({ prepared: true });
+  return prepareNote(p, context.tokens);
 }
 
 /** The timer's callback, outside every hook, so the command waits on no turn. */
@@ -617,6 +670,11 @@ export function register(on: On, options: Options): void {
       ? next(e)
       : compaction($, p, e.trigger, state, () => next(e)),
   );
+  on("prompt.submit", async ($, e, next) => {
+    if (e.command !== undefined) return next(e);
+    const note = await noteFor($, p, state).catch(() => null);
+    return next(note === null ? e : { ...e, context: [...(e.context ?? []), note] });
+  });
   on("turn.start", (_, e, next) => {
     if (e.agentId === undefined) {
       state.read().timer?.cancel();

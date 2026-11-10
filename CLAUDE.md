@@ -36,7 +36,6 @@ Detect package manager from lockfile: `bun.lock` → bun, `pnpm-lock.yaml` → p
 - **Prefer project-scripts** when a repo supports them: use standardized `scripts/` entrypoints for setup, run, stop, and archive, with `mise` as the preferred orchestrator when present.
 - **Memory is available**. Use `chronicle` when continuity across sessions, recall, or durable context would help.
 - **Hand long-arc work to a fable session**: Opus 5.5 at `xhigh` effort orchestrates and verifies coherent quality while delegating the implementation — Opus by default, Sonnet when the task is simple and fully specified, Fable when it needs nuance. Contract: the `fable-session` skill.
-- **Compact on purpose.** Before a compaction, write what must survive to disk or the tracker, then ask for the cut with `instructions` (what the summary keeps) and `resume` (what to pick up first and where its state lives); after it, rebuild from live reads, not the summary. Procedure: the `compaction-handoff` skill.
 
 ## Memory noticing
 
