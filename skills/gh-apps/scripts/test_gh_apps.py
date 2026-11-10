@@ -389,6 +389,146 @@ def test_list_apps():
 
 
 # ---------------------------------------------------------------------------
+# Unit tests — app name check
+# ---------------------------------------------------------------------------
+
+@test("name_problem: accepts lowercase letters, digits and hyphens")
+def test_name_accepts():
+    for name in ["yard-surveyor", "bot2", "a-b-c"]:
+        assert gh_apps._name_problem(name) is None, name
+
+
+@test("name_problem: rejects names GitHub would slug differently, with a suggestion")
+def test_name_rejects():
+    for name in ["My Bot", "my_bot", "bot.v2", "a--b", "-bot", "bot-", ""]:
+        assert gh_apps._name_problem(name), name
+    assert "'my-bot'" in gh_apps._name_problem("My Bot")
+
+
+@test("create: refuses a bad name before contacting GitHub")
+def test_create_refuses_bad_name():
+    import io
+    with tempfile.TemporaryDirectory() as tmpdir:
+        real_root, real_port = gh_apps.CONFIG_ROOT, gh_apps._find_free_port
+        gh_apps.CONFIG_ROOT = Path(tmpdir)
+
+        def no_port():
+            raise AssertionError("flow continued past the name check")
+
+        gh_apps._find_free_port = no_port
+        old_stderr, sys.stderr = sys.stderr, io.StringIO()
+        try:
+            try:
+                gh_apps._run_manifest_flow("My Bot", None, None, None, None, False, "", True)
+                raise AssertionError("expected exit")
+            except SystemExit as e:
+                assert e.code == 1
+            assert "my-bot" in sys.stderr.getvalue()
+            assert not any(Path(tmpdir).iterdir()), "created a config dir"
+        finally:
+            sys.stderr = old_stderr
+            gh_apps.CONFIG_ROOT, gh_apps._find_free_port = real_root, real_port
+
+
+# ---------------------------------------------------------------------------
+# Unit tests — narrowed installation tokens
+# ---------------------------------------------------------------------------
+
+@test("token_request_body: empty when nothing narrowed")
+def test_token_body_empty():
+    assert gh_apps._token_request_body() is None
+    assert gh_apps._token_request_body({}, []) is None
+
+
+@test("token_request_body: carries permissions and bare repo names")
+def test_token_body_narrowed():
+    body = gh_apps._token_request_body(
+        {"pull_requests": "write"}, ["owner/one", "two"],
+    )
+    assert body == {"permissions": {"pull_requests": "write"}, "repositories": ["one", "two"]}, body
+
+
+@test("get_installation_token: posts the narrowing body to GitHub")
+def test_token_posts_body():
+    import io
+    sent = {}
+
+    class Resp(io.BytesIO):
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    def fake_urlopen(req):
+        sent["url"], sent["data"] = req.full_url, req.data
+        return Resp(b'{"token": "ghs_test"}')
+
+    real_urlopen, real_jwt = gh_apps.urlopen, gh_apps._generate_jwt
+    gh_apps.urlopen, gh_apps._generate_jwt = fake_urlopen, lambda *a: "jwt"
+    try:
+        token = gh_apps._get_installation_token(
+            "1", "99", "k.pem", permissions={"pull_requests": "write"}, repositories=["r"],
+        )
+        assert token == "ghs_test"
+        assert sent["url"].endswith("/app/installations/99/access_tokens")
+        assert json.loads(sent["data"]) == {
+            "permissions": {"pull_requests": "write"}, "repositories": ["r"],
+        }
+        gh_apps._get_installation_token("1", "99", "k.pem")
+        assert sent["data"] is None, "unnarrowed token should send no body"
+    finally:
+        gh_apps.urlopen, gh_apps._generate_jwt = real_urlopen, real_jwt
+
+
+@test("token command: --permissions and --repo reach the token request")
+def test_token_cli_passthrough():
+    import io
+    captured = {}
+    real_creds, real_get = gh_apps._require_creds, gh_apps._get_installation_token
+    gh_apps._require_creds = lambda args: gh_apps.AppCredentials("s", "1", "k.pem")
+
+    def fake_get(app_id, installation_id, key_path, permissions=None, repositories=None):
+        captured.update(installation=installation_id, permissions=permissions, repositories=repositories)
+        return "ghs_test"
+
+    gh_apps._get_installation_token = fake_get
+    old_stdout, sys.stdout = sys.stdout, io.StringIO()
+    try:
+        args = gh_apps.build_parser().parse_args([
+            "token", "--installation", "7",
+            "--permissions", "pull_requests:write,contents:read",
+            "--repo", "o/a,b", "--repo", "c",
+        ])
+        gh_apps.cmd_token(args)
+        assert sys.stdout.getvalue() == "ghs_test\n", "token must print alone"
+        assert captured == {
+            "installation": "7",
+            "permissions": {"pull_requests": "write", "contents": "read"},
+            "repositories": ["o/a", "b", "c"],
+        }, captured
+    finally:
+        sys.stdout = old_stdout
+        gh_apps._require_creds, gh_apps._get_installation_token = real_creds, real_get
+
+
+# ---------------------------------------------------------------------------
+# Unit tests — create closing message
+# ---------------------------------------------------------------------------
+
+@test("finish_create: reminds to install on selected repositories only")
+def test_finish_create_install_reminder():
+    import io
+    with tempfile.TemporaryDirectory() as tmpdir:
+        real_root = gh_apps.CONFIG_ROOT
+        gh_apps.CONFIG_ROOT = Path(tmpdir)
+        old_stdout, sys.stdout = sys.stdout, io.StringIO()
+        try:
+            gh_apps._finish_create({"id": 5, "pem": "fake", "owner": {"login": "o"}}, "my-bot")
+            assert "Only select repositories" in sys.stdout.getvalue()
+        finally:
+            sys.stdout = old_stdout
+            gh_apps.CONFIG_ROOT = real_root
+
+
+# ---------------------------------------------------------------------------
 # Test registry
 # ---------------------------------------------------------------------------
 
@@ -411,6 +551,14 @@ UNIT_TESTS = [
     test_manifest_minimal,
     test_manifest_full,
     test_list_apps,
+    test_name_accepts,
+    test_name_rejects,
+    test_create_refuses_bad_name,
+    test_token_body_empty,
+    test_token_body_narrowed,
+    test_token_posts_body,
+    test_token_cli_passthrough,
+    test_finish_create_install_reminder,
 ]
 
 
