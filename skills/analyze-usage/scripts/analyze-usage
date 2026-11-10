@@ -369,6 +369,9 @@ COLUMNS:
     search_id       VARCHAR     Analyzer-generated unique key used by the FTS index
     message_id      VARCHAR     API message id (Claude Code); one turn spans several records
     cache_write_1h_tokens INTEGER  1-hour-TTL subset of cache_write_tokens (Claude Code)
+    web_search_requests INTEGER  Server-side web searches billed with the turn (Claude Code)
+    speed           VARCHAR     'standard' or 'fast' (Claude Code fast mode)
+    inference_geo   VARCHAR     'global', or a data-residency region such as 'us' (Claude Code)
 
 ================================================================================
 TABLE: system_events
@@ -715,6 +718,8 @@ VIEW: provider_usage_with_cost Unified Claude/Codex/Pi token, cost, cache rows
 VIEW: provider_cost_summary Provider/harness/model token and cost totals
 VIEW: cache_efficiency_summary Cache utilization and estimated savings
 VIEW: cost_summary          Backward-compatible Claude repo/model totals
+TABLE: claude_cost_states   Claude Code's own cumulative per-model totals (cost-state records)
+VIEW: claude_cost_reconciliation Harness-recorded vs transcript-priced cost per session/model
 
 provider_usage_with_cost normalizes these token columns:
     uncached_input_tokens   Input charged at the ordinary input rate
@@ -729,6 +734,14 @@ cache_write_1h_tokens subset. A row without a 1-hour rate prices those
 writes at its 5-minute rate. long_context_threshold and the two multipliers
 raise every rate for a turn whose prompt (input + cache reads + cache writes)
 exceeds the threshold; usage_with_cost flags those turns is_long_context.
+Fast-mode turns (speed = 'fast') multiply every rate by fast_mode_multiplier,
+data-residency turns (inference_geo other than 'global') by 1.1, and web
+searches add $10 per 1,000 (web_search_cost_usd). Synthetic turns
+(model '<synthetic>') are not API calls and are left out.
+
+claude_cost_reconciliation sets the transcript against the harness's own
+cost-state totals. untracked_cost_usd is what the harness billed that no
+transcript turn records, such as side calls.
 
 Cost columns separate input/cache-write/cache-read/output components, the
 cost_usd total, a cost_without_cache_usd baseline, and cache_savings_usd.
@@ -905,9 +918,13 @@ SELECT CASE
         WHERE (table_name, column_name) IN (
             ('claude_tools', 'interface'),
             ('messages', 'message_id'),
-            ('messages', 'cache_write_1h_tokens')
+            ('messages', 'cache_write_1h_tokens'),
+            ('messages', 'web_search_requests'),
+            ('messages', 'speed'),
+            ('messages', 'inference_geo'),
+            ('claude_cost_states', 'session_cost_usd')
         )
-    ) = 3 THEN 0
+    ) = 7 THEN 0
     ELSE 1
 END;" 2>/dev/null || echo "0"
 }
@@ -956,11 +973,15 @@ CREATE TABLE IF NOT EXISTS messages (
     source_file VARCHAR,
     search_id VARCHAR,
     message_id VARCHAR,
-    cache_write_1h_tokens INTEGER
+    cache_write_1h_tokens INTEGER,
+    web_search_requests INTEGER,
+    speed VARCHAR,
+    inference_geo VARCHAR
 );
 CREATE TABLE IF NOT EXISTS system_events (uuid VARCHAR PRIMARY KEY, session_id VARCHAR, subtype VARCHAR, timestamp TIMESTAMP, project_dir VARCHAR, git_branch VARCHAR, duration_ms INTEGER, version VARCHAR, is_sidechain BOOLEAN, source_file VARCHAR, repo_name VARCHAR);
 CREATE TABLE IF NOT EXISTS queue_operations (session_id VARCHAR, timestamp TIMESTAMP, operation VARCHAR, content VARCHAR, source_file VARCHAR);
 CREATE TABLE IF NOT EXISTS pr_links (session_id VARCHAR, timestamp TIMESTAMP, pr_number INTEGER, pr_url VARCHAR, pr_repository VARCHAR, source_file VARCHAR);
+CREATE TABLE IF NOT EXISTS claude_cost_states (session_id VARCHAR, model VARCHAR, input_tokens BIGINT, output_tokens BIGINT, cache_read_tokens BIGINT, cache_write_tokens BIGINT, cache_write_1h_tokens BIGINT, web_search_requests BIGINT, cost_usd DOUBLE, session_cost_usd DOUBLE, snapshot_at TIMESTAMP, source_file VARCHAR);
 CREATE TABLE IF NOT EXISTS _sessions_index (session_id VARCHAR PRIMARY KEY, project_path VARCHAR, first_prompt VARCHAR, summary VARCHAR, message_count INTEGER, git_branch VARCHAR, created_at TIMESTAMP, modified_at TIMESTAMP);
 CREATE TABLE IF NOT EXISTS _loaded_files (
     file_path VARCHAR PRIMARY KEY,
@@ -986,6 +1007,9 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS interface VARCHAR;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS search_id VARCHAR;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS message_id VARCHAR;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS cache_write_1h_tokens INTEGER;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS web_search_requests INTEGER;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS speed VARCHAR;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS inference_geo VARCHAR;
 ALTER TABLE _loaded_files ADD COLUMN IF NOT EXISTS size_bytes BIGINT;
 ALTER TABLE _loaded_files ADD COLUMN IF NOT EXISTS source_kind VARCHAR;
 ENSURE
@@ -1409,7 +1433,10 @@ CREATE TABLE IF NOT EXISTS messages (
     source_file VARCHAR,
     search_id VARCHAR,
     message_id VARCHAR,
-    cache_write_1h_tokens INTEGER
+    cache_write_1h_tokens INTEGER,
+    web_search_requests INTEGER,
+    speed VARCHAR,
+    inference_geo VARCHAR
 );
 
 INSERT INTO messages (
@@ -1417,7 +1444,7 @@ INSERT INTO messages (
     content, thinking, timestamp, project_dir, git_branch, repo_name,
     worktree_branch, is_worktree, is_sidechain, input_tokens, output_tokens,
     cache_write_tokens, cache_write_1h_tokens, cache_read_tokens, tool_use_count,
-    source_file, message_id
+    source_file, message_id, web_search_requests, speed, inference_geo
 )
 WITH raw_logs AS (
     SELECT json, filename
@@ -1449,7 +1476,10 @@ user_string AS (
         NULL as cache_read_tokens,
         0 as tool_use_count,
         logs.filename as source_file,
-        NULL as message_id
+        NULL as message_id,
+        NULL as web_search_requests,
+        NULL as speed,
+        NULL as inference_geo
     FROM raw_logs logs
     WHERE json_extract_string(logs.json, '\$.type') = 'user'
     AND json_type(json_extract(logs.json, '\$.message.content')) = 'VARCHAR'
@@ -1482,7 +1512,10 @@ user_array AS (
         NULL as cache_read_tokens,
         0 as tool_use_count,
         logs.filename as source_file,
-        NULL as message_id
+        NULL as message_id,
+        NULL as web_search_requests,
+        NULL as speed,
+        NULL as inference_geo
     FROM raw_logs logs,
     LATERAL UNNEST(
         CASE
@@ -1543,7 +1576,13 @@ assistant_msgs AS (
         ) as cache_read_tokens,
         COUNT(CASE WHEN json_extract_string(c.value, '\$.type') = 'tool_use' THEN 1 END) as tool_use_count,
         logs.filename as source_file,
-        json_extract_string(logs.json, '\$.message.id') as message_id
+        json_extract_string(logs.json, '\$.message.id') as message_id,
+        COALESCE(
+            TRY_CAST(json_extract_string(logs.json, '\$.message.usage.server_tool_use.web_search_requests') AS INTEGER),
+            0
+        ) as web_search_requests,
+        json_extract_string(logs.json, '\$.message.usage.speed') as speed,
+        json_extract_string(logs.json, '\$.message.usage.inference_geo') as inference_geo
     FROM raw_logs logs,
     LATERAL UNNEST(
         CASE
@@ -1557,7 +1596,7 @@ assistant_msgs AS (
              timestamp, project_dir, is_sidechain, entrypoint,
              input_tokens, output_tokens, cache_write_tokens, cache_write_1h_tokens,
              cache_read_tokens, json_extract(logs.json, '\$.message.usage'),
-             source_file, message_id
+             source_file, message_id, web_search_requests, speed, inference_geo
 ),
 all_messages AS (
     SELECT * FROM user_string
@@ -1582,7 +1621,8 @@ SELECT
     is_worktree_calc as is_worktree,
     is_sidechain,
     input_tokens, output_tokens, cache_write_tokens, cache_write_1h_tokens,
-    cache_read_tokens, tool_use_count, source_file, message_id
+    cache_read_tokens, tool_use_count, source_file, message_id,
+    web_search_requests, speed, inference_geo
 FROM with_worktree
 WHERE timestamp IS NOT NULL;
 EOF
@@ -2374,7 +2414,10 @@ CREATE TABLE IF NOT EXISTS messages (
     source_file VARCHAR,
     search_id VARCHAR,
     message_id VARCHAR,
-    cache_write_1h_tokens INTEGER
+    cache_write_1h_tokens INTEGER,
+    web_search_requests INTEGER,
+    speed VARCHAR,
+    inference_geo VARCHAR
 );
 EOF
 
@@ -3282,18 +3325,22 @@ CREATE TABLE IF NOT EXISTS model_pricing (
     cache_write_1h_rate DECIMAL(10,4),
     long_context_threshold BIGINT,
     long_context_input_multiplier DECIMAL(5,2),
-    long_context_output_multiplier DECIMAL(5,2)
+    long_context_output_multiplier DECIMAL(5,2),
+    fast_mode_multiplier DECIMAL(5,2)
 );
 ALTER TABLE model_pricing ADD COLUMN IF NOT EXISTS cache_write_1h_rate DECIMAL(10,4);
 ALTER TABLE model_pricing ADD COLUMN IF NOT EXISTS long_context_threshold BIGINT;
 ALTER TABLE model_pricing ADD COLUMN IF NOT EXISTS long_context_input_multiplier DECIMAL(5,2);
 ALTER TABLE model_pricing ADD COLUMN IF NOT EXISTS long_context_output_multiplier DECIMAL(5,2);
+ALTER TABLE model_pricing ADD COLUMN IF NOT EXISTS fast_mode_multiplier DECIMAL(5,2);
 
 -- Rates per MTok from platform.claude.com/docs/en/about-claude/pricing (2026-11-10).
 -- cache_write_rate is the 5-minute write price; cache_write_1h_rate the 1-hour one.
 -- A prompt (input + cache reads + cache writes) over long_context_threshold
 -- tokens scales every input-side rate by long_context_input_multiplier and
--- the output rate by long_context_output_multiplier.
+-- the output rate by long_context_output_multiplier. A fast-mode turn
+-- (usage.speed = 'fast') scales every rate by fast_mode_multiplier: fast mode
+-- doubles input and output, and caching multipliers apply on top of it.
 CREATE OR REPLACE TEMP TABLE _model_pricing_defaults AS
 SELECT
     model,
@@ -3304,29 +3351,34 @@ SELECT
     cache_write_1h_rate::DECIMAL(10,4) AS cache_write_1h_rate,
     long_context_threshold::BIGINT AS long_context_threshold,
     long_context_input_multiplier::DECIMAL(5,2) AS long_context_input_multiplier,
-    long_context_output_multiplier::DECIMAL(5,2) AS long_context_output_multiplier
+    long_context_output_multiplier::DECIMAL(5,2) AS long_context_output_multiplier,
+    fast_mode_multiplier::DECIMAL(5,2) AS fast_mode_multiplier
 FROM (VALUES
-    ('claude-fable-5-2', 8.0, 40.0, 10.0, 0.20, 16.0, NULL, NULL, NULL),
-    ('claude-mythos-5-2', 8.0, 40.0, 10.0, 0.20, 16.0, NULL, NULL, NULL),
-    ('claude-fable-5-1', 10.0, 50.0, 12.50, 0.25, 20.0, NULL, NULL, NULL),
-    ('claude-mythos-5-1', 10.0, 50.0, 12.50, 0.25, 20.0, NULL, NULL, NULL),
-    ('claude-fable-5', 10.0, 50.0, 12.50, 1.00, 20.0, NULL, NULL, NULL),
-    ('claude-mythos-5', 10.0, 50.0, 12.50, 1.00, 20.0, NULL, NULL, NULL),
-    ('claude-opus-5-5', 4.0, 20.0, 5.0, 0.20, 8.0, NULL, NULL, NULL),
-    ('claude-opus-4-5-20251101', 5.0, 25.0, 6.25, 0.50, 10.0, NULL, NULL, NULL),
-    ('claude-sonnet-4-5-20250929', 3.0, 15.0, 3.75, 0.30, 6.0, NULL, NULL, NULL),
-    ('claude-haiku-4-5-20251001', 1.0, 5.0, 1.25, 0.10, 2.0, NULL, NULL, NULL),
-    ('claude-haiku-5-5', 0.10, 0.50, 0.125, 0.01, 0.20, 100000, 5.0, 5.0),
-    ('claude-opus-4-6', 5.0, 25.0, 6.25, 0.50, 10.0, NULL, NULL, NULL),
-    ('claude-opus-4-7', 5.0, 25.0, 6.25, 0.50, 10.0, NULL, NULL, NULL),
-    ('claude-opus-4-8', 5.0, 25.0, 6.25, 0.50, 10.0, NULL, NULL, NULL),
-    ('claude-opus-5', 5.0, 25.0, 6.25, 0.50, 10.0, NULL, NULL, NULL),
-    ('claude-sonnet-4-6', 3.0, 15.0, 3.75, 0.30, 6.0, NULL, NULL, NULL),
-    ('claude-sonnet-5', 2.0, 10.0, 2.50, 0.20, 4.0, NULL, NULL, NULL),
-    ('claude-sonnet-5-5', 2.0, 10.0, 2.50, 0.10, 4.0, NULL, NULL, NULL)
+    ('claude-fable-5-2', 8.0, 40.0, 10.0, 0.20, 16.0, NULL, NULL, NULL, 2.0),
+    ('claude-mythos-5-2', 8.0, 40.0, 10.0, 0.20, 16.0, NULL, NULL, NULL, 2.0),
+    ('claude-fable-5-1', 10.0, 50.0, 12.50, 0.25, 20.0, NULL, NULL, NULL, NULL),
+    ('claude-mythos-5-1', 10.0, 50.0, 12.50, 0.25, 20.0, NULL, NULL, NULL, NULL),
+    ('claude-fable-5', 10.0, 50.0, 12.50, 1.00, 20.0, NULL, NULL, NULL, NULL),
+    ('claude-mythos-5', 10.0, 50.0, 12.50, 1.00, 20.0, NULL, NULL, NULL, NULL),
+    ('claude-opus-5-5', 4.0, 20.0, 5.0, 0.20, 8.0, NULL, NULL, NULL, 2.0),
+    ('claude-opus-4-5-20251101', 5.0, 25.0, 6.25, 0.50, 10.0, NULL, NULL, NULL, NULL),
+    ('claude-sonnet-4-5-20250929', 3.0, 15.0, 3.75, 0.30, 6.0, NULL, NULL, NULL, NULL),
+    ('claude-haiku-4-5-20251001', 1.0, 5.0, 1.25, 0.10, 2.0, NULL, NULL, NULL, NULL),
+    ('claude-haiku-5-5', 0.10, 0.50, 0.125, 0.01, 0.20, 100000, 5.0, 5.0, NULL),
+    ('claude-opus-4-6', 5.0, 25.0, 6.25, 0.50, 10.0, NULL, NULL, NULL, NULL),
+    ('claude-opus-4-7', 5.0, 25.0, 6.25, 0.50, 10.0, NULL, NULL, NULL, NULL),
+    ('claude-opus-4-1-20250805', 15.0, 75.0, 18.75, 1.50, 30.0, NULL, NULL, NULL, NULL),
+    ('claude-opus-4-20250514', 15.0, 75.0, 18.75, 1.50, 30.0, NULL, NULL, NULL, NULL),
+    ('claude-sonnet-4-20250514', 3.0, 15.0, 3.75, 0.30, 6.0, NULL, NULL, NULL, NULL),
+    ('claude-opus-4-8', 5.0, 25.0, 6.25, 0.50, 10.0, NULL, NULL, NULL, 2.0),
+    ('claude-opus-5', 5.0, 25.0, 6.25, 0.50, 10.0, NULL, NULL, NULL, 2.0),
+    ('claude-sonnet-4-6', 3.0, 15.0, 3.75, 0.30, 6.0, NULL, NULL, NULL, NULL),
+    ('claude-sonnet-5', 2.0, 10.0, 2.50, 0.20, 4.0, NULL, NULL, NULL, NULL),
+    ('claude-sonnet-5-5', 2.0, 10.0, 2.50, 0.10, 4.0, NULL, NULL, NULL, NULL)
 ) AS d(model, input_rate, output_rate, cache_write_rate, cache_read_rate,
        cache_write_1h_rate, long_context_threshold,
-       long_context_input_multiplier, long_context_output_multiplier);
+       long_context_input_multiplier, long_context_output_multiplier,
+       fast_mode_multiplier);
 
 INSERT OR IGNORE INTO model_pricing BY NAME SELECT * FROM _model_pricing_defaults;
 
@@ -3341,14 +3393,16 @@ SET input_rate=1.0, output_rate=5.0, cache_write_rate=1.25, cache_read_rate=0.10
 WHERE model='claude-haiku-4-5-20251001'
   AND input_rate=0.80 AND output_rate=4.0
   AND cache_write_rate=1.00 AND cache_read_rate=0.08;
--- Rows that predate the 1-hour column get its built-in rate only while their
--- other rates are still the built-in ones. Any row left without one prices
--- 1-hour writes at its 5-minute rate.
+-- Rows that predate a column get its built-in value only while their other
+-- rates are still the built-in ones. A row left without a 1-hour rate prices
+-- 1-hour writes at its 5-minute rate; one without a fast-mode multiplier
+-- prices fast turns at standard rates.
 UPDATE model_pricing AS p
-SET cache_write_1h_rate = d.cache_write_1h_rate
+SET cache_write_1h_rate = COALESCE(p.cache_write_1h_rate, d.cache_write_1h_rate),
+    fast_mode_multiplier = COALESCE(p.fast_mode_multiplier, d.fast_mode_multiplier)
 FROM _model_pricing_defaults d
 WHERE p.model = d.model
-  AND p.cache_write_1h_rate IS NULL
+  AND (p.cache_write_1h_rate IS NULL OR p.fast_mode_multiplier IS NULL)
   AND p.input_rate = d.input_rate AND p.output_rate = d.output_rate
   AND p.cache_write_rate = d.cache_write_rate
   AND p.cache_read_rate = d.cache_read_rate;
@@ -3397,6 +3451,7 @@ WITH assistant_turns AS (
     WHERE harness = 'claude_code'
       AND role = 'assistant'
       AND model IS NOT NULL
+      AND model <> '<synthetic>'
 ), turns AS (
     SELECT
         t.*,
@@ -3417,17 +3472,29 @@ WITH assistant_turns AS (
             FALSE
         ) AS is_long_context,
         p.long_context_input_multiplier,
-        p.long_context_output_multiplier
+        p.long_context_output_multiplier,
+        COALESCE(t.speed = 'fast', FALSE) AS is_fast_mode,
+        p.fast_mode_multiplier,
+        COALESCE(t.inference_geo NOT IN ('global', ''), FALSE) AS is_data_residency
     FROM assistant_turns t
     LEFT JOIN model_pricing p ON t.model = p.model
     WHERE t.usage_rank = 1
+), modified AS (
+    -- Fast mode and data residency (1.1x) scale every token rate, on top of
+    -- the long-context tier.
+    SELECT *,
+        CASE WHEN is_fast_mode THEN COALESCE(fast_mode_multiplier, 1.0) ELSE 1.0 END *
+        CASE WHEN is_data_residency THEN 1.1 ELSE 1.0 END AS rate_modifier
+    FROM turns
 ), rated AS (
     SELECT *,
-        CASE WHEN is_long_context THEN COALESCE(long_context_input_multiplier, 1.0)
-            ELSE 1.0 END AS input_multiplier,
-        CASE WHEN is_long_context THEN COALESCE(long_context_output_multiplier, 1.0)
-            ELSE 1.0 END AS output_multiplier
-    FROM turns
+        rate_modifier * CASE WHEN is_long_context
+            THEN COALESCE(long_context_input_multiplier, 1.0) ELSE 1.0 END
+            AS input_multiplier,
+        rate_modifier * CASE WHEN is_long_context
+            THEN COALESCE(long_context_output_multiplier, 1.0) ELSE 1.0 END
+            AS output_multiplier
+    FROM modified
 ), costed AS (
     SELECT *,
         COALESCE(input_tokens, 0) * input_rate * input_multiplier / 1000000.0
@@ -3440,7 +3507,9 @@ WITH assistant_turns AS (
             AS output_cost,
         (COALESCE(input_tokens, 0) + COALESCE(cache_read_tokens, 0) +
             COALESCE(cache_write_tokens, 0)) * input_rate * input_multiplier / 1000000.0
-            AS input_cost_without_cache
+            AS input_cost_without_cache,
+        -- Web search is $10 per 1,000 searches, outside the token multipliers.
+        COALESCE(web_search_requests, 0) * 10.0 / 1000.0 AS web_search_cost
     FROM rated
 )
 SELECT
@@ -3464,15 +3533,19 @@ SELECT
     cache_write_1h_rate,
     cache_read_rate,
     is_long_context,
+    speed,
+    inference_geo,
+    web_search_requests,
     CASE WHEN is_priced THEN 'priced' ELSE 'unknown_model' END AS pricing_status,
     CASE WHEN is_priced THEN ROUND(input_cost, 6) END AS input_cost_usd,
     CASE WHEN is_priced THEN ROUND(cache_read_cost, 6) END AS cache_read_cost_usd,
     CASE WHEN is_priced THEN ROUND(cache_write_cost, 6) END AS cache_write_cost_usd,
     CASE WHEN is_priced THEN ROUND(output_cost, 6) END AS output_cost_usd,
+    CASE WHEN is_priced THEN ROUND(web_search_cost, 6) END AS web_search_cost_usd,
     CASE WHEN is_priced THEN ROUND(
-        input_cost + cache_read_cost + cache_write_cost + output_cost, 6
+        input_cost + cache_read_cost + cache_write_cost + output_cost + web_search_cost, 6
     ) END AS cost_usd,
-    CASE WHEN is_priced THEN ROUND(input_cost_without_cache + output_cost, 6)
+    CASE WHEN is_priced THEN ROUND(input_cost_without_cache + output_cost + web_search_cost, 6)
         END AS cost_without_cache_usd,
     CASE WHEN is_priced THEN ROUND(
         input_cost_without_cache - input_cost - cache_read_cost - cache_write_cost, 6
@@ -3630,6 +3703,7 @@ SELECT
     cache_read_cost_usd AS cached_input_cost_usd,
     cache_write_cost_usd,
     output_cost_usd,
+    web_search_cost_usd,
     cost_usd,
     cost_without_cache_usd,
     cache_savings_usd
@@ -3659,6 +3733,7 @@ SELECT
     cached_input_cost_usd,
     0.0::DOUBLE AS cache_write_cost_usd,
     output_cost_usd,
+    0.0::DOUBLE AS web_search_cost_usd,
     cost_usd,
     cost_without_cache_usd,
     cache_savings_usd
@@ -3688,6 +3763,7 @@ SELECT
     cached_input_cost_usd,
     cache_write_cost_usd,
     output_cost_usd,
+    0.0::DOUBLE AS web_search_cost_usd,
     cost_usd,
     NULL::DOUBLE AS cost_without_cache_usd,
     NULL::DOUBLE AS cache_savings_usd
@@ -3711,6 +3787,7 @@ SELECT
     ROUND(SUM(cached_input_cost_usd), 2) AS cached_input_cost_usd,
     ROUND(SUM(cache_write_cost_usd), 2) AS cache_write_cost_usd,
     ROUND(SUM(output_cost_usd), 2) AS output_cost_usd,
+    ROUND(SUM(web_search_cost_usd), 2) AS web_search_cost_usd,
     ROUND(SUM(cost_usd), 2) AS cost_usd,
     ROUND(SUM(cost_without_cache_usd), 2) AS cost_without_cache_usd,
     ROUND(SUM(cache_savings_usd), 2) AS cache_savings_usd
@@ -3757,6 +3834,59 @@ SELECT
     ROUND(SUM(cost_usd), 2) as cost_usd
 FROM usage_with_cost
 GROUP BY repo_name, model;
+
+-- ============================================================================
+-- CLAUDE COST RECONCILIATION VIEW
+-- ============================================================================
+-- Compares the harness's own totals (latest cost-state per session) with the
+-- transcript's turns up to that snapshot. A cost-state carries no timestamp;
+-- its startTime plus totalDuration places it, after the last turn it counts.
+-- The harness also counts side calls the transcript never logs.
+CREATE OR REPLACE VIEW claude_cost_reconciliation AS
+WITH ranked AS (
+    SELECT *,
+        ROW_NUMBER() OVER (
+            PARTITION BY session_id, model
+            ORDER BY session_cost_usd DESC NULLS LAST, cost_usd DESC NULLS LAST, source_file
+        ) AS snapshot_rank
+    FROM claude_cost_states
+), harness AS (
+    SELECT * FROM ranked WHERE snapshot_rank = 1
+), snapshots AS (
+    SELECT session_id, MAX(snapshot_at) AS snapshot_at FROM harness GROUP BY session_id
+), transcript AS (
+    SELECT
+        session_id,
+        model,
+        COUNT(*) AS turns,
+        SUM(COALESCE(input_tokens, 0)) AS input_tokens,
+        SUM(COALESCE(output_tokens, 0)) AS output_tokens,
+        SUM(COALESCE(cache_read_tokens, 0)) AS cache_read_tokens,
+        SUM(COALESCE(cache_write_tokens, 0)) AS cache_write_tokens,
+        SUM(cost_usd) AS cost_usd
+    FROM usage_with_cost u
+    JOIN snapshots s USING (session_id)
+    WHERE s.snapshot_at IS NULL OR u.timestamp <= s.snapshot_at
+    GROUP BY session_id, model
+)
+SELECT
+    COALESCE(h.session_id, t.session_id) AS session_id,
+    COALESCE(h.model, t.model) AS model,
+    h.snapshot_at,
+    t.turns AS transcript_turns,
+    h.input_tokens AS harness_input_tokens,
+    t.input_tokens AS transcript_input_tokens,
+    h.output_tokens AS harness_output_tokens,
+    t.output_tokens AS transcript_output_tokens,
+    h.cache_read_tokens AS harness_cache_read_tokens,
+    t.cache_read_tokens AS transcript_cache_read_tokens,
+    h.cache_write_tokens AS harness_cache_write_tokens,
+    t.cache_write_tokens AS transcript_cache_write_tokens,
+    ROUND(h.cost_usd, 6) AS harness_cost_usd,
+    ROUND(t.cost_usd, 6) AS transcript_cost_usd,
+    ROUND(h.cost_usd - t.cost_usd, 6) AS untracked_cost_usd
+FROM harness h
+FULL OUTER JOIN transcript t USING (session_id, model);
 
 -- ============================================================================
 -- CONVERSATION SEARCH VIEW
@@ -3951,12 +4081,69 @@ build_all_data() {
     populate_loaded_files
 }
 
+# Claude Code writes cost-state records: the harness's own cumulative
+# per-model token and dollar totals for the session. They count calls that
+# never reach the transcript, so they are the reference for reconciliation.
+load_cost_states() {
+    local file_pattern="${1:-$CLAUDE_PROJECTS/**/*.jsonl}"
+    local pattern_sql; pattern_sql=$(sql_file_arg "$file_pattern")
+
+    if [ ! -d "$CLAUDE_PROJECTS" ]; then
+        return
+    fi
+
+    echo "  Claude Code: Loading cost states..."
+
+    duckdb "$DB_PATH" << EOF
+CREATE TABLE IF NOT EXISTS claude_cost_states (session_id VARCHAR, model VARCHAR, input_tokens BIGINT, output_tokens BIGINT, cache_read_tokens BIGINT, cache_write_tokens BIGINT, cache_write_1h_tokens BIGINT, web_search_requests BIGINT, cost_usd DOUBLE, session_cost_usd DOUBLE, snapshot_at TIMESTAMP, source_file VARCHAR);
+
+INSERT INTO claude_cost_states
+WITH states AS (
+    SELECT
+        json_extract_string(json, '\$.sessionId') AS session_id,
+        json_extract(json, '\$.modelUsage') AS model_usage,
+        TRY_CAST(json_extract_string(json, '\$.totalCostUSD') AS DOUBLE) AS session_cost_usd,
+        make_timestamp(1000 * (
+            TRY_CAST(json_extract_string(json, '\$.startTime') AS BIGINT) +
+            TRY_CAST(json_extract_string(json, '\$.totalDuration') AS BIGINT)
+        )) AS snapshot_at,
+        filename AS source_file
+    FROM read_ndjson_objects(${pattern_sql}, filename=true, ignore_errors=true,
+        maximum_object_size=104857600)
+    WHERE json_extract_string(json, '\$.type') = 'cost-state'
+), per_model AS (
+    SELECT s.*, UNNEST(json_keys(s.model_usage)) AS model
+    FROM states s
+    WHERE json_type(s.model_usage) = 'OBJECT'
+)
+SELECT
+    session_id,
+    model,
+    TRY_CAST(json_extract_string(model_usage, '\$."' || model || '".inputTokens') AS BIGINT),
+    TRY_CAST(json_extract_string(model_usage, '\$."' || model || '".outputTokens') AS BIGINT),
+    TRY_CAST(json_extract_string(model_usage, '\$."' || model || '".cacheReadInputTokens') AS BIGINT),
+    TRY_CAST(json_extract_string(model_usage, '\$."' || model || '".cacheCreationInputTokens') AS BIGINT),
+    TRY_CAST(json_extract_string(model_usage, '\$."' || model || '".cacheCreationEphemeral1hInputTokens') AS BIGINT),
+    TRY_CAST(json_extract_string(model_usage, '\$."' || model || '".webSearchRequests') AS BIGINT),
+    TRY_CAST(json_extract_string(model_usage, '\$."' || model || '".costUSD') AS DOUBLE),
+    session_cost_usd,
+    snapshot_at,
+    source_file
+FROM per_model;
+EOF
+
+    local state_count
+    state_count=$(duckdb -csv -noheader "$DB_PATH" -c "SELECT COUNT(DISTINCT session_id) FROM claude_cost_states;" 2>/dev/null || echo "0")
+    echo "  Claude Code: cost states for $state_count sessions"
+}
+
 load_claude_all() {
     load_claude_data
     load_claude_messages
     load_system_events
     load_queue_operations
     load_pr_links
+    load_cost_states
 }
 
 load_codex_all() {
@@ -4023,7 +4210,8 @@ PREVIOUS_DB_PATH=""
 harness_tables() {
     case "$1" in
         claude) printf '%s\n' "claude_tools|" "messages|harness = 'claude_code'" \
-                    "system_events|" "queue_operations|" "pr_links|" ;;
+                    "system_events|" "queue_operations|" "pr_links|" \
+                    "claude_cost_states|" ;;
         codex)  printf '%s\n' "codex_session_meta|" "codex_tools|" "codex_token_counts|" \
                     "codex_developer_messages|" "messages|harness = 'codex'" ;;
         pi)     printf '%s\n' "pi_session_meta|" "pi_tools|" "pi_usage|" "messages|harness = 'pi'" ;;
@@ -4128,6 +4316,9 @@ DELETE FROM queue_operations WHERE source_file IN (
 DELETE FROM pr_links WHERE source_file IN (
     SELECT file_path FROM _pending_file_changes WHERE source_kind='claude'
 );
+DELETE FROM claude_cost_states WHERE source_file IN (
+    SELECT file_path FROM _pending_file_changes WHERE source_kind='claude'
+);
 EOF
     fi
 
@@ -4140,6 +4331,7 @@ EOF
         load_system_events "$file_list_sql"
         load_queue_operations "$file_list_sql"
         load_pr_links "$file_list_sql"
+        load_cost_states "$file_list_sql"
     fi
 }
 
