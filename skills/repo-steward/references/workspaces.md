@@ -122,6 +122,7 @@ workspaces automation workspace list --json \
   | while read -r id dir; do
       [ -d "$dir" ] || { echo "$id gone"; continue; }
       branch=$(git -C "$dir" branch --show-current)
+      [ -n "$branch" ] || { echo "$id ${dir##*/} detached HEAD"; continue; }
       echo "$id ${dir##*/} $(cd "$dir" && gh pr list --head "$branch" --state all --json number,state -q 'if length == 0 then "no PR" else .[0] | "#\(.number) \(.state)" end')"
     done
 ```
@@ -140,7 +141,8 @@ catch. The archived workspace keeps its branch and worktree under `~/workspaces/
 so leave the base repo's own worktree list and local branches alone; the app owns that lifecycle, and a
 merged remote branch is already gone once the operator merges.
 
-An archive can be restored from the sidebar, which is why a steward can run it without asking. If
-your permission rules refuse it anyway, use the batched close-out queue from the SKILL, not a paste
+An archive can be restored from the sidebar, which is why a steward can run it without asking. Allow it
+in the user settings with `Bash(workspaces automation workspace archive *)`. If your
+permission rules refuse it anyway, use the batched close-out queue from the SKILL, not a paste
 per merge. In 2026-09 a refused `archive --teardown` sent 25 per-merge pastes to the operator; none
 were run, and 24 merged tiles sat as Active for two months.
