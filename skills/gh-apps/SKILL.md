@@ -1,7 +1,7 @@
 ---
 name: gh-apps
 license: Apache-2.0
-description: Create, authenticate, and manage GitHub Apps. Use for creating apps via manifest flow, generating JWTs, getting installation tokens, managing webhooks and installations, rotating keys. Triggers on "create github app", "github app", "manage github app", "github app JWT", "github installation token", "github app manifest", "github webhook deliveries", "register github app", "gh app".
+description: Create, authenticate, and manage GitHub Apps. Use for creating apps via manifest flow, generating JWTs, getting installation tokens, managing webhooks and installations, rotating keys. Triggers on "create github app", "github app", "manage github app", "github app JWT", "github installation token", "github app manifest", "github webhook deliveries", "register github app", "gh app", "bot reviewer", "bot approval", "post as a bot", "who posted this".
 ---
 
 # GitHub Apps Management
@@ -17,7 +17,7 @@ Script: `scripts/gh-apps.py`
 | `info` | Show app info from GitHub API |
 | `setup` | Validate stored credentials and test API access |
 | `jwt` | Generate and print a JWT (10-min expiry) |
-| `token` | Get an installation access token |
+| `token` | Get an installation access token (`--permissions`, `--repo` narrow it) |
 | `installations` | List app installations |
 | `repos` | List accessible repos for an installation |
 | `webhook-config` | Show webhook configuration |
@@ -58,6 +58,21 @@ scripts/gh-apps.py create my-bot --no-browser --permissions issues:write
 scripts/gh-apps.py create org-bot --org my-org --permissions contents:read
 ```
 
+Names are lowercase letters, digits and hyphens, at most 34 characters; `create` refuses anything
+else, because the local credential folder and GitHub's slug must match.
+
+Four things catch people the first time:
+
+1. The account signed in to the browser becomes the app's owner. Check it before submitting.
+2. Creating does not install. `token` fails with "no installations found" until the app is
+   installed on a repository. Install it on selected repositories only.
+3. A private app still has a public page at `github.com/apps/<slug>`, so its name is visible to
+   anyone. A taken app name answers there, but a 404 does not mean the name is free: it must
+   also differ from every GitHub user and organization login except your own, so check
+   `github.com/<name>` too. Only submitting the form settles it.
+4. After a permission change, each installation must accept the new permission before tokens
+   carry it.
+
 ### Authenticate and use
 
 ```bash
@@ -70,6 +85,22 @@ scripts/gh-apps.py jwt
 # Get installation token (for repo-scoped operations)
 scripts/gh-apps.py token
 ```
+
+### Post as the app
+
+`token` prints only the token, so it can feed one command inline and never touch a file:
+
+```bash
+GH_TOKEN=$(scripts/gh-apps.py --app SLUG token) \
+  gh api -X POST repos/OWNER/REPO/pulls/N/reviews -f event=APPROVE -f body='Looks good.'
+
+# Hand an agent a token that can review but not push, for one repository
+GH_TOKEN=$(scripts/gh-apps.py --app SLUG token --permissions pull_requests:write --repo REPO) gh ...
+```
+
+A narrowed token can never exceed what the installation holds. Whether a bot's approval counts
+toward a required review depends on its permissions; read `references/identity-and-approvals.md`
+before relying on one.
 
 ### Manage webhooks
 
@@ -92,3 +123,4 @@ These operations have no API — the script prints the URL and instructions:
 - **Manifest schema + examples**: See `references/manifest-schema.md`
 - **API endpoints**: See `references/api-endpoints.md`
 - **Permission sets for common use cases**: See `references/permissions-guide.md`
+- **What an app's identity proves, and when a bot's approval counts**: See `references/identity-and-approvals.md`

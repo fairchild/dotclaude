@@ -32,6 +32,21 @@ pull_requests:write, contents:read, metadata:read
 ```
 Events: `pull_request`, `pull_request_review`
 
+Comments on and reviews pull requests. Its approval is recorded and does not count toward a
+required review, so it cannot satisfy a branch rule (observed; see `identity-and-approvals.md`).
+
+### Reviewer bot (approvals that count)
+```
+pull_requests:write, contents:write, metadata:read
+```
+Events: `pull_request`, `pull_request_review`
+
+Approvals from this app count toward a required review. The cost is that the same app can push.
+Its separation from whoever merges rests on who holds the private key, and on a branch rule that
+sends every change to the default branch through a pull request. A token minted with
+`token --permissions pull_requests:write` cannot push; whether its approval still counts is
+untested (see `identity-and-approvals.md`).
+
 ### Repository Automation
 ```
 contents:write, pull_requests:write, issues:write, metadata:read

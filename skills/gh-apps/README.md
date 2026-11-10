@@ -20,6 +20,8 @@ A single executable Python script (`scripts/gh-apps.py`) that wraps the GitHub A
 | **Webhooks** | `webhook-config`, `webhook-update`, `deliveries`, `redeliver` — manage and debug webhooks |
 | **Lifecycle** | `setup`, `rotate-key`, `permissions`, `delete` — validate, rotate, and teardown |
 
+For a bot that reviews pull requests, `references/identity-and-approvals.md` covers what each way of posting is shown as, which approvals count toward a required review, and how a script tells a bot's post from a person's.
+
 Credentials are stored as flat files under `~/.config/gh-apps/<slug>/` (app ID, PEM key, client ID/secret, webhook secret).
 
 ## Examples
@@ -30,6 +32,10 @@ scripts/gh-apps.py create my-bot --permissions issues:write,metadata:read --even
 
 # Get an installation token for repo-scoped API calls
 scripts/gh-apps.py token
+
+# Approve a pull request as the app, with a token that can review but not push
+GH_TOKEN=$(scripts/gh-apps.py token --permissions pull_requests:write --repo my-repo) \
+  gh api -X POST repos/OWNER/my-repo/pulls/42/reviews -f event=APPROVE -f body='Looks good.'
 
 # Debug a failed webhook
 scripts/gh-apps.py deliveries --limit 10

@@ -11,7 +11,7 @@ Usage:
     gh-apps.py info [--app SLUG]
     gh-apps.py delete [--app SLUG]
     gh-apps.py jwt [--app SLUG]
-    gh-apps.py token [--app SLUG] [--installation ID]
+    gh-apps.py token [--app SLUG] [--installation ID] [--permissions K:V,...] [--repo NAME ...]
     gh-apps.py setup [--app SLUG]
     gh-apps.py installations [--app SLUG]
     gh-apps.py repos [--app SLUG] [--installation ID]
@@ -33,6 +33,7 @@ import base64
 import html
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -178,15 +179,35 @@ def _generate_jwt(app_id: str, key_path: str) -> str:
     return f"{signing_input}.{_b64url(result.stdout)}"
 
 
-def _get_installation_token(app_id: str, installation_id: str, key_path: str) -> str:
+def _token_request_body(
+    permissions: dict[str, str] | None = None,
+    repositories: list[str] | None = None,
+) -> dict[str, Any] | None:
+    """Narrow a token below what the installation holds; None asks for everything."""
+    body: dict[str, Any] = {}
+    if permissions:
+        body["permissions"] = permissions
+    if repositories:
+        body["repositories"] = [r.rsplit("/", 1)[-1] for r in repositories]
+    return body or None
+
+
+def _get_installation_token(
+    app_id: str, installation_id: str, key_path: str,
+    permissions: dict[str, str] | None = None,
+    repositories: list[str] | None = None,
+) -> str:
     """Exchange JWT for an installation access token."""
     jwt = _generate_jwt(app_id, key_path)
+    body = _token_request_body(permissions, repositories)
     req = Request(
         f"https://api.github.com/app/installations/{installation_id}/access_tokens",
         method="POST",
+        data=json.dumps(body).encode() if body else None,
         headers={
             "Authorization": f"Bearer {jwt}",
             "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
         },
     )
     try:
@@ -352,13 +373,35 @@ def _exchange_manifest_code(code: str) -> dict:
     return _gh_api(f"/app-manifests/{code}/conversions", method="POST")
 
 
+APP_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+APP_NAME_MAX = 34
+
+
+def _name_problem(name: str) -> str | None:
+    """Why NAME can't be used, or None.
+
+    The local config folder is named after NAME and GitHub derives the slug its own way;
+    restricting NAME to lowercase letters, digits and hyphens keeps the two the same.
+    """
+    if len(name) > APP_NAME_MAX:
+        return f"app name '{name}' is {len(name)} characters; GitHub allows {APP_NAME_MAX}."
+    if APP_NAME.fullmatch(name):
+        return None
+    suggestion = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    hint = f" Try '{suggestion}'." if suggestion else ""
+    return f"app name '{name}' must be lowercase letters, digits and single hyphens.{hint}"
+
+
 def _run_manifest_flow(
     name: str, org: str | None, permissions: dict[str, str] | None,
     events: list[str] | None, webhook_url: str | None, public: bool,
     description: str, no_browser: bool,
 ) -> None:
     """Run the full manifest flow: build -> serve -> exchange -> save."""
-    slug = name.lower().replace(" ", "-")
+    if problem := _name_problem(name):
+        print(f"error: {problem}", file=sys.stderr)
+        sys.exit(1)
+    slug = name
 
     existing = CONFIG_ROOT / slug
     if existing.exists() and (existing / "app-id").exists():
@@ -452,6 +495,7 @@ def _finish_create(result: dict, slug: str) -> None:
     print(f"  Credentials:    {config_path}")
     print(f"\nNext steps:")
     print(f"  Install the app:  https://github.com/settings/apps/{slug}/installations")
+    print(f"                    Choose 'Only select repositories'. Tokens fail until it is installed.")
     print(f"  Verify setup:     gh-apps.py setup --app {slug}")
     print(f"  Generate JWT:     gh-apps.py jwt --app {slug}")
 
@@ -460,16 +504,23 @@ def _finish_create(result: dict, slug: str) -> None:
 # Command implementations
 # ---------------------------------------------------------------------------
 
-def cmd_create(args: argparse.Namespace) -> None:
-    permissions = None
-    if args.permissions:
-        permissions = {}
-        for pair in args.permissions.split(","):
-            k, _, v = pair.strip().partition(":")
-            if not v:
-                v = "write"
-            permissions[k.strip()] = v.strip()
+def _parse_permissions(spec: str | None) -> dict[str, str] | None:
+    """'issues:write,contents' -> {'issues': 'write', 'contents': 'write'}."""
+    permissions = {}
+    for pair in (spec or "").split(","):
+        k, _, v = pair.strip().partition(":")
+        if k.strip():
+            permissions[k.strip()] = v.strip() or "write"
+    return permissions or None
 
+
+def _parse_repos(values: list[str] | None) -> list[str] | None:
+    repos = [r.strip() for v in values or [] for r in v.split(",") if r.strip()]
+    return repos or None
+
+
+def cmd_create(args: argparse.Namespace) -> None:
+    permissions = _parse_permissions(args.permissions)
     events = [e.strip() for e in args.events.split(",")] if args.events else None
 
     _run_manifest_flow(
@@ -536,7 +587,11 @@ def cmd_token(args: argparse.Namespace) -> None:
     if not installation_id:
         installations = _api_jwt("GET", "/app/installations", creds)
         if not installations:
-            print("error: no installations found. Install the app first.", file=sys.stderr)
+            print(
+                "error: no installations found. Creating an app does not install it; "
+                f"install it at https://github.com/settings/apps/{creds.slug}/installations",
+                file=sys.stderr,
+            )
             sys.exit(1)
         if len(installations) > 1:
             print("error: multiple installations. Use --installation ID:", file=sys.stderr)
@@ -546,7 +601,11 @@ def cmd_token(args: argparse.Namespace) -> None:
             sys.exit(1)
         installation_id = str(installations[0]["id"])
 
-    token = _get_installation_token(creds.app_id, installation_id, creds.key_path)
+    token = _get_installation_token(
+        creds.app_id, installation_id, creds.key_path,
+        permissions=_parse_permissions(args.permissions),
+        repositories=_parse_repos(args.repo),
+    )
     print(token)
 
 
@@ -739,6 +798,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     t = sub.add_parser("token", help="Get an installation access token")
     t.add_argument("--installation", help="Installation ID (auto-detected if only one)")
+    t.add_argument(
+        "--permissions",
+        help="Narrow the token to these permissions, e.g. pull_requests:write (must be held by the installation)",
+    )
+    t.add_argument(
+        "--repo", action="append",
+        help="Narrow the token to this repository (repeatable or comma-separated; owner/ prefix ignored)",
+    )
 
     sub.add_parser("setup", help="Validate stored credentials")
     sub.add_parser("installations", help="List app installations")
