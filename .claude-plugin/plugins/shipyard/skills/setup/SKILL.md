@@ -129,18 +129,20 @@ Per session instead of per machine: `claude --autocompact 300000`.
 `CLAUDE_CODE_AUTO_COMPACT_WINDOW` does the same through the environment, and
 `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` moves the `P` in that formula.
 
-**Verify by reading it back.** The `compaction` mod reports both numbers and says when they
-disagree, which re-reading the file you just wrote does not:
+**Verify by reading it back.** The `compaction` mod reports both numbers and notes where the
+engine's point sits against the goal, which re-reading the file you just wrote does not:
 
 ```text
 Points: a goal of 300,000; requests from 150,000; the prepare point at 220,000;
         automatic compaction at 667,000 (the engine's threshold).
-Note: the engine compacts at 667,000, not the 267,000 this goal implies. Only the
-      `autoCompactWindow` setting moves that one; set it to 300,000 to line them up.
+Note: the engine compacts at 667,000; past the 300,000 goal, compacting is the thread's
+      call up to there.
 ```
 
-That is the unwired state on a million-token model: the goal advises a compaction 400,000 tokens
-before the engine would do anything. Wired, the note goes away.
+That is the unwired state on a million-token model. The mod calls the gap room, which suits a
+thread that may run past its goal on judgement; a seat keeps the goal as its ceiling, so the
+engine's point belongs just under it. Wired, the engine compacts at 267,000 and the note goes
+away.
 
 ## What is true when setup is done
 
@@ -156,7 +158,7 @@ Say which of these now holds, and which the operator still has to do by hand:
 - [ ] `shipyard` installed, with `goal_tokens` and `scratch_root` set — the operator's, per machine,
       not per repository.
 - [ ] `autoCompactWindow` set to the same number as `goal_tokens`, and the `compaction` mod's report
-      no longer notes a disagreement.
+      carries no `Note:` line.
 - [ ] The seat's resume directory exists under `scratch_root`.
 
 ## Handing over

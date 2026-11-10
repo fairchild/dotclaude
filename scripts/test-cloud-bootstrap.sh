@@ -128,10 +128,28 @@ roomy="$tmp/roomy/.claude"
 DOTCLAUDE_COMPACT_WINDOW=700000 bootstrap "file://$bundle" "$roomy"
 jq -e '.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW == "700000" and .pluginConfigs.compaction.goalTokens == 300000' \
   "$roomy/settings.json" >/dev/null || fail "a wide window moved the goal past its 300,000 default"
+grep -q '; compaction goal 300000 under a 700000 window$' "$roomy/cloud-bootstrap.status" \
+  || fail "a wide window left the goal at its default without saying so: $(cat "$roomy/cloud-bootstrap.status")"
+! grep -q 'compaction goal' "$compact/cloud-bootstrap.status" \
+  || fail "a window that is the goal was reported: $(cat "$compact/cloud-bootstrap.status")"
 named="$tmp/named/.claude"
 DOTCLAUDE_COMPACT_WINDOW=700000 DOTCLAUDE_COMPACT_GOAL=400000 bootstrap "file://$bundle" "$named"
 jq -e '.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW == "700000" and .pluginConfigs.compaction.goalTokens == 400000' \
   "$named/settings.json" >/dev/null || fail "DOTCLAUDE_COMPACT_GOAL did not set the goal apart from the window"
+! grep -q 'compaction goal' "$named/cloud-bootstrap.status" \
+  || fail "a named goal was reported: $(cat "$named/cloud-bootstrap.status")"
+zero="$tmp/zero/.claude"
+DOTCLAUDE_COMPACT_WINDOW=700000 DOTCLAUDE_COMPACT_GOAL=0 bootstrap "file://$bundle" "$zero"
+jq -e '.pluginConfigs.compaction.goalTokens == 300000' "$zero/settings.json" >/dev/null \
+  || fail "a goal of 0 was written instead of falling back"
+grep -q '; compaction goal 0 ignored, not a whole number above zero; compaction goal 300000 under a 700000 window$' \
+  "$zero/cloud-bootstrap.status" || fail "an ignored goal was not reported: $(cat "$zero/cloud-bootstrap.status")"
+word="$tmp/word/.claude"
+DOTCLAUDE_COMPACT_GOAL=lots bootstrap "file://$bundle" "$word"
+jq -e 'has("pluginConfigs") | not' "$word/settings.json" >/dev/null \
+  || fail "a goal that is not a number reached the settings"
+grep -q '; compaction goal lots ignored, not a whole number above zero$' "$word/cloud-bootstrap.status" \
+  || fail "an ignored goal was not reported: $(cat "$word/cloud-bootstrap.status")"
 jq -e 'has("pluginConfigs") | not' "$none/settings.json" >/dev/null \
   || fail "a goal was set for a run with no mods"
 

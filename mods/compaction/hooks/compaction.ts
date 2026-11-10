@@ -290,20 +290,25 @@ function placed(p: Points, count: number, compactAt: number | undefined): string
 }
 
 /**
- * What to say when the engine compacts somewhere else than the goal implies. Above it, the gap
- * is the room the thread may run into on judgement; below it, the goal is never reached, and
- * `autoCompactWindow` is where the engine's point is set, since the mod never moves it.
+ * What to say about where the engine compacts, in three bands. Above the goal, the gap is room
+ * the thread may run into on judgement. From the goal's implied point (less DRIFT_TOKENS) up to
+ * the goal, the engine's point is the goal's own backstop, and there is nothing to say. Below
+ * that, the goal is never reached; the mod never moves the engine's point, so the note names the
+ * settings that do: the window, or the percentage when the window already reaches the goal.
  */
-function settingLine(p: Points, at: number): string {
-  if (at > backstop(p))
+function settingLine(p: Points, at: number): string | null {
+  if (at > p.goalTokens)
     return (
       `Note: the engine compacts at ${tokens(at)}; past the ${tokens(p.goalTokens)} goal, ` +
       "compacting is the thread's call up to there."
     );
+  if (at >= backstop(p) - DRIFT_TOKENS) return null;
   return (
     `Note: the engine compacts at ${tokens(at)}, below the ${tokens(backstop(p))} this goal ` +
-    "implies, so the goal is never reached. Only the `autoCompactWindow` setting moves that " +
-    `one; set it to at least ${tokens(p.goalTokens)}, or set the goal to ${tokens(at + BACKSTOP_TOKENS)}.`
+    "implies, so the goal is never reached. Set `autoCompactWindow` to at least " +
+    `${tokens(p.goalTokens)}; if it already is, the percentage in ` +
+    "`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` binds first, and raising it toward 100 moves the point. " +
+    `Or set the goal to ${tokens(at + BACKSTOP_TOKENS)}.`
   );
 }
 
@@ -314,8 +319,8 @@ function contextLines(p: Points, context: ContextUsage): string[] {
   const line =
     `Points: a goal of ${tokens(p.goalTokens)}; requests from ${tokens(p.floorTokens)}; the ` +
     `prepare point at ${tokens(p.prepareTokens)}; automatic compaction ${auto}.`;
-  const drift =
-    at !== undefined && Math.abs(at - backstop(p)) > DRIFT_TOKENS ? [settingLine(p, at)] : [];
+  const note = at === undefined ? null : settingLine(p, at);
+  const drift = note === null ? [] : [note];
   if (context.tokens === undefined) {
     const unmeasured = "Context: not measured since the session started or last compacted";
     return [

@@ -11,7 +11,8 @@
 # DOTCLAUDE_COMPACT_WINDOW and DOTCLAUDE_COMPACT_PCT, when set, decide when sessions auto-compact.
 # DOTCLAUDE_COMPACT_GOAL sets the compaction mod's goal, the default target the thread may run past
 # on judgement up to the engine's point; unset, the goal follows a window up to 300,000 and stays
-# at 300,000 for a wider one, leaving the gap as room.
+# at 300,000 for a wider one, leaving the gap as room. The status line says when that default
+# holds under a wider window, or when a goal that is not a whole number above zero is ignored.
 # Setup must exit 0, so every outcome lands in the status file instead.
 set -u
 
@@ -40,7 +41,7 @@ main() {
   or_report mods install_marketplace
   or_report settings merge_settings "$work/bundle/settings.example.json" "$runtime/settings.json"
 
-  report "ok $(bundle_revision)$(unavailable_named_skills)$(mods_note)$(plugins_note)"
+  report "ok $(bundle_revision)$(unavailable_named_skills)$(mods_note)$(plugins_note)$(compact_note)"
 }
 
 refuse_outside_a_cloud_vm() {
@@ -202,7 +203,7 @@ merge_settings() {
   { cat "$target" 2>/dev/null || echo '{}'; } \
     | jq --slurpfile example "$example" --arg mods "$mods" --arg path "$runtime/mods" \
         --arg window "${DOTCLAUDE_COMPACT_WINDOW:-}" --arg pct "${DOTCLAUDE_COMPACT_PCT:-}" \
-        --arg goal "${DOTCLAUDE_COMPACT_GOAL:-}" '
+        --arg goal "$(compact_goal)" '
         $example[0] as $carried
         | . + ($carried | {alwaysThinkingEnabled, effortLevel, skipWorkflowUsageWarning})
         | .env += ($carried.env | {CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY, CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS})
@@ -214,11 +215,8 @@ merge_settings() {
           else . end
         | if $window != "" then .env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = $window else . end
         | if $pct != "" then .env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = $pct else . end
-        | (if $goal | test("^[0-9]+$") then $goal | tonumber
-           elif $window | test("^[0-9]+$") then [$window | tonumber, 300000] | min
-           else null end) as $goalTokens
-        | if $goalTokens != null and ($installed | index("compaction"))
-          then .pluginConfigs.compaction.goalTokens = $goalTokens
+        | if $goal != "" and ($installed | index("compaction"))
+          then .pluginConfigs.compaction.goalTokens = ($goal | tonumber)
           else . end
       ' >"$target.partial" \
     && mv "$target.partial" "$target" \
@@ -239,6 +237,27 @@ installed_of_kind() {
     [[ "$recorded" == *" $name "* ]] && out+=" $name"
   done
   printf '%s' "$out"
+}
+
+# The compaction mod's goal: DOTCLAUDE_COMPACT_GOAL when it is a whole number above zero, else
+# the window up to the mod's own 300,000 default, else nothing and the mod keeps that default.
+compact_goal() {
+  local goal="${DOTCLAUDE_COMPACT_GOAL:-}" window="${DOTCLAUDE_COMPACT_WINDOW:-}"
+  if [[ "$goal" =~ ^[1-9][0-9]*$ ]]; then
+    printf '%s' "$goal"
+  elif [[ "$window" =~ ^[1-9][0-9]*$ ]]; then
+    printf '%s' "$((window < 300000 ? window : 300000))"
+  fi
+}
+
+# A goal named and ignored, or a wide window that leaves the goal at its default, says so.
+compact_note() {
+  local goal="${DOTCLAUDE_COMPACT_GOAL:-}" window="${DOTCLAUDE_COMPACT_WINDOW:-}"
+  [[ -d "$runtime/mods/compaction" ]] || return 0
+  [[ -z "$goal" || "$goal" =~ ^[1-9][0-9]*$ ]] \
+    || printf '; compaction goal %s ignored, not a whole number above zero' "$goal"
+  [[ "$goal" =~ ^[1-9][0-9]*$ || ! "$window" =~ ^[1-9][0-9]*$ ]] || ((window <= 300000)) \
+    || printf '; compaction goal 300000 under a %s window' "$window"
 }
 
 mods_note() {

@@ -91,19 +91,23 @@ and carries on while compacting would lose live threads.
 
 Claude Code compacts at `min((W - 20000) * P / 100, W - 33000)`, with `W` from the
 `autoCompactWindow` setting or `CLAUDE_CODE_AUTO_COMPACT_WINDOW` and `P` from
-`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`. The mod cannot move that point — only the setting does. Set
-`W` to how far a thread may run on judgement. The figures below assume the `W - 33000` arm binds,
-which holds at `P = 100`; with a lower `P` the percentage arm can bind first (below about 98 at
-`W = 700000`, about 95 at `W = 300000`) and the engine compacts earlier. At `W = 700000` the
-engine compacts at 667k, which leaves a thread with a 300k goal about 370k of room to choose in.
+`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`. The mod cannot move that point — only the settings do. That
+point, not `W` itself, is the top end a thread may run into on judgement. The figures below
+assume the `W - 33000` arm binds, which holds while `P` is at least `100 * (W - 33000) / (W -
+20000)`: 98.1 at `W = 700000`, 95.4 at `W = 300000`, 98.7 at `W = 1000000`. Below that the
+percentage arm binds and the engine compacts earlier. At `W = 700000` and `P = 100` the engine
+compacts at 667k, which leaves a thread with a 300k goal about 367k of room to choose in.
 Setting `W` to the goal instead (`W = 300000`, compacting at 267k) turns the goal into a hard
-ceiling and the choice away. With no window set, a 1M-token model compacts near 967k.
+ceiling and the choice away. With no window set, a 1M-token model compacts near 967k, if its
+default `P` lets that arm bind.
 
-When the engine's point sits more than 10,000 above the goal's (the goal less 33,000), the context
-report describes the room: "the engine compacts at 667,000; past the 300,000 goal, compacting is
-the thread's call up to there." Only when it sits more than 10,000 below does the report call it
-a setting to fix, since the goal can then never be reached, and it names `autoCompactWindow` and
-the goal that would fit.
+The context report reads the engine's point in three bands against the goal:
+
+| Engine's point, at a 300k goal | Band | What the report says |
+| --- | --- | --- |
+| above 300,000 | room | "the engine compacts at 667,000; past the 300,000 goal, compacting is the thread's call up to there" |
+| 257,000 to 300,000 | the goal's own backstop, from its implied point (the goal less 33,000) less 10,000 up to the goal | nothing |
+| below 257,000 | a fault | the goal is never reached; it names `autoCompactWindow`, then `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` for when the window already reaches the goal, and the goal that would fit |
 
 ## What a request leaves behind
 
@@ -114,7 +118,7 @@ the context and the points it was judged against, the instructions and the reaso
 
 That reading is what makes the points answerable rather than asserted: a floor that refuses
 requests the thread keeps making is too high, a prepare point the engine's backstop keeps
-beating is too low. The store is a JSON file, `~/.claude/plugins/store/compaction_*.json`.
+beating is too high. The store is a JSON file, `~/.claude/plugins/store/compaction_*.json`.
 
 `log` lets a store that refuses go, since a reading is worth less than the compaction it
 describes: a file still empty after the tool has been used means the writes are failing, and

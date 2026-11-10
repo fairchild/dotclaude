@@ -121,7 +121,36 @@ test("an engine point below the goal's names autoCompactWindow, since the goal i
 
   expect(text).toContain('the engine compacts at 200,000, below the 267,000 this goal implies')
   expect(text).toContain('`autoCompactWindow`')
+  expect(text).toContain('`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`')
   expect(text).toContain('set the goal to 233,000')
+})
+
+test("an engine point above its implied point is neither room nor a fault, so no note", async ($, on) => {
+  mock.store(on)
+  mock.clock(on)
+  on('session.usage', () => ({ value: usage(200_000, 285_000) }))
+  on('tool.register', (_, e) => ({ value: { tool: e.name } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const text = String((await $.tool.call({ tool: 'mcp__compaction__context' })).result)
+
+  expect(text).toContain('automatic compaction at 285,000')
+  expect(text).not.toContain('Note:')
+})
+
+test("an engine point at the goal itself is neither room nor a fault, so no note", async ($, on) => {
+  mock.store(on)
+  mock.clock(on)
+  on('session.usage', () => ({ value: usage(200_000, 300_000) }))
+  on('tool.register', (_, e) => ({ value: { tool: e.name } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const text = String((await $.tool.call({ tool: 'mcp__compaction__context' })).result)
+
+  expect(text).toContain('automatic compaction at 300,000')
+  expect(text).not.toContain('Note:')
 })
 
 test('a recorded request keeps its reasoning across sessions', async ($, on) => {
