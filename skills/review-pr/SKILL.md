@@ -32,6 +32,8 @@ judge against the plan or issue the work came from; skip CI and discussion.
 The review that gates a PR comes from a reviewer that did not write it: another model, or a fresh
 session given only the PR, its SHAs and the repo's rules. A review of your own branch is a check
 before that review, not a substitute for it.
+Where the Codex CLI is installed, `references/codex.md` runs these passes with Codex as that
+reviewer.
 
 ## First pass
 
