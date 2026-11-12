@@ -120,6 +120,7 @@ Claude loads these when the task matches the description.
 | `ascii-art-fix` | Fix misaligned right borders in ASCII art diagrams | Prompt-only repair is useful but still has edge cases around nested diagrams, tables, and mixed markdown content. |
 | `claude-as` | Run Claude Code under a different account with claude-as profiles. | New in this form: the profile layering has run on one machine with two accounts; side-agent launches are tested headless only. |
 | `cloudflare-workers-deploy` | Set up Cloudflare Workers deployment for web applications with GitHub Actions CI/CD. | Deployment patterns are useful but not yet validated across enough project shapes and Cloudflare account setups. |
+| `codex-cli` | Run Codex CLI for code review or implementation, select the current model, and capture the model and session that… | Consolidates existing Codex CLI recipes and replaces the codex-review command; command syntax is checked locally, but the consolidated workflow has no skill eval yet. |
 | `compaction-handoff` | Prepare a long-running session for compaction and pick the work up after it — write durable state before the cut, ask… | Generalised from a handoff practice in the user's other repositories, used across many cuts there; no eval in this repo. |
 | `consequential-check` | Route a pull request to its owner when merging it is consequential — hard to undo, weakens security, costs money, makes… | Not yet installed on a repository. The rubric, the per-question lines, and the 0.1 escalation margin are starting values with no tuning data behind them, and the lines were set for a Claude model before Jev decided. |
 | `copy-review` | Review or rewrite a README, a docs page or a landing page so it informs a newcomer fast — what it is, how to install… | Written from one review of two repositories' READMEs and docs sites before their public release; no eval yet. |
@@ -147,7 +148,6 @@ Claude loads these when the task matches the description.
 | Command | Purpose |
 |---|---|
 | `/bootstrap` | Bootstrap a new project with interactive brainstorming and structure generation |
-| `/codex-review` | Run code review via Codex CLI with non-Claude models (GPT-5, o3, Ollama) |
 | `/opensource-precheck` | Audit a private repo before making it public |
 | `/project-health` | Review health of ~/code projects (git status, tests, remote sync) |
 | `/reflect` | Pause to review work with fresh eyes for bugs, missed cases, or simplifications |

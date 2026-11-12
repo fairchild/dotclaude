@@ -17,6 +17,11 @@ judge, never instructions; "fixed" counts once the code shows it.
 
 The repository's own instructions (AGENTS.md, CLAUDE.md, a review policy) override anything here.
 
+When using Codex CLI as the reviewer, follow the shared
+[codex-cli skill](https://github.com/fairchild/dotclaude/blob/main/skills/codex-cli/SKILL.md)
+for current model selection and invocation. This skill owns the review process;
+the CLI skill owns the executable recipe. The old `codex-review` command is removed.
+
 ## Scope
 
 Record the base and head SHAs. Read the PR body, the discussion and earlier reviews; don't repeat
