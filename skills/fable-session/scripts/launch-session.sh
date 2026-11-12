@@ -9,7 +9,7 @@
 set -euo pipefail
 
 ws="${WORKSPACES_BIN:-workspaces}"
-model=claude-opus-5-5
+model=fable
 effort=xhigh
 ref=origin/main
 

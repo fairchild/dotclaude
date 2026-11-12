@@ -78,7 +78,7 @@ Claude loads these when the task matches the description.
 | `chronicle` | Session continuity for coding work. |
 | `dotclaude-config` | Work with Claude Code configuration at global (~/.claude) or project (.claude/) level. |
 | `dotfiles-checkup` | Check this machine's dotfiles against the public repo and bring them back to clean. |
-| `fable-session` | Hand off long-arc work to a fable session — an Opus 5.5 orchestrator at xhigh effort verifies while delegating the… |
+| `fable-session` | Hand off long-arc work to a fable session — a Fable orchestrator at xhigh effort verifies while delegating the… |
 | `gh-apps` | Create, authenticate, and manage GitHub Apps. |
 | `git-worktree` | Manage Git worktrees for concurrent local development. |
 | `image-gen` | Generate images from prompts using AI APIs (OpenAI GPT Image, Google Gemini/Nano Banana, Google Imagen, fal.ai Flux). |
