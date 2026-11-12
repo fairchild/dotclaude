@@ -1,7 +1,7 @@
 ---
 name: fable-session
 description: >-
-  Hand off long-arc work to a fable session — an Opus 5.5 orchestrator at xhigh
+  Hand off long-arc work to a fable session — a Fable 5.2 orchestrator at xhigh
   effort verifies while delegating the implementation — and the operating rules
   for any agent fan-out — whether to fan out at all, a model named per spawn,
   one port and one writer per agent, and the lenses a review looks through.
@@ -13,7 +13,7 @@ license: Apache-2.0
 # Fable Session
 
 A session owning a piece of work end to end, in a worktree of its own. Its
-orchestrator runs on Opus 5.5 at `xhigh` effort unless the session brief names
+orchestrator runs on Fable 5.2 at `xhigh` effort unless the session brief names
 another.
 
 ## Fan out
@@ -43,12 +43,12 @@ Delegation mechanism, by phrasing:
 
 A model is named on every delegated call, with one line in the brief saying why
 that one. An omitted `model` on an `Agent` call inherits the orchestrator's,
-which here is Opus, so silence is the most expensive choice available and the
+which here is Fable, so silence is the most expensive choice available and the
 only one nobody weighed.
 
-The default is the stronger model, and the burden of proof sits on stepping
-down: quality is the thing being bought, and the budget constrains how much of
-it you can buy rather than competing with it. Step down to Sonnet only where
+A worker's default is Opus 5.5, and the burden of proof sits on stepping down
+from it: quality is the thing being bought, and the budget constrains how much
+of it you can buy rather than competing with it. Step down to Sonnet only where
 that line can say what makes it safe — something other than the model's
 judgement settles correctness: a test shown failing on a mutant, a gate, a
 reviewer's exact wording to apply, a named file to sweep, a mechanical merge, a
@@ -190,7 +190,7 @@ surface the work already lives in.
 | Orca terminal | `orca worktree current --json` resolves | `orca-cli` skill, "Fable session handoff" |
 | WorkSpaces | the repo is registered with the `workspaces` CLI (`workspaces repo list`) | `scripts/launch-session.sh <repo> <name> <brief>`, relative to this skill's base directory |
 | Plain terminal | none of the above, and the work wants a session that outlives this one | `git-worktree` skill for the worktree, then a terminal tab in it |
-| `Agent` subagent | the arc fits inside this session | `Agent` with `model: "opus"`, `effort: "xhigh"`, `isolation: "worktree"` |
+| `Agent` subagent | the arc fits inside this session | `Agent` with `model: "fable"`, `effort: "xhigh"`, `isolation: "worktree"` |
 
 WorkSpaces is the first choice when it fits. The script creates the workspace from
 `origin/main`, launches the orchestrator clear of this session's identity, and
@@ -202,13 +202,13 @@ to override the defaults.
 The other CLI hosts share the same three failure modes:
 
 ```bash
-claude --model claude-opus-5-5 --effort xhigh
+claude --model claude-fable-5-2 --effort xhigh
 ```
 
 Pass both flags explicitly, since bare `claude` starts on the account's default. Wait for the TUI
 to settle before sending. Send a one-line prompt pointing at the brief; multi-line
 pastes sit unsubmitted in the composer. Read the screen once to confirm the status
-line says Opus 5.5 and the prompt was submitted rather than left sitting in `❯`,
+line says Fable 5.2 and the prompt was submitted rather than left sitting in `❯`,
 then stop monitoring. A launch from inside a Claude session passes on that session's
 `CLAUDE*` variables, which turns off transcript saving, so clear them first. Confirm
 one process, a transcript on disk and the expected model.
