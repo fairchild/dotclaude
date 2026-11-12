@@ -286,7 +286,7 @@ def validate_agent(file_path: Path) -> ValidationResult:
         result["warnings"].append("Description is very short (< 20 chars)")
 
     # Optional field validation
-    valid_models = ["opus", "sonnet", "haiku", "inherit"]
+    valid_models = ["fable", "opus", "sonnet", "haiku", "inherit"]
     if "model" in fm and fm["model"] not in valid_models:
         result["warnings"].append(f"Unknown model: {fm['model']}")
 

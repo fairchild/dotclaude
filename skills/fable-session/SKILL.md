@@ -42,9 +42,13 @@ Delegation mechanism, by phrasing:
 ## Model
 
 A model is named on every delegated call, with one line in the brief saying why
-that one. An omitted `model` on an `Agent` call inherits the orchestrator's,
-which here is Fable, so silence is the most expensive choice available and the
-only one nobody weighed.
+that one. As a backstop, the launch lines under Host set
+`CLAUDE_CODE_SUBAGENT_MODEL=opus`, so an `Agent` call that omits `model` lands on
+the worker default instead of inheriting the orchestrator's Fable, while a named
+model still wins over it. The variable lives on the launch command, which a resume
+does not repeat, so a resumed session, one launched without it, or an `Agent`
+subagent host may not carry it; there an omission costs Fable. Either way silence
+is the one choice nobody weighed.
 
 A worker's default is Opus, and the burden of proof sits on stepping down from
 it: quality is the thing being bought, and the budget constrains how much of
@@ -55,9 +59,10 @@ reviewer's exact wording to apply, a named file to sweep, a mechanical merge, a
 screenshot to capture. There the check decides and the model only executes, so a
 stronger one reaches the same answer. Where the worker has to hold several
 moving parts at once and decide something the brief has not named, a stronger
-model does reach a different answer, and that is worth paying for. Fable where
-the work needs nuance. Uncertainty resolves upward: if you cannot tell which
-case you are in, that is the answer.
+model does reach a different answer, and that is worth paying for. Between
+Sonnet and Opus, uncertainty resolves upward: if you cannot say what makes Sonnet
+safe, that is the answer. Fable where the work needs nuance, with the brief line
+naming which; doubt about Opus does not reach it.
 
 ## Worker brief
 
@@ -187,25 +192,28 @@ surface the work already lives in.
 
 | Host | Fits when | Mechanics |
 |------|-----------|-----------|
-| Orca terminal | `orca worktree current --json` resolves | `orca-cli` skill, "Fable session handoff" |
+| Orca terminal | `orca worktree current --json` resolves | `orca-cli` skill |
 | WorkSpaces | the repo is registered with the `workspaces` CLI (`workspaces repo list`) | `scripts/launch-session.sh <repo> <name> <brief>`, relative to this skill's base directory |
 | Plain terminal | none of the above, and the work wants a session that outlives this one | `git-worktree` skill for the worktree, then a terminal tab in it |
 | `Agent` subagent | the arc fits inside this session | `Agent` with `model: "fable"`, `effort: "xhigh"`, `isolation: "worktree"` |
 
 WorkSpaces is the first choice when it fits. The script creates the workspace from
-`origin/main`, launches the orchestrator clear of this session's identity, and
-exits 0 only once `ws check` proves one session on the requested model and effort.
-Exit 3 means a person has to answer a prompt in the row. Run it again to bring a
-session back after it quits or the machine restarts. Pass `--model` and `--effort`
-to override the defaults.
+`origin/main`, launches the orchestrator clear of this session's identity, and on a
+fresh launch exits 0 only once `ws check` proves one session on the requested model
+and effort. Exit 3 means a person has to answer a prompt in the row. Run it again to
+bring a session back after it quits or the machine restarts; a resume comes back on
+the model and effort the conversation last ran on and exits 0 once the session can
+take input. Pass `--model` and `--effort` to override the defaults on a fresh launch;
+on a resume the script warns and ignores them.
 
 The other CLI hosts share the same three failure modes:
 
 ```bash
-claude --model fable --effort xhigh
+CLAUDE_CODE_SUBAGENT_MODEL=opus claude --model fable --effort xhigh
 ```
 
-Pass both flags explicitly, since bare `claude` starts on the account's default. `fable` is the
+Pass both flags explicitly, since bare `claude` starts on the account's default, and
+keep the variable, which sends a spawn that omits `model` to Opus (Model, above). `fable` is the
 CLI's alias for the newest Fable, so the line follows the model as it moves; write a full model
 id only to pin one. Wait for the TUI
 to settle before sending. Send a one-line prompt pointing at the brief; multi-line

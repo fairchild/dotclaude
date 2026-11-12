@@ -4,6 +4,8 @@
 #   launch-session.sh <repo> <name> <brief-path> [--model <id>] [--effort <level>]
 #
 # Exit codes: 0 session verified or ready, 1 failed, 2 usage, 3 needs a person.
+# A resume keeps the model and effort the conversation last ran on; --model and --effort
+# apply to a fresh launch only.
 # The last line of output on success is the session's tmux handle.
 
 set -euo pipefail
@@ -11,6 +13,8 @@ set -euo pipefail
 ws="${WORKSPACES_BIN:-workspaces}"
 model=fable
 effort=xhigh
+worker=opus
+overridden=
 ref=origin/main
 
 die() { echo "error: $1" >&2; exit "${2:-1}"; }
@@ -22,8 +26,8 @@ repo=$1 name=$2 brief=$3
 shift 3
 while [ $# -gt 0 ]; do
   case "$1" in
-    --model) model=${2:?}; shift 2 ;;
-    --effort) effort=${2:?}; shift 2 ;;
+    --model) model=${2:?}; overridden=1; shift 2 ;;
+    --effort) effort=${2:?}; overridden=1; shift 2 ;;
     *) usage ;;
   esac
 done
@@ -46,6 +50,7 @@ report() { # read a ws check result, and exit unless it passed
 
 workspace=$repo/$name
 if "$ws" ws path "$workspace" >/dev/null 2>&1; then
+  [ -z "$overridden" ] || echo "warning: $workspace exists, so it resumes on the model and effort it last ran on; --model and --effort are ignored" >&2
   set +e
   out=$("$ws" ws resume "$workspace" --json 2>&1); status=$?
   set -e
@@ -64,7 +69,7 @@ else
   "$ws" repo list | awk -v repo="$repo" '$1 == repo { found = 1 } END { exit !found }' || die "repo '$repo' isn't registered: run '$ws repo add <path>'"
   "$ws" ws new "$repo" "$name" --from-ref "$ref" --json >/dev/null
   # The single quotes matter: 'ws check' can only verify a plain claude command.
-  command="claude --model $model --effort $effort --name $name 'Read $brief and follow it.'"
+  command="CLAUDE_CODE_SUBAGENT_MODEL=$worker claude --model $model --effort $effort --name $name 'Read $brief and follow it.'"
   handle=$("$ws" ws launch "$workspace" --cmd "$command" --json | field handle)
   set +e
   result=$("$ws" ws check "$handle" --wait 120 --json); status=$?

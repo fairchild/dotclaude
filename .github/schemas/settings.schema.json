@@ -115,8 +115,8 @@
     },
     "model": {
       "type": "string",
-      "description": "Default model: alias (opus, sonnet, haiku) or full model ID, optionally with a [1m] context suffix",
-      "pattern": "^(opus|sonnet|haiku|claude-[a-z0-9.-]+)(\\[1m\\])?$"
+      "description": "Default model: alias (fable, opus, sonnet, haiku) or full model ID, optionally with a [1m] context suffix",
+      "pattern": "^(fable|opus|sonnet|haiku|claude-[a-z0-9.-]+)(\\[1m\\])?$"
     }
   },
   "definitions": {
