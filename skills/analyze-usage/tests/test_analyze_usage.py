@@ -1378,6 +1378,8 @@ OPUS_MIXED_TTL_USAGE = {
         "ephemeral_5m_input_tokens": 100_000,
         "ephemeral_1h_input_tokens": 200_000,
     },
+    "speed": "standard",
+    "inference_geo": "global",
 }
 
 
@@ -1420,13 +1422,18 @@ def test_update_backfills_cache_write_ttl() -> None:
             ["duckdb", str(db_path), "-c",
              "DROP VIEW IF EXISTS cost_summary; DROP VIEW IF EXISTS provider_cost_summary; "
              "DROP VIEW IF EXISTS cache_efficiency_summary; DROP VIEW IF EXISTS provider_usage_with_cost; "
-             "DROP VIEW IF EXISTS usage_with_cost; "
+             "DROP VIEW IF EXISTS claude_cost_reconciliation; DROP VIEW IF EXISTS usage_with_cost; "
+             "DROP TABLE claude_cost_states; "
              "ALTER TABLE messages DROP COLUMN cache_write_1h_tokens; "
+             "ALTER TABLE messages DROP COLUMN web_search_requests; "
+             "ALTER TABLE messages DROP COLUMN speed; "
+             "ALTER TABLE messages DROP COLUMN inference_geo; "
              "DELETE FROM model_pricing WHERE model='claude-haiku-5-5'; "
              "ALTER TABLE model_pricing DROP COLUMN cache_write_1h_rate; "
              "ALTER TABLE model_pricing DROP COLUMN long_context_threshold; "
              "ALTER TABLE model_pricing DROP COLUMN long_context_input_multiplier; "
              "ALTER TABLE model_pricing DROP COLUMN long_context_output_multiplier; "
+             "ALTER TABLE model_pricing DROP COLUMN fast_mode_multiplier; "
              "UPDATE model_pricing SET input_rate=99 WHERE model='claude-sonnet-4-5-20250929';"],
             text=True, check=True, timeout=30,
         )
@@ -1435,19 +1442,25 @@ def test_update_backfills_cache_write_ttl() -> None:
         rates = duckdb_query(
             db_path,
             "SELECT model, CAST(input_rate AS DOUBLE), CAST(cache_write_1h_rate AS DOUBLE), "
-            "long_context_threshold FROM model_pricing WHERE model IN "
+            "long_context_threshold, CAST(fast_mode_multiplier AS DOUBLE) "
+            "FROM model_pricing WHERE model IN "
             "('claude-opus-5-5', 'claude-sonnet-4-5-20250929', 'claude-haiku-5-5') "
             "ORDER BY model;",
         )
         assert rates == [
-            "claude-haiku-5-5,0.1,0.2,100000",
-            "claude-opus-5-5,4.0,8.0,NULL",
-            "claude-sonnet-4-5-20250929,99.0,NULL,NULL",
+            "claude-haiku-5-5,0.1,0.2,100000,NULL",
+            "claude-opus-5-5,4.0,8.0,NULL,2.0",
+            "claude-sonnet-4-5-20250929,99.0,NULL,NULL,NULL",
         ], rates
         usage = duckdb_query(
-            db_path, "SELECT cache_write_1h_tokens, cost_usd FROM usage_with_cost;"
+            db_path,
+            "SELECT cache_write_1h_tokens, speed, inference_geo, web_search_requests, cost_usd "
+            "FROM usage_with_cost;",
         )
-        assert usage == ["200000,2.10014"], usage
+        assert usage == ["200000,standard,global,0,2.10014"], usage
+        assert duckdb_query(
+            db_path, "SELECT COUNT(*) FROM claude_cost_reconciliation;"
+        ) == ["0"]
 
 
 @test("Haiku 5.5 prompts over 100K tokens pay the long-context rates")
@@ -1491,6 +1504,112 @@ def test_haiku_long_context_pricing() -> None:
             "SELECT long_context_rows, cost_usd FROM provider_cost_summary;",
         )
         assert summary == ["1,0.02"], summary
+
+
+@test("fast mode, data residency, and web search raise the turn's price")
+def test_fast_mode_residency_and_web_search_pricing() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_file = write_fixture(home)
+        standard = {
+            "input_tokens": 1_000,
+            "output_tokens": 1_000,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "server_tool_use": {"web_search_requests": 0, "web_fetch_requests": 0},
+            "speed": "standard",
+            "inference_geo": "global",
+        }
+        fast_us_search = {
+            **standard,
+            "server_tool_use": {"web_search_requests": 2, "web_fetch_requests": 3},
+            "speed": "fast",
+            "inference_geo": "us",
+        }
+        synthetic = {key: 0 for key in ("input_tokens", "output_tokens",
+                                        "cache_creation_input_tokens",
+                                        "cache_read_input_tokens")}
+        set_assistant_turns(
+            session_file,
+            [
+                ("claude-opus-5-5", standard),
+                ("claude-opus-5-5", fast_us_search),
+                ("<synthetic>", synthetic),
+            ],
+        )
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        # Standard: 1K input at $4 + 1K output at $20. Fast and US-resident:
+        # the same tokens at 2 x 1.1, plus two searches at $10 per 1,000.
+        usage = duckdb_query(
+            db_path,
+            "SELECT speed, inference_geo, web_search_requests, web_search_cost_usd, cost_usd "
+            "FROM usage_with_cost ORDER BY usage_id;",
+        )
+        assert usage == [
+            "standard,global,0,0.0,0.024",
+            "fast,us,2,0.02,0.0728",
+        ], usage
+        summary = duckdb_query(
+            db_path,
+            "SELECT pricing_status, usage_rows, web_search_cost_usd, cost_usd "
+            "FROM provider_cost_summary;",
+        )
+        assert summary == ["priced,2,0.02,0.1"], summary
+
+
+@test("cost reconciliation sets the harness's cost-state against the transcript")
+def test_cost_state_reconciliation() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "home"
+        home.mkdir()
+        session_file = write_fixture(home)
+        entries = [json.loads(line) for line in session_file.read_text().splitlines()]
+        assistant = next(entry for entry in entries if entry.get("type") == "assistant")
+        assistant["message"]["id"] = "msg_before_snapshot"
+        later = json.loads(json.dumps(assistant))
+        later["uuid"] = "a-later"
+        later["message"]["id"] = "msg_after_snapshot"
+        later["timestamp"] = "2026-04-19T00:05:00Z"
+        cost_state = {
+            "type": "cost-state",
+            "sessionId": "s1",
+            "totalCostUSD": 0.000405,
+            "startTime": 1_776_556_800_000,  # 2026-04-19T00:00:00Z
+            "totalDuration": 60_000,
+            "modelUsage": {
+                "claude-sonnet-4-5-20250929": {
+                    "inputTokens": 110,
+                    "outputTokens": 5,
+                    "cacheReadInputTokens": 0,
+                    "cacheCreationInputTokens": 0,
+                    "cacheCreationEphemeral1hInputTokens": 0,
+                    "webSearchRequests": 0,
+                    "costUSD": 0.000405,
+                }
+            },
+        }
+        entries += [cost_state, later]
+        session_file.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+        db_path = Path(tmp) / "usage.duckdb"
+        env = make_env(home, db_path)
+
+        assert_ok(run([str(SCRIPT_PATH), "reload"], env=env))
+        assert duckdb_query(db_path, "SELECT COUNT(*) FROM usage_with_cost;") == ["2"]
+        # The turn after the snapshot is left out; the harness's extra 100
+        # input tokens ($0.0003 at $3/MTok) are what no transcript turn records.
+        reconciliation = duckdb_query(
+            db_path,
+            "SELECT model, snapshot_at, transcript_turns, harness_input_tokens, "
+            "transcript_input_tokens, harness_cost_usd, transcript_cost_usd, "
+            "untracked_cost_usd FROM claude_cost_reconciliation;",
+        )
+        assert reconciliation == [
+            "claude-sonnet-4-5-20250929,2026-04-19 00:01:00,1,110,10,0.000405,0.000105,0.0003"
+        ], reconciliation
 
 
 @test("pricing is current, unknown-safe, and editable")
@@ -2037,6 +2156,8 @@ def main() -> None:
         test_cache_write_ttl_pricing,
         test_update_backfills_cache_write_ttl,
         test_haiku_long_context_pricing,
+        test_fast_mode_residency_and_web_search_pricing,
+        test_cost_state_reconciliation,
         test_provider_cost_and_cache_semantics,
         test_codex_managed_worktree_attribution,
         test_calendar_views_use_local_timezone,

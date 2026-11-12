@@ -102,6 +102,21 @@ ORDER BY estimated_cost_usd DESC NULLS LAST;
 SELECT * FROM cost_summary ORDER BY cost_usd DESC NULLS LAST;
 ```
 
+Transcripts miss calls the harness makes without logging a turn. Claude Code's
+`cost-state` records carry its own totals, so compare before calling a Claude
+figure complete:
+
+```sql
+SELECT model, COUNT(*) AS sessions,
+       ROUND(SUM(harness_cost_usd), 2) AS harness_usd,
+       ROUND(SUM(transcript_cost_usd), 2) AS transcript_usd,
+       ROUND(SUM(untracked_cost_usd), 2) AS untracked_usd
+FROM claude_cost_reconciliation
+GROUP BY model ORDER BY harness_usd DESC NULLS LAST;
+```
+
+Sessions without a `cost-state` record have no harness total to compare.
+
 These are Claude API-equivalent estimates from recorded token fields. Subscription charges, provider discounts, batch rates, regional pricing, and unrecorded traffic may differ. If any model is unknown-priced, report priced coverage separately rather than presenting the partial sum as a total.
 
 For cross-provider reporting, use the normalized view and keep tokens visible:

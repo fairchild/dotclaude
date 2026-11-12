@@ -110,6 +110,7 @@ COST_SUMS = """
     ROUND(COALESCE(SUM(cached_input_cost_usd), 0), 6) AS cachedInputCostUsd,
     ROUND(COALESCE(SUM(cache_write_cost_usd), 0), 6) AS cacheWriteCostUsd,
     ROUND(COALESCE(SUM(output_cost_usd), 0), 6) AS outputCostUsd,
+    ROUND(COALESCE(SUM(web_search_cost_usd), 0), 6) AS webSearchCostUsd,
     ROUND(COALESCE(SUM(cost_usd), 0), 6) AS apiEquivalent,
     ROUND(COALESCE(SUM(cost_without_cache_usd), 0), 6) AS noCacheBaseline,
     ROUND(COALESCE(SUM(cache_savings_usd), 0), 6) AS cacheImpact
@@ -305,6 +306,7 @@ def generate_report(
             "cachedInput": token_cost_totals["cachedInputCostUsd"],
             "cacheWrite": token_cost_totals["cacheWriteCostUsd"],
             "output": token_cost_totals["outputCostUsd"],
+            "webSearch": token_cost_totals["webSearchCostUsd"],
             "apiEquivalent": token_cost_totals["apiEquivalent"],
             "noCacheBaseline": token_cost_totals["noCacheBaseline"],
             "cacheImpact": token_cost_totals["cacheImpact"],
