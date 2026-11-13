@@ -4,6 +4,9 @@
 #
 #   <check name> <conclusion>
 #
+# Both kinds of check count: check runs, and commit statuses (CircleCI and other status-API
+# reporters, where a status's state is printed as its conclusion).
+#
 # Exit 0  every check finished and none failed
 # Exit 1  a check failed, was cancelled or timed out
 # Exit 2  the state could not be read, or the wait timed out — verification-incomplete, not green
@@ -38,6 +41,16 @@ while :; do
     echo "ci-wait: cannot read checks for $sha" >&2
     exit 2
   }
+  # Commit statuses are a second API, and CI that predates check runs (CircleCI, Jenkins, many
+  # bots) reports only there; a required check can be one of them. The combined endpoint already
+  # keeps the latest state per context. pending maps to an unfinished run; failure and error keep
+  # their own word, which the conclusion case below reads as failed.
+  statuses=$(gh api "repos/$repo/commits/$sha/status?per_page=100" \
+    --jq '.statuses[] | if .state == "pending" then "\(.context)\tin_progress\tpending" else "\(.context)\tcompleted\t\(.state)" end') || {
+    echo "ci-wait: cannot read commit statuses for $sha" >&2
+    exit 2
+  }
+  runs=$(printf '%s\n%s\n' "$runs" "$statuses" | sed '/^$/d')
 
   if [[ -z $runs ]]; then
     echo "ci-wait: $sha reports no checks" >&2
