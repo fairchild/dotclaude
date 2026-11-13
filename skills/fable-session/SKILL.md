@@ -185,6 +185,13 @@ arc's tracking issue and have the first prompt say "read the session handoff
 comment on #N", or keep it as a local untracked file. Durable findings go to
 `docs/research/<topic>/`.
 
+A brief that names a chat channel for the arc makes posting the default. The
+orchestrator posts there on four occasions — `started`, `decided`, `finished`
+and `need` — and at no other time, and ends each post with when to expect the
+next, so a channel quiet past that time reads as a stalled arc.
+[`references/arc-channel.md`](references/arc-channel.md) has the rule and an
+example. A brief that names no channel posts nowhere.
+
 ## Host
 
 Where the session runs is a separate choice from how it delegates. Default to the
