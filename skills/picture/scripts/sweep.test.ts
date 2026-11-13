@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   anythingFetched,
   computeMetrics,
+  limit,
   median,
   parseArgs,
   renderDigest,
@@ -31,8 +32,9 @@ function fakeApi(routes: Record<string, Route>): { api: Api; calls: string[] } {
     const route = routes[key];
     if (route === undefined) throw new Error(`gh: Not Found (HTTP 404) ${key}`);
     if (route instanceof Error) throw route;
-    if (!Array.isArray(route)) return route;
-    return route.slice((page - 1) * perPage, page * perPage);
+    const slice = (v: unknown) => (Array.isArray(v) ? v.slice((page - 1) * perPage, page * perPage) : v);
+    if (!Array.isArray(route)) return Object.fromEntries(Object.entries(route).map(([k, v]) => [k, slice(v)]));
+    return slice(route);
   };
   return { api, calls };
 }
@@ -295,6 +297,14 @@ describe("what an open PR waits on", () => {
     expect(await ci([], [{ state: "success" }])).toEqual({ ok: true, value: "green" });
   });
 
+  test("check runs are read past the first page", async () => {
+    const runs = [...Array.from({ length: 120 }, () => run("completed", "success")), run("completed", "failure")];
+    const { s, calls } = await sweepOne({ [OPEN]: [pull(7)], ...prState(7, { runs }) });
+    const open = s.repos[0].open;
+    expect(open.ok && open.value[0].state?.ci).toEqual({ ok: true, value: "failing" });
+    expect(calls.filter((c) => c.includes("/check-runs")).length).toBe(2);
+  });
+
   test("review state comes from each reviewer's latest review", async () => {
     const rv = async (reviews: unknown[]) => (await stateOf(prState(7, { reviews })))?.review;
     expect(await rv([review("ana", "CHANGES_REQUESTED"), review("ana", "APPROVED")])).toEqual({ ok: true, value: "approved" });
@@ -324,9 +334,9 @@ describe("what an open PR waits on", () => {
     expect(digest).toContain("ci UNAVAILABLE (gh: Server Error (HTTP 502))  review approved  mergeable clean  labels none");
   });
 
-  test("a PR not updated within the stale window is marked stale and costs no extra calls", async () => {
+  test("a stale draft is marked stale and costs no extra calls", async () => {
     const { s, calls, digest } = await sweepOne(
-      { [OPEN]: [pull(7, { updated: hoursAgo(11) }), pull(8, { updated: hoursAgo(13) })], ...prState(7) },
+      { [OPEN]: [pull(7, { updated: hoursAgo(11), draft: true }), pull(8, { updated: hoursAgo(13), draft: true })], ...prState(7) },
       { staleHours: 12 },
     );
     const open = s.repos[0].open;
@@ -335,8 +345,33 @@ describe("what an open PR waits on", () => {
       [8, true, true],
     ]);
     expect(calls.filter((c) => c.includes(sha(8)) || c.includes("pulls/8"))).toEqual([]);
-    expect(digest).toContain(`  open #8 "PR 8" @someone feat/8 opened ${daysAgo(2).slice(0, 10)} updated 13h ago stale https://`);
+    expect(digest).toContain(`  open #8 draft "PR 8" @someone feat/8 opened ${daysAgo(2).slice(0, 10)} updated 13h ago stale https://`);
     expect(digest).toContain("stale after 12h");
+  });
+
+  test("a stale PR that is not a draft keeps its full state and says stale", async () => {
+    const { s, digest } = await sweepOne(
+      { [OPEN]: [pull(8, { updated: hoursAgo(13) })], ...prState(8, { runs: [run("completed", "success")], reviews: [review("ana", "APPROVED")] }) },
+      { staleHours: 12 },
+    );
+    const open = s.repos[0].open;
+    expect(open.ok && open.value[0]).toMatchObject({ stale: true, state: { ci: { ok: true, value: "green" } } });
+    expect(digest).toContain(`updated 13h ago stale  ci green  review approved  mergeable clean  labels none  https://`);
+  });
+
+  test("the limiter never lets more than n calls run at once", async () => {
+    let active = 0;
+    let peak = 0;
+    const slow: Api = async (path) => {
+      peak = Math.max(peak, ++active);
+      await new Promise((r) => setTimeout(r, 1));
+      active--;
+      return path;
+    };
+    const limited = limit(slow, 3);
+    const out = await Promise.all(Array.from({ length: 20 }, (_, i) => limited(`p${i}`)));
+    expect(peak).toBe(3);
+    expect(out).toEqual(Array.from({ length: 20 }, (_, i) => `p${i}`));
   });
 });
 
@@ -344,7 +379,7 @@ describe("merged PRs in the digest", () => {
   const merged = { [CLOSED]: [pull(30, { merged: hoursAgo(2), updated: hoursAgo(2) }), pull(29, { merged: daysAgo(3), updated: daysAgo(3) }), pull(28, { merged: daysAgo(5), updated: daysAgo(5) })] };
 
   test("lists only the last 24 hours by default and counts the rest on one line", async () => {
-    const { digest } = await sweepOne({ [OPEN]: [pull(7, { updated: daysAgo(4) })], ...merged });
+    const { digest } = await sweepOne({ [OPEN]: [pull(7, { updated: daysAgo(4), draft: true })], ...merged });
     expect(digest).toContain("example-org/widgets  open 1  merged 3  releases 0");
     expect(digest).toContain('  merged #30 "PR 30"');
     expect(digest).not.toContain("merged #29");
@@ -352,7 +387,7 @@ describe("merged PRs in the digest", () => {
   });
 
   test("--list-merged lists every merged PR", async () => {
-    const { digest } = await sweepOne({ [OPEN]: [pull(7, { updated: daysAgo(4) })], ...merged }, { listMerged: true });
+    const { digest } = await sweepOne({ [OPEN]: [pull(7, { updated: daysAgo(4), draft: true })], ...merged }, { listMerged: true });
     for (const n of [30, 29, 28]) expect(digest).toContain(`  merged #${n} "PR ${n}"`);
     expect(digest).not.toContain("merged earlier");
   });

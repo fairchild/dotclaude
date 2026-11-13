@@ -16,10 +16,11 @@ Usage:
   --metrics-path  path prefix counted by the path share (repeatable, required with --metrics-repo)
   --json          one JSON document instead of the plain-text digest (always every merged PR)
 
-Each open PR updated within --stale-hours also carries its short head sha, CI for that
-head (failing, pending, green or none, from check-runs and commit statuses), review state
-(changes requested, approved or none, from each reviewer's latest review), mergeable
-state and labels. Stale PRs get the short line and no further calls.
+Each open PR also carries its short head sha, CI for that head (failing, pending, green
+or none, from check-runs and commit statuses), review state (changes requested, approved
+or none, from each reviewer's latest review), mergeable state and labels. A stale PR that
+is not a draft gets all of these plus \`stale\`; a stale draft gets the short line and no
+further calls.
 
 Uses REST paths through \`gh api\` only. Anything that could not be fetched is
 reported as UNAVAILABLE with the reason, never as empty or zero.
@@ -147,6 +148,7 @@ const MAX_PAGES = 30;
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 const CONCURRENCY = 6;
+const GH_IN_FLIGHT = 8;
 
 const ok = <T>(value: T): Result<T> => ({ ok: true, value });
 const oneLine = (e: unknown): string =>
@@ -283,7 +285,7 @@ export async function fetchOpen(api: Api, repo: string, staleCutoff: number): Pr
       updated_at: p.updated_at,
       html_url: p.html_url,
       stale,
-      state: stale ? null : await fetchPRState(api, repo, p.number, p.head.sha),
+      state: stale && p.draft ? null : await fetchPRState(api, repo, p.number, p.head.sha),
     };
   });
 }
@@ -429,7 +431,7 @@ function renderOpen(p: OpenPR, now: number): string {
   if (!p.state) return `${head} ${when} stale ${p.html_url}`;
   const s = p.state;
   const labels = p.labels.length ? p.labels.join(",") : "none";
-  return `${head} ${p.head_sha.slice(0, 7)} ${when}  ci ${field(s.ci)}  review ${field(s.review)}  mergeable ${field(s.mergeable_state)}  labels ${labels}  ${p.html_url}`;
+  return `${head} ${p.head_sha.slice(0, 7)} ${when}${p.stale ? " stale" : ""}  ci ${field(s.ci)}  review ${field(s.review)}  mergeable ${field(s.mergeable_state)}  labels ${labels}  ${p.html_url}`;
 }
 
 function renderRepo(r: RepoSweep, now: number, mergedDays: number, listMerged: boolean): string[] {
@@ -558,6 +560,22 @@ export function parseArgs(argv: string[]): Options | "help" {
   return opts;
 }
 
+export function limit(api: Api, n: number): Api {
+  let active = 0;
+  const queue: (() => void)[] = [];
+  return async (path) => {
+    if (active < n) active++;
+    else await new Promise<void>((wake) => queue.push(wake));
+    try {
+      return await api(path);
+    } finally {
+      const next = queue.shift();
+      if (next) next();
+      else active--;
+    }
+  };
+}
+
 async function ghApi(path: string): Promise<unknown> {
   const proc = Bun.spawn(["gh", "api", "-H", "Accept: application/vnd.github+json", path], { stdout: "pipe", stderr: "pipe" });
   const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
@@ -578,7 +596,7 @@ async function main(argv: string[]): Promise<number> {
     console.log(USAGE);
     return 0;
   }
-  const sweep = await runSweep(ghApi, opts, Date.now());
+  const sweep = await runSweep(limit(ghApi, GH_IN_FLIGHT), opts, Date.now());
   console.log(opts.json ? JSON.stringify(sweep, null, 2) : renderDigest(sweep, opts.listMerged));
   if (anythingFetched(sweep)) return 0;
   console.error("sweep: nothing could be fetched");
