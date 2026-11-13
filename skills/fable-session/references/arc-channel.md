@@ -35,6 +35,8 @@ An arc posts on these occasions and at no other time:
 
 Every post ends with when to expect the next one, so a channel quiet past that
 time reads as a stalled arc.
+The one exception is the `finished` post that reaches the arc's done-line: it
+says the arc is closed, so the quiet after it reads as done.
 
 The kind is the first word of the message, and goes in the message's tags as
 `kind` where the client can set tags, so a reader can filter by eye or by tag.
