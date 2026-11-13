@@ -187,7 +187,9 @@ export async function discover(api: Api, owners: string[], cutoff: number): Prom
             : `user/repos: ${mine.error}; ${path}: ${listed.error}`;
         return { owner, via: null, repos: { ok: false, error } };
       }
-      const note = mine.ok ? undefined : `user/repos unavailable (${mine.error}); public repos only`;
+      const note = mine.ok
+        ? `user/repos lists nothing for ${owner}; public repos only`
+        : `user/repos unavailable (${mine.error}); public repos only`;
       return { owner, via: path, ...(note && { note }), repos: listed };
     }),
   );
@@ -222,11 +224,7 @@ export const fetchMerged = (api: Api, repo: string, cutoff: number): Promise<Mer
 
 export const fetchReleases = (api: Api, repo: string, cutoff: number): Promise<Release[]> =>
   collect<RawRelease>(api, `repos/${repo}/releases`, (r) =>
-    !after(r.created_at, cutoff) && !after(r.published_at, cutoff)
-      ? "stop"
-      : !r.draft && after(r.published_at, cutoff)
-        ? "take"
-        : "skip",
+    !r.draft && after(r.published_at, cutoff) ? "take" : "skip",
   ).then((rs) =>
     rs.map((r) => ({ tag: r.tag_name, name: r.name, published_at: r.published_at as string, html_url: r.html_url })),
   );
@@ -400,8 +398,8 @@ export function renderDigest(s: Sweep): string {
 
 export class UsageError extends Error {}
 
-const REPO_RE = /^[\w.-]+\/[\w.-]+$/;
-const OWNER_RE = /^[\w.-]+$/;
+const REPO_RE = /^(?!\.+\/)[\w.-]+\/(?!\.+$)[\w.-]+$/;
+const OWNER_RE = /^(?!\.+$)[\w.-]+$/;
 
 export function parseArgs(argv: string[]): Options | "help" {
   const opts: Options = { owners: [], repos: [], days: 30, mergedDays: 7, metricsRepo: null, metricsPaths: [], json: false };
@@ -417,7 +415,7 @@ export function parseArgs(argv: string[]): Options | "help" {
       return v;
     };
     const positive = (v: string): number => {
-      const n = Number(v);
+      const n = /^\d+$/.test(v) ? Number(v) : NaN;
       if (!Number.isInteger(n) || n < 1) throw new UsageError(`${flag}: '${v}' is not a positive whole number`);
       return n;
     };
@@ -441,7 +439,7 @@ export function parseArgs(argv: string[]): Options | "help" {
         opts.metricsRepo = match(value(), REPO_RE, "owner/name");
         break;
       case "--metrics-path":
-        opts.metricsPaths.push(value());
+        opts.metricsPaths.push(match(value(), /\S/, "a path prefix"));
         break;
       case "--json":
         opts.json = true;

@@ -142,7 +142,7 @@ describe("per-repo sweep", () => {
         pull(12, { merged: daysAgo(9), updated: daysAgo(3) }),
         pull(13, { merged: daysAgo(10), updated: daysAgo(10) }),
       ],
-      [RELEASES]: [release("v2", 2), release("v1-draft", null, true), release("v0", 40)],
+      [RELEASES]: [release("v0", 40), release("v1-draft", null, true), release("v2", 2)],
     });
     const s = await runSweep(api, opts({ repos: ["example-org/widgets"] }), NOW);
     expect(s.repos[0].merged).toMatchObject({ ok: true, value: [{ number: 10 }] });

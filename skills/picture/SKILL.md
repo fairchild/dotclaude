@@ -36,11 +36,11 @@ a quiet channel is measured against.
 1. Read each `#task-*` channel you can reach on the chat service, by cursor, with whatever chat
    client the session has. Note each channel's newest post, its kind, and its promised next post.
 2. Run the sweep, a path relative to this skill's base directory:
-   `bun scripts/sweep.ts --owner <login>... --repo <owner/name>...` (`--help` for the rest). It
-   lists open PRs, PRs merged in the last 7 days and releases for every repo pushed in the last 30
-   days. Pass `--repo` for repos you know matter: where owner listing is refused, those are the
+   `bun scripts/sweep.ts --owner <login> --repo <owner/name>` (repeat a flag for each value; `--help`
+   for the rest). It lists open PRs, PRs merged in the last 7 days and releases for every repo
+   pushed in the last 30 days. Pass `--repo` for repos you know matter: where owner listing is refused, those are the
    only ones swept, and the sweep reports discovery as unavailable.
-3. When a metrics repo is configured, add `--metrics-repo <owner/name> --metrics-path <prefix>...`
+3. When a metrics repo is configured, add `--metrics-repo <owner/name> --metrics-path <prefix>`
    and give its numbers one line: the share of last week's merged PRs touching those paths, and
    the median open-to-merge hours. You may add lines from commands the user has configured for
    other weekly numbers.
