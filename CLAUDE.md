@@ -36,6 +36,7 @@ Detect package manager from lockfile: `bun.lock` → bun, `pnpm-lock.yaml` → p
 - **Prefer project-scripts** when a repo supports them: use standardized `scripts/` entrypoints for setup, run, stop, and archive, with `mise` as the preferred orchestrator when present.
 - **Memory is available**. Use `chronicle` when continuity across sessions, recall, or durable context would help.
 - **Hand long-arc work to a fable session**: Fable at `xhigh` effort orchestrates and verifies coherent quality while delegating the implementation — Opus by default, Sonnet when the task is simple and fully specified, Fable when it needs nuance. Contract: the `fable-session` skill.
+- **Put new work beside the work it belongs to**: open it in the smallest container that fits, next to what is already open and without taking focus, and start a separate top-level one only for work with a life of its own. In Rex that is a tab in the current session; a new session is for a long-lived arc with tabs of its own.
 
 ## Memory noticing
 
