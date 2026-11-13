@@ -15,7 +15,7 @@ const NOW = Date.parse("2026-06-15T12:00:00Z");
 const hoursAgo = (h: number): string => new Date(NOW - h * 3_600_000).toISOString();
 const daysAgo = (d: number): string => hoursAgo(d * 24);
 
-type Route = unknown[] | Error;
+type Route = unknown[] | Error | Record<string, unknown>;
 
 function fakeApi(routes: Record<string, Route>): { api: Api; calls: string[] } {
   const calls: string[] = [];
@@ -31,6 +31,7 @@ function fakeApi(routes: Record<string, Route>): { api: Api; calls: string[] } {
     const route = routes[key];
     if (route === undefined) throw new Error(`gh: Not Found (HTTP 404) ${key}`);
     if (route instanceof Error) throw route;
+    if (!Array.isArray(route)) return route;
     return route.slice((page - 1) * perPage, page * perPage);
   };
   return { api, calls };
@@ -42,12 +43,14 @@ const repo = (full_name: string, pushedDaysAgo: number) => ({
   pushed_at: daysAgo(pushedDaysAgo),
 });
 
-const pull = (number: number, o: { created?: string; updated?: string; merged?: string | null; draft?: boolean } = {}) => ({
+type PullOpts = { created?: string; updated?: string; merged?: string | null; draft?: boolean; labels?: string[] };
+const pull = (number: number, o: PullOpts = {}) => ({
   number,
   title: `PR ${number}`,
   draft: o.draft ?? false,
   user: { login: "someone" },
-  head: { ref: `feat/${number}` },
+  head: { ref: `feat/${number}`, sha: `${number}`.padEnd(40, "a") },
+  labels: (o.labels ?? []).map((name) => ({ name })),
   created_at: o.created ?? daysAgo(2),
   updated_at: o.updated ?? hoursAgo(1),
   merged_at: o.merged ?? null,
@@ -77,6 +80,8 @@ const opts = (o: Partial<Options>): Options => ({
   repos: [],
   days: 30,
   mergedDays: 7,
+  staleHours: 72,
+  listMerged: false,
   metricsRepo: null,
   metricsPaths: [],
   json: false,
@@ -253,12 +258,128 @@ describe("digest", () => {
   });
 });
 
+const sha = (n: number): string => `${n}`.padEnd(40, "a");
+const run = (status: string, conclusion: string | null = null) => ({ status, conclusion });
+const review = (login: string, state: string) => ({ user: { login }, state });
+const prState = (
+  n: number,
+  o: { runs?: unknown[] | Error; statuses?: unknown[] | Error; reviews?: unknown[] | Error; pr?: Route } = {},
+): Record<string, Route> => ({
+  [`${W}/commits/${sha(n)}/check-runs`]: o.runs instanceof Error ? o.runs : { total_count: 0, check_runs: o.runs ?? [] },
+  [`${W}/commits/${sha(n)}/status`]: o.statuses instanceof Error ? o.statuses : { state: "pending", statuses: o.statuses ?? [] },
+  [`${W}/pulls/${n}/reviews`]: o.reviews ?? [],
+  [`${W}/pulls/${n}`]: o.pr ?? { mergeable_state: "clean" },
+});
+const sweepOne = async (routes: Record<string, Route>, o: Partial<Options> = {}) => {
+  const { api, calls } = fakeApi({ [CLOSED]: [], [RELEASES]: [], ...routes });
+  const s = await runSweep(api, opts({ repos: ["example-org/widgets"], ...o }), NOW);
+  return { s, calls, digest: renderDigest(s, o.listMerged) };
+};
+const stateOf = async (routes: Record<string, Route>) => {
+  const { s } = await sweepOne({ [OPEN]: [pull(7)], ...routes });
+  const open = s.repos[0].open;
+  if (!open.ok) throw new Error(open.error);
+  return open.value[0].state;
+};
+
+describe("what an open PR waits on", () => {
+  test("CI roll-up: failing beats pending beats green, skipped and neutral ignored, statuses counted", async () => {
+    const ci = async (runs: unknown[], statuses: unknown[] = []) => (await stateOf(prState(7, { runs, statuses })))?.ci;
+    expect(await ci([run("completed", "success"), run("in_progress"), run("completed", "failure")])).toEqual({ ok: true, value: "failing" });
+    expect(await ci([run("completed", "success"), run("queued")])).toEqual({ ok: true, value: "pending" });
+    expect(await ci([run("completed", "success"), run("completed", "skipped"), run("completed", "neutral")])).toEqual({ ok: true, value: "green" });
+    expect(await ci([run("completed", "skipped")])).toEqual({ ok: true, value: "none" });
+    expect(await ci([])).toEqual({ ok: true, value: "none" });
+    expect(await ci([run("completed", "success")], [{ state: "pending" }])).toEqual({ ok: true, value: "pending" });
+    expect(await ci([run("completed", "success")], [{ state: "error" }])).toEqual({ ok: true, value: "failing" });
+    expect(await ci([], [{ state: "success" }])).toEqual({ ok: true, value: "green" });
+  });
+
+  test("review state comes from each reviewer's latest review", async () => {
+    const rv = async (reviews: unknown[]) => (await stateOf(prState(7, { reviews })))?.review;
+    expect(await rv([review("ana", "CHANGES_REQUESTED"), review("ana", "APPROVED")])).toEqual({ ok: true, value: "approved" });
+    expect(await rv([review("ana", "APPROVED"), review("bo", "CHANGES_REQUESTED")])).toEqual({ ok: true, value: "changes requested" });
+    expect(await rv([review("ana", "APPROVED"), review("ana", "COMMENTED")])).toEqual({ ok: true, value: "approved" });
+    expect(await rv([review("ana", "APPROVED"), review("ana", "DISMISSED")])).toEqual({ ok: true, value: "none" });
+    expect(await rv([review("ana", "COMMENTED")])).toEqual({ ok: true, value: "none" });
+  });
+
+  test("a fresh PR's line carries head, CI, review, mergeable state and labels", async () => {
+    const { digest } = await sweepOne({
+      [OPEN]: [pull(7, { labels: ["bug", "ready"] })],
+      ...prState(7, { runs: [run("completed", "success")], reviews: [review("ana", "APPROVED")], pr: { mergeable_state: "blocked" } }),
+    });
+    expect(digest).toContain(
+      `  open #7 "PR 7" @someone feat/7 ${sha(7).slice(0, 7)} opened ${daysAgo(2).slice(0, 10)} updated 1h ago  ci green  review approved  mergeable blocked  labels bug,ready  https://`,
+    );
+  });
+
+  test("a failed sub-fetch makes only that field unavailable", async () => {
+    const { s, digest } = await sweepOne({
+      [OPEN]: [pull(7)],
+      ...prState(7, { statuses: new Error("gh: Server Error (HTTP 502)"), reviews: [review("ana", "APPROVED")] }),
+    });
+    const open = s.repos[0].open;
+    expect(open.ok && open.value[0].state).toMatchObject({ ci: { ok: false }, review: { ok: true }, mergeable_state: { ok: true } });
+    expect(digest).toContain("ci UNAVAILABLE (gh: Server Error (HTTP 502))  review approved  mergeable clean  labels none");
+  });
+
+  test("a PR not updated within the stale window is marked stale and costs no extra calls", async () => {
+    const { s, calls, digest } = await sweepOne(
+      { [OPEN]: [pull(7, { updated: hoursAgo(11) }), pull(8, { updated: hoursAgo(13) })], ...prState(7) },
+      { staleHours: 12 },
+    );
+    const open = s.repos[0].open;
+    expect(open.ok && open.value.map((p) => [p.number, p.stale, p.state === null])).toEqual([
+      [7, false, false],
+      [8, true, true],
+    ]);
+    expect(calls.filter((c) => c.includes(sha(8)) || c.includes("pulls/8"))).toEqual([]);
+    expect(digest).toContain(`  open #8 "PR 8" @someone feat/8 opened ${daysAgo(2).slice(0, 10)} updated 13h ago stale https://`);
+    expect(digest).toContain("stale after 12h");
+  });
+});
+
+describe("merged PRs in the digest", () => {
+  const merged = { [CLOSED]: [pull(30, { merged: hoursAgo(2), updated: hoursAgo(2) }), pull(29, { merged: daysAgo(3), updated: daysAgo(3) }), pull(28, { merged: daysAgo(5), updated: daysAgo(5) })] };
+
+  test("lists only the last 24 hours by default and counts the rest on one line", async () => {
+    const { digest } = await sweepOne({ [OPEN]: [pull(7, { updated: daysAgo(4) })], ...merged });
+    expect(digest).toContain("example-org/widgets  open 1  merged 3  releases 0");
+    expect(digest).toContain('  merged #30 "PR 30"');
+    expect(digest).not.toContain("merged #29");
+    expect(digest).toContain("  merged earlier: 2 more within 7d (--list-merged lists them)");
+  });
+
+  test("--list-merged lists every merged PR", async () => {
+    const { digest } = await sweepOne({ [OPEN]: [pull(7, { updated: daysAgo(4) })], ...merged }, { listMerged: true });
+    for (const n of [30, 29, 28]) expect(digest).toContain(`  merged #${n} "PR ${n}"`);
+    expect(digest).not.toContain("merged earlier");
+  });
+
+  test("a repo with nothing open keeps recent refs and counts the rest", async () => {
+    expect((await sweepOne({ [OPEN]: [], ...merged })).digest).toContain("example-org/widgets  open 0  merged 3 (#30 +2 earlier)  releases 0");
+    expect((await sweepOne({ [OPEN]: [], ...merged }, { listMerged: true })).digest).toContain("merged 3 (#30 #29 #28)");
+  });
+
+  test("JSON keeps every merged PR", async () => {
+    const { s } = await sweepOne({ [OPEN]: [], ...merged });
+    const json = JSON.parse(JSON.stringify(s));
+    expect(json.repos[0].merged.value.map((p: { number: number }) => p.number)).toEqual([30, 29, 28]);
+  });
+});
+
 describe("arguments", () => {
   test("usage errors throw and a valid line parses", () => {
     expect(() => parseArgs([])).toThrow("--owner or --repo");
     expect(() => parseArgs(["--repo", "nope"])).toThrow("owner/name");
     expect(() => parseArgs(["--repo", "a/b", "--metrics-repo", "a/b"])).toThrow("--metrics-path");
     expect(() => parseArgs(["--repo", "a/b", "--days", "0"])).toThrow("positive");
+    expect(() => parseArgs(["--repo", "a/b", "--stale-hours", "0"])).toThrow("positive");
+    expect(() => parseArgs(["--repo", "a/b", "--stale-hours", "1.5"])).toThrow("positive");
+    expect(() => parseArgs(["--repo", "a/b", "--stale-hours"])).toThrow("needs a value");
+    expect(parseArgs(["--repo", "a/b"])).toMatchObject({ staleHours: 72, listMerged: false });
+    expect(parseArgs(["--repo", "a/b", "--stale-hours", "24", "--list-merged"])).toMatchObject({ staleHours: 24, listMerged: true });
     expect(parseArgs(["--help"])).toBe("help");
     expect(parseArgs(["--owner", "example-org", "--days", "14", "--json"])).toMatchObject({ owners: ["example-org"], days: 14, json: true });
   });

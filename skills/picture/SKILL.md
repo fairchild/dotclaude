@@ -20,7 +20,8 @@ it waits on and on whom, and a link. Open `need`s for the user come first, since
 lines that ask something of them; the rest follow newest state first. An arc whose channel has gone
 quiet past its promised next post is stalled, and its line says `stalled` plainly. Work visible on
 GitHub with no channel — an open PR in a swept repo that belongs to no arc — gets a line only while
-it is in flight. Finished and idle things are left out.
+it is in flight: updated within the stale window (72 hours by default), or waiting on the user.
+Older ones are idle. Finished and idle things are left out.
 
 Cutting is the hard part. The picture is read on a phone, and an eleventh line means something was
 not cut. A finished arc reads as a `finished` post the user has already seen; an idle repo is not
@@ -40,12 +41,20 @@ a quiet channel is measured against.
    `bun scripts/sweep.ts --owner <login> --repo <owner/name>` (repeat a flag for each value; `--help`
    for the rest). It lists open PRs, PRs merged in the last 7 days and releases for every repo
    pushed in the last 30 days. Pass `--repo` for repos you know matter: where owner listing is refused, those are the
-   only ones swept, and the sweep reports discovery as unavailable.
+   only ones swept, and the sweep reports discovery as unavailable. Each open PR updated within the
+   stale window (`--stale-hours`, default 72) comes with its CI, review state, mergeable state and
+   labels, which is what "waits on whom" is read from; older ones are marked `stale`. A ready, green
+   PR waits on whoever merges in that repository; name them where the repository's rules say who.
+   The digest lists only the last day's merges and counts the rest (`--list-merged` lists them all).
 3. When a metrics repo is configured, add `--metrics-repo <owner/name> --metrics-path <prefix>`
    and give its numbers one line: the share of last week's merged PRs touching those paths, and
    the median open-to-merge hours. You may add lines from commands the user has configured for
    other weekly numbers.
 4. Join channels to PRs by branch, slug or link, then write the lines and cut to ten.
+
+When an arc's channel cannot be read, the newest handoff on the arc's tracking issue, where the
+session knows of one, is the fallback source for that arc's state and its promised next post; the
+line then says the channel was not read.
 
 Anything you could not read — a channel, discovery, a repo, a number — goes in the last line as
 `not read: ...`. An arc missing from the picture reads as an arc that does not exist, so a silent
