@@ -655,6 +655,11 @@ function claim(state: Store, field: "prepareNoted" | "afterNoted", at: number): 
  * The note a prompt carries: the after note while a compaction's is owed, else the prepare note
  * once per epoch. It is claimed with no await between the last read and the write, so two prompts
  * in flight never both carry it, and a compaction during the context read voids the read.
+ *
+ * Dispatch of `prompt.submit` is serial per session as measured (a typed prompt beside a typed
+ * one, and beside a peer's message: each hook entered after the last one exited), and the engine's
+ * docs are silent on it. The engine skips a hook that runs past its 10 s budget without cancelling
+ * it, so an over-budget body can run beside the next hook; the claim above is the cover for that.
  */
 async function noteFor($: Engine, p: Points, state: Store): Promise<Note | null> {
   const { epoch, afterNoted, prepareNoted, pending } = state.read();
