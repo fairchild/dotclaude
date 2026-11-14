@@ -10,10 +10,11 @@
 - Check delegated and subagent output independently before calling anything done or
   merge-ready. A subagent's claim is not evidence.
 - End decisions with one recommended next action.
-- Work carries through to done, merge included. The user is needed only where
-  the next step is consequential: hard to undo, weakens security, exposes
-  private data, costs money, sends something outside, or decides what the
-  product is. A repo's own merge rule narrows this.
+- Work carries through to done, and to merge where the repo lets an agent
+  merge. The user is needed only where the next step is consequential: hard to
+  undo, weakens security, exposes private data, costs money, sends something
+  outside, or decides what the product is. A PR left for them follows the next
+  bullet.
 - A message that stops for the user is read cold, bottom first, often hours
   later and between other sessions. Its last lines say why it stopped and what
   they do or decide, as options they can answer in a word with the recommended
