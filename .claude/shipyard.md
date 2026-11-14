@@ -8,9 +8,10 @@ serves several repositories at once.
 ## Venue
 
 - **Review venue: inline review comments**, with the verdict in the review body. Detected from the
-  last five merged pull requests: every review arrived as a review object, four with no inline
-  comments and one with four, and no pull request had a single conversation comment. A seat posting
-  conversation comments here would be posting somewhere nobody reads.
+  last six merged pull requests (#387 to #393): every one carried a review object, none had an
+  inline comment, and one had a single conversation comment. Reviews here live in the review body;
+  inline comments are the format `.github/copilot-instructions.md` asks for when a finding has a
+  line, and recent reviews have had none to place.
 - **Review label: `needs code review`** — the name to use, but read the next line before relying on
   it. The label exists and is the only one here that means "ready for review", so a seat should use
   it rather than create `review` and split the queue. What it does *not* do is arrive on its own:
@@ -45,14 +46,19 @@ run. Tasks come from `mise tasks`.
   not classic protection, and a seat that reads the 404 as "unprotected" would be wrong.
 - Required approvals: **0**. The verdict is the only review on record, which raises what it has to
   carry rather than lowering it.
-- Read but do not block on: `config`, `package`, `webui`, `analyze`, `persona`, `team`, `gondolin`,
-  `changes`, `publish`, and the `package / consumer` matrix. They feed `CI`; their output and
-  annotations say what `CI` only summarizes.
-- `deploy-skills` and `deploy-webui` run on `main` after a merge, never on a pull request. A seat
-  waiting for them on a pull request head waits forever.
-- Typical duration: about 90 seconds median over the last ten runs, up to four minutes when every
-  job is triggered. Paths in `.github/scripts/paths.mjs` decide which jobs run, and any change
-  under `.github/` or to `.mise.toml` triggers all of them.
+- Read but do not block on: `changes`, `config`, `webui`, `analyze`, `persona`, `team`, `gondolin`,
+  and the reusable `package` workflow, which reports as `package / package`, `package / browser`
+  and five `package / consumer (<os>, <node>)` cells. They feed `CI`; their output and annotations
+  say what `CI` only summarizes. Names taken from `ci-wait.sh` against the head of #396.
+- `claude-review` comes from `.github/workflows/claude-code-review.yml`, not from `CI`. It passes
+  on an approval, a comment, and for now a request for changes, and fails when no review was
+  posted. It is not required. A head can report it twice, once skipped from the bot-actor rerun.
+- `claude` comes from `.github/workflows/claude.yml` and is skipped on an ordinary head.
+- `deploy-skills`, `deploy-webui` and `publish` run on `main` after a merge, not on a pull
+  request. A seat waiting for them on a pull request head waits forever.
+- Typical duration: about 100 seconds median over the last ten pull-request runs of `ci.yml`
+  (67 to 131 seconds, one at 340). Paths in `.github/scripts/paths.mjs` decide which jobs run, and
+  any change under `.github/` or to `.mise.toml` triggers all of them.
 
 ## Never defer
 
@@ -61,7 +67,8 @@ blocking whatever its size.
 
 - **A private reference or a secret in tracked text, a commit message, or a pull request body.**
   This repository is public and its owner's other work is not; `scripts/public-text-guard.py`
-  refuses commits for this, and the project's own instructions say to refer to the owner as "the
+  runs as a `PreToolUse` hook on Bash (wired in `settings.example.json`) and refuses commands that
+  would publish such text, and the project's own instructions say to refer to the owner as "the
   user". A reviewer who lets one through cannot take it back.
 - **Generated tables out of step with their source.** `mise run catalog` regenerates the README
   tiers from `SKILL.md` frontmatter and CI fails on drift. A pull request that edits frontmatter
@@ -103,3 +110,9 @@ which is work a smaller model does well.
   `metadata.status`; the gate for stable is an eval or sustained real use.
 - Session data is gitignored, and the `.gitignore` entries that do it are load-bearing rather than
   tidy-up.
+
+## What setup left blank
+
+- Touched-tests-only form and poll interval: no task runs a subset, and the gate finishes in seconds, so the defaults stand.
+- Forks: none named, so the seat does not run the gate on a fork's pull request.
+- The full `config` job runs more than the gate and tests above (workflow tests, the public-text guard's cases, the cloud bootstrap, several skill self-tests). No single `mise` task wraps it, so a seat relies on CI for those.
