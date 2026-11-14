@@ -117,7 +117,6 @@ Claude loads these when the task matches the description.
 | Skill | Domain | Why experimental |
 |---|---|---|
 | `arc-handoff` | Hand off an arc of work on its tracking issue, or pick up an arc another session left. | Generalised from a handoff skill in the user's other repositories; no eval yet. |
-| `ascii-art-fix` | Fix misaligned right borders in ASCII art diagrams | Prompt-only repair is useful but still has edge cases around nested diagrams, tables, and mixed markdown content. |
 | `claude-as` | Run Claude Code under a different account with claude-as profiles. | New in this form: the profile layering has run on one machine with two accounts; side-agent launches are tested headless only. |
 | `cloudflare-workers-deploy` | Set up Cloudflare Workers deployment for web applications with GitHub Actions CI/CD. | Deployment patterns are useful but not yet validated across enough project shapes and Cloudflare account setups. |
 | `codex-cli` | Run Codex CLI for code review or implementation, select the current model, and capture the model and session that… | Consolidates existing Codex CLI recipes and replaces the codex-review command; command syntax is checked locally, but the consolidated workflow has no skill eval yet. |
