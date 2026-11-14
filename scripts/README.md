@@ -37,4 +37,4 @@ mise tasks ls        # list all tasks
 | `claude-usage.py` | Check Claude usage limits (`uv run scripts/claude-usage.py --human`) |
 | `cloud-bootstrap.sh` | Layer this repo onto `~/.claude` in a Claude Code cloud session's VM, mods included; run by a cloud environment's setup script (cases in `test-cloud-bootstrap.sh`) |
 | `dotclaude.py` | Bootstrap, sync, and diagnose the independent runtime clone |
-| `public-text-guard.py` | Refuse text bound for a public repo that names one of your private repos. A `PreToolUse` hook on Bash (`hook`) and a CLI (`check [--repo OWNER/NAME] FILE...`); cases in `test_public_text_guard.py` |
+| `public-text-guard.py` | Refuse text bound for a public repo that names one of your private repos. A `PreToolUse` hook on Bash (`hook`) and a CLI (`check [--repo OWNER/NAME] FILE...`). With `TYPESAFE_API_KEY` set, a decision model also reads the text for private detail no pattern names; cases in `test_public_text_guard.py` |

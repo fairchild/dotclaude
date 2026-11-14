@@ -11,9 +11,12 @@ import json
 import os
 import subprocess
 import sys
+import socket
 import tempfile
+import threading
 import time
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
 
@@ -39,7 +42,7 @@ esac
 """
 
 
-class Guard(unittest.TestCase):
+class Harness(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp())
         (self.tmp / "bin").mkdir()
@@ -48,8 +51,11 @@ class Guard(unittest.TestCase):
         gh.chmod(0o755)
         self.env = {**os.environ, "PATH": f"{self.tmp / 'bin'}:{os.environ['PATH']}",
                     "PUBLIC_TEXT_STATE": str(self.tmp / "state"),
-                    "PUBLIC_TEXT_EXTRA": str(self.tmp / "patterns")}
-        self.env.pop("PUBLIC_TEXT_OWNER", None)
+                    "PUBLIC_TEXT_EXTRA": str(self.tmp / "patterns"),
+                    "PUBLIC_TEXT_QUESTIONS": str(self.tmp / "questions.json")}
+        for var in ("PUBLIC_TEXT_OWNER", "TYPESAFE_API_KEY", "TYPESAFE_BASE_URL", "PUBLIC_TEXT_JUDGE",
+                    "PUBLIC_TEXT_JUDGE_TIMEOUT", "PUBLIC_TEXT_JUDGE_MODEL"):
+            self.env.pop(var, None)
         self.repo = self.git_repo("pub")
 
     def git_repo(self, name: str) -> Path:
@@ -61,11 +67,14 @@ class Guard(unittest.TestCase):
             subprocess.run(["git", "-C", str(repo), *args], check=True)
         return repo
 
-    def check(self, text: str, *args: str, **env: str) -> int:
+    def run_check(self, text: str, *args: str, **env: str) -> subprocess.CompletedProcess:
         f = self.tmp / "text.md"
         f.write_text(text + "\n")
         return subprocess.run([sys.executable, str(GUARD), "check", *args, str(f)],
-                              env={**self.env, **env}, capture_output=True).returncode
+                              env={**self.env, **env}, capture_output=True, text=True)
+
+    def check(self, text: str, *args: str, **env: str) -> int:
+        return self.run_check(text, *args, **env).returncode
 
     def hook(self, command: str, cwd: Optional[Path] = None, **env: str) -> dict:
         event = {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(cwd or self.repo)}
@@ -79,6 +88,8 @@ class Guard(unittest.TestCase):
         return out.get("hookSpecificOutput", {}).get("permissionDecision") or (
             "warn" if "systemMessage" in out else "pass")
 
+
+class Guard(Harness):
     # --- the checker ------------------------------------------------------------
 
     def test_refuses_each_kind_of_private_reference(self) -> None:
@@ -377,6 +388,177 @@ class Guard(unittest.TestCase):
                     f'gh pr comment https://github.com/acme/pub/pull/4 --frobnicate {self.SU} -b "{DIRTY}"'):
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.decision(cmd), "ask")
+
+
+# --- the decision-model pass, against a local stand-in for the TypeSafe API -------------------
+
+TELLING = "Their sessions sent 4,000 messages in March."
+TELLS = {"work_patterns": "4,000 messages", "private_infrastructure": "the box named quietbox",
+         "codenames": "Project Heron"}
+KEY = "test-key-0123456789abcdef"
+
+
+class FakeJev:
+    """Answers each Noul 0.93 when the text holds that question's tell, and 0.04 otherwise."""
+
+    def __init__(self) -> None:
+        self.requests: list[dict] = []
+        self.mode = "ok"
+        self.release = threading.Event()
+        fake = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args: object) -> None:
+                pass
+
+            def do_POST(self) -> None:
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                fake.requests.append({"path": self.path, "auth": self.headers.get("Authorization"), "body": body})
+                if fake.mode == "hang":
+                    fake.release.wait(30)
+                text = body["state"]["text"]
+                answers = {k: {"type": "noul", "noul": 0.93 if TELLS.get(k, "\0") in text else 0.04}
+                           for k in body["questions"]}
+                reply = {"model": "jev-test", "answers": {} if fake.mode == "partial" else answers,
+                         "usage": {"input_tokens": 10, "output_tokens": 1}}
+                payload = b"not json" if fake.mode == "garbage" else json.dumps(reply).encode()
+                self.send_response(529 if fake.mode == "overloaded" else 200)
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def close(self) -> None:
+        self.release.set()
+        self.server.shutdown()
+        self.server.server_close()
+
+
+class Judge(Harness):
+    def setUp(self) -> None:
+        super().setUp()
+        self.jev = FakeJev()
+        self.addCleanup(self.jev.close)
+        self.keyed = {"TYPESAFE_API_KEY": KEY, "TYPESAFE_BASE_URL": self.jev.url, "NO_PROXY": "127.0.0.1"}
+        self.write = f'gh pr create --title "feat: x" --body "{TELLING}"'
+
+    def reason(self, command: str, **env: str) -> str:
+        return self.hook(command, **env).get("hookSpecificOutput", {}).get("permissionDecisionReason", "")
+
+    def test_without_a_key_only_the_patterns_run(self) -> None:
+        self.assertEqual(self.check(TELLING, TYPESAFE_BASE_URL=self.jev.url), 0)
+        self.assertEqual(self.decision(self.write, TYPESAFE_BASE_URL=self.jev.url), "pass")
+        self.assertEqual(self.decision(self.write, **{**self.keyed, "TYPESAFE_API_KEY": "_"}), "warn")
+        self.assertEqual(self.jev.requests, [])
+
+    def test_check_refuses_what_the_model_reads_as_private(self) -> None:
+        got = self.run_check(TELLING, **self.keyed)
+        self.assertEqual(got.returncode, 1)
+        self.assertIn("work_patterns, p=0.93", got.stdout)
+        self.assertEqual(self.check("A review pass merged it.", **self.keyed), 0)
+        sent = self.jev.requests[0]
+        self.assertEqual((sent["path"], sent["auth"]), ("/v1/systemone", f"Bearer {KEY}"))
+        self.assertEqual({q["type"] for q in sent["body"]["questions"].values()}, {"noul"})
+        self.assertTrue(sent["body"]["model"])
+
+    def test_the_hook_denies_and_names_the_question(self) -> None:
+        self.assertIn("figures or incidents about how a specific person works", self.reason(self.write, **self.keyed))
+        self.assertEqual(self.decision(self.write, **self.keyed), "deny")
+        self.assertEqual(self.decision('gh pr create --title "feat: x" --body "clean"', **self.keyed), "pass")
+        self.assertEqual(self.decision(f'git commit -m "{TELLING}"', **self.keyed), "deny")
+        subprocess.run(["git", "-C", str(self.repo), "commit", "-q", "--allow-empty", "-m", TELLING], check=True)
+        self.assertEqual(self.decision("git push -u origin HEAD", **self.keyed), "deny")
+        (self.tmp / "body.md").write_text(f"The cache lives on the box named quietbox.\n")
+        self.assertIn("private_infrastructure", self.reason(f"gh pr edit 4 -F {self.tmp / 'body.md'}", **self.keyed))
+
+    def test_only_text_bound_for_a_known_public_repo_is_sent(self) -> None:
+        private = self.git_repo("secretproj")
+        local = self.tmp / "local"
+        subprocess.run(["git", "init", "-q", str(local)], check=True)
+        self.assertEqual(self.decision(self.write, cwd=private, **self.keyed), "pass")
+        self.assertEqual(self.decision(self.write + " -R acme/unknown", **self.keyed), "warn")
+        self.assertEqual(self.decision(f'git commit -m "{TELLING}"', cwd=local, **self.keyed), "pass")
+        self.assertEqual(self.check(TELLING, "--repo", "acme/secretproj", **self.keyed), 0)
+        self.assertEqual(self.check(TELLING, "--repo", "acme/unknown", **self.keyed), 0)
+        self.assertEqual(self.jev.requests, [])
+        self.assertEqual(self.check(TELLING, "--repo", "acme/pub", **self.keyed), 1)
+
+    def test_a_pattern_hit_is_refused_without_asking_the_model(self) -> None:
+        self.assertEqual(self.decision(f'gh pr comment 4 -b "{DIRTY} {TELLING}"', **self.keyed), "deny")
+        self.assertEqual(self.check(f"{DIRTY} {TELLING}", **self.keyed), 1)
+        self.assertEqual(self.jev.requests, [])
+
+    def test_a_failing_model_warns_and_never_blocks(self) -> None:
+        for mode in ("overloaded", "garbage", "partial"):
+            with self.subTest(mode=mode):
+                self.jev.mode = mode
+                self.assertEqual(self.decision(self.write, **self.keyed), "warn")
+                got = self.run_check(TELLING, **self.keyed)
+                self.assertEqual(got.returncode, 0)
+                self.assertIn("did not read this text", got.stderr)
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            dead = f"http://127.0.0.1:{s.getsockname()[1]}"
+        self.assertEqual(self.decision(self.write, **{**self.keyed, "TYPESAFE_BASE_URL": dead}), "warn")
+        self.assertEqual(self.decision(f'gh pr comment 4 -b "{DIRTY}"', **{**self.keyed, "TYPESAFE_BASE_URL": dead}),
+                         "deny")
+
+    def test_a_hanging_model_is_abandoned_at_its_deadline(self) -> None:
+        self.jev.mode = "hang"
+        started = time.monotonic()
+        self.assertEqual(self.decision(self.write, PUBLIC_TEXT_JUDGE_TIMEOUT="1", **self.keyed), "warn")
+        self.assertLess(time.monotonic() - started, 8)
+
+    def test_warn_reports_and_off_does_not_ask(self) -> None:
+        out = self.hook(self.write, PUBLIC_TEXT_JUDGE="warn", **self.keyed)
+        self.assertIn("work_patterns", out.get("systemMessage", ""))
+        self.assertNotIn("hookSpecificOutput", out)
+        got = self.run_check(TELLING, PUBLIC_TEXT_JUDGE="warn", **self.keyed)
+        self.assertEqual(got.returncode, 0)
+        self.assertIn("work_patterns", got.stderr)
+        asked = len(self.jev.requests)
+        self.assertEqual(self.decision(self.write, PUBLIC_TEXT_JUDGE="off", **self.keyed), "pass")
+        self.assertEqual(len(self.jev.requests), asked)
+        self.assertEqual(self.decision(self.write, PUBLIC_TEXT_JUDGE="loud", **self.keyed), "deny")
+
+    def test_secret_shapes_and_the_key_are_not_sent(self) -> None:
+        token = "ghp_" + "A1b2" * 6
+        self.assertEqual(self.check(f"the token {token} and the key {KEY}", **self.keyed), 0)
+        text = self.jev.requests[0]["body"]["state"]["text"]
+        self.assertNotIn(token, text)
+        self.assertIn("[redacted:secret]", text)
+
+    def test_the_questions_file_moves_drops_and_adds(self) -> None:
+        asks = self.tmp / "questions.json"
+        asks.write_text(json.dumps({"work_patterns": {"at": 0.95}}))
+        self.assertEqual(self.check(TELLING, **self.keyed), 0)
+        asks.write_text(json.dumps({"work_patterns": None}))
+        self.assertEqual(self.check(TELLING, **self.keyed), 0)
+        self.assertNotIn("work_patterns", self.jev.requests[-1]["body"]["questions"])
+        asks.write_text(json.dumps({"codenames": {"ask": "Does `text` name an unreleased project?", "at": 0.8}}))
+        got = self.run_check("Ships after Project Heron.", **self.keyed)
+        self.assertEqual(got.returncode, 1)
+        self.assertIn("codenames", got.stdout)
+        asks.write_text("[1, 2")
+        got = self.run_check(TELLING, **self.keyed)
+        self.assertEqual(got.returncode, 0)
+        self.assertIn("did not read this text", got.stderr)
+
+    def test_every_answer_is_logged_without_the_text(self) -> None:
+        self.check(TELLING, "--repo", "acme/pub", **self.keyed)
+        entry = json.loads((self.tmp / "state" / "judge.jsonl").read_text().splitlines()[-1])
+        self.assertEqual((entry["repo"], entry["raised"], entry["p"]["work_patterns"]),
+                         ("acme/pub", ["work_patterns"], 0.93))
+        self.assertNotIn("4,000", json.dumps(entry))
+
+    def test_long_text_is_read_in_part_and_says_so(self) -> None:
+        got = self.run_check("x" * 70_000 + " " + TELLING, **self.keyed)
+        self.assertEqual(got.returncode, 0)
+        self.assertIn("read the first 60000", got.stderr)
+        self.assertEqual(len(self.jev.requests[0]["body"]["state"]["text"]), 60_000)
 
 
 if __name__ == "__main__":
