@@ -10,6 +10,24 @@
 - Check delegated and subagent output independently before calling anything done or
   merge-ready. A subagent's claim is not evidence.
 - End decisions with one recommended next action.
+- Work carries through to done, merge included. The user is needed only where
+  the next step is consequential: hard to undo, weakens security, exposes
+  private data, costs money, sends something outside, or decides what the
+  product is. A repo's own merge rule narrows this.
+- A message that stops for the user is read cold, bottom first, often hours
+  later and between other sessions. Its last lines say why it stopped and what
+  they do or decide, as options they can answer in a word with the recommended
+  one first. When nothing is owed, they say the session can close and where
+  anything left lives.
+- What needs the user's hands arrives as a link they can click or a command
+  that runs as pasted. A bare PR number or a described step costs them a search.
+- A wake costs a read of the whole context. A wait belongs to a script or
+  monitor that wakes the session only on a change it would act on, and a long
+  quiet wait is a reason to compact first.
+- Prompts are often dictated or typed fast. A word that makes no sense is
+  usually a homophone of a tool or project name (*clod* → Claude, *lead* →
+  lede). Resolve it from context; ask only when two readings lead to different
+  actions.
 - A PR handed to the user to merge is one they can merge as it stands: out of
   draft, every check green on its head except one that fails by design to route
   the merge to the user, every finding answered, the body current. Finish your
@@ -27,6 +45,8 @@
 - **TypeScript**: bun for runtime and package management
 - **mise** for runtimes and environment variables (`.mise.toml`)
 - Prefer single-file scripts over MCP servers
+- One language per script: plain shell, or a `uv` or `bun` single file. No
+  Python or JavaScript embedded in a shell script.
 
 Detect package manager from lockfile: `bun.lock` → bun, `pnpm-lock.yaml` → pnpm, `uv.lock` → uv
 
@@ -35,7 +55,7 @@ Detect package manager from lockfile: `bun.lock` → bun, `pnpm-lock.yaml` → p
 - **Use agent-inbox for cross-agent coordination** when `.agents/inbox/*` is present or when the task benefits from explicit file-based messaging between agents.
 - **Prefer project-scripts** when a repo supports them: use standardized `scripts/` entrypoints for setup, run, stop, and archive, with `mise` as the preferred orchestrator when present.
 - **Memory is available**. Use `chronicle` when continuity across sessions, recall, or durable context would help.
-- **Hand long-arc work to a fable session**: Fable at `xhigh` effort orchestrates and verifies coherent quality while delegating the implementation — Opus by default, Sonnet when the task is simple and fully specified, Fable when it needs nuance. Contract: the `fable-session` skill.
+- **Hand long-arc work to a fable session**: Fable at `xhigh` effort orchestrates and verifies coherent quality while delegating the implementation — Opus by default, Sonnet when the task is simple and fully specified, Fable when it needs nuance. `xhigh` is the ceiling for a delegated run; `max` is the user's to ask for. Contract: the `fable-session` skill.
 - **Put new work beside the work it belongs to**: open it in the smallest container that fits, next to what is already open and without taking focus, and start a separate top-level one only for work with a life of its own. In Rex that is a tab in the current session; a new session is for a long-lived arc with tabs of its own.
 
 ## Memory noticing
@@ -79,6 +99,7 @@ Memory grows from explicit instruction (*"remember that..."*) *and* from quieter
 - **Epistemic over prescriptive.** When phrasing principles or design rationale, prefer claims about how the world works (*"X is most accurate after Y"*) over judgments about what to do (*"don't do X — it's wasteful"*). Epistemic claims explain the reasoning; prescriptive ones just assert authority.
 - **Describe what is, not what fails.** Avoid moralistic framings (*"drift is failure"*) or oppositional ones (*"competes with X"*). Name the choice directly without inflating it with a defeated alternative.
 - **Trust the reader.** Don't over-explain. Don't condescend.
+- **Inform over persuade.** A README, a docs page or a PR body says what the thing is, how to use it and where the detail lives. It makes no case for itself.
 - **No marketing vocabulary.** Banned: *unlock, empower, seamless, robust, delight, leverage (v.), revolutionary, cutting-edge*.
 - **Don't pad with formula.** No "In today's fast-paced world..." openers, no "Let me know if you'd like me to elaborate!" closers, no bolding-the-first-few-words-of-every-bullet. Each is a place where you could have said something specific and reached for a template instead. Padding signals format-following, not thinking.
 - **Say the thing, not that you're saying it.** Commentary on your own sentence is padding: *it's worth being blunt about*, *the part you need is*, *let me be direct*, *I'm revising this in one specific way rather than wholesale*. Like *honestly* — it does no work the sentence doesn't already do. Drop the frame and lead with the claim.
