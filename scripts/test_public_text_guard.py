@@ -529,7 +529,8 @@ class Judge(Harness):
         self.assertEqual(self.check(f"the token {token} and the key {KEY}", **self.keyed), 0)
         text = self.jev.requests[0]["body"]["state"]["text"]
         self.assertNotIn(token, text)
-        self.assertIn("[redacted:secret]", text)
+        self.assertNotIn(KEY, text)
+        self.assertEqual(text.count("[redacted:secret]"), 2)
 
     def test_the_questions_file_moves_drops_and_adds(self) -> None:
         asks = self.tmp / "questions.json"

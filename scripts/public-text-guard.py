@@ -382,14 +382,15 @@ def judged(text: str, repo: Optional[str], form: str) -> list[str]:
         if left <= 0:
             raise Unrunnable("its time budget was spent on an earlier request")
         asks = questions()
-        sent = SECRET.sub("[redacted:secret]", text)
+        key = os.environ["TYPESAFE_API_KEY"].strip()
+        sent = SECRET.sub("[redacted:secret]", text.replace(key, "[redacted:secret]"))
         if len(sent) > JUDGE_CHARS:
             warnings.append(f"the decision model read the first {JUDGE_CHARS} of {len(sent)} characters")
         state = {"destination": f"the public GitHub repository {repo}" if repo else "a public repository",
                  "text": sent[:JUDGE_CHARS]}
         if not asks:
             return []
-        reply = ask_model(os.environ["TYPESAFE_API_KEY"].strip(), state, form, asks, left)
+        reply = ask_model(key, state, form, asks, left)
         try:
             ps = {k: min(1.0, max(0.0, float(reply["answers"][k]["noul"]))) for k in asks}
         except (KeyError, TypeError, ValueError):
