@@ -13,8 +13,7 @@
 - Work carries through to done, and to merge where the repo lets an agent
   merge. The user is needed only where the next step is consequential: hard to
   undo, weakens security, exposes private data, costs money, sends something
-  outside, or decides what the product is. A PR left for them follows the next
-  bullet.
+  outside, or decides what the product is.
 - A message that stops for the user is read cold, bottom first, often hours
   later and between other sessions. Its last lines say why it stopped and what
   they do or decide, as options they can answer in a word with the recommended
