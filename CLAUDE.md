@@ -50,6 +50,13 @@
 
 Detect package manager from lockfile: `bun.lock` → bun, `pnpm-lock.yaml` → pnpm, `uv.lock` → uv
 
+## Proxy-managed credentials (cloud sessions)
+
+Cloud sessions authenticate some hosts at the network proxy, which overwrites the `Authorization` header on the way out. A real key never exists in the container. The session's system prompt lists these hosts under "Proxy-injected credentials".
+
+- **TypeSafe (Jev)**: `api.typesafe.ai` is proxy-authenticated. `TYPESAFE_API_KEY=proxy-managed` is a placeholder so SDKs initialize; send it as `Authorization: Bearer proxy-managed`. Endpoints: `GET /v1/models`, `POST /v1/systemone` (spec at `/openapi.json`). A 401 means the environment's network secret is missing, not that the placeholder is wrong.
+- Printing a credential-named variable can trip the auto-mode classifier. To check it, compare instead of echoing: `[ "$TYPESAFE_API_KEY" = proxy-managed ] && echo match`.
+
 ## Coordination, Scripts, and Memory
 
 - **Use agent-inbox for cross-agent coordination** when `.agents/inbox/*` is present or when the task benefits from explicit file-based messaging between agents.
