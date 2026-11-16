@@ -1,7 +1,7 @@
 ---
 name: claude-as
 description: Run Claude Code under a different account with claude-as profiles. Use to launch a side agent on another account to spread usage, to find out which profile or account a session runs as, or to add, rename, repair or remove a profile. Triggers on claude-as, profile, account, login, CLAUDE_CONFIG_DIR, CLAUDE_AS_PROFILE.
-argument-hint: "[profile] <task for a side agent>"
+argument-hint: "install | [profile] <task for a side agent>"
 license: Apache-2.0
 metadata:
   portability: machine-bound
@@ -15,21 +15,24 @@ metadata:
 
 Paths below are relative to this skill's base directory.
 
-When invoked with a task, run it as a side agent (see below). Use the named profile, or
-`$CLAUDE_AS_PROFILE` when none is named; the first word is a profile only if `claude-as --list`
-shows it. Report the result after checking it.
+When invoked as `/claude-as install`, or asked to set claude-as up on this machine, follow Setup
+and report each step's result. When invoked with a task, run it as a side agent (see below). Use
+the named profile, or `$CLAUDE_AS_PROFILE` when none is named; the first word is a profile only if
+`claude-as --list` shows it. Report the result after checking it.
 
 ## Setup
 
-Needs `bash`, `jq` and `claude` on PATH. Link the script onto your PATH once, from this skill's base directory:
+Needs `bash`, `jq` and `claude` on PATH. Built and used on macOS. Profiles and side agents also run on Linux; the browser mapping is macOS-only.
 
-```bash
-ln -sfn "$(pwd)/scripts/claude-as" ~/.local/bin/claude-as
-```
+1. Link the script onto PATH from this skill's base directory. It exits 1 and says what's missing when `jq`, `claude` or the link directory isn't on PATH, and refuses to replace a real file at the link:
 
-Built and used on macOS. Profiles and side agents also run on Linux; the browser mapping is macOS-only.
+   ```bash
+   scripts/claude-as --install            # or --install <dir>; default ~/.local/bin
+   ```
 
-A new profile needs one interactive sign-in: run `claude-as <name>` in a terminal, then `/login`. An agent can't do this step. Ask the user.
+2. Profile layers are per machine and live outside this skill, in `$CLAUDE_PROFILES` (default `~/.config/claude-profiles/`). On a new machine, ask the user where to copy them from; without them a profile runs with the shared layers only. Drop browser settings (`env.CLAUDE_CHROME_PROFILE`, `env.CLAUDE_SAFARI_PROFILE`) on Linux, where an override with no Chrome to resolve it warns on every launch.
+3. Build each profile with `claude-as <name> --link-only` and check `claude-as --list` shows it.
+4. A new profile needs one interactive sign-in: run `claude-as <name>` in a terminal, then `/login`. An agent can't do this step. Ask the user, and hand over the exact command (over ssh: `ssh -t <host> 'bash -lc "claude-as <name>"'`).
 
 ## Which profile is this?
 

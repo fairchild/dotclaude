@@ -8,6 +8,7 @@
 #   claude-as work --link-only        build or repair the profile folder, don't start
 #   claude-as --list                  the profiles on this machine; * marks $CLAUDE_AS_PROFILE
 #   claude-as --guide                 open the illustrated guide in your browser
+#   claude-as --install [dir]         link this script into dir (default ~/.local/bin), check needs
 #   claude-as --help                  print this
 #   echo $CLAUDE_PROFILE              inside a session: which profile am I? (empty = plain claude)
 #
@@ -49,7 +50,10 @@
 # Needs bash, jq and claude on PATH. Built and used on macOS; profiles and side agents also run
 # on Linux, where the browser mapping does nothing.
 #
-# New profile     claude-as <name>, then /login once. Layers: mkdir $CLAUDE_PROFILES/<name>.
+# Install         --install links the script, run from where the skill lives, onto your PATH and
+#                 reports what's missing. Profile layers in $CLAUDE_PROFILES and each profile's
+#                 login stay per machine: copy the layers over, then /login once per profile.
+# New profile    claude-as <name>, then /login once. Layers: mkdir $CLAUDE_PROFILES/<name>.
 # Rename          quit its sessions; mv ~/.claude-old ~/.claude-new and its config folder too;
 #                 claude-as new; /login again. The keychain names the login after the folder
 #                 path, so a new path signs you out (macOS). Update anything else naming the old path.
@@ -61,12 +65,23 @@
 # Profile names are letters, digits and dashes, lowercased.
 set -euo pipefail
 
-skill="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
+self="$(readlink -f "${BASH_SOURCE[0]}")"
+skill="$(dirname "$(dirname "$self")")"
 config="${CLAUDE_PROFILES:-$HOME/.config/claude-profiles}"
+warn() { echo "claude-as: $*" >&2; }
 
 usage() { sed -n '2,/^set -euo/p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//'; }
 case "${1:-}" in
   -h|--help) usage; exit 0 ;;
+  --install)
+    bin="${2:-$HOME/.local/bin}"; link="$bin/claude-as"
+    if [ -e "$link" ] && [ ! -L "$link" ]; then warn "$link is a real file; move it aside first"; exit 1; fi
+    mkdir -p "$bin" && ln -sfn "$self" "$link"
+    echo "claude-as: $link → $self"
+    missing=0
+    for need in jq claude; do command -v "$need" >/dev/null || { warn "needs $need on PATH"; missing=1; }; done
+    case ":$PATH:" in *":$bin:"*) ;; *) warn "$bin is not on PATH"; missing=1 ;; esac
+    exit "$missing" ;;
   --guide)
     for opener in open xdg-open; do command -v "$opener" >/dev/null && exec "$opener" "$skill/guide.html"; done
     echo "$skill/guide.html"; exit 0 ;;
@@ -99,7 +114,6 @@ overlay="$config/$profile"
 shared=(GLOSSARY.md CONTEXT.md settings.json
         skills agents commands hooks plugins scripts
         projects chronicle memory knowledge plans handoffs session-titles title-feedback)
-warn() { echo "claude-as: $*" >&2; }
 
 mkdir -p "$dir"
 for name in "${shared[@]}"; do
@@ -123,7 +137,9 @@ tmp="$(mktemp)"
   printf '<!-- Built by claude-as from the files below; edit those, not this. -->\n'
   printf '@~/.claude/CLAUDE.md\n'
   for f in "$skill/profile.md" "$config/profile.md" "$overlay/CLAUDE.md"; do
-    if [ -f "$f" ]; then printf '@%s\n' "${f/#$HOME/~}"; fi
+    [ -f "$f" ] || continue
+    case "$f" in "$HOME"/*) f="~${f#"$HOME"}" ;; esac
+    printf '@%s\n' "$f"
   done
 } > "$tmp"
 built "$dir/CLAUDE.md" "$tmp"
