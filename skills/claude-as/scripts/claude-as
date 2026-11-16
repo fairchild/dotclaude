@@ -53,7 +53,7 @@
 # Install         --install links the script, run from where the skill lives, onto your PATH and
 #                 reports what's missing. Profile layers in $CLAUDE_PROFILES and each profile's
 #                 login stay per machine: copy the layers over, then /login once per profile.
-# New profile    claude-as <name>, then /login once. Layers: mkdir $CLAUDE_PROFILES/<name>.
+# New profile     claude-as <name>, then /login once. Layers: mkdir $CLAUDE_PROFILES/<name>.
 # Rename          quit its sessions; mv ~/.claude-old ~/.claude-new and its config folder too;
 #                 claude-as new; /login again. The keychain names the login after the folder
 #                 path, so a new path signs you out (macOS). Update anything else naming the old path.
