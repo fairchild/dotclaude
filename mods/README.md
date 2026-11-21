@@ -1,6 +1,6 @@
 # mods
 
-Two Claude Code mods, listed in this repository's `dotclaude` marketplace. A mod is a plugin whose
+Three Claude Code mods, listed in this repository's `dotclaude` marketplace. A mod is a plugin whose
 hooks module runs inside the engine with the session's permissions. The mod API is early access,
 so rerun `claude plugin validate --json mods/<name>` when Claude Code updates.
 
@@ -16,20 +16,38 @@ so rerun `claude plugin validate --json mods/<name>` when Claude Code updates.
   subagent's compaction does not. Each request is kept in the mod's store, reasoning included.
   At or past the prepare point, and after any compaction but its own resumed one, it attaches a
   short note to the next prompt (below, [Asking for a compaction](#asking-for-a-compaction)).
+- **`whoami`**: at the session's start, one dim transcript line that the model never reads:
+  `<account> · <claude-as profile | plain claude> · week N% (resets Day HH:MM)`, the account
+  flagged `⚠ <login> (expected <account>)` when the login isn't the one `CLAUDE_AS_ACCOUNT`
+  declares (the [claude-as](../skills/claude-as/SKILL.md#declare-each-profiles-account)
+  convention). It has no tool.
 
 `usage-meter` only observes. `compaction` answers its own tools and acts on its own tool's
 request: its one command call runs `compact`, and its one prompt call submits the resume prompt
 after it, which starts a model turn as a typed prompt would. Its `prompt.submit` hook adds
-context beside a prompt and never changes the prompt's text. Neither mod makes a network or
-process call of its own, nor a file-system call: the compaction mod's reading goes through
-`$.store`, the JSON file the engine keeps for a plugin under the configuration directory, and
-nothing else is written. The validator's notes list each mod's hooks
-and `$` calls, and a change to either list is a change to what the mod can do.
+context beside a prompt and never changes the prompt's text. Neither of
+the two makes a network or process call of its own, nor a file-system call: the compaction mod's
+reading goes through `$.store`, the JSON file the engine keeps for a plugin under the
+configuration directory, and nothing else is written.
+
+`whoami` makes two calls of its own per session start. One is a process call, its own
+`hooks/whoami.sh`, which prints the login's address from `.claude.json` under
+`${CLAUDE_CONFIG_DIR:-$HOME}` and the `CLAUDE_PROFILE` and `CLAUDE_AS_ACCOUNT` variables, so the
+mod takes in those three lines rather than the whole `.claude.json`, which holds every project's
+history. The other is a network call, `GET https://api.anthropic.com/api/oauth/usage`,
+carrying the session's credential through `$.session.authorize()`, which hands the mod a handle
+and never the secret. That endpoint sometimes answers 429, so each reading, and each main-loop
+turn's `$.session.usage()` windows, is kept per account in `$.store`, and a failed fetch shows the
+kept reading with its age. Its hooks pass `session.start` and `turn.complete` on unchanged and do
+their work after, so a session's start never waits on the network.
+
+The validator's notes list each mod's hooks and `$` calls, and a change to either list is a
+change to what the mod can do.
 
 ## Install
 
 In a cloud environment, the setup script line from the main README's
-[Cloud sessions](../README.md#cloud-sessions) installs both mods with the rest of the bundle, as a
+[Cloud sessions](../README.md#cloud-sessions) installs the mods with the rest of the bundle, as a
 directory marketplace named `dotclaude`. `DOTCLAUDE_MODS` on that line narrows them, and
 `DOTCLAUDE_MODS=none` leaves them out.
 
@@ -40,20 +58,20 @@ this repository's marketplace from GitHub. The directory is named `mods` because
 path, not because everything in it is a mod; `DOTCLAUDE_PLUGINS` narrows that kind separately.
 
 The two narrowings are not quite independent, because a plugin declaring `dependencies` does not
-load without them — the installer says so outright. `shipyard` depends on both mods, so
+load without them — the installer says so outright. `shipyard` depends on `usage-meter` and `compaction`, so
 `DOTCLAUDE_MODS=none` takes `shipyard` with it rather than leaving it installed and unable to
 start. The status line names the dependency that was missing. A new session's ToolSearch finds
 `mcp__usage-meter__reading`, `mcp__compaction__context` and `mcp__compaction__request`, and
 `~/.claude/cloud-bootstrap.status` names the mods it installed.
 
-Neither mod's `plugin.json` pins a `version`, and neither marketplace entry does, so for an
+No mod's `plugin.json` pins a `version`, and no marketplace entry does, so for an
 install from this repository on GitHub the version is the commit SHA and `claude plugin update`
 follows `main`. A pinned version would be compared instead of the commit, and a change that
 kept it would reach the marketplace cache and stop there with installed sessions on the old
 copy. Keep the field out unless these mods start wanting releases of their own.
 
 A marketplace added from a local path is the other way to track a working copy: a plugin whose
-entry is a relative path, as both of these are, loads in place from the folder, so an edit is
+entry is a relative path, as each of these is, loads in place from the folder, so an edit is
 live at the next session start or `/reload-plugins` whatever any version says.
 
 On a machine, install them from this repository's marketplace, as the main README's
@@ -62,6 +80,7 @@ On a machine, install them from this repository's marketplace, as the main READM
 ```
 /plugin install usage-meter --marketplace fairchild/dotclaude
 /plugin install compaction --marketplace fairchild/dotclaude
+/plugin install whoami --marketplace fairchild/dotclaude
 ```
 
 The mods load only from user settings: declared in a repository's `.claude/settings.json`, they do
@@ -77,7 +96,7 @@ restarted:
 claude plugin marketplace update dotclaude && claude plugin update compaction@dotclaude
 ```
 
-Then restart Claude Code; `usage-meter@dotclaude` updates the same way.
+Then restart Claude Code; `usage-meter@dotclaude` and `whoami@dotclaude` update the same way.
 
 ## Compaction points
 
