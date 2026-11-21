@@ -20,7 +20,7 @@ so rerun `claude plugin validate --json mods/<name>` when Claude Code updates.
   `<account> · <claude-as profile | plain claude> · week N% (resets Day HH:MM)`, the account
   flagged `⚠ <login> (expected <account>)` when the login isn't the one `CLAUDE_AS_ACCOUNT`
   declares (the [claude-as](../skills/claude-as/SKILL.md#declare-each-profiles-account)
-  convention). It has no tool.
+  convention). It has no tool, and a cloud session gets it only when asked for (below).
 
 `usage-meter` only observes. `compaction` answers its own tools and acts on its own tool's
 request: its one command call runs `compact`, and its one prompt call submits the resume prompt
@@ -47,9 +47,17 @@ change to what the mod can do.
 ## Install
 
 In a cloud environment, the setup script line from the main README's
-[Cloud sessions](../README.md#cloud-sessions) installs the mods with the rest of the bundle, as a
-directory marketplace named `dotclaude`. `DOTCLAUDE_MODS` on that line narrows them, and
-`DOTCLAUDE_MODS=none` leaves them out.
+[Cloud sessions](../README.md#cloud-sessions) installs `usage-meter` and `compaction` with the
+rest of the bundle, as a directory marketplace named `dotclaude`. `DOTCLAUDE_MODS` on that line
+narrows them, and `DOTCLAUDE_MODS=none` leaves them out.
+
+`whoami` installs in a cloud session only when `DOTCLAUDE_MODS` names it. A cloud VM has no
+claude-as profiles and no login that changes under a session, so the line would add a call to an
+undocumented endpoint to every session start for little in return. The mod says so itself:
+`"metadata": {"cloud": "opt-in"}` in its `plugin.json`, which the bootstrap reads, so the rule
+lives with the mod rather than as a name in the script. A skill's `portability: machine-bound`
+is the nearest precedent, but that drops a skill even when it is named; opt-in installs once
+asked for.
 
 That marketplace is shared: the plugins under
 [`.claude-plugin/plugins/`](../.claude-plugin/plugins/README.md) install into the same directory,

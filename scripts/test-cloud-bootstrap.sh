@@ -23,7 +23,7 @@ echo keep > "$runtime/projects/session.jsonl"
 printf '{"enabledPlugins": {"meter@local": true}, "env": {"KEEP": "1"}}\n' > "$runtime/settings.json"
 bootstrap "file://$bundle" "$runtime"
 
-grep -q ' ok test-revision; mods: usage-meter compaction whoami; plugins: shipyard$' "$runtime/cloud-bootstrap.status" \
+grep -q ' ok test-revision; mods: usage-meter compaction; plugins: shipyard$' "$runtime/cloud-bootstrap.status" \
   || fail "status: $(cat "$runtime/cloud-bootstrap.status")"
 [[ -s "$runtime/CLAUDE.md" ]] || fail "CLAUDE.md missing"
 [[ -f "$runtime/skills/tight-docs/SKILL.md" ]] || fail "a portable skill is missing"
@@ -49,17 +49,18 @@ expect '[has("hooks", "statusLine", "voice", "theme")] | any | not' \
 # auto-compaction is left alone unless the environment names it.
 expect --arg path "$runtime/mods" '.extraKnownMarketplaces == {"dotclaude": {"source": {"source": "directory", "path": $path}}}' \
   "the mods marketplace was not registered"
-expect '.enabledPlugins["usage-meter@dotclaude"] and .enabledPlugins["compaction@dotclaude"] and .enabledPlugins["whoami@dotclaude"]' "a mod was not enabled"
+expect '.enabledPlugins["usage-meter@dotclaude"] and .enabledPlugins["compaction@dotclaude"]' "a mod was not enabled"
+expect '.enabledPlugins | has("whoami@dotclaude") | not' "an opt-in mod was enabled without being named"
 expect '.enabledPlugins["shipyard@dotclaude"]' "a bundled plugin was not enabled"
 expect '.env | has("CLAUDE_CODE_AUTO_COMPACT_WINDOW", "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE") | not' \
   "auto-compaction was set without being asked for"
 # One marketplace holds both kinds, each flattened to the directory root whatever it was called in
 # the source tree, so a plugin ID here matches a machine that added the marketplace from GitHub.
-jq -e '[.plugins[] | {name, source}] == [{"name": "usage-meter", "source": "./usage-meter"}, {"name": "compaction", "source": "./compaction"}, {"name": "whoami", "source": "./whoami"}, {"name": "shipyard", "source": "./shipyard"}]' \
+jq -e '[.plugins[] | {name, source}] == [{"name": "usage-meter", "source": "./usage-meter"}, {"name": "compaction", "source": "./compaction"}, {"name": "shipyard", "source": "./shipyard"}]' \
   "$runtime/mods/.claude-plugin/marketplace.json" >/dev/null || fail "the marketplace lists the wrong plugins"
 [[ -f "$runtime/mods/shipyard/skills/reviewer/SKILL.md" ]] || fail "a bundled plugin's skills are missing"
 if command -v claude >/dev/null; then
-  for plugin in usage-meter compaction whoami shipyard; do
+  for plugin in usage-meter compaction shipyard; do
     claude plugin validate "$runtime/mods/$plugin" >/dev/null 2>&1 \
       || fail "the installed $plugin does not validate"
   done
@@ -87,7 +88,7 @@ no_plugins="$tmp/no-plugins/.claude"
 DOTCLAUDE_PLUGINS=none bootstrap "file://$bundle" "$no_plugins"
 [[ ! -e "$no_plugins/mods/shipyard" ]] || fail "DOTCLAUDE_PLUGINS=none installed a plugin"
 [[ -d "$no_plugins/mods/compaction" ]] || fail "DOTCLAUDE_PLUGINS=none took the mods with it"
-grep -q '; mods: usage-meter compaction whoami$' "$no_plugins/cloud-bootstrap.status" \
+grep -q '; mods: usage-meter compaction$' "$no_plugins/cloud-bootstrap.status" \
   || fail "status: $(cat "$no_plugins/cloud-bootstrap.status")"
 jq -e '.enabledPlugins | has("shipyard@dotclaude") | not' "$no_plugins/settings.json" >/dev/null \
   || fail "a plugin that was not installed was still enabled"
@@ -114,6 +115,15 @@ grep -q '; mods: compaction; plugins skipped: shipyard needs usage-meter$' "$par
 [[ ! -e "$partial/mods/shipyard" ]] || fail "a plugin kept a dependency it did not have"
 jq -e '[.plugins[].name] == ["compaction"]' "$partial/mods/.claude-plugin/marketplace.json" >/dev/null \
   || fail "the marketplace lists a plugin that was not installed"
+
+# A mod that opts out of cloud sessions by default (metadata.cloud "opt-in") installs once named.
+opted="$tmp/opted/.claude"
+DOTCLAUDE_MODS=whoami bootstrap "file://$bundle" "$opted"
+grep -q '; mods: whoami; plugins skipped: shipyard needs compaction usage-meter$' "$opted/cloud-bootstrap.status" \
+  || fail "status: $(cat "$opted/cloud-bootstrap.status")"
+[[ -f "$opted/mods/whoami/hooks/whoami.ts" ]] || fail "a named opt-in mod was not installed"
+jq -e '.enabledPlugins["whoami@dotclaude"]' "$opted/settings.json" >/dev/null \
+  || fail "a named opt-in mod was not enabled"
 
 # Auto-compaction is set only when the environment names it. The mod's goal is a default target
 # the thread may run past up to the engine's point: a window at or under 300,000 is the goal too,
@@ -182,7 +192,7 @@ picked="$tmp/picked/.claude"
 DOTCLAUDE_SKILLS="tight-docs, fable-session image-generator signoz-log" bootstrap "file://$bundle" "$picked"
 [[ "$(ls "$picked/skills" | tr '\n' ' ')" == "fable-session tight-docs " ]] \
   || fail "named skills installed: $(ls "$picked/skills" | tr '\n' ' ')"
-grep -q ' ok test-revision; not installed: image-generator signoz-log; mods: usage-meter compaction whoami; plugins: shipyard$' "$picked/cloud-bootstrap.status" \
+grep -q ' ok test-revision; not installed: image-generator signoz-log; mods: usage-meter compaction; plugins: shipyard$' "$picked/cloud-bootstrap.status" \
   || fail "status: $(cat "$picked/cloud-bootstrap.status")"
 [[ -s "$picked/CLAUDE.md" ]] || fail "naming skills dropped the rest of the bundle"
 
