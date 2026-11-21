@@ -86,4 +86,12 @@ check "archive drops ignored files"              '[[ ! -e "$WORKTREES_ROOT/.arch
 check "orphan left alone"                        '[[ -f "$WORKTREES_ROOT/gone/x/.git" ]]'
 check "git no longer lists retired worktrees"    '! git worktree list | grep -q "/merged\|/review-1\|/notes"'
 
+"$WT" archive wip >/dev/null 2>&1 || true
+check "wt archive <name>: unmerged worktree archived on request" \
+    '[[ ! -e "$R/wip" && -f "$WORKTREES_ROOT/.archive/myrepo-local/wip/c.txt" ]]'
+out=$("$WT" archive no-such 2>&1) || true
+check "wt archive <unknown>: refused"            '[[ "$out" == *"No worktree of this repo matches"* ]]'
+out=$("$WT" some-branch 2>&1) || true
+check "wt <branch>: retired, points at the harness" '[[ "$out" == *"claude -w"* ]]'
+
 exit $fail

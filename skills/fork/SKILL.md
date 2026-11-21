@@ -3,8 +3,6 @@ name: fork
 description: Fork the current session with context carried over. Use `/fork <branch>` for a new worktree or `/fork --local` for a new session in the current directory.
 license: Apache-2.0
 disable-model-invocation: true
-requires:
-  - git-worktree  # wt.sh for worktree creation (when not --local)
 ---
 
 # Fork Session
@@ -33,17 +31,6 @@ Fork the current session, carrying context for continuity.
 | Background | No | No | Yes | Well-defined autonomous tasks |
 | Local | Manual | N/A | Yes | When other modes aren't available |
 
-## Critical: Invoking wt
-
-`wt` is a **shell function** loaded by `.zshrc`. It is NOT available in Claude Code's Bash tool. Always invoke the script directly. `<git-worktree base dir>` below is the `git-worktree` skill's base directory, wherever the host installed it.
-
-```bash
-WT_SCRIPT="<git-worktree base dir>/scripts/wt.sh"
-bash "$WT_SCRIPT" <branch> [options]
-```
-
-**Never** use bare `wt`, `$_WT_SCRIPT`, or `source wt.zsh`. These all fail in non-interactive shells.
-
 ## Instructions
 
 ### Step 1: Determine Mode and Options
@@ -60,7 +47,7 @@ Check the user's input:
 | `/fork` (no args) | Ask: "Branch name for new worktree, or `--local` for same directory?" |
 
 **Options** (combine with any worktree mode):
-- `--base <ref>` — Create the worktree from a specific branch, tag, or commit instead of main. Passed through to `wt` as `--base <ref>`.
+- `--base <ref>` — Create the worktree from a specific branch, tag, or commit instead of origin's default branch.
 - `--dry-run` — Preview what would happen (worktree path, mode, base branch, handoff size) without creating anything. Compatible with all modes.
 
 ### Step 1.5: Pre-flight Checks (all worktree modes)
@@ -75,20 +62,14 @@ Before generating the handoff, verify prerequisites:
    ```
    If this fails → tell user "Not in a git repository. Use `/fork --local` for non-git contexts."
 
-2. **wt.sh available:**
-   ```bash
-   test -x "<git-worktree base dir>/scripts/wt.sh"
-   ```
-   If missing → tell user: "git-worktree skill not installed. Install it or use `/fork --local`."
-
-3. **Branch collision:**
+2. **Branch collision:**
    ```bash
    REPO_NAME=$(basename "$(git remote get-url origin 2>/dev/null || basename "$(git rev-parse --show-toplevel)")" .git)
    test -d "$HOME/.worktrees/$REPO_NAME/<branch>"
    ```
-   If exists → ask: "Worktree `<branch>` already exists. Resume with `wt cd <branch>`, or pick a different name?"
+   If exists → ask: "Worktree `<branch>` already exists at `~/.worktrees/<repo>/<branch>`. Resume there, or pick a different name?"
 
-4. **claude CLI** (for `--open` and `--background` modes only):
+3. **claude CLI** (for terminal and background modes only):
    ```bash
    command -v claude
    ```
@@ -131,7 +112,6 @@ Dry run for `/fork <branch>`:
   Branch exists: {BRANCH_STATUS}
   Uncommitted changes: {DIRTY_COUNT} files would be carried as patch
   claude CLI: {CLAUDE_AVAILABLE}
-  Terminal: {TERM_PROGRAM or "Terminal"} (for --open/--launch-cmd)
   All pre-flight checks passed ✓
 ```
 
@@ -188,8 +168,8 @@ Use this template:
 
 ## When Done
 1. Commit your work with conventional commits
-2. Apply to main: `wt apply --push --archive`
-3. Or return to parent: `cd {original_path}`
+2. Push the branch and open a pull request
+3. Once it merges, `wt clean` (the `git-worktree` skill) retires this worktree
 
 ---
 *Forked from `{repo}@{branch}` on {date}*
@@ -213,89 +193,67 @@ Skip this step if there are no changes to carry.
 
 ### Step 4: Create Worktree + Transition
 
-All worktree modes use `wt.sh` directly. Determine the repo name for the worktree path:
+Every worktree mode creates the worktree the same way, with git, then places the handoff and carries the patch:
 
 ```bash
-WT_SCRIPT="<git-worktree base dir>/scripts/wt.sh"
 REPO_NAME=$(basename "$(git remote get-url origin 2>/dev/null || basename "$(git rev-parse --show-toplevel)")" .git)
-```
-
-#### Terminal mode (default)
-
-```bash
-HANDOFF=$(mktemp)
-cat > "$HANDOFF" << 'EOF'
-{generated handoff content}
-EOF
-
-bash "$WT_SCRIPT" <branch> --no-editor --context "$HANDOFF" --open  # add --base <ref> if specified
-```
-
-The `--open` flag opens a new terminal tab in the worktree with an interactive claude session. Since `--context` places a handoff file, `--open` automatically tells claude to read it.
-
-#### Move mode
-
-Move mode uses Claude Code's `EnterWorktree` tool, which is the **only** way to actually relocate the session's working directory. The Bash tool resets `cwd` after every call — `cd` does not persist.
-
-```bash
-HANDOFF=$(mktemp)
-cat > "$HANDOFF" << 'EOF'
-{generated handoff content}
-EOF
-
-bash "$WT_SCRIPT" <branch> --no-editor --context "$HANDOFF"  # add --base <ref> if specified
-```
-
-After the worktree is created:
-
-1. Apply the patch if changes were captured:
-```bash
+MAIN_PATH=$(git rev-parse --show-toplevel)
 WORKTREE_PATH="$HOME/.worktrees/$REPO_NAME/<branch>"
+
+if git show-ref -q --verify refs/heads/<branch> || git show-ref -q --verify refs/remotes/origin/<branch>; then
+    git worktree add "$WORKTREE_PATH" <branch>
+else
+    git worktree add --no-track -b <branch> "$WORKTREE_PATH" "${BASE:-origin/HEAD}"   # BASE from --base
+fi
+
+for f in .env .env.local .dev.vars; do
+    [ -f "$MAIN_PATH/$f" ] && cp "$MAIN_PATH/$f" "$WORKTREE_PATH/$f"
+done
+
+mkdir -p "$WORKTREE_PATH/.context"
+cat > "$WORKTREE_PATH/.context/handoff.md" << 'EOF'
+{generated handoff content}
+EOF
+
 if [ -n "$PATCH" ] && [ -s "$PATCH" ]; then
-    git -C "$WORKTREE_PATH" apply "$PATCH"
-    rm "$PATCH"
+    git -C "$WORKTREE_PATH" apply "$PATCH" && rm "$PATCH"
 fi
 ```
 
-2. Restore the original working directory to clean state:
+`git worktree add` refuses when the branch is already checked out in another worktree (including one under
+`.claude/worktrees/`) or the path is taken. When it fails, stop before writing the handoff: report git's message, show
+where the branch lives with `git worktree list`, and ask whether to resume there or pick another name. Keep the patch
+file and tell the user its path, since their changes now live only there.
+
+#### Terminal mode (default)
+
+Open a new terminal tab in `$WORKTREE_PATH` running:
+
+```bash
+claude 'Read .context/handoff.md and continue the work described there.'
+```
+
+In Rex, open it as a tab in the current session with the `rex` CLI (the `rex` skill has the commands). Anywhere else,
+give the user that command, prefixed with `cd "$WORKTREE_PATH" &&`, to paste into a new tab.
+
+#### Move mode
+
+The Bash tool resets `cwd` after every call, so `cd` does not move the session; `EnterWorktree` does.
+
+1. Restore the original working directory to clean state, since the patch now lives in the worktree:
 ```bash
 git checkout -- .
 ```
 
-3. Use `EnterWorktree` tool to switch the session:
-```
-EnterWorktree(name: "<branch>")
-```
+2. Switch the session in: `EnterWorktree(path: "<WORKTREE_PATH>")`. This works from the session's launch directory
+   for any path in `git worktree list`. If the session is already in a worktree, the tool only accepts paths under
+   `.claude/worktrees/`; then prefix every Read, Edit and Write with `$WORKTREE_PATH` instead, and tell the user the
+   session works there through absolute paths.
 
-**Note:** `EnterWorktree` creates its own worktree in `.claude/worktrees/`. If you already created one with `wt.sh`, the session will have two worktrees. To avoid this, you can skip `wt.sh` and use only `EnterWorktree` — but you lose `--base`, `--context`, and conductor setup. Choose based on what the session needs:
-
-- **Needs `--base`, conductor, or `--context`**: Use `wt.sh`, then work via absolute paths (don't use `EnterWorktree`). Set `WT_PATH` and prefix all subsequent file operations with it.
-- **Just needs session relocation**: Skip `wt.sh`, use `EnterWorktree` directly.
-
-When using absolute paths without `EnterWorktree`:
-```bash
-WT_PATH="$HOME/.worktrees/$REPO_NAME/<branch>"
-# All subsequent Read/Edit/Write calls use $WT_PATH/path/to/file
-```
-
-Tell the user: "Working in `~/.worktrees/<repo>/<branch>` via absolute paths. All file operations target the worktree."
+When the session only needs relocating and `--base` doesn't matter, skip the git snippet and call
+`EnterWorktree(name: "<branch>")` instead: it creates the worktree in `.claude/worktrees/` and moves the session there.
 
 #### Team mode
-
-```bash
-HANDOFF=$(mktemp)
-cat > "$HANDOFF" << 'EOF'
-{generated handoff content}
-EOF
-
-bash "$WT_SCRIPT" <branch> --no-editor --context "$HANDOFF"  # add --base <ref> if specified
-
-# Apply patch if changes were captured
-WORKTREE_PATH="$HOME/.worktrees/$REPO_NAME/<branch>"
-if [ -n "$PATCH" ] && [ -s "$PATCH" ]; then
-    git -C "$WORKTREE_PATH" apply "$PATCH"
-fi
-```
 
 After the worktree is created:
 
@@ -354,21 +312,6 @@ Report what happened: "Fork to `<branch>` failed at [step]. Cleaned up [resource
 
 #### Background mode
 
-```bash
-HANDOFF=$(mktemp)
-cat > "$HANDOFF" << 'EOF'
-{generated handoff content}
-EOF
-
-bash "$WT_SCRIPT" <branch> --no-editor --context "$HANDOFF"  # add --base <ref> if specified
-
-# Apply patch if changes were captured
-WORKTREE_PATH="$HOME/.worktrees/$REPO_NAME/<branch>"
-if [ -n "$PATCH" ] && [ -s "$PATCH" ]; then
-    git -C "$WORKTREE_PATH" apply "$PATCH"
-fi
-```
-
 After the worktree is created, run claude in the background with structured logging:
 
 All paths must be absolute (use `$HOME`, not `~`). `WORKTREE_PATH` is built from `$HOME` so `LOG_DIR` inherits that.
@@ -405,8 +348,8 @@ No worktree created. User opens a new terminal and runs `claude`.
 
 Mode-specific confirmation messages:
 
-- **Terminal**: "Forked to `<branch>`. New terminal tab opened with interactive Claude session. Handoff at `~/.worktrees/<repo>/<branch>/.context/handoff.md`."
-- **Move**: "Moved into worktree `<branch>`. To return: `cd <original_path>`" (or if using absolute paths: "Working in `~/.worktrees/<repo>/<branch>` via absolute paths.")
+- **Terminal**: "Forked to `<branch>`. New terminal tab opened with interactive Claude session (or: here is the command to paste). Handoff at `~/.worktrees/<repo>/<branch>/.context/handoff.md`."
+- **Move**: "Moved into worktree `<branch>`. To return: `ExitWorktree(action: "keep")`" (or if using absolute paths: "Working in `~/.worktrees/<repo>/<branch>` via absolute paths.")
 - **Team**: "Forked to `<branch>`. Teammate `<branch>-worker` is working in the worktree. Messages will arrive here when they need input or finish."
 - **Background**: "Forked to `<branch>`. Background agent running (PID in `.context/fork.pid`).
   - Monitor: `tail -f ~/.worktrees/<repo>/<branch>/.context/fork.log`
@@ -425,7 +368,7 @@ User: /fork feature-dark-mode
 Claude: I'll fork this session to a new worktree with an interactive Claude session.
 
 [Generates handoff summary]
-[Runs: bash $WT_SCRIPT feature-dark-mode --no-editor --context /tmp/handoff.md --open]
+[Runs git worktree add, writes .context/handoff.md, opens a Rex tab running claude]
 
 Forked to `feature-dark-mode`. New terminal tab opened with interactive Claude session.
 Handoff at ~/.worktrees/dotclaude/feature-dark-mode/.context/handoff.md
@@ -438,7 +381,7 @@ User: /fork fix-timeout --move
 Claude: I'll fork and move this session into the worktree, carrying your changes.
 
 [Captures git diff as patch]
-[Runs: bash $WT_SCRIPT fix-timeout --no-editor --context /tmp/handoff.md]
+[Runs git worktree add, writes .context/handoff.md]
 [Applies patch in worktree]
 [Restores original working directory]
 [Works via absolute paths to ~/.worktrees/myapp/fix-timeout/]
@@ -451,7 +394,7 @@ Changes from main applied. To return: work in /original/path.
 ```
 User: /fork fix-auth-bug --base release/v2.1
 
-[Runs: bash $WT_SCRIPT fix-auth-bug --base release/v2.1 --no-editor --context /tmp/handoff.md --open]
+[Runs git worktree add -b fix-auth-bug ... release/v2.1, writes the handoff, opens a tab]
 
 Forked to `fix-auth-bug` based on `release/v2.1`. New terminal tab opened.
 ```
@@ -480,18 +423,14 @@ Open a new terminal here and run `claude`.
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `wt: command not found` or `permission denied` | Used bare `wt` or `$_WT_SCRIPT` | Use `bash <git-worktree base dir>/scripts/wt.sh` |
-| `compdef: assignment to invalid subscript` | Sourced `wt.zsh` in non-interactive shell | Use `wt.sh` (bash), not `wt.zsh` |
 | Changes missing in worktree | Worktree created from clean base branch | Capture `git diff HEAD` as patch before creating worktree, apply after |
 | `cd` doesn't persist after Bash call | Claude Code Bash tool resets cwd per invocation | Use absolute paths or `EnterWorktree` tool |
-| `EnterWorktree` uses wrong location | It creates in `.claude/worktrees/`, not `~/.worktrees/` | Use `wt.sh` + absolute paths if you need `~/.worktrees/` convention |
+| `EnterWorktree` rejects a `~/.worktrees/` path | Once the session is in a worktree, it only switches into `.claude/worktrees/` | Work in `~/.worktrees/` through absolute paths |
 
 ## Notes
 
 - **Worktree naming**: `<repo>` is derived from `git remote get-url origin` (e.g., `~/.claude` with remote `dotclaude.git` → `~/.worktrees/dotclaude/<branch>`) <!-- portability: allow -->
-- **Requires**: `git-worktree` skill for all modes except `--local`
+- **Requires**: git; the `rex` CLI for opening a tab in Rex
 - The handoff is a snapshot — it won't update if you continue working here
 - Use `/chronicle` if you want persistent cross-session memory instead
-- Worktree mode runs setup scripts from `conductor.json` if present
-- Terminal mode uses `wt --open` which requires macOS (osascript)
-- `--base` defaults to `main` if not specified (same as `wt` default)
+- `--base` defaults to origin's default branch (`origin/HEAD`)

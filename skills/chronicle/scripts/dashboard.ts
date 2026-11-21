@@ -32,7 +32,8 @@ import {
   getPeakHours,
 } from "./usage-queries.ts";
 import { readdirSync, statSync, existsSync } from "fs";
-import { execSync } from "child_process";
+import { execSync, execFileSync } from "child_process";
+import { basename } from "path";
 
 const PORT = parseInt(process.env.PORT || "3456");
 const WORKTREES_ROOT = `${process.env.HOME}/.worktrees`;
@@ -47,8 +48,8 @@ const SHELL_PATH = [
   process.env.PATH,
 ].filter(Boolean).join(":");
 
-// Optional git-worktree skill integration. WT_SCRIPT overrides the conventional
-// install location; the worktree endpoints answer 501 when neither resolves.
+// Optional git-worktree skill integration for archiving. WT_SCRIPT overrides the
+// conventional install location; the archive endpoint answers 501 when neither resolves.
 const WT_SCRIPT = process.env.WT_SCRIPT ?? `${process.env.HOME}/.claude/skills/git-worktree/scripts/wt.sh`;  // portability: allow
 
 function wtUnavailable(): Response {
@@ -3185,9 +3186,8 @@ const HTML = `<!DOCTYPE html>
 
       // Fallback to clipboard after delay
       setTimeout(async () => {
-        const cmd = 'wt open ' + selectedWorktree?.name;
-        await navigator.clipboard.writeText(cmd);
-        showToast('Copied: ' + cmd);
+        await navigator.clipboard.writeText(path);
+        showToast('Copied: ' + path);
       }, 800);
     }
 
@@ -3198,9 +3198,8 @@ const HTML = `<!DOCTYPE html>
 
       // Fallback to clipboard
       setTimeout(async () => {
-        const wtCmd = 'wt cd ' + selectedWorktree?.name;
-        await navigator.clipboard.writeText(wtCmd);
-        showToast('Copied: ' + wtCmd);
+        await navigator.clipboard.writeText(path);
+        showToast('Copied: ' + path);
       }, 800);
     }
 
@@ -3567,15 +3566,12 @@ const server = Bun.serve({
         }
 
         const name = generateRandomName();
-        if (!existsSync(WT_SCRIPT)) return wtUnavailable();
-
-        // Run wt command from main repo
-        const result = execSync(`bash "${WT_SCRIPT}" "${name}" --no-editor`, {
-          cwd: mainRepoPath,
-          encoding: "utf-8",
-          timeout: 60000,
-          env: { ...process.env, PATH: SHELL_PATH },
-        });
+        const git = (args: string[]) =>
+          execFileSync("git", args, { cwd: mainRepoPath, encoding: "utf-8", timeout: 60000, env: { ...process.env, PATH: SHELL_PATH } });
+        const origin = (() => { try { return git(["remote", "get-url", "origin"]).trim(); } catch { return ""; } })();
+        const path = `${WORKTREES_ROOT}/${basename(origin || mainRepoPath, ".git")}/${name}`;
+        const base = (() => { try { git(["rev-parse", "-q", "--verify", "origin/HEAD"]); return "origin/HEAD"; } catch { return "HEAD"; } })();
+        const result = git(["worktree", "add", "--no-track", "-b", name, path, base]);
 
         return new Response(JSON.stringify({ success: true, name, output: result }), {
           headers: { "Content-Type": "application/json" },
