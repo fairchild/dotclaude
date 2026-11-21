@@ -43,7 +43,7 @@ Project-level `.claude/` directories override global settings. See Claude Code d
 ├── dotagents.toml     # Manifest of ecosystem skills linked from ~/.agents
 ├── backlog/           # Markdown issue tracker (todo/doing/done) + ROADMAP.md
 ├── chronicle/         # Chronicle session memory
-├── mods/              # Claude Code mods (usage-meter, compaction)
+├── mods/              # Claude Code mods (usage-meter, compaction, whoami)
 ├── mcp/               # Skill server: serves these skills over MCP
 ├── .claude-plugin/    # Marketplace manifest + multi-component plugins (shipyard)
 ├── webui/             # Config Visualizer dashboard
@@ -187,6 +187,7 @@ This repository is a Claude Code plugin marketplace named `dotclaude` ([`.claude
 ```
 /plugin install usage-meter --marketplace fairchild/dotclaude
 /plugin install compaction --marketplace fairchild/dotclaude
+/plugin install whoami --marketplace fairchild/dotclaude
 /plugin install brainstorm-to-brief --marketplace fairchild/dotclaude
 /plugin install image-gen --marketplace fairchild/dotclaude
 /plugin install dotclaude-config --marketplace fairchild/dotclaude
@@ -201,6 +202,7 @@ From a terminal, the same line starts with `claude plugin install`. The first in
 |--------|------------|
 | `usage-meter` | Mod: one tool that reads the five-hour and seven-day usage windows ([mods](mods/README.md)) |
 | `compaction` | Mod: lets the main thread ask for `/compact` with instructions ([mods](mods/README.md)) |
+| `whoami` | Mod: one line at session start naming the account, the claude-as profile and the week's usage ([mods](mods/README.md)) |
 | `brainstorm-to-brief`, `image-gen`, `dotclaude-config`, `release`, `skill-building` | The skills of the same name, from `skills/` |
 | `shipyard` | The multi-seat development pattern: lead, reviewer and setup seats, plus a compaction hook ([plugins](.claude-plugin/plugins/shipyard/README.md)) |
 
@@ -211,7 +213,7 @@ From a terminal, the same line starts with `claude plugin install`. The first in
 
 ## Mods
 
-A mod is a plugin whose hooks module runs inside the engine, so it can answer tools of its own and act between turns. `usage-meter` only observes; `compaction` answers its tools, runs `/compact` when the thread asks, and then submits a prompt to start the next turn. Neither makes a network, process or file-system call of its own. [`mods/`](mods/README.md) has the full rules.
+A mod is a plugin whose hooks module runs inside the engine, so it can answer tools of its own and act between turns. `usage-meter` only observes; `compaction` answers its tools, runs `/compact` when the thread asks, and then submits a prompt to start the next turn. Neither makes a network, process or file-system call of its own. `whoami` logs one line at session start and makes one network call (api.anthropic.com) and one process call (its own `whoami.sh`) to write it. [`mods/`](mods/README.md) has the full rules.
 
 ```
 /plugin install usage-meter --marketplace fairchild/dotclaude
@@ -249,6 +251,7 @@ The mods become a directory marketplace named `dotclaude`, so their plugin IDs m
 | `usage-meter` | `mcp__usage-meter__reading` | The account's five-hour and seven-day windows: how much is used and when each resets. Ask "how much usage is left?" |
 | `compaction` | `mcp__compaction__context` | Where the session sits against its context goal, the request floor and the prepare point. Ask "how's my context?" |
 | | `mcp__compaction__request` | Records a `/compact` with instructions for the summary, the reasoning for compacting now, and optionally a `resume` prompt; the mod runs it once the turn ends, then submits the resume prompt (or a generic one) so the session carries on rather than waiting idle. Say "compact when this turn is done, keeping the merge order" |
+| `whoami` | none | One dim transcript line at session start: the signed-in account, the claude-as profile or plain `claude`, and the week's usage, flagged `⚠` when the login isn't the account `CLAUDE_AS_ACCOUNT` declares ([claude-as](skills/claude-as/SKILL.md#declare-each-profiles-account)) |
 
 The point of `request` over plain `/compact`: the engine's automatic compaction takes no instructions, so it decides for itself what survives. A thread that asks gets to say what must not be lost. Each request is kept, reasoning included, so the points can be judged against the moments they were asked for.
 
@@ -296,7 +299,7 @@ Variables before `bash`, each optional:
 | Variable | Effect |
 |----------|--------|
 | `DOTCLAUDE_SKILLS` | Only these skills, separated by spaces or commas. A name it can't install, misspelled or `machine-bound`, is listed in the status line. |
-| `DOTCLAUDE_MODS` | Only these mods; `none` installs none. Unset, both install and load from the first session. |
+| `DOTCLAUDE_MODS` | Only these mods; `none` installs none. Unset, every mod installs and loads from the first session. |
 | `DOTCLAUDE_PLUGINS` | Only these plugins from [`.claude-plugin/plugins/`](.claude-plugin/plugins/README.md); `none` installs none. Unset, `shipyard` installs, so a cloud session can take a seat. A plugin declaring `dependencies` does not load without them, so narrowing a mod away takes a plugin that depends on it too — `DOTCLAUDE_MODS=none` leaves no `shipyard` either, and the status line names the dependency that was missing. |
 | `DOTCLAUDE_COMPACT_WINDOW`, `DOTCLAUDE_COMPACT_PCT` | When sessions auto-compact (`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`); `300000` and `100` compact at 267k, `700000` and `100` at 667k. Unset, the platform's default stands. |
 | `DOTCLAUDE_COMPACT_GOAL` | The compaction mod's `goalTokens`, the default target a thread may run past on judgement up to the engine's point. Unset, the goal follows a window of 300,000 or less, and stays at 300,000 under a wider one, so the gap is room; with no window either, the mod keeps its own 300,000. The status line says when a wide window leaves the goal at 300,000, and when a goal or window that isn't a whole number from 1 to 999,999,999 is not read; leading zeros are dropped. |

@@ -72,7 +72,7 @@ footer { color: var(--muted); font-size: 0.85rem; }
       <div class="cmd"><code>claude-as -p "task"</code><span>No name: use <code>$CLAUDE_AS_PROFILE</code>, or plain <code>claude</code> when it isn't set. A first argument starting with <code>-</code> means no name.</span></div>
       <div class="cmd"><code>claude-as -- "task"</code><span>No name, when the first thing for <code>claude</code> isn't a flag.</span></div>
       <div class="cmd"><code>claude-as work --link-only</code><span>Create or repair the profile folder without starting Claude.</span></div>
-      <div class="cmd"><code>claude-as --list</code><span>The profiles on this machine. <code>*</code> marks the default.</span></div>
+      <div class="cmd"><code>claude-as --list</code><span>Each profile's signed-in account, and plain <code>claude</code>'s. <code>*</code> marks the default; <code>⚠ expected …</code> marks a login that isn't the declared account.</span></div>
       <div class="cmd"><code>claude-as --guide</code><span>Open this page.</span></div>
       <div class="cmd"><code>claude-as --help</code><span>The same explanation in the terminal.</span></div>
       <div class="cmd"><code>echo $CLAUDE_PROFILE</code><span>Run inside a session to see which profile it is. Empty means plain <code>claude</code>.</span></div>
@@ -108,6 +108,12 @@ footer { color: var(--muted); font-size: 0.85rem; }
       <div><dt>Settings</dt>
         <dd>The shared settings, plus <code>&lt;name&gt;/settings.json</code>, plus the browser profiles found for this profile, passed to <code>claude</code> with <code>--settings</code>. A profile can use this to deny tools or set its own environment.</dd></div>
     </dl>
+  </section>
+
+  <section>
+    <h2>Accounts</h2>
+    <p>A login can change without anyone noticing, so each profile can declare the account it should be signed in to: set <code>CLAUDE_AS_ACCOUNT</code> under <code>env</code> in <code>&lt;name&gt;/settings.json</code>, to an address or its local part. Plain <code>claude</code> declares its own in <code>~/.claude/settings.json</code>. <code>alice</code> also matches a login <code>alice.work@…</code>.</p>
+    <p><code>claude-as --list</code> flags a profile whose login differs, and launching it prints a warning before Claude starts. Inside the session, the status line shows <code>⚠</code> and the login. A profile that declares no account gets an empty <code>CLAUDE_AS_ACCOUNT</code>, so plain <code>claude</code>'s declaration never reaches it.</p>
   </section>
 
   <section>

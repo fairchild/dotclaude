@@ -37,7 +37,22 @@ Needs `bash`, `jq` and `claude` on PATH. Built and used on macOS. Profiles and s
 ## Which profile is this?
 
 - `echo $CLAUDE_PROFILE` prints the current profile. Empty means plain `claude`.
-- `claude-as --list` prints the profiles on this machine. `*` marks the default.
+- `claude-as --list` prints each profile's signed-in account, and plain `claude`'s. `*` marks the default; `⚠ expected <account>` marks a login that isn't the declared one.
+- `echo $CLAUDE_AS_ACCOUNT` prints the account this session should be signed in to. Empty means none is declared.
+
+## Declare each profile's account
+
+A login can change without anyone noticing: a `/login` in the wrong profile, or plain `claude` signed in to another account. Declaring the intended account makes the change visible. A profile declares it as `env.CLAUDE_AS_ACCOUNT` in `$CLAUDE_PROFILES/<name>/settings.json`. Plain `claude` declares it in `~/.claude/settings.json`, the live file that is never committed; Claude reads `~/.claude/settings.local.json` only for a session started in `~`. The value is an address or its local part. `alice` also matches a login `alice.work@…`.
+
+```json
+{ "env": { "CLAUDE_AS_ACCOUNT": "alice" } }
+```
+
+- `claude-as --list` flags a profile whose login differs.
+- `claude-as <name>` warns on stderr before it starts, and starts anyway.
+- Inside a session, the status line shows `⚠ <login>` and the `whoami` mod flags its first transcript line.
+
+A profile that declares no account gets an empty `CLAUDE_AS_ACCOUNT`, so plain `claude`'s declaration never reaches it.
 
 ## Launch a side agent on another account
 
@@ -77,5 +92,5 @@ Plain `claude` started from inside a profile session inherits `CLAUDE_CONFIG_DIR
 ## Where things live
 
 - This skill is the tooling: `scripts/claude-as`, `profile.md` and `guide.html`. It contains nothing specific to one person.
-- Each person's layers live in `$CLAUDE_PROFILES` (default `~/.config/claude-profiles/`), outside this repo. That folder holds an optional `profile.md` and a `<name>/` folder per profile with `CLAUDE.md` and `settings.json`.
+- Each person's layers live in `$CLAUDE_PROFILES` (default `~/.config/claude-profiles/`), outside this repo. That folder holds an optional `profile.md` and a `<name>/` folder per profile with `CLAUDE.md` and `settings.json` (browser overrides, the declared account).
 - `profile.md` reaches Claude two ways, both on purpose. Its browser rules must hold in every profile session, so each profile's built `CLAUDE.md` imports it. This skill loads only when triggered. Keep both routes.

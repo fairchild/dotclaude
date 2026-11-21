@@ -78,6 +78,13 @@
       "category": "mods"
     },
     {
+      "name": "whoami",
+      "source": "./mods/whoami",
+      "description": "One transcript line at session start: the signed-in account, the claude-as profile and the week's usage; flags a login that isn't the account CLAUDE_AS_ACCOUNT declares.",
+      "license": "Apache-2.0",
+      "category": "mods"
+    },
+    {
       "name": "shipyard",
       "source": "./.claude-plugin/plugins/shipyard",
       "description": "The multi-seat development pattern: a long-lived reviewer seat that owns every fresh review and re-check in a repository and posts one parseable verdict per head. Lead and setup seats follow.",
