@@ -136,9 +136,10 @@ function windowText(label: string, w: Window | undefined, now: number): string |
   return `${label} ${Math.round(w.percentUsed)}%${resets}`;
 }
 
-/** The usage part of the line; a reading older than FRESH_MS says how old. */
+/** The usage part of the line; a reading older than FRESH_MS says how old. Without a week, the 5h shows whatever it is. */
 export function readingText(r: Reading, now: number): string {
-  const fiveHour = (r.fiveHour?.percentUsed ?? 0) >= FIVE_HOUR_FROM ? r.fiveHour : undefined;
+  const isFiveHourShown = r.week === undefined || (r.fiveHour?.percentUsed ?? 0) >= FIVE_HOUR_FROM;
+  const fiveHour = isFiveHourShown ? r.fiveHour : undefined;
   const parts = [windowText("week", r.week, now), windowText("5h", fiveHour, now)];
   const stamp = now - r.at < FRESH_MS ? "" : ` · as of ${age(now - r.at)}`;
   return parts.filter((part) => part !== undefined).join(" · ") + stamp;
@@ -170,8 +171,15 @@ async function fetchReading($: Engine): Promise<Reading | string> {
     headers: { "anthropic-beta": "oauth-2025-04-20" },
   });
   if (!res.ok) return `HTTP ${res.status}`;
-  const body = JSON.parse(res.text) as Record<string, Raw>;
-  return { at: await $.clock.now(), week: fromRaw(body.seven_day), fiveHour: fromRaw(body.five_hour) };
+  let body: Record<string, Raw>;
+  try {
+    body = JSON.parse(res.text) as Record<string, Raw>;
+  } catch {
+    return "unreadable answer";
+  }
+  const [week, fiveHour] = [fromRaw(body.seven_day), fromRaw(body.five_hour)];
+  if (week === undefined && fiveHour === undefined) return "no usage windows";
+  return { at: await $.clock.now(), week, fiveHour };
 }
 
 /** The usage part of the line, and whether it carries a reading. */

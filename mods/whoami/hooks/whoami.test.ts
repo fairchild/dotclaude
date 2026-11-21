@@ -63,6 +63,28 @@ test('the five-hour window joins from 50%, and an old reading says how old', () 
   expect(readingText(reading, NOW)).toMatch(/^week 34% \(resets \w{3} \d\d:\d\d\)$/)
   expect(readingText({ ...reading, fiveHour: { percentUsed: 50 } }, NOW)).toContain(' · 5h 50%')
   expect(readingText(reading, NOW + 3 * HOUR)).toContain(' · as of 3h ago')
+  expect(readingText({ at: NOW, fiveHour: { percentUsed: 8 } }, NOW)).toBe('5h 8%')
+})
+
+test('an answer with no windows reads as no reading rather than an empty one', async ($, on) => {
+  const e = engine(on, 'alice@example.com\n\n\n', { status: 200, text: '{"seven_day": null, "five_hour": null}' })
+  const logged = e.logged()
+
+  await $.session.start(start)
+  await logged
+
+  expect(e.lines[0]).toBe('alice · plain claude · usage after the first reply (no usage windows)')
+  expect(e.store['usage:alice']).toBeUndefined()
+})
+
+test('a 200 that is not JSON names no parser error', async ($, on) => {
+  const e = engine(on, 'alice@example.com\n\n\n', { status: 200, text: '<html>' })
+  const logged = e.logged()
+
+  await $.session.start(start)
+  await logged
+
+  expect(e.lines[0]).toBe('alice · plain claude · usage after the first reply (unreadable answer)')
 })
 
 test('plain claude, signed in, gets its account, its launch and the week', async ($, on) => {
