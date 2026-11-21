@@ -3186,9 +3186,8 @@ const HTML = `<!DOCTYPE html>
 
       // Fallback to clipboard after delay
       setTimeout(async () => {
-        const cmd = path;
-        await navigator.clipboard.writeText(cmd);
-        showToast('Copied: ' + cmd);
+        await navigator.clipboard.writeText(path);
+        showToast('Copied: ' + path);
       }, 800);
     }
 
@@ -3199,9 +3198,8 @@ const HTML = `<!DOCTYPE html>
 
       // Fallback to clipboard
       setTimeout(async () => {
-        const wtCmd = path;
-        await navigator.clipboard.writeText(wtCmd);
-        showToast('Copied: ' + wtCmd);
+        await navigator.clipboard.writeText(path);
+        showToast('Copied: ' + path);
       }, 800);
     }
 

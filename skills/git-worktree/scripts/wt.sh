@@ -299,8 +299,8 @@ cmd_clean() {
             else
                 orphans+=("$d")
             fi
-        done < <(find "$WORKTREES_ROOT" -mindepth 2 \
-            \( -name .archive -o -name node_modules -o -name .venv -o -name target \) -prune \
+        done < <(find "$WORKTREES_ROOT" -mindepth 1 \
+            \( -path "$WORKTREES_ROOT/.archive" -o -name node_modules -o -name .venv -o -name target \) -prune \
             -o -name .git -type f -print 2>/dev/null)
     fi
 
