@@ -990,6 +990,12 @@ _clean_one() {
 
     local why state
     if [[ -n "$default_ref" ]] && git -C "$repo" merge-base --is-ancestor "$sha" "$default_ref" 2>/dev/null; then
+        # A branch only just cut from the default branch is also "in" it; its
+        # reflog, holding nothing past "Created from", tells the two apart.
+        if [[ -n "$branch" ]] && [[ $(git -C "$repo" reflog show --format=%H "refs/heads/$branch" 2>/dev/null | wc -l) -le 1 ]]; then
+            _clean_skip "$id" "$branch has no commits of its own yet"
+            return 0
+        fi
         why="in $default_ref"
     else
         state=$(_pr_state "$path" "$sha")
