@@ -1,5 +1,6 @@
 {
   "name": "whoami",
   "description": "One transcript line at session start: the signed-in account, the claude-as profile and the week's usage; flags a login that isn't the account CLAUDE_AS_ACCOUNT declares.",
-  "network": { "hosts": ["api.anthropic.com"] }
+  "network": { "hosts": ["api.anthropic.com"] },
+  "metadata": { "cloud": "opt-in" }
 }
