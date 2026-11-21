@@ -74,6 +74,7 @@ _archive_path() {
     [[ -e "$archive_dest" ]] && archive_dest="${archive_dest}-$(date +%Y%m%d-%H%M%S)"
     mkdir -p "$(dirname "$archive_dest")"
     mv "$worktree_path" "$archive_dest"
+    touch "$archive_dest"  # prune ages an archive from here, not from the worktree's last edit
     git -C "$repo" worktree prune
     _remove_empty_parents "$(dirname "$worktree_path")"
     log_ok "Archived to: $archive_dest"

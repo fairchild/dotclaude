@@ -94,4 +94,13 @@ check "wt archive <unknown>: refused"            '[[ "$out" == *"No worktree of 
 out=$("$WT" some-branch 2>&1) || true
 check "wt <branch>: retired, points at the harness" '[[ "$out" == *"claude -w"* ]]'
 
+# A worktree untouched for years, archived today, is a day-old archive
+add "$R/stale" --detach origin/main; echo s > "$R/stale/keep.md"; touch -t 202001010000 "$R/stale"
+"$WT" archive stale >/dev/null 2>&1 || true
+"$WT" prune 30 --yes >/dev/null 2>&1 || true
+check "prune keeps an old worktree archived today" '[[ -f "$WORKTREES_ROOT/.archive/myrepo-local/stale/keep.md" ]]'
+touch -t 202001010000 "$WORKTREES_ROOT/.archive/myrepo-local/stale"
+"$WT" prune 30 --yes >/dev/null 2>&1 || true
+check "prune deletes an archive older than 30 days" '[[ ! -e "$WORKTREES_ROOT/.archive/myrepo-local/stale" ]]'
+
 exit $fail
