@@ -58,12 +58,13 @@ fi
 [[ -n "$branch" && ( "${branch#worktree-}" == "${dir:-}" || "${branch##*/}" == "${dir:-}" ) ]] && branch=""
 
 # The login matches when its local part equals the declared one or starts with
-# "<declared>.", in any case. Prints the login's local part only when it doesn't.
+# "<declared>.", in any case. Prints the login's local part only when it doesn't;
+# slurping makes an empty (truncated) file read as no login rather than no answer.
 who=""
 if [[ -n "${CLAUDE_AS_ACCOUNT:-}" ]]; then
-    wrong=$(jq -r --arg want "$CLAUDE_AS_ACCOUNT" '
+    wrong=$(jq -rs --arg want "$CLAUDE_AS_ACCOUNT" '
       def local: ascii_downcase | split("@") | .[0] // "";
-      (.oauthAccount.emailAddress // "" | local) as $have | ($want | local) as $w
+      (.[0].oauthAccount.emailAddress // "" | local) as $have | ($want | local) as $w
       | if $have == $w or ($have | startswith($w + ".")) then empty
         elif $have == "" then "nobody" else $have end' \
       "${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json" 2>/dev/null) || wrong="nobody"
