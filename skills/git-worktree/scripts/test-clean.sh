@@ -48,7 +48,7 @@ add "$R/fresh" fresh origin/main
 add "$R/dirty" --detach origin/main; echo x >> "$R/dirty/.gitignore"
 add "$R/notes" --detach origin/main; echo n > "$R/notes/notes.md"; mkdir -p "$R/notes/node_modules/pkg"
 add "$R/busy" --detach origin/main
-busy_log="$HOME/.claude/projects/$(cd "$R/busy" && pwd -P | sed 's|[^a-zA-Z0-9]|-|g')"  # Claude Code keys sessions by physical cwd
+busy_log="$HOME/.claude/projects/$(cd "$R/busy" && pwd -P | sed 's|[^a-zA-Z0-9]|-|g')"  # portability: allow (Claude Code keys sessions by physical cwd)
 mkdir -p "$busy_log" && touch "$busy_log/s.jsonl"
 add "$R/serving" --detach origin/main
 (cd "$R/serving" && exec sleep 300) & SLEEPER=$!
