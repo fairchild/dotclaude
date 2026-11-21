@@ -36,10 +36,11 @@ wt archive [branch]      # Run archive script, move to ~/.worktrees/.archive
 wt archive --delete-branch  # Also delete local and remote branches
 wt done                  # Archive current worktree and cd home (shell function)
 wt done --delete-branch  # Also delete branches on the way out
-wt clean                 # Archive merged worktrees (current repo)
-wt clean --all           # Archive merged worktrees (all repos)
-wt clean --dry-run       # List merge candidates without archiving
-wt clean --delete-branch # Also delete branches when cleaning
+wt clean                 # Retire landed worktrees of the current repo
+wt clean --all           # ...of every repo with a worktree under WORKTREES_ROOT
+wt clean --dry-run       # Say what would happen, touch nothing
+wt clean --delete-branch # Also delete branches (local and remote)
+wt prune [days] [--yes]  # Delete archives older than N days (default 30)
 wt list                  # List all worktrees
 wt list --all            # Include worktrees from other sources (.claude, .codex, etc.)
 wt ls                    # Alias for list
@@ -82,6 +83,22 @@ wt feature-auth       # Creates worktree and opens editor
 wt done               # Archive and cd home in one step
 wt done --delete-branch  # Same, but also delete the branch
 ```
+
+## Cleaning Up
+
+`wt clean` finds worktrees through `git worktree list`, so it covers every worktree of a repo wherever it lives and
+whatever made it: `wt`, an agent's `git worktree add`, Codex, or Claude Code's `.claude/worktrees/`. A worktree is
+retired once its HEAD commit has landed, meaning the commit is in origin's default branch or GitHub lists it in a
+merged pull request. The pull request lookup is what catches squash merges, detached review checkouts and renamed
+branches. A clean worktree is removed. One holding untracked files is archived without its git-ignored files
+(dependencies, builds), so the archive stays small.
+
+It leaves a worktree alone when it has uncommitted changes, is locked, has a process running inside it, or a Claude
+session wrote there in the last `WT_ACTIVE_MINUTES` (default 120). When GitHub can't be asked (gh logged out, no
+network, an agent sandbox), it says so and keeps the worktree. Run it outside the sandbox: inside it, `gh` can't read
+its token and `lsof` can't see other processes.
+
+`scripts/test-clean.sh` exercises each of these cases against a throwaway repo.
 
 ## Carrying Work in Progress
 
