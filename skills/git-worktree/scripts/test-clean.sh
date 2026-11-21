@@ -44,6 +44,7 @@ add "$R/review-1" --detach origin/main
 add "$R/squashed" squashed;       commit_in "$R/squashed" b
 git -C "$R/squashed" rev-parse HEAD >> "$T/merged-shas"
 add "$R/wip" wip;                 commit_in "$R/wip" c
+add "$R/fresh" fresh origin/main
 add "$R/dirty" --detach origin/main; echo x >> "$R/dirty/.gitignore"
 add "$R/notes" --detach origin/main; echo n > "$R/notes/notes.md"; mkdir -p "$R/notes/node_modules/pkg"
 add "$R/busy" --detach origin/main
@@ -75,7 +76,8 @@ check "detached review checkout: removed"        '[[ ! -e "$R/review-1" ]]'
 check "squash-merged (PR lookup): removed"       '[[ ! -e "$R/squashed" ]]'
 check "harness worktree outside root: removed"   '[[ ! -e "$T/myrepo/.claude/worktrees/agent-1" ]]'
 check "unmerged branch: kept"                    '[[ -d "$R/wip" ]] && git show-ref -q refs/heads/wip'
-check "unmerged, PR none: kept"                  '[[ -d "$R/unchecked" ]]'
+check "branch just cut, no commits yet: kept"    '[[ -d "$R/fresh" ]] && git show-ref -q refs/heads/fresh'
+check "unmerged, PR none: kept"                 '[[ -d "$R/unchecked" ]]'
 check "uncommitted changes: kept"                '[[ -d "$R/dirty" ]]'
 check "active Claude session: kept"              '[[ -d "$R/busy" ]]'
 check "process running inside: kept"             '[[ -d "$R/serving" ]]'
