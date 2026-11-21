@@ -1,7 +1,7 @@
 ---
 name: gh-apps
 license: Apache-2.0
-description: Create, authenticate, and manage GitHub Apps. Use for creating apps via manifest flow, generating JWTs, getting installation tokens, managing webhooks and installations, rotating keys. Triggers on "create github app", "github app", "manage github app", "github app JWT", "github installation token", "github app manifest", "github webhook deliveries", "register github app", "gh app", "bot reviewer", "bot approval", "post as a bot", "who posted this".
+description: Create and manage GitHub Apps. Covers the manifest flow, JWTs and installation tokens, webhooks, key rotation, posting as a bot, and apps a CI workflow acts as. Triggers on "github app", "gh app", "installation token", "bot reviewer", "post as a bot", "who posted this", "release app", "create-github-app-token", "ruleset bypass".
 ---
 
 # GitHub Apps Management
@@ -101,6 +101,28 @@ GH_TOKEN=$(scripts/gh-apps.py --app SLUG token --permissions pull_requests:write
 A narrowed token can never exceed what the installation holds. Whether a bot's approval counts
 toward a required review depends on its permissions; read `references/identity-and-approvals.md`
 before relying on one.
+
+### Let a workflow act as the app
+
+An app also works as a CI credential. A workflow mints a short-lived token from the app's key with
+`actions/create-github-app-token`; pushes, tags and pull requests made with it start other workflows, which the
+workflow's own `GITHUB_TOKEN` doesn't, and a ruleset can put the app on its bypass list.
+
+```bash
+scripts/gh-apps.py create my-release --permissions contents:write,pull_requests:write   # no --events: no webhook
+# install it on the one repository (Only select repositories), then:
+gh variable set RELEASE_APP_CLIENT_ID --repo OWNER/REPO --body "$(cat ~/.config/gh-apps/my-release/client-id)"
+gh secret set RELEASE_APP_PRIVATE_KEY --repo OWNER/REPO < ~/.config/gh-apps/my-release/app.pem
+```
+
+- Install before adding the app to a ruleset's bypass list. Until it is installed on the repository, the rulesets API
+  answers 422, "Actor ... integration must be part of the ruleset source or owner organization". The entry is
+  `{"actor_id": APP_ID, "actor_type": "Integration", "bypass_mode": "always"}`, and a PUT replaces the whole list, so
+  send the existing actors with it.
+- After the secret is set, delete the local `app.pem` and the unused `client-secret`. The repository secret is then
+  the only copy of the key; a new one comes from the app's settings page. `token` and `jwt` stop working locally.
+- With no `--webhook-url` the manifest has no `hook_attributes`, the app has no webhook, and `webhook-config`
+  answers 404.
 
 ### Manage webhooks
 
