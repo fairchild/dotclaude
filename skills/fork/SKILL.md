@@ -220,6 +220,11 @@ if [ -n "$PATCH" ] && [ -s "$PATCH" ]; then
 fi
 ```
 
+`git worktree add` refuses when the branch is already checked out in another worktree (including one under
+`.claude/worktrees/`) or the path is taken. When it fails, stop before writing the handoff: report git's message, show
+where the branch lives with `git worktree list`, and ask whether to resume there or pick another name. Keep the patch
+file and tell the user its path, since their changes now live only there.
+
 #### Terminal mode (default)
 
 Open a new terminal tab in `$WORKTREE_PATH` running:

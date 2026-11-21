@@ -36,6 +36,7 @@ scripts/wt.sh clean --dry-run   # say what would happen, touch nothing
 scripts/wt.sh clean             # retire landed worktrees of the current repo
 scripts/wt.sh clean --all       # ...of every repo with a worktree under ~/.worktrees
 scripts/wt.sh clean --delete-branch   # also delete their branches, local and remote
+scripts/wt.sh archive <name>          # archive one worktree now, landed or not
 scripts/wt.sh prune [days] [--yes]    # delete archives older than N days (default 30)
 ```
 
@@ -57,7 +58,8 @@ the sandbox: inside it, `gh` can't read its token and `lsof` can't see other pro
 
 ## What was retired
 
-`wt` used to create worktrees and manage their life: `wt <branch>`, `cd`, `home`, `apply`, `archive`, `done`, `open`,
-`list`, `tree` and `status`. Those commands now print where to go instead. Agents rarely created worktrees through `wt`,
+`wt` used to create worktrees and manage their life: `wt <branch>`, `cd`, `home`, `apply`, `done`, `open`, `list`,
+`tree` and `status`. Those commands now print where to go instead. `archive` stays, now matching a worktree by
+directory name, branch or path through `git worktree list`; the chronicle dashboard's Archive button uses it. Agents rarely created worktrees through `wt`,
 so its cleanup never saw most of them; the harness covers creation, and `wt clean` covers every worktree whatever made
 it.

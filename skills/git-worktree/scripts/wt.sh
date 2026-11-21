@@ -30,8 +30,11 @@ Commands:
                           (default: the current repo)
     --dry-run             List what would happen
     --delete-branch       Also delete branches (local and remote)
+  archive <name|branch|path>
+                          Archive one worktree of the current repo now, landed
+                          or not (git-ignored files such as node_modules dropped)
   prune [days] [--yes]    Delete archives older than N days (default: 30)
-  install                 Add wt to ~/.zshrc (one-time setup)
+  install                Add wt to ~/.zshrc (one-time setup)
 
 To start a worktree: claude -w <name>, EnterWorktree, an agent with
 isolation: "worktree", or git worktree add.
@@ -342,6 +345,51 @@ cmd_clean() {
     fi
 }
 
+cmd_archive() {
+    local target="${1:-}"
+    if [[ -z "$target" ]]; then
+        log_error "Usage: wt archive <name|branch|path>"
+        exit 1
+    fi
+    if ! git rev-parse --git-dir &>/dev/null; then
+        log_error "Not in a git repository"
+        exit 1
+    fi
+    [[ -d "$WORKTREES_ROOT" ]] && WORKTREES_ROOT=$(cd "$WORKTREES_ROOT" && pwd -P)
+    [[ "$target" == */* && -d "$target" ]] && target=$(cd "$target" && pwd -P)
+
+    local repo line p="" b="" first=true path=""
+    repo=$(git rev-parse --path-format=absolute --git-common-dir)
+    while IFS= read -r line; do
+        case "$line" in
+            "worktree "*) p="${line#worktree }" ;;
+            "branch "*) b="${line#branch refs/heads/}" ;;
+            "")
+                if [[ "$first" == true ]]; then
+                    first=false
+                elif [[ -n "$p" && ( "$p" == "$target" || "$(basename "$p")" == "$target" || "$b" == "$target" ) ]]; then
+                    path="$p"
+                    break
+                fi
+                p="" b=""
+                ;;
+        esac
+    done < <(git -C "$repo" worktree list --porcelain; echo)
+
+    if [[ -z "$path" ]]; then
+        log_error "No worktree of this repo matches: $target"
+        exit 1
+    fi
+    local label name
+    label=$(_repo_label "$path" "$repo")
+    if [[ "$path" == "$WORKTREES_ROOT/$label/"* ]]; then
+        name="${path#"$WORKTREES_ROOT/$label"/}"
+    else
+        name=$(basename "$path")
+    fi
+    _archive_path "$path" "$repo" "$label" "$name"
+}
+
 cmd_prune() {
     local days=30 assume_yes=false
     while [[ $# -gt 0 ]]; do
@@ -438,9 +486,10 @@ main() {
     case "$cmd" in
         ""|--help|-h) usage ;;
         clean) shift; cmd_clean "$@" ;;
+        archive) shift; cmd_archive "$@" ;;
         prune) shift; cmd_prune "$@" ;;
         install) cmd_install ;;
-        list|ls|tree|status|open|archive|apply|cd|home|done) retired "$cmd" ;;
+        list|ls|tree|status|open|apply|cd|home|done) retired "$cmd" ;;
         *) retired "<branch>" ;;
     esac
 }
