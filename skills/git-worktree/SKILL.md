@@ -22,7 +22,7 @@ Use what the harness provides, since it also cleans up what it made:
 When none of those fits, such as a worktree from a specific base, use git directly:
 
 ```bash
-git worktree add -b <branch> ~/.worktrees/<repo>/<branch> origin/HEAD
+git worktree add --no-track -b <branch> ~/.worktrees/<repo>/<branch> origin/HEAD
 ```
 
 Copy any `.env` files the work needs yourself; nothing else does it.

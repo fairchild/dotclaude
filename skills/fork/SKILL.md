@@ -203,7 +203,7 @@ WORKTREE_PATH="$HOME/.worktrees/$REPO_NAME/<branch>"
 if git show-ref -q --verify refs/heads/<branch> || git show-ref -q --verify refs/remotes/origin/<branch>; then
     git worktree add "$WORKTREE_PATH" <branch>
 else
-    git worktree add -b <branch> "$WORKTREE_PATH" "${BASE:-origin/HEAD}"   # BASE from --base
+    git worktree add --no-track -b <branch> "$WORKTREE_PATH" "${BASE:-origin/HEAD}"   # BASE from --base
 fi
 
 for f in .env .env.local .dev.vars; do

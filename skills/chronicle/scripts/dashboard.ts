@@ -3199,7 +3199,7 @@ const HTML = `<!DOCTYPE html>
 
       // Fallback to clipboard
       setTimeout(async () => {
-        const wtCmd = "cd '" + path + "'";
+        const wtCmd = path;
         await navigator.clipboard.writeText(wtCmd);
         showToast('Copied: ' + wtCmd);
       }, 800);
@@ -3573,7 +3573,7 @@ const server = Bun.serve({
         const origin = (() => { try { return git(["remote", "get-url", "origin"]).trim(); } catch { return ""; } })();
         const path = `${WORKTREES_ROOT}/${basename(origin || mainRepoPath, ".git")}/${name}`;
         const base = (() => { try { git(["rev-parse", "-q", "--verify", "origin/HEAD"]); return "origin/HEAD"; } catch { return "HEAD"; } })();
-        const result = git(["worktree", "add", "-b", name, path, base]);
+        const result = git(["worktree", "add", "--no-track", "-b", name, path, base]);
 
         return new Response(JSON.stringify({ success: true, name, output: result }), {
           headers: { "Content-Type": "application/json" },
