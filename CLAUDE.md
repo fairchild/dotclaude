@@ -127,13 +127,13 @@ Test behavior over implementation details
 ## Git
 
 - Conventional commits (`feat:`, `fix:`, `chore:`, etc.)
-- **Prefer a worktree for non-trivial changes in a new session** — recovery stays cheap when something goes sideways. Soft default: match isolation to scale of change rather than apply always or never. Suggest creating one before mutating the live tree; the `git-worktree` skill handles the mechanics.
+- **Prefer a worktree for non-trivial changes in a new session** — recovery stays cheap when something goes sideways. Soft default: match isolation to scale of change rather than apply always or never. Suggest creating one before mutating the live tree. The harness makes it (`claude -w`, `EnterWorktree`, `isolation: "worktree"`), and the `git-worktree` skill's `wt clean` retires it once its work lands.
 - **Resolve PR review comments once addressed.** After a review comment's change is committed and pushed, mark the thread resolved. Leave it open if the suggestion was declined or deferred (say why in a reply).
 
 ## Safety
 
 - `~/.claude` must always be a standalone git clone on `main`. Never symlink, move, or replace it, and never make it a worktree.
-- `~/.worktrees/` is the preferred home for worktrees and the `git-worktree` skill's default — worktrees put there are the easiest to find again. Tools that manage their own (Conductor, Orca, Codex) keep their own roots; location is a preference, not a constraint.
+- `~/.worktrees/` is the home for worktrees made outside a harness with `git worktree add` — worktrees put there are the easiest to find again, and `wt clean --all` starts its search there. Harnesses and tools that manage their own (Claude Code's `.claude/worktrees/`, Conductor, Orca, Codex) keep their own roots; `wt clean` reaches those through each repo's `git worktree list`.
 
 ## References
 

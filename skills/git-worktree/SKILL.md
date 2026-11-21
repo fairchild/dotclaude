@@ -1,136 +1,63 @@
 ---
 name: git-worktree
-description: Manage Git worktrees for concurrent local development. Creates worktrees
-  at ~/.worktrees/REPO/BRANCH. Wrapper for the `wt` CLI.
+description: Start git worktrees the harness-native way and retire them once their work lands, with `wt clean`. Use
+  when starting a worktree, when worktrees pile up or ~/.worktrees fills the disk, after pull requests merge, or when
+  asked to clean up, remove or archive worktrees.
 license: Apache-2.0
 ---
 
 # Git Worktree
 
-Manage worktrees for concurrent development without clobbering changes.
+Worktrees keep concurrent work from clobbering each other. The harness makes them; `wt clean` retires them once their
+work has landed.
 
-## Setup
+## Starting a worktree
+
+Use what the harness provides, since it also cleans up what it made:
+
+- **A new session in a worktree:** `claude -w <name>` (Claude Code puts it in the repo's `.claude/worktrees/`).
+- **Mid-session:** the `EnterWorktree` tool, when the user or project instructions ask for a worktree.
+- **A subagent:** `isolation: "worktree"`. It is removed automatically if the agent changed nothing.
+
+When none of those fits, such as a worktree from a specific base, use git directly:
+
+```bash
+git worktree add -b <branch> ~/.worktrees/<repo>/<branch> origin/HEAD
+```
+
+Copy any `.env` files the work needs yourself; nothing else does it.
+
+## Retiring worktrees
 
 Paths below are relative to this skill's base directory.
 
 ```bash
-scripts/wt.sh install
-source ~/.zshrc
+scripts/wt.sh clean --dry-run   # say what would happen, touch nothing
+scripts/wt.sh clean             # retire landed worktrees of the current repo
+scripts/wt.sh clean --all       # ...of every repo with a worktree under ~/.worktrees
+scripts/wt.sh clean --delete-branch   # also delete their branches, local and remote
+scripts/wt.sh prune [days] [--yes]    # delete archives older than N days (default 30)
 ```
 
-## Usage
-
-```bash
-wt <branch>              # Create worktree, run setup, open editor
-wt <branch> --base ref   # Create from a specific base branch (default: main)
-wt <branch> --no-editor  # Create without opening editor
-wt <branch> --open       # Also open terminal tab with claude session (macOS)
-wt <branch> --carry      # Create and copy work-in-progress files
-wt <branch> --context f  # Copy file to .context/handoff.md (session fork)
-wt cd <branch>           # Change to worktree directory
-wt home                  # Return to main repo (or REPOS_ROOT if outside git)
-wt apply [branch]        # Rebase onto branch and merge (default: main)
-wt apply --archive       # Merge and archive without prompting
-wt apply --push          # Merge and push to remote
-wt archive [branch]      # Run archive script, move to ~/.worktrees/.archive
-wt archive --delete-branch  # Also delete local and remote branches
-wt done                  # Archive current worktree and cd home (shell function)
-wt done --delete-branch  # Also delete branches on the way out
-wt clean                 # Retire landed worktrees of the current repo
-wt clean --all           # ...of every repo with a worktree under WORKTREES_ROOT
-wt clean --dry-run       # Say what would happen, touch nothing
-wt clean --delete-branch # Also delete branches (local and remote)
-wt prune [days] [--yes]  # Delete archives older than N days (default 30)
-wt list                  # List all worktrees
-wt list --all            # Include worktrees from other sources (.claude, .codex, etc.)
-wt ls                    # Alias for list
-wt tree                  # Tree view with git status indicators
-wt status                # Show worktrees with Claude session activity
-wt open [branch]         # Open editor for worktree (current dir if no branch)
-wt install               # Add wt to ~/.zshrc (one-time setup)
-```
-
-## Worktree Path Convention
-
-Worktrees are created at `~/.worktrees/<repo>/<branch>` where `<repo>` is the **origin remote name** (not the local directory name). This is derived from `git remote get-url origin`.
-
-```
-~/.claude  (remote: dotclaude.git)  →  ~/.worktrees/dotclaude/<branch>  <!-- portability: allow -->
-~/code/myapp  (remote: myapp.git)  →  ~/.worktrees/myapp/<branch>
-```
-
-## Environment
-
-```bash
-WORKTREES_ROOT=~/.worktrees  # Where worktrees are created
-REPOS_ROOT=~/code            # Fallback for `wt home` outside git
-WT_TERMINAL=ghostty          # Terminal for --open (auto-detects from TERM_PROGRAM)
-```
-
-## Example
-
-```bash
-wt feature-auth       # Creates worktree and opens editor
-# ... work on feature ...
-wt apply              # Merge into main (prompts to archive)
-```
-
-Or archive from within the worktree when you're done:
-
-```bash
-wt feature-auth       # Creates worktree and opens editor
-# ... work on feature ...
-wt done               # Archive and cd home in one step
-wt done --delete-branch  # Same, but also delete the branch
-```
-
-## Cleaning Up
+`scripts/wt.sh install` adds `wt` to `~/.zshrc`, so a shell can run `wt clean`.
 
 `wt clean` finds worktrees through `git worktree list`, so it covers every worktree of a repo wherever it lives and
-whatever made it: `wt`, an agent's `git worktree add`, Codex, or Claude Code's `.claude/worktrees/`. A worktree is
-retired once its HEAD commit has landed, meaning the commit is in origin's default branch or GitHub lists it in a
-merged pull request. The pull request lookup is what catches squash merges, detached review checkouts and renamed
-branches. A clean worktree is removed. One holding untracked files is archived without its git-ignored files
+whatever made it: an agent's `git worktree add`, Codex, or Claude Code's `.claude/worktrees/`. A worktree is retired
+once its HEAD commit has landed, meaning the commit is in origin's default branch or GitHub lists it in a merged pull
+request. The pull request lookup is what catches squash merges, detached review checkouts and renamed branches. A clean
+worktree is removed. One holding untracked files is archived to `~/.worktrees/.archive/` without its git-ignored files
 (dependencies, builds), so the archive stays small.
 
-It leaves a worktree alone when it has uncommitted changes, is locked, has a process running inside it, or a Claude
-session wrote there in the last `WT_ACTIVE_MINUTES` (default 120). When GitHub can't be asked (gh logged out, no
-network, an agent sandbox), it says so and keeps the worktree. Run it outside the sandbox: inside it, `gh` can't read
-its token and `lsof` can't see other processes.
+It leaves a worktree alone when it has uncommitted changes, is locked, has a process running inside it, holds a branch
+with no commits of its own yet, or a Claude session wrote there in the last `WT_ACTIVE_MINUTES` (default 120). When
+GitHub can't be asked (gh logged out, no network, an agent sandbox), it says so and keeps the worktree. Run it outside
+the sandbox: inside it, `gh` can't read its token and `lsof` can't see other processes.
 
 `scripts/test-clean.sh` exercises each of these cases against a throwaway repo.
 
-## Carrying Work in Progress
+## What was retired
 
-When you've been exploring and decide it should be its own branch:
-
-```bash
-# You're in main with untracked files and modifications...
-wt feature-x --carry  # Creates worktree with those files copied over
-```
-
-Copies untracked files to the new worktree. Works from any branch.
-
-## conductor.json (Optional)
-
-If your repo has a `conductor.json`, scripts run automatically:
-
-```json
-{
-  "scripts": {
-    "setup": "cp $CONDUCTOR_ROOT_PATH/.env .env && bun install",
-    "archive": "git stash"
-  }
-}
-```
-
-## For Claude Code
-
-When user asks to create a worktree, run:
-
-```bash
-wt <branch>
-```
-
-The script handles branch detection, env file copying, and setup automatically.
-Suggest opening the worktree in their editor after creation.
+`wt` used to create worktrees and manage their life: `wt <branch>`, `cd`, `home`, `apply`, `archive`, `done`, `open`,
+`list`, `tree` and `status`. Those commands now print where to go instead. Agents rarely created worktrees through `wt`,
+so its cleanup never saw most of them; the harness covers creation, and `wt clean` covers every worktree whatever made
+it.

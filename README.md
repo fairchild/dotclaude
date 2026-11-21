@@ -80,7 +80,7 @@ Claude loads these when the task matches the description.
 | `dotfiles-checkup` | Check this machine's dotfiles against the public repo and bring them back to clean. |
 | `fable-session` | Hand off long-arc work to a fable session — a Fable orchestrator at xhigh effort verifies while delegating the… |
 | `gh-apps` | Create, authenticate, and manage GitHub Apps. |
-| `git-worktree` | Manage Git worktrees for concurrent local development. |
+| `git-worktree` | Start git worktrees the harness-native way and retire them once their work lands, with `wt clean`. |
 | `image-gen` | Generate images from prompts using AI APIs (OpenAI GPT Image, Google Gemini/Nano Banana, Google Imagen, fal.ai Flux). |
 | `project-scripts` | Standardize project lifecycle scripts (setup, run, stop, archive) in scripts/ so agents can manage workspaces through a… |
 | `session-titles` | Session title generation, evaluation, and optimization. |
