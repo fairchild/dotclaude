@@ -1,7 +1,7 @@
 ---
 name: gh-apps
 license: Apache-2.0
-description: Create, authenticate, and manage GitHub Apps. Use for creating apps via manifest flow, generating JWTs, getting installation tokens, managing webhooks and installations, rotating keys, and setting up an app a CI workflow acts as (release tags, ruleset bypass). Triggers on "create github app", "github app", "manage github app", "github app JWT", "github installation token", "github app manifest", "github webhook deliveries", "register github app", "gh app", "bot reviewer", "bot approval", "post as a bot", "who posted this", "release app", "create-github-app-token", "ruleset bypass".
+description: Create and manage GitHub Apps. Covers the manifest flow, JWTs and installation tokens, webhooks, key rotation, posting as a bot, and apps a CI workflow acts as. Triggers on "github app", "gh app", "installation token", "bot reviewer", "post as a bot", "who posted this", "release app", "create-github-app-token", "ruleset bypass".
 ---
 
 # GitHub Apps Management
