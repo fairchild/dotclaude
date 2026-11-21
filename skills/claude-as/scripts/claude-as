@@ -6,7 +6,8 @@
 #   claude-as -p "task"               no name: $CLAUDE_AS_PROFILE, or plain claude when it's unset
 #   claude-as -- "task"               no name, when the first thing for claude isn't a flag
 #   claude-as work --link-only        build or repair the profile folder, don't start
-#   claude-as --list                  the profiles on this machine; * marks $CLAUDE_AS_PROFILE
+#   claude-as --list                  each profile's signed-in account, plain claude's too;
+#                                     * marks $CLAUDE_AS_PROFILE, ⚠ a login that isn't the declared one
 #   claude-as --guide                 open the illustrated guide in your browser
 #   claude-as --install [dir]         link this script into dir (default ~/.local/bin), check needs
 #   claude-as --help                  print this
@@ -47,6 +48,14 @@
 # exported as CLAUDE_CHROME_PROFILE_DIR. An override Chrome doesn't have is a warning; without
 # an override, a missing match is silent.
 #
+# Accounts: a profile declares the account it should be signed in to as env.CLAUDE_AS_ACCOUNT in
+# $CLAUDE_PROFILES/<name>/settings.json; plain claude declares its own in ~/.claude/settings.json,
+# the live untracked file (Claude reads ~/.claude/settings.local.json only for a session in ~).
+# An address or its local part: "alice" matches alice@... and alice.work@.... --list flags a
+# login that differs, and a launch warns on stderr before it starts anyway. Inside a session the
+# variable is what the status line and the whoami mod check the login against. A profile that
+# declares none gets CLAUDE_AS_ACCOUNT="", so plain claude's declaration never reaches it.
+#
 # Needs bash, jq and claude on PATH. Built and used on macOS; profiles and side agents also run
 # on Linux, where the browser mapping does nothing.
 #
@@ -70,6 +79,32 @@ skill="$(dirname "$(dirname "$self")")"
 config="${CLAUDE_PROFILES:-$HOME/.config/claude-profiles}"
 warn() { echo "claude-as: $*" >&2; }
 
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+local_part() { lower "${1%%@*}"; }
+# The signed-in address in the .claude.json under $1, or nothing.
+login_in() { jq -r '.oauthAccount.emailAddress // ""' "$1/.claude.json" 2>/dev/null || true; }
+# The CLAUDE_AS_ACCOUNT a settings file declares, or nothing.
+declared_in() { [ -f "$1" ] && jq -r '.env.CLAUDE_AS_ACCOUNT // ""' "$1" 2>/dev/null || true; }
+# Whether login $1 is account $2: equal local parts, or $1's local part starting with "$2.".
+is_account() {
+  local have want; have="$(local_part "$1")" want="$(local_part "$2")"
+  [ "$have" = "$want" ] || [ "${have#"$want".}" != "$have" ]
+}
+# One --list row: label, login, declared account.
+account_row() {
+  local login flag=""; login="$(local_part "$2")"
+  [ -n "$3" ] && ! is_account "$2" "$3" && flag="  ⚠ expected $(local_part "$3")"
+  printf '%-16s %s%s\n' "$1" "${login:-(not signed in)}" "$flag"
+}
+# Warns, never blocks, when the login under folder $1 isn't the account $2 declared in file $4.
+check_login() {
+  [ -n "$2" ] || return 0
+  local login; login="$(login_in "$1")"
+  is_account "$login" "$2" && return 0
+  local now="isn't signed in"; [ -n "$login" ] && now="is signed in as $(local_part "$login"), not $(local_part "$2")"
+  warn "$3 $now; /login as $(local_part "$2"), or change CLAUDE_AS_ACCOUNT in $4"
+}
+
 usage() { sed -n '2,/^set -euo/p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//'; }
 case "${1:-}" in
   -h|--help) usage; exit 0 ;;
@@ -86,10 +121,13 @@ case "${1:-}" in
     for opener in open xdg-open; do command -v "$opener" >/dev/null && exec "$opener" "$skill/guide.html"; done
     echo "$skill/guide.html"; exit 0 ;;
   --list)
+    command -v jq >/dev/null || { echo "claude-as: needs jq (https://jqlang.org)" >&2; exit 1; }
+    account_row "(plain claude)" "$(login_in "$HOME")" "$(declared_in "$HOME/.claude/settings.json")"
     for d in "$HOME"/.claude-*/; do
       if head -1 "$d/CLAUDE.md" 2>/dev/null | grep -q 'Built by claude-as'; then
         name="$(basename "$d")"; name="${name#.claude-}"
-        if [ "$name" = "${CLAUDE_AS_PROFILE:-}" ]; then echo "$name *"; else echo "$name"; fi
+        label="$name"; [ "$name" = "${CLAUDE_AS_PROFILE:-}" ] && label="$name *"
+        account_row "$label" "$(login_in "${d%/}")" "$(declared_in "$config/$name/settings.json")"
       fi
     done
     exit 0 ;;
@@ -98,9 +136,13 @@ case "${1:-}" in
   *) profile="$1"; shift ;;
 esac
 
-unset CLAUDE_CONFIG_DIR CLAUDE_PROFILE CLAUDE_CHROME_PROFILE CLAUDE_CHROME_PROFILE_DIR CLAUDE_SAFARI_PROFILE
+unset CLAUDE_CONFIG_DIR CLAUDE_PROFILE CLAUDE_CHROME_PROFILE CLAUDE_CHROME_PROFILE_DIR CLAUDE_SAFARI_PROFILE \
+      CLAUDE_AS_ACCOUNT
 if [ -z "$profile" ]; then
   [ "${1:-}" = "--link-only" ] && { echo "claude-as: --link-only needs a profile name" >&2; exit 2; }
+  if command -v jq >/dev/null; then
+    check_login "$HOME" "$(declared_in "$HOME/.claude/settings.json")" "plain claude" "$HOME/.claude/settings.json"
+  fi
   exec claude "$@"
 fi
 command -v jq >/dev/null || { echo "claude-as: needs jq (https://jqlang.org)" >&2; exit 1; }
@@ -149,6 +191,7 @@ override() { json_or_empty "$overlay/settings.json" | jq -r --arg k "$1" '.env[$
 
 chrome_set="$(override CLAUDE_CHROME_PROFILE)"; chrome_want="${chrome_set:-$profile}"
 safari_want="$(override CLAUDE_SAFARI_PROFILE)"; safari_want="${safari_want:-$profile}"
+account="$(override CLAUDE_AS_ACCOUNT)"
 chrome_name="$chrome_want" chrome_dir=""
 local_state="$HOME/Library/Application Support/Google/Chrome/Local State"
 if [ ! -f "$local_state" ]; then
@@ -169,7 +212,8 @@ fi
 tmp="$(mktemp)"
 jq -n --argjson base "$(json_or_empty "$home/settings.local.json")" \
       --argjson over "$(json_or_empty "$overlay/settings.json")" \
-      --arg profile "$profile" --arg cn "$chrome_name" --arg cd "$chrome_dir" --arg sn "$safari_want" '
+      --arg profile "$profile" --arg cn "$chrome_name" --arg cd "$chrome_dir" --arg sn "$safari_want" \
+      --arg account "$account" '
   def merge(a; b):
     if (a | type) == "object" and (b | type) == "object" then
       reduce ((a + b) | keys_unsorted[]) as $k ({};
@@ -178,9 +222,10 @@ jq -n --argjson base "$(json_or_empty "$home/settings.local.json")" \
     elif (a | type) == "array" and (b | type) == "array" then a + b | unique
     else b end;
   merge(merge($base; $over); {env: ({CLAUDE_PROFILE: $profile, CLAUDE_CHROME_PROFILE: $cn,
-    CLAUDE_SAFARI_PROFILE: $sn} + (if $cd == "" then {} else {CLAUDE_CHROME_PROFILE_DIR: $cd} end))})
+    CLAUDE_SAFARI_PROFILE: $sn, CLAUDE_AS_ACCOUNT: $account} + (if $cd == "" then {} else {CLAUDE_CHROME_PROFILE_DIR: $cd} end))})
 ' > "$tmp"
 built "$dir/settings.local.json" "$tmp"
 
 [ "${1:-}" = "--link-only" ] && { echo "claude-as: $dir built (chrome: ${chrome_name}${chrome_dir:+ → $chrome_dir}, safari: $safari_want)"; exit 0; }
+check_login "$dir" "$account" "claude-as $profile" "$overlay/settings.json"
 CLAUDE_CONFIG_DIR="$dir" CLAUDE_PROFILE="$profile" exec claude --settings "$dir/settings.local.json" "$@"
