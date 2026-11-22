@@ -131,19 +131,19 @@ verification details. Use one brief linked line per PR, with each line in its ow
   its reviewed SHA. Give the check time in Pacific time and say `caught up` only when every
   reviewed SHA matches. Otherwise say how many heads await review and name them on their PR
   lines. Use `freshness unknown` when you can't verify the comparison.
-- Start each line with the linked PR number, one verdict emoji, and one severity emoji with its
-  score. Use ✅ for code clear, 🛑 for changes needed, and ⏳ for incomplete review verification.
-  Score the greatest verified impact. Use 🟡 `1/3` when impact is low or no material defect has
-  been verified, 🟠 `2/3` for a material defect with limited impact, and 🔴 `3/3` for a severe
-  failure or security gap. End the line with what matters, including any open CI or approval hold
-  when relevant.
+- Start each line with the linked PR number, one verdict emoji, and an impact emoji with its
+  label. Use ✅ for code clear, 🛑 for changes needed, and ⏳ for incomplete review verification.
+  Rate the PR's potential impact if merged independently of the verdict. Use 🟡 `Low` for a
+  local, easy-to-reverse change, 🟠 `Medium` for a change with bounded effects on users or
+  operations, and 🔴 `High` for broad, security-sensitive, or hard-to-reverse effects. End the
+  line with what matters, including any open CI or approval hold when relevant.
 
 ### Example
 
 **Round 1 · 0 replies · 15m watch · caught up at 7:53 p.m. PT**
 
-[#101](https://github.com/example/repo/pull/101) 🛑 🟠 2/3 · Retry counts hide failed jobs.
+[#101](https://github.com/example/repo/pull/101) 🛑 🟠 Medium · Retry counts hide failed jobs.
 
-[#102](https://github.com/example/repo/pull/102) ✅ 🟡 1/3 · Code clear. Smoke test pending.
+[#102](https://github.com/example/repo/pull/102) ✅ 🔴 High · Code clear. Migration smoke test pending.
 
-[#103](https://github.com/example/repo/pull/103) 🛑 🔴 3/3 · Startup fails before the service can accept traffic.
+[#103](https://github.com/example/repo/pull/103) 🛑 🟡 Low · Help text advertises an unsupported flag.
