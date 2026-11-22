@@ -1,6 +1,6 @@
 ---
 name: review-pr
-description: Review a pull request, yours before opening it or someone else's, then re-check each later push for blockers only, with every verdict bound to the reviewed head. Run as /review-pr <url or branch> to review or re-review, including your own branch before opening a PR.
+description: Review a PR or branch, then re-check later pushes for blockers only. Use /review-pr <url or branch> for one PR or /review-pr all to run the current repository's standing review queue.
 license: Apache-2.0
 disable-model-invocation: true
 metadata:
@@ -21,6 +21,32 @@ When using Codex CLI as the reviewer, follow the shared
 [codex-cli skill](https://github.com/fairchild/dotclaude/blob/main/skills/codex-cli/SKILL.md)
 for current model selection and invocation. This skill owns the review process;
 the CLI skill owns the executable recipe. The old `codex-review` command is removed.
+
+## All open PRs
+
+`/review-pr all` runs the standing review queue for the current checkout's repository. Confirm
+the repository identity and look for a queue in its trusted project instructions. Reuse or
+attach to that queue when available. Otherwise coordinate independent review workers. Keep one
+coordinator per repo and apply these defaults when starting a queue.
+
+- **Dispatch.** Start with the most recently pushed PRs. Take up to five unreviewed heads per
+  batch, with up to three workers at a time, and keep refilling until all open PRs are covered.
+  Follow the repo's eligibility and posting rules, including its handling of drafts. Use a full
+  first pass, then carry forward the previous reviewed head and findings for blocker-only
+  re-checks. Deduplicate jobs by repository, PR number, and head SHA.
+- **Completion.** Recheck the live head before publishing. Queue any newer head and count an
+  item complete only when GitHub confirms a review from the queue on the exact current SHA.
+  A submitted review can record blockers or approval holds. Retry failed or unverified items
+  with backoff while the remaining queue proceeds.
+- **Watch.** Prefer PR event subscriptions or webhooks where the repo or host supports them.
+  Use new PRs, reopenings, and pushes to reconcile the queue. Check open heads at startup and
+  after reconnecting to catch missed events. A background watcher can poll when events are
+  unavailable. Filter activity before waking the chat. Wake it only for unreviewed heads or
+  blockers that need attention. Keep checks outside the chat and leave scheduled chat wakes
+  off. If no watcher can persist, finish the current queue and report `watch off`.
+
+Report the watching mechanism and cadence actually running. Use the final chat recap below
+for the last verified check and any heads still awaiting review.
 
 ## Scope
 
