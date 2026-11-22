@@ -131,19 +131,19 @@ verification details. Use one brief linked line per PR, with each line in its ow
   its reviewed SHA. Give the check time in Pacific time and say `caught up` only when every
   reviewed SHA matches. Otherwise say how many heads await review and name them on their PR
   lines. Use `freshness unknown` when you can't verify the comparison.
-- Start each line with the linked PR number, one verdict emoji, and an impact emoji with its
-  label. Use ✅ for code clear, 🛑 for changes needed, and ⏳ for incomplete review verification.
-  Rate the PR's potential impact if merged independently of the verdict. Use 🟡 `Low` for a
-  local, easy-to-reverse change, 🟠 `Medium` for a change with bounded effects on users or
-  operations, and 🔴 `High` for broad, security-sensitive, or hard-to-reverse effects. End the
-  line with what matters, including any open CI or approval hold when relevant.
+- Start each line with the linked PR number, one verdict emoji, and one impact symbol. Use ✅
+  for approval, 💬 for a comment-only review, and ❌ when blocking findings require changes.
+- Rate the PR's potential impact if merged independently of the verdict. Use ○ for a local,
+  easy-to-reverse change, ◐ for bounded effects on users or operations, and ● for broad,
+  security-sensitive, or hard-to-reverse effects. Show the symbol by itself. End the line with
+  what matters, including any open CI or approval hold when relevant.
 
 ### Example
 
 **Round 1 · 0 replies · 15m watch · caught up at 7:53 p.m. PT**
 
-[#101](https://github.com/example/repo/pull/101) 🛑 🟠 Medium · Retry counts hide failed jobs.
+[#101](https://github.com/example/repo/pull/101) ❌ ◐ · Retry counts hide failed jobs.
 
-[#102](https://github.com/example/repo/pull/102) ✅ 🔴 High · Code clear. Migration smoke test pending.
+[#102](https://github.com/example/repo/pull/102) ✅ ● · Migration and rollback verified.
 
-[#103](https://github.com/example/repo/pull/103) 🛑 🟡 Low · Help text advertises an unsupported flag.
+[#103](https://github.com/example/repo/pull/103) 💬 ○ · Suggested a clearer help example.
