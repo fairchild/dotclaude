@@ -1,6 +1,6 @@
 ---
 name: review-pr
-description: Review a PR or branch, then re-check later pushes for blockers only. Use /review-pr <url or branch> for one PR or /review-pr all to run the current repository's standing review queue.
+description: Review a PR or branch with /review-pr, or run a standing review queue with /review-pr all. Re-check later pushes for blockers only.
 license: Apache-2.0
 disable-model-invocation: true
 metadata:
