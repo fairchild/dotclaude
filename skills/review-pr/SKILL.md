@@ -34,6 +34,12 @@ coordinator per repo and apply these defaults when starting a queue.
   Follow the repo's eligibility and posting rules, including its handling of drafts. Use a full
   first pass, then carry forward the previous reviewed head and findings for blocker-only
   re-checks. Deduplicate jobs by repository, PR number, and head SHA.
+- **Live reporting.** Post `Starting review for [#N](PR URL) at <short SHA>` in the coordinator
+  chat when a worker starts. Have each worker end with one linked PR line in the final recap
+  format below. Relay that line as soon as the review is verified, even while other workers are
+  still running. When reusing a queue, follow its progress stream and relay these same two
+  messages from the queue's dispatch and completion. For failed or superseded work, report
+  its disposition and whether it will be retried.
 - **Completion.** Recheck the live head before publishing. Queue any newer head and count an
   item complete only when GitHub confirms a review from the queue on the exact current SHA.
   A submitted review can record blockers or approval holds. Retry failed or unverified items
@@ -41,9 +47,10 @@ coordinator per repo and apply these defaults when starting a queue.
 - **Watch.** Prefer PR event subscriptions or webhooks where the repo or host supports them.
   Use new PRs, reopenings, and pushes to reconcile the queue. Check open heads at startup and
   after reconnecting to catch missed events. A background watcher can poll when events are
-  unavailable. Filter activity before waking the chat. Wake it only for unreviewed heads or
-  blockers that need attention. Keep checks outside the chat and leave scheduled chat wakes
-  off. If no watcher can persist, finish the current queue and report `watch off`.
+  unavailable. Filter activity before waking the chat. Wake it only for unreviewed heads,
+  dispatches and results to relay, or blockers that need attention. Keep checks outside the
+  chat and leave scheduled chat wakes off. If no watcher can persist, finish the current queue
+  and report `watch off`.
 
 Report the watching mechanism and cadence actually running. Use the final chat recap below
 for the last verified check and any heads still awaiting review.
