@@ -29,11 +29,17 @@ the repository identity and look for a queue in its trusted project instructions
 attach to that queue when available. Otherwise coordinate independent review workers. Keep one
 coordinator per repo and apply these defaults when starting a queue.
 
+- **Reconcile.** At startup and on each rerun, compare eligible PRs' live heads with submitted
+  reviews from this queue. Reuse the repo queue's verified inventory where available. Skip
+  each exact head already reviewed and preserve its verdict. Report one `N already reviewed`
+  count for skipped heads. Review a completed SHA again only when the user explicitly asks
+  for another pass on that specific PR.
 - **Dispatch.** Start with the most recently pushed PRs. Take up to five unreviewed heads per
   batch, with up to three workers at a time, and keep refilling until all open PRs are covered.
-  Follow the repo's eligibility and posting rules, including its handling of drafts. Use a full
-  first pass, then carry forward the previous reviewed head and findings for blocker-only
-  re-checks. Deduplicate jobs by repository, PR number, and head SHA.
+  Follow the repo's eligibility and posting rules, including its handling of drafts. For a
+  new head on a previously reviewed PR, carry forward the previous head and findings and
+  re-check only the changes for blockers. Give PRs new to the queue a full first pass.
+  Deduplicate jobs by repository, PR number, and head SHA.
 - **Live reporting.** Post `Starting review for [#N](PR URL) at <short SHA>` in the coordinator
   chat when a worker starts. Have each worker end with one linked PR line in the final recap
   format below. Relay that line as soon as the review is verified, even while other workers are
@@ -45,9 +51,9 @@ coordinator per repo and apply these defaults when starting a queue.
   A submitted review can record blockers or approval holds. Retry failed or unverified items
   with backoff while the remaining queue proceeds.
 - **Watch.** Prefer PR event subscriptions or webhooks where the repo or host supports them.
-  Use new PRs, reopenings, and pushes to reconcile the queue. Check open heads at startup and
-  after reconnecting to catch missed events. A background watcher can poll when events are
-  unavailable. Filter activity before waking the chat. Wake it only for unreviewed heads,
+  Use new PRs, reopenings, and pushes to reconcile the queue. Reconcile after reconnecting to
+  catch missed events. A background watcher can poll when events are unavailable. Filter
+  activity before waking the chat. Wake it only for unreviewed heads,
   dispatches and results to relay, or blockers that need attention. Keep checks outside the
   chat and leave scheduled chat wakes off. If no watcher can persist, finish the current queue
   and report `watch off`.
