@@ -117,3 +117,33 @@ runs out of answers, because each fix is new code. Rounds converge:
 A typical arc: round 1 finds five issues. Round 2 clears them and finds three defects that only show
 against the whole PR. Round 3 finds an over-built state machine, and the orchestrator says to
 simplify rather than patch it. Round 4 clears with one deferrable finding, filed as a follow-up.
+
+## Final chat recap
+
+End the reviewer's final chat response with a compact recap. Put it after the findings and
+verification details. Use one brief linked line per PR, with each line in its own paragraph.
+
+- Put the review round in the header when all PRs share it. When rounds differ, put the round on
+  each PR line. Count substantive author response cycles separately as `N replies`, even when
+  several comments make up one response. Use `replies unknown` if you can't verify the count.
+- In the same header, give the actual watch status and cadence, such as `15m watch`,
+  `event-driven watch`, or `watch off`. At the last verified check, compare each live head with
+  its reviewed SHA. Give the check time in Pacific time and say `caught up` only when every
+  reviewed SHA matches. Otherwise say how many heads await review and name them on their PR
+  lines. Use `freshness unknown` when you can't verify the comparison.
+- Start each line with the linked PR number, one verdict emoji, and one severity emoji with its
+  score. Use ✅ for code clear, 🛑 for changes needed, and ⏳ for incomplete review verification.
+  Score the greatest verified impact. Use 🟡 `1/3` when impact is low or no material defect has
+  been verified, 🟠 `2/3` for a material defect with limited impact, and 🔴 `3/3` for a severe
+  failure or security gap. End the line with what matters, including any open CI or approval hold
+  when relevant.
+
+### Example
+
+**Round 1 · 0 replies · 15m watch · caught up at 7:53 p.m. PT**
+
+[#101](https://github.com/example/repo/pull/101) 🛑 🟠 2/3 · Retry counts hide failed jobs.
+
+[#102](https://github.com/example/repo/pull/102) ✅ 🟡 1/3 · Code clear. Smoke test pending.
+
+[#103](https://github.com/example/repo/pull/103) 🛑 🔴 3/3 · Startup fails before the service can accept traffic.
