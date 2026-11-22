@@ -5,7 +5,8 @@
 # keeps only the settings that mean the same on a VM, and refuses to touch a real machine's
 # runtime. DOTCLAUDE_SKILLS, names separated by spaces or commas, narrows the skills to those;
 # DOTCLAUDE_MODS does the same for the mods (mods/README.md) and DOTCLAUDE_PLUGINS for the
-# multi-component plugins (.claude-plugin/plugins/); "none" installs none of that kind. Both kinds
+# multi-component plugins (.claude-plugin/plugins/); "none" installs none of that kind. A mod whose
+# plugin.json sets metadata.cloud to "opt-in" installs only when DOTCLAUDE_MODS names it. Both kinds
 # register as one directory marketplace named dotclaude, so they load from the first session and a
 # plugin ID matches a machine that added this repository's marketplace from GitHub.
 # DOTCLAUDE_COMPACT_WINDOW and DOTCLAUDE_COMPACT_PCT, when set, decide when sessions auto-compact.
@@ -35,6 +36,7 @@ main() {
   or_report unpack tar -xzf "$work/bundle.tar.gz" -C "$work/bundle"
   drop_machine_bound_skills
   keep_only_named_skills
+  drop_unnamed_opt_in_mods
   keep_only_named_mods
   keep_only_named_plugins
   drop_plugins_with_absent_dependencies
@@ -101,6 +103,14 @@ keep_only_named_skills() {
 
 is_named() {
   [[ " $named_skills " == *" $1 "* ]]
+}
+
+drop_unnamed_opt_in_mods() {
+  local mod
+  for mod in "$work"/bundle/mods/*/; do
+    [[ "$(jq -r '.metadata.cloud // ""' "$mod/.claude-plugin/plugin.json" 2>/dev/null)" == opt-in ]] || continue
+    [[ " $named_mods " == *" $(basename "$mod") "* ]] || rm -rf -- "$mod"
+  done
 }
 
 keep_only_named_mods() {
