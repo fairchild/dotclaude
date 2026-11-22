@@ -117,3 +117,33 @@ runs out of answers, because each fix is new code. Rounds converge:
 A typical arc: round 1 finds five issues. Round 2 clears them and finds three defects that only show
 against the whole PR. Round 3 finds an over-built state machine, and the orchestrator says to
 simplify rather than patch it. Round 4 clears with one deferrable finding, filed as a follow-up.
+
+## Final chat recap
+
+End the reviewer's final chat response with a compact recap. Put it after the findings and
+verification details. Use one brief linked line per PR, with each line in its own paragraph.
+
+- Put the review round in the header when all PRs share it. When rounds differ, put the round on
+  each PR line. Count substantive author response cycles separately as `N replies`, even when
+  several comments make up one response. Use `replies unknown` if you can't verify the count.
+- In the same header, give the actual watch status and cadence, such as `15m watch`,
+  `event-driven watch`, or `watch off`. At the last verified check, compare each live head with
+  its reviewed SHA. Give the check time in Pacific time and say `caught up` only when every
+  reviewed SHA matches. Otherwise say how many heads await review and name them on their PR
+  lines. Use `freshness unknown` when you can't verify the comparison.
+- Start each line with the linked PR number, one verdict emoji, and an impact emoji with its
+  label. Use ✅ for code clear, 🛑 for changes needed, and ⏳ for incomplete review verification.
+  Rate the PR's potential impact if merged independently of the verdict. Use 🟡 `Low` for a
+  local, easy-to-reverse change, 🟠 `Medium` for a change with bounded effects on users or
+  operations, and 🔴 `High` for broad, security-sensitive, or hard-to-reverse effects. End the
+  line with what matters, including any open CI or approval hold when relevant.
+
+### Example
+
+**Round 1 · 0 replies · 15m watch · caught up at 7:53 p.m. PT**
+
+[#101](https://github.com/example/repo/pull/101) 🛑 🟠 Medium · Retry counts hide failed jobs.
+
+[#102](https://github.com/example/repo/pull/102) ✅ 🔴 High · Code clear. Migration smoke test pending.
+
+[#103](https://github.com/example/repo/pull/103) 🛑 🟡 Low · Help text advertises an unsupported flag.
