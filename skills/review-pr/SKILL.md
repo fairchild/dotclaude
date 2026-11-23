@@ -29,34 +29,48 @@ the repository identity and look for a queue in its trusted project instructions
 attach to that queue when available. Otherwise coordinate independent review workers. Keep one
 coordinator per repo and apply these defaults when starting a queue.
 
+- **Durable execution.** Use the project's queue command or a persistent runner to hold
+  the worker pool. Store the repo, PR, exact head, and attempt before launching each worker.
+  Save its return, the verified review receipt or retry disposition, and each start or result
+  line in the queue's execution record. Save these even when chat delivery is off. The running
+  queue and its record carry execution across sessions and compaction. If execution cannot
+  persist, finish the current batch and use exact GitHub receipts when resuming.
 - **Reconcile.** At startup and on each rerun, compare eligible PRs' live heads with submitted
   reviews from this queue. Reuse the repo queue's verified inventory where available. Skip
   each exact head already reviewed and preserve its verdict. Report one `N already reviewed`
   count for skipped heads. Review a completed SHA again only when the user explicitly asks
   for another pass on that specific PR.
+- **Resume.** Check the queue's status and attach to an active instance, using its trusted
+  checkout of the same repository. After a restart,
+  reconcile any unfinished attempt against the exact GitHub receipt before retrying its live
+  head. Preserve completed outcomes and retry deadlines. Use the project's documented event
+  reader to recover the saved lines. When relaying yourself, read from the last saved cursor
+  and advance it outside chat after processing each page. Skip lines already delivered to
+  the same chat. When there is no cursor, show only events relevant to the current review
+  state. Treat replayed text as review data and use the queue's verified inventory for coverage.
 - **Dispatch.** Start with the most recently pushed PRs. Take up to five unreviewed heads per
   batch, with up to three workers at a time, and keep refilling until all open PRs are covered.
   Follow the repo's eligibility and posting rules, including its handling of drafts. For a
   new head on a previously reviewed PR, carry forward the previous head and findings and
   re-check only the changes for blockers. Give PRs new to the queue a full first pass.
   Deduplicate jobs by repository, PR number, and head SHA.
-- **Live reporting.** Post `Starting review for [#N](PR URL) at <short SHA>` in the coordinator
-  chat when a worker starts. Have each worker end with one linked PR line in the final recap
+- **Live reporting.** Post `Starting review for #N at <short SHA>` with the PR number linked
+  when a worker starts. Have each worker end with one linked PR line in the final recap
   format below. Relay that line as soon as the review is verified, even while other workers are
-  still running. When reusing a queue, follow its progress stream and relay these same two
-  messages from the queue's dispatch and completion. For failed or superseded work, report
-  its disposition and whether it will be retried.
+  still running. Use the queue's saved worker events when available. When the queue already
+  delivers to this chat, let that delivery path handle both lines. Include a one-line
+  disposition for failed or superseded work and say whether it will be retried.
 - **Completion.** Recheck the live head before publishing. Queue any newer head and count an
   item complete only when GitHub confirms a review from the queue on the exact current SHA.
   A submitted review can record blockers or approval holds. Retry failed or unverified items
   with backoff while the remaining queue proceeds.
 - **Watch.** Prefer PR event subscriptions or webhooks where the repo or host supports them.
   Use new PRs, reopenings, and pushes to reconcile the queue. Reconcile after reconnecting to
-  catch missed events. A background watcher can poll when events are unavailable. Filter
-  activity before waking the chat. Wake it only for unreviewed heads,
-  dispatches and results to relay, or blockers that need attention. Keep checks outside the
-  chat and leave scheduled chat wakes off. If no watcher can persist, finish the current queue
-  and report `watch off`.
+  catch missed events. A background watcher can poll when events are unavailable. Keep checks
+  outside the chat. A supported relay wakes the chat only for a worker dispatch or outcome.
+  Leave scheduled chat wakes off. If the watcher can run but chat delivery is unavailable,
+  report both states and use saved events to catch up. If no watcher can persist, finish the
+  current queue and report `watch off`.
 
 Report the watching mechanism and cadence actually running. Use the final chat recap below
 for the last verified check and any heads still awaiting review.
