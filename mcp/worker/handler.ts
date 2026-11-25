@@ -18,17 +18,17 @@ const SNAPSHOT_CACHE: Required<CacheHint> = { ttlMs: 300_000, cacheScope: "publi
 
 const manifests = new WeakMap<Env["ASSETS"], { skills: StoredSkill[] }>();
 
-async function loadStore(env: Env): Promise<SnapshotStore> {
-  let manifest = manifests.get(env.ASSETS);
+async function loadStore(assets: Env["ASSETS"]): Promise<SnapshotStore> {
+  let manifest = manifests.get(assets);
   if (!manifest) {
-    const response = await env.ASSETS.fetch(new Request("https://assets.local/manifest.json"));
+    const response = await assets.fetch(new Request("https://assets.local/manifest.json"));
     if (!response.ok) throw new Error(`manifest.json missing from assets (${response.status})`);
     manifest = (await response.json()) as { skills: StoredSkill[] };
-    manifests.set(env.ASSETS, manifest);
+    manifests.set(assets, manifest);
   }
   return new SnapshotStore(manifest.skills, async (name, rel) => {
     const path = `/skills/${[name, ...rel.split("/")].map(encodeURIComponent).join("/")}`;
-    const asset = await env.ASSETS.fetch(new Request(`https://assets.local${path}`));
+    const asset = await assets.fetch(new Request(`https://assets.local${path}`));
     return asset.ok ? new Uint8Array(await asset.arrayBuffer()) : null;
   });
 }
@@ -39,13 +39,14 @@ const MAX_BODY_BYTES = 64 * 1024;
 const handlers = new WeakMap<Env["ASSETS"], Map<string, McpHttpHandler>>();
 
 function handlerFor(env: Env): McpHttpHandler {
-  const name = env.SERVER_NAME ?? "skill-server";
-  let byName = handlers.get(env.ASSETS);
-  if (!byName) handlers.set(env.ASSETS, (byName = new Map()));
+  // The cache key is everything the factory reads, so a cached handler never serves another env's values.
+  const { ASSETS: assets, SERVER_NAME: name = "skill-server" } = env;
+  let byName = handlers.get(assets);
+  if (!byName) handlers.set(assets, (byName = new Map()));
   let handler = byName.get(name);
   if (!handler) {
     handler = createMcpHandler(
-      async () => createSkillsServer(await loadStore(env), { name, cache: SNAPSHOT_CACHE }),
+      async () => createSkillsServer(await loadStore(assets), { name, cache: SNAPSHOT_CACHE }),
       { legacy: "reject", responseMode: "json", maxRequestBodySize: MAX_BODY_BYTES },
     );
     byName.set(name, handler);
@@ -158,6 +159,7 @@ export async function serve(request: Request, env: Env): Promise<Served> {
   const skill = typeof uri === "string" ? (parseSkillUri(uri)?.[0] ?? "") : "";
 
   try {
+    // The gates above already bounded, read and parsed the body, so the SDK takes it as parsed.
     const answer = await withTimeout(handlerFor(env).fetch(request, { parsedBody: parsed }));
     const text = await answer.text();
     let reply: unknown = null;
@@ -176,6 +178,6 @@ export async function serve(request: Request, env: Env): Promise<Served> {
 
 
 export async function handleRequest(request: Request, env: Env): Promise<Response> {
-  if (new URL(request.url).pathname !== "/mcp") return serveHttp(request, env.ASSETS, async () => (await loadStore(env)).skills());
+  if (new URL(request.url).pathname !== "/mcp") return serveHttp(request, env.ASSETS, async () => (await loadStore(env.ASSETS)).skills());
   return (await serve(request, env)).response;
 }
