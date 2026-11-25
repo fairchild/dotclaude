@@ -1,17 +1,12 @@
 # Consequential rubric
 
-Each `## <id>` section is one question the router asks about a pull request's diff. `Ask:` is the
-question, `Raise at:` the probability at or above which it raises (lower for what is worse to miss),
-and the situations below anchor the number: the "yes" lists are what a probability near 1 looks
-like, the "no" lists what a probability near 0 looks like. A change that matches nothing listed is
-judged by its nearest neighbour here. Add, remove or rename sections to fit the repository; every
-`## ` heading in this file is read as a question. Edit the situations and lines as the owner's
-corrections come in.
+Each question is answered with a probability. The situations below anchor that number: the "yes"
+lists are what a probability near 1 looks like, the "no" lists what a probability near 0 looks like.
+A change that matches nothing listed is judged by its nearest neighbour here. Edit this file as the
+owner's corrections come in; the five headings must stay, because the router asks one question per
+heading.
 
 ## hard_to_undo
-
-Ask: Is this change hard to undo once merged and deployed?
-Raise at: 0.5
 
 Yes:
 - A database migration that drops or rewrites a column, table, or index, or backfills data in place.
@@ -27,9 +22,6 @@ No:
 
 ## weakens_security
 
-Ask: Does this change weaken security?
-Raise at: 0.3
-
 Yes:
 - Widening permissions: a workflow's `permissions:`, an IAM policy, a CORS origin, a firewall rule,
   a token scope, or a role grant.
@@ -44,9 +36,6 @@ No:
 
 ## costs_money
 
-Ask: Does this change start or raise spending?
-Raise at: 0.5
-
 Yes:
 - A new paid service, plan upgrade, or API whose calls are billed.
 - Raising instance sizes, replica counts, retention, request limits, or CI matrix width.
@@ -59,9 +48,6 @@ No:
 
 ## product_decision
 
-Ask: Does this change make a product decision the owner has not made?
-Raise at: 0.6
-
 Yes:
 - Changing what users see or pay: pricing, plans, limits, copy on a landing or checkout page.
 - Adding, removing, or renaming a user-facing feature, setting, or default.
@@ -73,9 +59,6 @@ No:
 - Internal refactors, test coverage, build tooling, and fixes that restore stated behavior.
 
 ## exposes_private_data
-
-Ask: Could this change expose private data?
-Raise at: 0.3
 
 Yes:
 - Logging, printing, or returning request bodies, tokens, emails, addresses, or IDs that were not
