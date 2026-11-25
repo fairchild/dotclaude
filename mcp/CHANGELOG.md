@@ -55,6 +55,8 @@ earlier.
 - The 2025-era protocol: `initialize`, sessions without an envelope, and the
   one-message-per-POST transport that answered them.
 - The `@modelcontextprotocol/sdk` v1 dependency.
+- The keyboard shortcut line on skill and file pages. The catalog's line under
+  the filter is down to Tab, Enter and Esc.
 
 ## [0.1.0-rc.1] - 2026-09-05
 

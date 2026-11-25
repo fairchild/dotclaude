@@ -27,8 +27,8 @@ Markdown discovery and downloads extend the same library.
 The site is a three-level hierarchy — the catalog at `/`, a skill at
 `/skills/{name}/`, a file at `/view/{name}/{path}` — and the keys move through it
 the same way on every page. Esc zooms out one level, Tab and the arrows move
-across a level, Enter goes deeper. Each page names its keys in one line under its
-heading. `/skills/` itself redirects to `/`, since the catalog is that level.
+across a level, Enter goes deeper. The catalog names its keys in one line under the
+filter. `/skills/` itself redirects to `/`, since the catalog is that level.
 
 Someone arriving with a keyboard lands in a filter field above the list. Typing
 narrows the catalog by name and description with the best match first, Tab or ↓
