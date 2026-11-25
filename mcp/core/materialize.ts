@@ -2,7 +2,7 @@
 import { createHash } from "node:crypto";
 import { lstatSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, parse, resolve } from "node:path";
-import type { ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
+import type { ReadResourceResult } from "@modelcontextprotocol/server";
 import { MAX_RESOURCES_PER_SKILL, MAX_TOTAL_BYTES_PER_SKILL, SkillEntrySchema, type SkillEntry } from "./types.ts";
 
 export const MAX_MATERIALIZED_SKILLS = 256;

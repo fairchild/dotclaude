@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { createSkillsServer } from './index.ts';
 import { FsStore } from './fs.ts';
 import { buildSnapshot } from './http.ts';

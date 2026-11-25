@@ -1,5 +1,5 @@
-import { JSONRPCMessageSchema, SUPPORTED_PROTOCOL_VERSIONS, type JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { JSONRPCMessageSchema } from "@modelcontextprotocol/core";
+import { SUPPORTED_PROTOCOL_VERSIONS, type JSONRPCMessage, type Transport } from "@modelcontextprotocol/server";
 
 import { createSkillsServer } from "../core/server.ts";
 import { SnapshotStore, type StoredSkill } from "../core/store.ts";

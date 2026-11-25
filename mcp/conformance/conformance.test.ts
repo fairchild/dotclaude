@@ -3,8 +3,8 @@
  * in-memory transport. Each test states the spec requirement it checks.
  */
 import { describe, expect, test } from "bun:test";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { Client } from "@modelcontextprotocol/client";
+import { InMemoryTransport } from "@modelcontextprotocol/server";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";

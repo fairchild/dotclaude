@@ -4,8 +4,8 @@
  * transport rather than the in-memory pair.
  */
 import { describe, expect, test } from "bun:test";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { Client } from "@modelcontextprotocol/client";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { join } from "node:path";
 
 import { EXTENSION_ID, SkillsListResultSchema } from "../core/types.ts";

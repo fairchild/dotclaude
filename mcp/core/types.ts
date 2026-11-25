@@ -33,34 +33,33 @@ export const SkillEntrySchema = z.object({
 export type SkillResource = z.infer<typeof SkillResourceSchema>;
 export type SkillEntry = z.infer<typeof SkillEntrySchema>;
 
-export const SkillsListRequestSchema = z.object({
-  method: z.literal("skills/list"),
-  params: z.object({ cursor: z.string().optional() }).optional(),
-});
+/** Fields every 2026-07-28 result may carry; absent on 2025-era replies. */
+const ResultFields = {
+  _meta: z.record(z.string(), z.unknown()).optional(),
+  resultType: z.literal("complete").optional(),
+  ttlMs: z.number().int().nonnegative().optional(),
+  cacheScope: z.enum(["public", "private"]).optional(),
+};
+
+export const SkillsListParamsSchema = z.object({ cursor: z.string().optional() }).optional();
 
 export const SkillsListResultSchema = z.object({
-  resultType: z.literal("complete").optional(),
+  ...ResultFields,
   skills: z.array(SkillEntrySchema),
   nextCursor: z.string().optional(),
 });
 
-export const SkillsGetRequestSchema = z.object({
-  method: z.literal("skills/get"),
-  params: z.object({ uri: z.string() }),
-});
+export const SkillsGetParamsSchema = z.object({ uri: z.string() });
 
 export const SkillsGetResultSchema = z.object({
-  resultType: z.literal("complete").optional(),
+  ...ResultFields,
   skill: SkillEntrySchema,
 });
 
-export const DirectoryReadRequestSchema = z.object({
-  method: z.literal("resources/directory/read"),
-  params: z.object({ uri: z.string(), cursor: z.string().optional() }),
-});
+export const DirectoryReadParamsSchema = z.object({ uri: z.string(), cursor: z.string().optional() });
 
 export const DirectoryReadResultSchema = z.object({
-  resultType: z.literal("complete").optional(),
+  ...ResultFields,
   resources: z.array(
     z.object({
       uri: z.string(),

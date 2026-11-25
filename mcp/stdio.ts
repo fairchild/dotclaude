@@ -10,7 +10,7 @@
  *
  * Usage: bun stdio.ts [--root <dir>] [--portable-only]
  */
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
