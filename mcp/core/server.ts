@@ -62,6 +62,11 @@ function clip(input: string): string {
   return input.length > 200 ? `${input.slice(0, 200)}…[${input.length} chars]` : input;
 }
 
+/** SEP-2164: a missing resource is -32602 with the requested URI in `data`. */
+function notFound(uri: string): ProtocolError {
+  return new ProtocolError(ProtocolErrorCode.InvalidParams, `unknown resource: ${clip(uri)}`, { uri: clip(uri) });
+}
+
 function encodeCursor(index: number): string {
   return Buffer.from(String(index)).toString("base64url");
 }
@@ -91,7 +96,7 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
     const segments = parseSkillUri(uri);
     const skill = segments && served().find((s) => s.entry.frontmatter.name === segments[0]);
     if (!segments || !skill) {
-      throw new ProtocolError(ProtocolErrorCode.InvalidParams, `unknown resource: ${clip(uri)}`);
+      throw notFound(uri);
     }
     const rel = segments.slice(1).join("/");
     if (rel.split("/").includes("..")) {
@@ -137,7 +142,8 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
     const all = served().flatMap((s) =>
       (s.entry.resources === "dynamic" ? [] : s.entry.resources).map((r) => ({
         uri: r.uri,
-        name: r.uri.split("/").pop()!,
+        // A skill's SKILL.md is named for the skill (SEP-2640), every other file for itself.
+        name: r.uri === s.entry.uri ? String(s.entry.frontmatter.name) : r.uri.split("/").pop()!,
         mimeType: mimeFor(r.uri),
         ...(r.uri === s.entry.uri ? { description: String(s.entry.frontmatter.description) } : {}),
       })),
@@ -153,16 +159,14 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
     const name = String(skill.entry.frontmatter.name);
     const manifest = skill.entry.resources === "dynamic" ? null : skill.entry.resources;
     if (manifest && !manifest.some((r) => r.uri === request.params.uri)) {
-      const isDirectory = manifest.some((r) => r.uri.startsWith(`${request.params.uri}/`));
+      if (!manifest.some((r) => r.uri.startsWith(`${request.params.uri}/`))) throw notFound(request.params.uri);
       throw new ProtocolError(
         ProtocolErrorCode.InvalidParams,
-        isDirectory
-          ? `directory, not a file: ${clip(request.params.uri)} (use resources/directory/read)`
-          : `unknown resource: ${clip(request.params.uri)}`,
+        `directory, not a file: ${clip(request.params.uri)} (use resources/directory/read)`,
       );
     }
     const bytes = await store.read(name, rel);
-    if (!bytes) throw new ProtocolError(ProtocolErrorCode.InvalidParams, `unknown resource: ${clip(request.params.uri)}`);
+    if (!bytes) throw notFound(request.params.uri);
     const buffer = Buffer.from(bytes);
     return {
       contents: [
