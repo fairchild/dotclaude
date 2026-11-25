@@ -57,6 +57,9 @@ earlier.
 - The `@modelcontextprotocol/sdk` v1 dependency.
 - The keyboard shortcut line on skill and file pages. The catalog's line under
   the filter is down to Tab, Enter and Esc.
+- The "dotclaude / skill library" row at the top of every page. The catalog's
+  "For agents" link duplicated its Markdown catalog link; skill and file pages
+  keep their way back.
 
 ## [0.1.0-rc.1] - 2026-09-05
 
