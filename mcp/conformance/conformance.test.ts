@@ -15,6 +15,7 @@ import {
   DIRECTORY_MIME,
   DirectoryReadResultSchema,
   EXTENSION_ID,
+  PORTABILITY_META_KEY,
   SkillsGetResultSchema,
   SkillsListResultSchema,
   type SkillEntry,
@@ -46,6 +47,26 @@ describe("capability declaration", () => {
     const { client } = await connect();
     const capabilities = client.getServerCapabilities();
     expect(capabilities?.extensions?.[EXTENSION_ID]).toEqual({ directoryRead: true });
+  });
+});
+
+describe("portability in _meta", () => {
+  test("each entry states where it can run, under our own namespace, from frontmatter", async () => {
+    const { client } = await connect();
+    const { skills } = await listSkills(client);
+    const stated = Object.fromEntries(skills.map((s) => [s.frontmatter.name, s._meta?.[PORTABILITY_META_KEY]]));
+    expect(stated).toEqual({ "bound-skill": "machine-bound", "git-workflow": "portable", "pdf-processing": "portable" });
+    for (const skill of skills) {
+      for (const key of Object.keys(skill._meta ?? {})) expect(key.startsWith("io.modelcontextprotocol")).toBe(false);
+    }
+    const { skill } = await getSkill(client, "skill://bound-skill/SKILL.md");
+    expect(skill._meta).toEqual({ [PORTABILITY_META_KEY]: "machine-bound" });
+  });
+
+  test("the portable tier serves only entries marked portable", async () => {
+    const { client } = await connect({ tier: "portable" });
+    const { skills } = await listSkills(client);
+    expect(skills.map((s) => s._meta?.[PORTABILITY_META_KEY])).toEqual(["portable", "portable"]);
   });
 });
 

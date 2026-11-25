@@ -13,7 +13,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import worker from "../worker/worker.ts";
-import { DirectoryReadResultSchema, EXTENSION_ID, SkillsGetResultSchema, SkillsListResultSchema } from "../core/types.ts";
+import {
+  DirectoryReadResultSchema,
+  EXTENSION_ID,
+  PORTABILITY_META_KEY,
+  SkillsGetResultSchema,
+  SkillsListResultSchema,
+} from "../core/types.ts";
 
 const FIXTURES = join(import.meta.dir, "fixtures");
 const TMP_PARENT = mkdtempSync(join(tmpdir(), "skill-server-modern-"));
@@ -100,6 +106,9 @@ describe("hosted HTTP, 2026-07-28", () => {
     const old = (await legacy("skills/list")).result;
     expect(modern.skills).toEqual(old.skills);
     expect(modern.skills.map((s: any) => s.frontmatter.name).sort()).toEqual(["git-workflow", "pdf-processing"]);
+    expect(modern.skills.map((s: any) => s._meta)).toEqual([
+      { [PORTABILITY_META_KEY]: "portable" }, { [PORTABILITY_META_KEY]: "portable" },
+    ]);
     expect(old).not.toHaveProperty("ttlMs");
     expect(old).not.toHaveProperty("cacheScope");
   });

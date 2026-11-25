@@ -22,7 +22,19 @@ export const SkillResourceSchema = z.object({
   size: z.number().int().nonnegative(),
 });
 
+/**
+ * This server's statement of where a skill can run, from frontmatter
+ * `metadata.portability`: `portable` needs nothing beyond its own files and
+ * can run in a cloud sandbox; `machine-bound` assumes the author's machine
+ * (local paths, installed tools, credentials) and is served only locally.
+ * Our own reverse-DNS prefix: `io.modelcontextprotocol.skills/` is reserved
+ * for keys the extension defines.
+ */
+export const PORTABILITY_META_KEY = "com.cloudcompute.skills/portability";
+export type Portability = "portable" | "machine-bound";
+
 export const SkillEntrySchema = z.object({
+  _meta: z.record(z.string(), z.unknown()).optional(),
   uri: z.string(),
   frontmatter: z.record(z.string(), z.unknown()).and(
     z.object({ name: z.string(), description: z.string() }),
