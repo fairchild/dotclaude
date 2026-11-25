@@ -28,7 +28,7 @@ try {
         const diagnostics: string[] = [];
         const store = new FsStore(required('root'), (message) => { console.error(`[skills] ${message}`); diagnostics.push(message); });
         if (values.strict && diagnostics.length > 0) throw new Error(`${diagnostics.length} scan diagnostic(s) with --strict; see stderr above`);
-        const handle = serveStdio(() => createSkillsServer(store, { name: 'skill-server', version }));
+        const handle = serveStdio(() => createSkillsServer(store, { name: 'skill-server', version }), { legacy: 'reject' });
         for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { void handle.close().then(() => process.exit(0)); });
         break;
       }

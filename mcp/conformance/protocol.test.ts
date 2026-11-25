@@ -1,8 +1,7 @@
 /**
- * Protocol revision 2026-07-28 next to 2025-era traffic: the hosted handler
- * routes each request by its `_meta` envelope claim, and stdio pins one era
- * per connection. Raw HTTP bytes for the hosted leg; the SDK client, pinned
- * to the new revision, for stdio.
+ * Protocol revision 2026-07-28 on every binding: raw HTTP bytes for the
+ * hosted handler, the SDK client for stdio and a live HTTP listener. Each
+ * binding refuses 2025-era traffic with the revision it does speak.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
@@ -20,11 +19,11 @@ import {
   SkillsGetResultSchema,
   SkillsListResultSchema,
 } from "../core/types.ts";
+import { envelope, MODERN, modernBody, modernHeaders } from "./wire.ts";
 
 const FIXTURES = join(import.meta.dir, "fixtures");
 const TMP_PARENT = mkdtempSync(join(tmpdir(), "skill-server-modern-"));
 const PUBLIC = join(TMP_PARENT, "dist", "public");
-const MODERN = "2026-07-28";
 
 const datapoints: Array<{ blobs?: string[] }> = [];
 const env = {
@@ -38,36 +37,16 @@ const env = {
   METRICS: { writeDataPoint: (point: { blobs?: string[] }) => void datapoints.push(point) },
 };
 
-const envelope = {
-  "io.modelcontextprotocol/protocolVersion": MODERN,
-  "io.modelcontextprotocol/clientInfo": { name: "modern-test", version: "0.0.0" },
-  "io.modelcontextprotocol/clientCapabilities": {},
-};
-
 let nextId = 100;
-async function send(method: string, params: Record<string, unknown> = {}, headers: Record<string, string> = {}, meta: object | null = envelope) {
+async function send(method: string, params: Record<string, unknown> = {}, headers: Record<string, string> = {}, meta: object | null = envelope("protocol-test")) {
   const id = ++nextId;
   const response = await worker.fetch(new Request("https://skills.example/mcp", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      "MCP-Protocol-Version": MODERN,
-      "Mcp-Method": method,
-      ...(typeof params.uri === "string" && method === "resources/read" ? { "Mcp-Name": params.uri } : {}),
-      ...headers,
-    },
-    body: JSON.stringify({ jsonrpc: "2.0", id, method, params: meta ? { ...params, _meta: meta } : params }),
+    headers: { ...modernHeaders(method, params), ...headers },
+    body: modernBody(id, method, params, meta),
   }), env);
   return { id, status: response.status, body: await response.json() as any };
 }
-
-const legacy = async (method: string, params: Record<string, unknown> = {}) =>
-  (await worker.fetch(new Request("https://skills.example/mcp", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-  }), env)).json() as Promise<any>;
 
 beforeAll(() => {
   const build = spawnSync("bun", [join(import.meta.dir, "..", "worker", "build.ts"), "--root", FIXTURES, "--out", join(TMP_PARENT, "dist")], { encoding: "utf-8" });
@@ -80,7 +59,7 @@ describe("hosted HTTP, 2026-07-28", () => {
   test("server/discover names the revision, the extension and the deployment", async () => {
     const { status, body } = await send("server/discover");
     expect(status).toBe(200);
-    expect(body.result.supportedVersions).toContain(MODERN);
+    expect(body.result.supportedVersions).toEqual([MODERN]);
     expect(body.result.capabilities.extensions[EXTENSION_ID]).toEqual({ directoryRead: true });
     expect(body.result._meta["io.modelcontextprotocol/serverInfo"].name).toBe("dotclaude-skills-hosted");
     expect(body.result).toMatchObject({ resultType: "complete", ttlMs: 300_000, cacheScope: "public" });
@@ -101,16 +80,12 @@ describe("hosted HTTP, 2026-07-28", () => {
     }
   });
 
-  test("the catalog matches what a 2025-era client sees, minus the cache fields", async () => {
-    const modern = (await send("skills/list")).body.result;
-    const old = (await legacy("skills/list")).result;
-    expect(modern.skills).toEqual(old.skills);
-    expect(modern.skills.map((s: any) => s.frontmatter.name).sort()).toEqual(["git-workflow", "pdf-processing"]);
-    expect(modern.skills.map((s: any) => s._meta)).toEqual([
+  test("the catalog is the portable tier, each entry marked portable", async () => {
+    const { skills } = (await send("skills/list")).body.result;
+    expect(skills.map((s: any) => s.frontmatter.name).sort()).toEqual(["git-workflow", "pdf-processing"]);
+    expect(skills.map((s: any) => s._meta)).toEqual([
       { [PORTABILITY_META_KEY]: "portable" }, { [PORTABILITY_META_KEY]: "portable" },
     ]);
-    expect(old).not.toHaveProperty("ttlMs");
-    expect(old).not.toHaveProperty("cacheScope");
   });
 
   test("envelope, header and method errors answer with the request id", async () => {
@@ -120,9 +95,9 @@ describe("hosted HTTP, 2026-07-28", () => {
     const noCapabilities = await send("skills/list", {}, {}, { "io.modelcontextprotocol/protocolVersion": MODERN });
     expect([noCapabilities.status, noCapabilities.body.error.code, noCapabilities.body.id]).toEqual([400, -32602, noCapabilities.id]);
 
-    const future = await send("skills/list", {}, { "MCP-Protocol-Version": "2099-01-01" }, { ...envelope, "io.modelcontextprotocol/protocolVersion": "2099-01-01" });
+    const future = await send("skills/list", {}, { "MCP-Protocol-Version": "2099-01-01" }, { ...envelope(), "io.modelcontextprotocol/protocolVersion": "2099-01-01" });
     expect([future.status, future.body.error.code]).toEqual([400, -32022]);
-    expect(future.body.error.data.supported).toContain(MODERN);
+    expect(future.body.error.data.supported).toEqual([MODERN]);
 
     const unknown = await send("skills/nope");
     expect([unknown.status, unknown.body.error.code, unknown.body.id]).toEqual([404, -32601, unknown.id]);
@@ -131,44 +106,51 @@ describe("hosted HTTP, 2026-07-28", () => {
     expect([missing.status, missing.body.error.code, missing.body.id]).toEqual([200, -32602, missing.id]);
   });
 
+  test("a 2026-07-28 header over a body without its envelope is invalid params", async () => {
+    const { id, status, body } = await send("skills/list", {}, {}, null);
+    expect([status, body.error.code, body.id]).toEqual([400, -32602, id]);
+  });
+
   test("rejections before dispatch echo a parseable id", async () => {
     const { status, body } = await send("skills/list", {}, { "Content-Type": "text/plain" });
     expect(status).toBe(415);
     expect(body.id).toBe(nextId);
   });
 
-  test("metrics record the method, skill and outcome of a modern request", async () => {
+  test("metrics record the method, skill and outcome of a request", async () => {
     datapoints.length = 0;
     await send("skills/get", { uri: "skill://git-workflow/SKILL.md" });
     expect(datapoints.at(-1)?.blobs?.slice(0, 3)).toEqual(["skills/get", "git-workflow", "ok"]);
+    await send("skills/list", {}, {}, null);
+    expect(datapoints.at(-1)?.blobs?.slice(0, 3)).toEqual(["skills/list", "", "error:-32602"]);
   });
 });
 
 describe("stdio, 2026-07-28", () => {
-  test("a pinned client gets the stdio cache fields; a default client still speaks 2025", async () => {
-    const spawn = () => new StdioClientTransport({ command: "bun", args: [join(import.meta.dir, "..", "stdio.ts"), "--root", FIXTURES] });
-    const modern = new Client({ name: "stdio-modern", version: "0.0.0" }, { versionNegotiation: { mode: { pin: MODERN } } });
-    await modern.connect(spawn());
+  const spawn = () => new StdioClientTransport({ command: "bun", args: [join(import.meta.dir, "..", "stdio.ts"), "--root", FIXTURES], stderr: "ignore" });
+
+  test("a pinned client gets the stdio cache fields", async () => {
+    const client = new Client({ name: "stdio-modern", version: "0.0.0" }, { versionNegotiation: { mode: { pin: MODERN } } });
+    await client.connect(spawn());
     try {
-      expect(modern.getNegotiatedProtocolVersion()).toBe(MODERN);
-      const list = await modern.request({ method: "skills/list", params: {} }, SkillsListResultSchema);
+      expect(client.getNegotiatedProtocolVersion()).toBe(MODERN);
+      const list = await client.request({ method: "skills/list", params: {} }, SkillsListResultSchema);
       expect(list).toMatchObject({ ttlMs: 0, cacheScope: "private" });
-      const get = await modern.request({ method: "skills/get", params: { uri: "skill://git-workflow/SKILL.md" } }, SkillsGetResultSchema);
+      const get = await client.request({ method: "skills/get", params: { uri: "skill://git-workflow/SKILL.md" } }, SkillsGetResultSchema);
       expect(get.skill.frontmatter.name).toBe("git-workflow");
-      const dir = await modern.request({ method: "resources/directory/read", params: { uri: "skill://pdf-processing" } }, DirectoryReadResultSchema);
+      const dir = await client.request({ method: "resources/directory/read", params: { uri: "skill://pdf-processing" } }, DirectoryReadResultSchema);
       expect(dir.ttlMs).toBe(0);
     } finally {
-      await modern.close();
+      await client.close();
     }
+  }, 20000);
 
-    const old = new Client({ name: "stdio-2025", version: "0.0.0" });
-    await old.connect(spawn());
+  test("a 2025-era client cannot connect", async () => {
+    const client = new Client({ name: "stdio-2025", version: "0.0.0" });
     try {
-      expect(old.getNegotiatedProtocolVersion()).not.toBe(MODERN);
-      const list = await old.request({ method: "skills/list", params: {} }, SkillsListResultSchema);
-      expect(list.ttlMs).toBeUndefined();
+      expect(await client.connect(spawn()).then(() => "connected", (error: Error) => error.message)).toContain("Unsupported protocol version");
     } finally {
-      await old.close();
+      await client.close();
     }
   }, 20000);
 });
@@ -184,6 +166,19 @@ describe("SDK client over HTTP", () => {
       expect(list).toMatchObject({ ttlMs: 300_000, cacheScope: "public" });
       const read = await client.readResource({ uri: "skill://git-workflow/SKILL.md" });
       expect((read.contents[0] as { text: string }).text).toContain("Git workflow");
+    } finally {
+      await client.close();
+      server.stop(true);
+    }
+  }, 15000);
+
+  test("a 2025-era client cannot connect over HTTP either", async () => {
+    const server = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: (request) => worker.fetch(request, env) });
+    const client = new Client({ name: "http-2025", version: "0.0.0" });
+    try {
+      const outcome = await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${server.port}/mcp`)))
+        .then(() => "connected", (error: Error) => error.message);
+      expect(outcome).not.toBe("connected");
     } finally {
       await client.close();
       server.stop(true);

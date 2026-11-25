@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { FsStore } from "../core/fs-store.ts";
 import { scanCatalog } from "../core/manifest.ts";
 import worker from "../worker/worker.ts";
+import { MODERN, modernBody, modernHeaders } from "./wire.ts";
 
 function fixture(run: (root: string) => void) {
   const root = mkdtempSync(join(tmpdir(), "skill-security-"));
@@ -121,14 +122,26 @@ describe("untrusted HTTP input", () => {
     expect(cancelled).toBe(true);
   });
   test("origin, version and media constraints are checked before dispatch", async () => {
-    const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" });
-    expect((await post(body, { Origin: "https://attacker.example" })).status).toBe(403);
-    expect((await post(body, { Origin: "null" })).status).toBe(403);
-    expect((await post(body, { "MCP-Protocol-Version": "bogus" })).status).toBe(400);
-    expect((await post(body, { "Content-Type": "text/plain" })).status).toBe(415);
-    expect((await post(body, { Accept: "text/plain" })).status).toBe(406);
-    expect((await post(body, { Origin: "https://example.org", "MCP-Protocol-Version": "2025-03-26" })).status).toBe(200);
-    expect((await post('{"jsonrpc":"2.0","method":"notifications/initialized"}')).status).toBe(202);
-    expect((await post('{"jsonrpc":"2.0","id":1,"result":{}}')).status).toBe(202);
+    const body = modernBody(1, "skills/list");
+    const modern = modernHeaders("skills/list");
+    expect((await post(body, { ...modern, Origin: "https://attacker.example" })).status).toBe(403);
+    expect((await post(body, { ...modern, Origin: "null" })).status).toBe(403);
+    expect((await post(body, { ...modern, "MCP-Protocol-Version": "bogus" })).status).toBe(400);
+    expect((await post(body, { ...modern, "Content-Type": "text/plain" })).status).toBe(415);
+    expect((await post(body, { ...modern, Accept: "text/plain" })).status).toBe(406);
+    expect((await post(body, { ...modern, Origin: "https://example.org" })).status).toBe(200);
+    expect((await post('{"jsonrpc":"2.0","id":1,"result":{}}', modern)).status).toBe(400);
+  });
+
+  test("2025-era requests are refused with the revision this server speaks", async () => {
+    const refused = async (body: object, headers: Record<string, string> = {}) => {
+      const response = await post(JSON.stringify(body), headers);
+      const reply = await response.json() as any;
+      return [response.status, reply.id, reply.error.code, reply.error.data.supported];
+    };
+    const initialize = { jsonrpc: "2.0", id: 7, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "old", version: "0" } } };
+    expect(await refused(initialize)).toEqual([400, 7, -32022, [MODERN]]);
+    expect(await refused({ jsonrpc: "2.0", id: 8, method: "skills/list", params: {} })).toEqual([400, 8, -32022, [MODERN]]);
+    expect(await refused({ jsonrpc: "2.0", id: 9, method: "skills/list", params: {} }, { "MCP-Protocol-Version": "2025-06-18" })).toEqual([400, 9, -32022, [MODERN]]);
   });
 });

@@ -41,7 +41,7 @@ if (!values.out || !values.root) {
 
 const serverArgs = [join(import.meta.dir, "stdio.ts"), "--root", values.root];
 
-const client = new Client({ name: "materialize", version: "0.1.0" }, { capabilities: {} });
+const client = new Client({ name: "materialize", version: "0.1.0" }, { capabilities: {}, versionNegotiation: { mode: { pin: "2026-07-28" } } });
 try {
   await client.connect(new StdioClientTransport({ command: "bun", args: serverArgs }));
 

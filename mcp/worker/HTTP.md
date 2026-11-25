@@ -56,7 +56,7 @@ the flow through a real Worker in Chromium and records video of each run.
 `/llms.txt` and `/index.md` expose the Markdown catalog. The homepage also
 negotiates Markdown, plain text, or a short JSON service description through Accept.
 `Accept: application/json` returns 200 with links to MCP, the manifest, agent
-instructions, and the extension specification; `/index.json` exposes it directly.
+instructions, the changelog, and the extension specification; `/index.json` exposes it directly.
 Directory Markdown contains
 the description, file links, and install instructions; raw SKILL.md remains a
 separate, byte-exact file. HTML alternate links and HTTP Link headers advertise
@@ -69,6 +69,7 @@ Markdown and the catalog so clients do not have to guess URLs.
 | `/`, `/index.html` | Catalog HTML, Markdown, plain text, service JSON |
 | `/index.json` | Short service JSON |
 | `/llms.txt`, `/index.md` | Markdown catalog, plain text |
+| `/changelog.md` | The package and service changelog, Markdown or plain text |
 | `/manifest.json` | Catalog JSON |
 | `/sitemap.xml` | Sitemap of the landing page and each skill's directory page (`application/xml`) |
 | `/library.css`, `/library.js` | Shared stylesheet and keyboard script |

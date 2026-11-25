@@ -122,37 +122,33 @@ The server now sits on the split SDK v2 packages (`@modelcontextprotocol/server`
 `client`, `core`, pinned at 2.4.0). `createSkillsServer` still returns an SDK
 `Server`; the three Skills methods register through the SDK's custom-method
 form with params schemas ([server.ts](../mcp/core/server.ts)). The SDK owns the
-base protocol for both revisions; this package keeps its own Skills handlers,
-store boundary and HTTP gates.
+base protocol; this package keeps its own Skills handlers, store boundary and
+HTTP gates. Only revision 2026-07-28 is served: the 2025 era, `initialize` and
+`OneShotTransport` among it, was removed (see the
+[changelog](../mcp/CHANGELOG.md)).
 
-HTTP is hybrid. `serve()` applies the origin, method, body-size and media-type
-gates to every request, then routes on the request's `_meta` envelope claim
-with the SDK's `isLegacyRequest`
+`serve()` applies the origin, method, body-size and media-type gates to every
+request, then hands it to the SDK
 ([handler.ts](../mcp/worker/handler.ts)):
 
 ```
 POST /mcp -> serve()  origin / POST / 64 KiB / Content-Type / Accept
-          -> isLegacyRequest(request, parsedBody)
-             modern -> createMcpHandler(factory, { legacy: 'reject', responseMode: 'json' })
-                       one per ASSETS binding; header and envelope validation,
-                       server/discover, -32020 / -32022 / 404 are the SDK's
-             legacy -> OneShotTransport, unchanged from the 2025 design
+          -> createMcpHandler(factory, { legacy: 'reject', responseMode: 'json' })
+             one per ASSETS binding and server name; header and envelope
+             validation, server/discover, -32020 / -32022 / 404 are the SDK's
           -> JSON response, metrics from the parsed body and the reply
 ```
 
-The legacy leg stays on `OneShotTransport` rather than the SDK's own legacy
-fallback because that fallback answers over SSE and requires both `Accept`
-types, which would change what every current client receives. The ten-second
-handler timeout wraps both legs.
+`legacy: 'reject'` answers a 2025-era request with `-32022` and the supported
+revision list rather than serving it. A ten-second timeout wraps the handler.
 
-Stdio uses `serveStdio(factory)`, which reads the connection's opening message
-and pins one server instance to that era for the connection's life
+Stdio uses `serveStdio(factory, { legacy: 'reject' })`, which refuses a
+2025-era opening message the same way
 ([stdio.ts](../mcp/stdio.ts), [cli.ts](../mcp/cli.ts)).
 
-Cache fields are era-aware inside the handlers: a request that carries the
-2026 envelope (`ctx.mcpReq.envelope`) gets `ttlMs`/`cacheScope` on its
-`skills/*` and `resources/directory/read` results, and the SDK's `cacheHints`
-option covers `resources/list`, `resources/read` and `server/discover`. The
+Every `skills/*` and `resources/directory/read` result carries
+`ttlMs`/`cacheScope`, and the SDK's `cacheHints` option covers
+`resources/list`, `resources/read` and `server/discover`. The
 HTTP binding passes `300000`/`public` for its immutable snapshot; stdio keeps
 the spec default `0`/`private`.
 

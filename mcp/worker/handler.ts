@@ -1,12 +1,4 @@
-import { JSONRPCMessageSchema } from "@modelcontextprotocol/core";
-import {
-  createMcpHandler,
-  isLegacyRequest,
-  type CacheHint,
-  type JSONRPCMessage,
-  type McpHttpHandler,
-  type Transport,
-} from "@modelcontextprotocol/server";
+import { createMcpHandler, type CacheHint, type McpHttpHandler } from "@modelcontextprotocol/server";
 
 import { createSkillsServer } from "../core/server.ts";
 import { SnapshotStore, type StoredSkill } from "../core/store.ts";
@@ -25,25 +17,6 @@ export interface Env {
 /** A snapshot is immutable per deployment, so any client may reuse a result for five minutes. */
 export const SNAPSHOT_CACHE: Required<CacheHint> = { ttlMs: 300_000, cacheScope: "public" };
 
-
-class OneShotTransport implements Transport {
-  onmessage?: (message: JSONRPCMessage) => void;
-  onclose?: () => void;
-  onerror?: (error: Error) => void;
-  private resolveResponse!: (message: JSONRPCMessage) => void;
-  readonly response: Promise<JSONRPCMessage>;
-
-  constructor() {
-    this.response = new Promise((resolve) => (this.resolveResponse = resolve));
-  }
-  async start(): Promise<void> {}
-  async send(message: JSONRPCMessage): Promise<void> {
-    this.resolveResponse(message);
-  }
-  async close(): Promise<void> {
-    this.onclose?.();
-  }
-}
 
 const manifests = new WeakMap<Env["ASSETS"], { skills: StoredSkill[] }>();
 
@@ -64,21 +37,20 @@ async function loadStore(env: Env): Promise<SnapshotStore> {
 
 const MAX_BODY_BYTES = 64 * 1024;
 
-/**
- * 2026-07-28 traffic (a per-request `_meta` envelope) goes to the SDK's strict
- * modern handler, one per assets binding. 2025-era traffic never reaches it:
- * the one-shot path below keeps answering it exactly as before.
- */
-const modernHandlers = new WeakMap<Env["ASSETS"], McpHttpHandler>();
+/** One SDK handler per assets binding and announced name; it serves 2026-07-28 and rejects anything older. */
+const handlers = new WeakMap<Env["ASSETS"], Map<string, McpHttpHandler>>();
 
-function modernHandler(env: Env): McpHttpHandler {
-  let handler = modernHandlers.get(env.ASSETS);
+function handlerFor(env: Env): McpHttpHandler {
+  const name = env.SERVER_NAME ?? "skill-server";
+  let byName = handlers.get(env.ASSETS);
+  if (!byName) handlers.set(env.ASSETS, (byName = new Map()));
+  let handler = byName.get(name);
   if (!handler) {
     handler = createMcpHandler(
-      async () => createSkillsServer(await loadStore(env), { name: env.SERVER_NAME ?? "skill-server", cache: SNAPSHOT_CACHE }),
+      async () => createSkillsServer(await loadStore(env), { name, cache: SNAPSHOT_CACHE }),
       { legacy: "reject", responseMode: "json", maxRequestBodySize: MAX_BODY_BYTES },
     );
-    modernHandlers.set(env.ASSETS, handler);
+    byName.set(name, handler);
   }
   return handler;
 }
@@ -186,44 +158,20 @@ export async function serve(request: Request, env: Env): Promise<Served> {
   const uri = (parsed as { params?: { uri?: unknown } } | null)?.params?.uri;
   const skill = typeof uri === "string" ? (parseSkillUri(uri)?.[0] ?? "") : "";
 
-  if (!(await isLegacyRequest(request, parsed))) {
-    try {
-      const answer = await withTimeout(modernHandler(env).fetch(request, { parsedBody: parsed }));
-      const text = await answer.text();
-      let reply: unknown = null;
-      try { reply = text ? JSON.parse(text) : null; } catch {}
-      return {
-        response: new Response(text || null, { status: answer.status, headers: answer.headers }),
-        method,
-        skill,
-        outcome: answer.status === 202 ? "notification" : reply ? outcomeOf(reply) : `http:${answer.status}`,
-        responseBytes: new TextEncoder().encode(text).byteLength,
-      };
-    } catch {
-      return reject(500, "Request handler failed", -32603);
-    }
-  }
-
-  const validated = JSONRPCMessageSchema.safeParse(parsed);
-  if (!validated.success) return reject(400, "Invalid JSON-RPC message");
-  const message = validated.data;
-
-  const store = await loadStore(env);
-  const server = createSkillsServer(store, { name: env.SERVER_NAME ?? "skill-server" });
-  const transport = new OneShotTransport();
-  await server.connect(transport);
   try {
-    transport.onmessage?.(message);
-    if (!("method" in message) || !("id" in message)) {
-      return { response: new Response(null, { status: 202 }), method, skill, outcome: "notification", responseBytes: 0 };
-    }
-    const reply = await withTimeout(transport.response);
-    const { response, bytes } = json(reply);
-    return { response, method, skill, outcome: outcomeOf(reply), responseBytes: bytes };
+    const answer = await withTimeout(handlerFor(env).fetch(request, { parsedBody: parsed }));
+    const text = await answer.text();
+    let reply: unknown = null;
+    try { reply = text ? JSON.parse(text) : null; } catch {}
+    return {
+      response: new Response(text || null, { status: answer.status, headers: answer.headers }),
+      method,
+      skill,
+      outcome: answer.status === 202 ? "notification" : reply ? outcomeOf(reply) : `http:${answer.status}`,
+      responseBytes: new TextEncoder().encode(text).byteLength,
+    };
   } catch {
     return reject(500, "Request handler failed", -32603);
-  } finally {
-    await server.close();
   }
 }
 

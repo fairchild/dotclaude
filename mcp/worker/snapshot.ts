@@ -53,6 +53,7 @@ try {
   cpSync(join(templateDir, "library.css"), join(publicDir, "library.css"));
   cpSync(join(templateDir, "library.js"), join(publicDir, "library.js"));
   cpSync(join(templateDir, "fonts"), join(publicDir, "fonts"), { recursive: true });
+  cpSync(join(templateDir, "..", "CHANGELOG.md"), join(publicDir, "changelog.md"));
 
   const portable = catalog.skills.filter((s) => s.tier === "portable");
   const excluded = catalog.skills.filter((s) => s.tier !== "portable");
@@ -145,7 +146,8 @@ ${portable.map(({ entry }) => `- [${entry.frontmatter.name}](/skill/${encodeURIC
 ## Other access
 
 - [Catalog manifest](/manifest.json): file sizes, SHA-256 digests, and package downloads.
-- MCP clients can connect to POST /mcp. Ordinary HTTP downloads require no MCP setup.
+- MCP clients on protocol revision 2026-07-28 can connect to POST /mcp. Ordinary HTTP downloads require no MCP setup.
+- [Changelog](/changelog.md): what changed in this service and package, newest first.
 `;
   writeFileSync(join(publicDir, "llms.txt"), catalogMarkdown);
   writeFileSync(join(publicDir, "index.json"), JSON.stringify({
@@ -153,6 +155,7 @@ ${portable.map(({ entry }) => `- [${entry.frontmatter.name}](/skill/${encodeURIC
     mcp: "/mcp",
     manifest: "/manifest.json",
     instructions: "/llms.txt",
+    changelog: "/changelog.md",
     specification: "https://github.com/modelcontextprotocol/ext-skills/blob/main/specification/beta/skills.mdx",
   }, null, 2));
 

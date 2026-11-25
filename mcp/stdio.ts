@@ -28,6 +28,6 @@ const { values } = parseArgs({
 const store = new FsStore(values.root!, (message) => console.error(`[skills] ${message}`));
 serveStdio(() => createSkillsServer(store, {
   tier: values["portable-only"] ? "portable" : undefined,
-}));
+}), { legacy: "reject" });
 
 console.error(`[skills] serving ${values.root} over stdio`);

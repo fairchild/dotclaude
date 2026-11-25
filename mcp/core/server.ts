@@ -10,7 +10,7 @@
  * Handlers speak only to a SkillStore, so the same server serves a live
  * filesystem over stdio and a prebuilt snapshot from a Worker.
  */
-import { ProtocolError, ProtocolErrorCode, Server, type CacheHint, type ServerContext } from "@modelcontextprotocol/server";
+import { ProtocolError, ProtocolErrorCode, Server, type CacheHint } from "@modelcontextprotocol/server";
 
 import type { SkillStore, StoredSkill } from "./store.ts";
 import { version } from "../version.ts";
@@ -85,8 +85,6 @@ function decodeCursor(cursor: string | undefined): number {
 export function createSkillsServer(store: SkillStore, options: SkillsServerOptions = {}): Server {
   const pageSize = options.pageSize ?? 50;
   const cache = options.cache ?? NO_CACHE;
-  /** Cache fields belong to the 2026-07-28 wire; a 2025-era reply stays as it was. */
-  const cacheable = (ctx: ServerContext) => (ctx.mcpReq.envelope ? cache : {});
 
   const served = (): StoredSkill[] =>
     options.tier ? store.skills().filter((s) => s.tier === options.tier) : store.skills();
@@ -116,15 +114,15 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
     },
   );
 
-  server.setRequestHandler("skills/list", { params: SkillsListParamsSchema }, (params, ctx) => {
+  server.setRequestHandler("skills/list", { params: SkillsListParamsSchema }, (params) => {
     const skills = served();
     const start = decodeCursor(params?.cursor);
     const page = skills.slice(start, start + pageSize).map((s) => s.entry);
     const next = start + pageSize < skills.length ? encodeCursor(start + pageSize) : undefined;
-    return { resultType: "complete", skills: page, ...(next ? { nextCursor: next } : {}), ...cacheable(ctx) };
+    return { resultType: "complete", skills: page, ...(next ? { nextCursor: next } : {}), ...cache };
   });
 
-  server.setRequestHandler("skills/get", { params: SkillsGetParamsSchema }, (params, ctx) => {
+  server.setRequestHandler("skills/get", { params: SkillsGetParamsSchema }, (params) => {
     const { skill, rel } = resolve(params.uri);
     if (rel !== "SKILL.md") {
       throw new ProtocolError(ProtocolErrorCode.InvalidParams, `not a skill's SKILL.md: ${clip(params.uri)}`);
@@ -135,7 +133,7 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
     if ("error" in fresh) {
       throw new ProtocolError(ProtocolErrorCode.InvalidParams, `skill no longer serveable: ${fresh.error}`);
     }
-    return { resultType: "complete", skill: fresh, ...cacheable(ctx) };
+    return { resultType: "complete", skill: fresh, ...cache };
   });
 
   server.setRequestHandler("resources/list", (request) => {
@@ -177,7 +175,7 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
     };
   });
 
-  server.setRequestHandler("resources/directory/read", { params: DirectoryReadParamsSchema }, (params, ctx) => {
+  server.setRequestHandler("resources/directory/read", { params: DirectoryReadParamsSchema }, (params) => {
     const { skill, rel } = resolve(params.uri);
     const skillName = String(skill.entry.frontmatter.name);
     // The manifest, not a live readdir, is the served view: directory reads
@@ -212,7 +210,7 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
     const start = decodeCursor(params.cursor);
     const page = sorted.slice(start, start + pageSize * 4);
     const next = start + page.length < sorted.length ? encodeCursor(start + page.length) : undefined;
-    return { resultType: "complete", resources: page, ...(next ? { nextCursor: next } : {}), ...cacheable(ctx) };
+    return { resultType: "complete", resources: page, ...(next ? { nextCursor: next } : {}), ...cache };
   });
 
   return server;

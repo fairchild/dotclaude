@@ -45,12 +45,12 @@ export const SkillEntrySchema = z.object({
 export type SkillResource = z.infer<typeof SkillResourceSchema>;
 export type SkillEntry = z.infer<typeof SkillEntrySchema>;
 
-/** Fields every 2026-07-28 result may carry; absent on 2025-era replies. */
+/** Fields every 2026-07-28 result carries; the SDK client drops `resultType` when it decodes. */
 const ResultFields = {
   _meta: z.record(z.string(), z.unknown()).optional(),
   resultType: z.literal("complete").optional(),
-  ttlMs: z.number().int().nonnegative().optional(),
-  cacheScope: z.enum(["public", "private"]).optional(),
+  ttlMs: z.number().int().nonnegative(),
+  cacheScope: z.enum(["public", "private"]),
 };
 
 export const SkillsListParamsSchema = z.object({ cursor: z.string().optional() }).optional();

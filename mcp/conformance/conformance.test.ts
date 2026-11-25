@@ -1,10 +1,10 @@
 /**
- * SEP-2640 conformance suite, run over a real client/server pair on the
- * in-memory transport. Each test states the spec requirement it checks.
+ * SEP-2640 conformance suite, run over a real client/server pair: the SDK
+ * client speaks 2026-07-28 to the SDK HTTP handler in-process, no socket. Each test states the spec requirement it checks.
  */
 import { describe, expect, test } from "bun:test";
-import { Client } from "@modelcontextprotocol/client";
-import { InMemoryTransport } from "@modelcontextprotocol/server";
+import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import { createMcpHandler } from "@modelcontextprotocol/server";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -26,11 +26,12 @@ const FIXTURES = join(import.meta.dir, "fixtures");
 async function connect(options: SkillsServerOptions = {}) {
   const diagnostics: string[] = [];
   const store = new FsStore(FIXTURES, (m) => diagnostics.push(m));
-  const server = createSkillsServer(store, options);
-  const client = new Client({ name: "conformance", version: "0.0.0" }, { capabilities: {} });
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
-  return { client, server, diagnostics };
+  const handler = createMcpHandler(() => createSkillsServer(store, options), { legacy: "reject", responseMode: "json" });
+  const client = new Client({ name: "conformance", version: "0.0.0" }, { capabilities: {}, versionNegotiation: { mode: { pin: "2026-07-28" } } });
+  await client.connect(new StreamableHTTPClientTransport(new URL("http://conformance.local/mcp"), {
+    fetch: (url, init) => handler.fetch(new Request(String(url), init)),
+  }));
+  return { client, diagnostics };
 }
 
 const listSkills = (client: Client, cursor?: string) =>
@@ -43,7 +44,7 @@ const readDirectory = (client: Client, uri: string) =>
   client.request({ method: "resources/directory/read", params: { uri } }, DirectoryReadResultSchema);
 
 describe("capability declaration", () => {
-  test("initialize declares the extension with directoryRead", async () => {
+  test("server/discover declares the extension with directoryRead", async () => {
     const { client } = await connect();
     const capabilities = client.getServerCapabilities();
     expect(capabilities?.extensions?.[EXTENSION_ID]).toEqual({ directoryRead: true });

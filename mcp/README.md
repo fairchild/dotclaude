@@ -17,10 +17,10 @@ checkout also includes the Cloudflare adapter for skills.cloudcompute.com.
 
 The hosted binding is live at `https://skills.cloudcompute.com/mcp`
 (portable tier, public). It is a Cloudflare Worker serving a build-time snapshot
-of the portable tier over stateless Streamable HTTP, to clients on protocol
-revision 2026-07-28 and to 2025-era clients alike (see
-[Protocol revisions](#protocol-revisions)). Claude Code or any MCP host
-connects to either the hosted binding or the local stdio binding:
+of the portable tier over stateless Streamable HTTP. Both bindings speak MCP
+protocol revision 2026-07-28 only (see [Protocol revision](#protocol-revision)).
+Claude Code or any MCP host on that revision connects to either the hosted
+binding or the local stdio binding:
 
 ```json
 {
@@ -282,33 +282,35 @@ See the [architecture walkthrough](../docs/skill-server-architecture.md) for
 how the store boundary, transports, and build pipeline fit together, and
 [SECURITY.md](../SECURITY.md) to report a vulnerability.
 
-### Protocol revisions
+### Protocol revision
 
-One endpoint serves two protocol eras. A request whose `params._meta`
-carries `io.modelcontextprotocol/protocolVersion` is a 2026-07-28 request;
-anything else is 2025-era (`initialize`, `2025-11-25` and earlier).
+The server implements MCP revision 2026-07-28 and nothing earlier. There is no
+`initialize` and no session: `server/discover` reports the supported revision
+and capabilities, and every request carries its own `params._meta` envelope
+(`io.modelcontextprotocol/protocolVersion`, `clientInfo`,
+`clientCapabilities`).
 
-- **2026-07-28.** No `initialize` and no session: `server/discover` reports
-  the supported revision and capabilities, and every request carries its own
-  envelope. Over HTTP the SDK's modern handler answers. It requires the
-  `MCP-Protocol-Version` and `Mcp-Method` headers to match the body (plus
-  `Mcp-Name` on `resources/read`): a missing or mismatched header is `400`
-  with `-32020`, a malformed envelope `400` with `-32602`, an unsupported
-  revision `400` with `-32022`, and an unknown method `404` with `-32601`.
-  Every result carries `resultType: "complete"`, the server's identity in
-  `_meta["io.modelcontextprotocol/serverInfo"]`, and the cache fields below.
-- **2025-era.** Answered as before the 2026 revision existed: one JSON-RPC
-  message per POST through a fresh server on a one-shot transport, no cache
-  fields, and `Accept: application/json` alone is enough.
+Over HTTP, the server's own gates run first: an `Origin` outside the
+allow-list is `403`, a non-POST is `405`, a body over 64 KiB is `413`, a
+non-JSON `Content-Type` is `415`, and an `Accept` without `application/json`
+is `406`. These rejections echo the request's JSON-RPC `id` when the body
+parses. The SDK's `createMcpHandler` answers the rest. It requires the
+`MCP-Protocol-Version` and `Mcp-Method` headers to match the body (plus
+`Mcp-Name` on `resources/read`): a missing or mismatched header is `400`
+with `-32020`, a malformed envelope `400` with `-32602`, and an unknown
+method `404` with `-32601`. Every result carries `resultType: "complete"`,
+the server's identity in `_meta["io.modelcontextprotocol/serverInfo"]`, and
+the cache fields below.
 
-Both eras pass the same gates first: an `Origin` outside the allow-list is
-`403`, a non-POST is `405`, a body over 64 KiB is `413`, a non-JSON
-`Content-Type` is `415`, and an `Accept` without `application/json` is `406`.
-These rejections echo the request's JSON-RPC `id` when the body parses.
-Over stdio, the SDK's `serveStdio` pins one era per connection from its
-opening message, so a 2025 client's `initialize` still works.
+A 2025-era request (`initialize`, or any request without the envelope claim)
+gets `400` with `-32022` and `error.data.supported: ["2026-07-28"]`, so a
+client learns which revision to speak. Over stdio, `serveStdio` refuses a
+2025-era opening message the same way. Clients built on the TypeScript SDK v2
+reach the server with `versionNegotiation: { mode: "auto" }` or
+`{ mode: { pin: "2026-07-28" } }`; the SDK's default `legacy` mode cannot.
+[CHANGELOG.md](CHANGELOG.md) records when the 2025 era was removed.
 
-Cache fields (`ttlMs`, `cacheScope`, SEP-2549) on 2026-07-28 results:
+Cache fields (`ttlMs`, `cacheScope`, SEP-2549) on every cacheable result:
 
 | Binding | `ttlMs` | `cacheScope` | Why |
 | --- | --- | --- | --- |
@@ -319,12 +321,12 @@ Cache fields (`ttlMs`, `cacheScope`, SEP-2549) on 2026-07-28 results:
 
 | Method | Capability flag | Transports | Pagination | Per-skill limits | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `skills/list` | `io.modelcontextprotocol/skills` (required) | stdio, stateless HTTP | Cursor (base64url index), 50/page; an entry is never split across a page | 512 resources, 16 MiB total | `resultType: "complete"`; cache fields on 2026-07-28; portability in each entry's `_meta` |
-| `skills/get` | `io.modelcontextprotocol/skills` (required) | stdio, stateless HTTP | None | Same | stdio rescans the one skill on every call; the HTTP snapshot's refresh is identity (a deploy is the refresh point); `-32602` for an unknown URI; cache fields on 2026-07-28 |
-| `resources/directory/read` | `directoryRead: true` (optional) | stdio, stateless HTTP | Cursor, 200 children/page | Manifest-derived only, no live `readdir` | `-32602` for an unknown or non-directory URI; cache fields on 2026-07-28 |
+| `skills/list` | `io.modelcontextprotocol/skills` (required) | stdio, stateless HTTP | Cursor (base64url index), 50/page; an entry is never split across a page | 512 resources, 16 MiB total | `resultType: "complete"`; cache fields; portability in each entry's `_meta` |
+| `skills/get` | `io.modelcontextprotocol/skills` (required) | stdio, stateless HTTP | None | Same | stdio rescans the one skill on every call; the HTTP snapshot's refresh is identity (a deploy is the refresh point); `-32602` for an unknown URI; cache fields |
+| `resources/directory/read` | `directoryRead: true` (optional) | stdio, stateless HTTP | Cursor, 200 children/page | Manifest-derived only, no live `readdir` | `-32602` for an unknown or non-directory URI; cache fields |
 | `resources/list` | base `resources` capability | stdio, stateless HTTP | Cursor, 200 entries/page | Same per-skill limits | Flattened across every served skill; a `SKILL.md` is named for its skill |
 | `resources/read` | base `resources` capability | stdio, stateless HTTP | None | 16 MiB per skill (scan time) | Text/blob split by extension; `-32602` for an unknown resource (requested URI in `error.data.uri`) or a directory read attempted here |
-| `server/discover` | none (2026-07-28 only) | stdio, stateless HTTP | None | None | Answered by the SDK from the declared capabilities |
+| `server/discover` | none | stdio, stateless HTTP | None | None | Answered by the SDK from the declared capabilities |
 
 Every method over the stateless HTTP binding shares one 64 KiB cap on the
 streamed POST body; oversized requests receive 413 before dispatch.
@@ -352,14 +354,15 @@ suite's fixture tools and resources (`test_*` tools, `test://` resources,
 resources-only skills server does not serve.
 
 **MCPJam.** Against the same local snapshot, the
-[MCPJam CLI](https://www.npmjs.com/package/@mcpjam/cli) 6.4.4 negotiates
-2026-07-28, `server doctor` reports `ready`, and `skills get` verifies all 46
-skills against their manifests. Its OpenAI readiness profile
-(`readiness check openai --submission-mode mcp-imported-skills`) grades the
-whole catalog as one submission: it accepts the extension declaration and the
-paginated listing, and reports the importer's caps (at most 5 skills, at most
-10 supporting files per skill) as unmet for this 46-skill corpus. Those caps
-describe what one ChatGPT plugin may import, not the protocol.
+[MCPJam CLI](https://www.npmjs.com/package/@mcpjam/cli) 6.4.4 connects over
+2026-07-28 and `skills get` fetches all 46 skills. Two of its checks still
+send 2025-era requests and get `-32022`. The first is the `initialize` probe in
+`server doctor`, so the report reads `partial` even though its connection step
+succeeds. The second is the `skills/list` call in the OpenAI readiness profile
+(`readiness check openai --submission-mode mcp-imported-skills`), so that
+profile reports the listing as unanswered. Before the 2025 era was removed,
+the profile accepted the listing. Its only other findings were the importer's
+caps: at most 5 skills, and at most 10 supporting files per skill.
 
 ### Source layout
 
@@ -369,14 +372,14 @@ describe what one ChatGPT plugin may import, not the protocol.
 - `core/server.ts` — the SDK server: the three methods plus
   `resources/list`/`resources/read`, pagination, `-32602` semantics, and the
   2026-07-28 cache fields.
-- `worker/handler.ts` — the HTTP binding: shared gates, then the SDK's
-  modern handler for 2026-07-28 requests and the one-shot path for 2025-era
-  ones.
+- `worker/handler.ts` — the HTTP binding: the server's own gates, then the
+  SDK's `createMcpHandler`, which serves 2026-07-28 and refuses anything older.
 - `stdio.ts` — local binding over the live skills directory; see [Run](#run).
 - `conformance/` — the suite doubles as an executable reading of the SEP:
   entry completeness, digest/frontmatter identity, pagination atomicity,
-  directory semantics, error codes, end-to-end stdio, both protocol eras
-  (`modern.test.ts`), and the beta JSON Schema (`schema.test.ts`).
+  directory semantics, error codes, end-to-end stdio, the 2026-07-28 wire
+  and the refusal of 2025-era clients (`protocol.test.ts`), and the beta
+  JSON Schema (`schema.test.ts`).
 
 ## Usage metrics
 
