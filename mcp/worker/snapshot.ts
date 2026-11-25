@@ -153,7 +153,7 @@ ${portable.map(({ entry }) => `- [${entry.frontmatter.name}](/skill/${encodeURIC
     mcp: "/mcp",
     manifest: "/manifest.json",
     instructions: "/llms.txt",
-    specification: "https://github.com/modelcontextprotocol/ext-skills",
+    specification: "https://github.com/modelcontextprotocol/ext-skills/blob/main/specification/beta/skills.mdx",
   }, null, 2));
 
   const rows = portable
@@ -238,7 +238,7 @@ export function libraryIntro(count: number): { title: string; lead: Copy; body: 
     lead: [`A library of ${count} agent ${count === 1 ? "skill" : "skills"}: folders of instructions and supporting files that teach an AI agent a specific task.`],
     body: [
       "Read each skill here, then install it by pasting a prompt into your agent or by downloading a verified archive. ",
-      "MCP (Model Context Protocol) clients can also connect and load skills through the experimental ",
+      "MCP (Model Context Protocol) clients can also connect and load skills through the ",
       { text: "Skills over MCP extension", href: "https://github.com/modelcontextprotocol/ext-skills" }, ".",
     ],
   };

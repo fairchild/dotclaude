@@ -7,11 +7,16 @@ user-facing contract lives in [mcp/README.md](../mcp/README.md), the HTTP surfac
 in [worker/HTTP.md](../mcp/worker/HTTP.md), and the publication gates in the
 [release plan](skill-server-release-plan.md).
 
-The package implements the experimental
+The package implements the
 [Skills over MCP extension](https://github.com/modelcontextprotocol/ext-skills)
 (SEP-2640): a skill is a directory holding a `SKILL.md`, and the extension
 publishes it as a complete manifest — verbatim frontmatter plus `{uri, digest,
 size}` for every file — that a host verifies later reads against.
+
+The sections below describe the 2025-era design at `5ea05d4f`.
+[Protocol 2026-07-28](#protocol-2026-07-28) describes what changed when the
+server moved to SDK v2 and the new protocol revision; its links are relative,
+so they follow the current code.
 
 ## The store boundary
 
@@ -110,6 +115,51 @@ PostHog event that creates no person profile
 every HTTPS response, `/mcp` included
 ([worker.ts](https://github.com/fairchild/dotclaude/blob/5ea05d4f5e34a6dd0636d882c20c4091c048b3f3/mcp/worker/worker.ts#L69)). Telemetry emission lives only in this
 file; the reusable package has none.
+
+## Protocol 2026-07-28
+
+The server now sits on the split SDK v2 packages (`@modelcontextprotocol/server`,
+`client`, `core`, pinned at 2.4.0). `createSkillsServer` still returns an SDK
+`Server`; the three Skills methods register through the SDK's custom-method
+form with params schemas ([server.ts](../mcp/core/server.ts)). The SDK owns the
+base protocol for both revisions; this package keeps its own Skills handlers,
+store boundary and HTTP gates.
+
+HTTP is hybrid. `serve()` applies the origin, method, body-size and media-type
+gates to every request, then routes on the request's `_meta` envelope claim
+with the SDK's `isLegacyRequest`
+([handler.ts](../mcp/worker/handler.ts)):
+
+```
+POST /mcp -> serve()  origin / POST / 64 KiB / Content-Type / Accept
+          -> isLegacyRequest(request, parsedBody)
+             modern -> createMcpHandler(factory, { legacy: 'reject', responseMode: 'json' })
+                       one per ASSETS binding; header and envelope validation,
+                       server/discover, -32020 / -32022 / 404 are the SDK's
+             legacy -> OneShotTransport, unchanged from the 2025 design
+          -> JSON response, metrics from the parsed body and the reply
+```
+
+The legacy leg stays on `OneShotTransport` rather than the SDK's own legacy
+fallback because that fallback answers over SSE and requires both `Accept`
+types, which would change what every current client receives. The ten-second
+handler timeout wraps both legs.
+
+Stdio uses `serveStdio(factory)`, which reads the connection's opening message
+and pins one server instance to that era for the connection's life
+([stdio.ts](../mcp/stdio.ts), [cli.ts](../mcp/cli.ts)).
+
+Cache fields are era-aware inside the handlers: a request that carries the
+2026 envelope (`ctx.mcpReq.envelope`) gets `ttlMs`/`cacheScope` on its
+`skills/*` and `resources/directory/read` results, and the SDK's `cacheHints`
+option covers `resources/list`, `resources/read` and `server/discover`. The
+HTTP binding passes `300000`/`public` for its immutable snapshot; stdio keeps
+the spec default `0`/`private`.
+
+Portability travels with each entry: `scanSkill` stamps
+`_meta["com.cloudcompute.skills/portability"]` from frontmatter
+`metadata.portability` ([manifest.ts](../mcp/core/manifest.ts)), so the value in
+a snapshot manifest, a pinned archive manifest and a live listing is the same.
 
 ## Building a snapshot
 

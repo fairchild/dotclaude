@@ -85,7 +85,7 @@ describe("worker binding", () => {
     expect(body).toEqual({
       description: "dotclaude skills over MCP and HTTP",
       mcp: "/mcp", manifest: "/manifest.json", instructions: "/llms.txt",
-      specification: "https://github.com/modelcontextprotocol/ext-skills",
+      specification: "https://github.com/modelcontextprotocol/ext-skills/blob/main/specification/beta/skills.mdx",
     });
     expect((await get(body.manifest)).status).toBe(200);
     expect((await get(body.instructions, "text/markdown")).status).toBe(200);

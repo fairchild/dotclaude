@@ -31,7 +31,7 @@
     "node": ">=22.14.0"
   },
   "version": "0.1.0-rc.1",
-  "description": "Independent implementation of the experimental Skills over MCP extension",
+  "description": "Independent implementation of the Skills over MCP extension",
   "license": "Apache-2.0",
   "bin": {
     "skill-server": "dist/cli.js"
