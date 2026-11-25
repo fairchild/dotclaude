@@ -6,9 +6,11 @@
 # the verdict as one comment it keeps current. It never merges, approves, or removes the label: a
 # later push cannot clear a raise, only the owner can.
 #
-# The script and rubric run from the base commit, so a pull request cannot rewrite its own judge.
-# The diff is read through the API as data. Pull requests from forks get no secrets and a read-only
-# token, so they are skipped; a fork's PR is the owner's to merge regardless.
+# The trigger is `pull_request_target`, so GitHub reads this workflow from the base branch and a
+# pull request cannot rewrite its own judge; the script and rubric are checked out from the base
+# commit too. No pull request code runs: only its diff, read through the API, reaches a model. The
+# title and body never do. Pull requests from forks are skipped; a fork's PR is the owner's to merge
+# regardless.
 #
 # Jev decides; a cheap Claude model answers the same questions beside it as a benchmark, and every
 # model's answers land in the `consequential-verdict` artifact and the job summary. A Jev/benchmark
@@ -20,7 +22,7 @@
 name: Consequential check
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
@@ -54,11 +56,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
-          BODY: ${{ github.event.pull_request.body }}
         run: |
           # The API refuses very large diffs; an empty file routes the PR to the owner.
           gh pr diff "$PR" --repo "$GITHUB_REPOSITORY" > "$RUNNER_TEMP/pr.diff" || : > "$RUNNER_TEMP/pr.diff"
-          printf '%s' "$BODY" > "$RUNNER_TEMP/body.md"
 
       # `shell: bash` adds pipefail, so a crash in the script fails this step instead of hiding
       # behind `tee`. The steps after it run on failure and treat a missing verdict as a raise.
@@ -66,7 +66,6 @@ jobs:
         id: route
         shell: bash
         env:
-          TITLE: ${{ github.event.pull_request.title }}
           HEAD: ${{ github.event.pull_request.head.sha }}
           TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
           JEV_MODEL: ${{ vars.JEV_MODEL }}
@@ -74,9 +73,7 @@ jobs:
         run: |
           uv run --script .github/consequential/consequential.py \
             --rubric .github/consequential/rubric.md \
-            --title "$TITLE" \
             --head "$HEAD" \
-            --body-file "$RUNNER_TEMP/body.md" \
             --diff-file "$RUNNER_TEMP/pr.diff" \
             --comment-file "$RUNNER_TEMP/comment.md" \
             --summary-file "$GITHUB_STEP_SUMMARY" | tee "$RUNNER_TEMP/verdict.json"
@@ -113,7 +110,7 @@ jobs:
               "$marker" "${HEAD:0:12}" > "$RUNNER_TEMP/comment.md"
           fi
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
-            --jq "map(select(.body | startswith(\"$marker\"))) | .[0].id // empty" | head -n1)
+            --jq "map(select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\")))) | .[0].id // empty" | head -n1)
           if [ -n "$id" ]; then
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@"$RUNNER_TEMP/comment.md" > /dev/null
           else
