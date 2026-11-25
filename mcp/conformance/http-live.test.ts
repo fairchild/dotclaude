@@ -11,6 +11,26 @@ const get = (path: string, accept = "*/*", method = "GET", headers: Record<strin
   fetch(`${origin}${path}`, { method, headers: { Accept: accept, ...headers }, redirect: "manual" });
 
 describe.skipIf(!origin)("local Worker HTTP integration", () => {
+  test("the Worker runtime answers both protocol eras from one endpoint", async () => {
+    const mcp = (body: object, headers: Record<string, string> = {}) => fetch(`${origin}/mcp`, {
+      method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json", ...headers }, body: JSON.stringify(body),
+    }).then(async response => ({ status: response.status, body: await response.json() as any }));
+    const envelope = {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": { name: "http-live", version: "0.0.0" },
+      "io.modelcontextprotocol/clientCapabilities": {},
+    };
+    const modern = await mcp(
+      { jsonrpc: "2.0", id: 1, method: "skills/list", params: { _meta: envelope } },
+      { "MCP-Protocol-Version": "2026-07-28", "Mcp-Method": "skills/list" },
+    );
+    expect(modern.status).toBe(200);
+    expect(modern.body.result).toMatchObject({ resultType: "complete", ttlMs: 300_000, cacheScope: "public" });
+    const legacy = await mcp({ jsonrpc: "2.0", id: 2, method: "skills/list" });
+    expect(legacy.body.result.skills).toEqual(modern.body.result.skills);
+    expect(legacy.body.result).not.toHaveProperty("ttlMs");
+  });
+
   test("an agent can discover, read, follow files, and verify an installation from only the homepage", async () => {
     const home = await get("/", "text/markdown");
     expect(home.status).toBe(200);

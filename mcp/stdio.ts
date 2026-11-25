@@ -10,7 +10,7 @@
  *
  * Usage: bun stdio.ts [--root <dir>] [--portable-only]
  */
-import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -26,9 +26,8 @@ const { values } = parseArgs({
 });
 
 const store = new FsStore(values.root!, (message) => console.error(`[skills] ${message}`));
-const server = createSkillsServer(store, {
+serveStdio(() => createSkillsServer(store, {
   tier: values["portable-only"] ? "portable" : undefined,
-});
+}));
 
-await server.connect(new StdioServerTransport());
 console.error(`[skills] serving ${values.root} over stdio`);
