@@ -24,7 +24,7 @@ html_handling = "none"
 # No key means no emission — the worker no-ops it.
 [vars]
 POSTHOG_HOST = "https://us.i.posthog.com"
-# This deployment names itself in `initialize`; without the binding a server
+# This deployment names itself in `server/discover`; without the binding a server
 # announces the package name, `skill-server`.
 SERVER_NAME = "dotclaude-skills-hosted"
 

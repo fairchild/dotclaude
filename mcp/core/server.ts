@@ -119,7 +119,7 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
     const start = decodeCursor(params?.cursor);
     const page = skills.slice(start, start + pageSize).map((s) => s.entry);
     const next = start + pageSize < skills.length ? encodeCursor(start + pageSize) : undefined;
-    return { resultType: "complete", skills: page, ...(next ? { nextCursor: next } : {}), ...cache };
+    return { skills: page, ...(next ? { nextCursor: next } : {}), ...cache };
   });
 
   server.setRequestHandler("skills/get", { params: SkillsGetParamsSchema }, (params) => {
@@ -133,7 +133,7 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
     if ("error" in fresh) {
       throw new ProtocolError(ProtocolErrorCode.InvalidParams, `skill no longer serveable: ${fresh.error}`);
     }
-    return { resultType: "complete", skill: fresh, ...cache };
+    return { skill: fresh, ...cache };
   });
 
   server.setRequestHandler("resources/list", (request) => {
@@ -210,7 +210,7 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
     const start = decodeCursor(params.cursor);
     const page = sorted.slice(start, start + pageSize * 4);
     const next = start + page.length < sorted.length ? encodeCursor(start + page.length) : undefined;
-    return { resultType: "complete", resources: page, ...(next ? { nextCursor: next } : {}), ...cache };
+    return { resources: page, ...(next ? { nextCursor: next } : {}), ...cache };
   });
 
   return server;

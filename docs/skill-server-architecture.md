@@ -87,10 +87,9 @@ server-sent-event stream: a notification (no `id`) answers 202 with no body
 within ten seconds loses a race against a timeout
 ([handler.ts](https://github.com/fairchild/dotclaude/blob/5ea05d4f5e34a6dd0636d882c20c4091c048b3f3/mcp/worker/handler.ts#L143)).
 
-Issue #277 is open and proposes replacing `OneShotTransport` with the SDK's
-`WebStandardStreamableHTTPServerTransport`, keeping the byte bound in front of it.
-That is a simplification, not a defect report; this document describes only the
-current code.
+Issue #277 proposed replacing `OneShotTransport` with an SDK transport, keeping
+the byte bound in front of it; the move to protocol 2026-07-28 below did that
+with `createMcpHandler`.
 
 Two hosts wrap the same handler. `startServer` backs the CLI's `serve`: it reads
 the snapshot's `public/` directory, checks that `manifest.json` parses before
@@ -118,8 +117,8 @@ file; the reusable package has none.
 
 ## Protocol 2026-07-28
 
-The server now sits on the split SDK v2 packages (`@modelcontextprotocol/server`,
-`client`, `core`, pinned at 2.4.0). `createSkillsServer` still returns an SDK
+The server now sits on the split SDK v2 packages (`@modelcontextprotocol/server`
+and `client`, pinned at 2.4.0). `createSkillsServer` still returns an SDK
 `Server`; the three Skills methods register through the SDK's custom-method
 form with params schemas ([server.ts](../mcp/core/server.ts)). The SDK owns the
 base protocol; this package keeps its own Skills handlers, store boundary and

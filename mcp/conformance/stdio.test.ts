@@ -1,6 +1,6 @@
 /**
  * End-to-end smoke over the real stdio binding: spawn the server as a
- * subprocess, initialize, and exercise each method through the actual
+ * subprocess, discover, and exercise each method through the actual
  * transport rather than the in-memory pair.
  */
 import { describe, expect, test } from "bun:test";

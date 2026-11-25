@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/client": "2.4.0",
-    "@modelcontextprotocol/core": "2.4.0",
     "@modelcontextprotocol/server": "2.4.0",
     "markdown-it": "^15.0.1",
     "tar": "^7.5.22",

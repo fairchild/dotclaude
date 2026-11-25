@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import worker from "../worker/worker.ts";
+import { modernRequest } from "./wire.ts";
 
 const SCHEMA_FILE = join(import.meta.dir, "schema", "ext-skills-beta.schema.json");
 const SCHEMA = JSON.parse(readFileSync(SCHEMA_FILE, "utf-8"));
@@ -35,27 +36,7 @@ function check(definition: string, value: unknown) {
 
 let id = 0;
 async function send(method: string, params: Record<string, unknown> = {}) {
-  const response = await worker.fetch(new Request("https://skills.example/mcp", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      "MCP-Protocol-Version": "2026-07-28",
-      "Mcp-Method": method,
-      ...(method === "resources/read" ? { "Mcp-Name": String(params.uri) } : {}),
-    },
-    body: JSON.stringify({
-      jsonrpc: "2.0", id: ++id, method,
-      params: {
-        ...params,
-        _meta: {
-          "io.modelcontextprotocol/protocolVersion": "2026-07-28",
-          "io.modelcontextprotocol/clientInfo": { name: "schema-test", version: "0.0.0" },
-          "io.modelcontextprotocol/clientCapabilities": {},
-        },
-      },
-    }),
-  }), env);
+  const response = await worker.fetch(modernRequest("https://skills.example/mcp", ++id, method, params), env);
   return response.json();
 }
 

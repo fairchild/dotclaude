@@ -6,7 +6,6 @@ import { parseSkillUri } from "../core/types.ts";
 import { serveHttp } from "./http.ts";
 import { negotiate } from "./accept.ts";
 
-
 export interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> };
   ALLOWED_ORIGINS?: string;
@@ -15,8 +14,7 @@ export interface Env {
 }
 
 /** A snapshot is immutable per deployment, so any client may reuse a result for five minutes. */
-export const SNAPSHOT_CACHE: Required<CacheHint> = { ttlMs: 300_000, cacheScope: "public" };
-
+const SNAPSHOT_CACHE: Required<CacheHint> = { ttlMs: 300_000, cacheScope: "public" };
 
 const manifests = new WeakMap<Env["ASSETS"], { skills: StoredSkill[] }>();
 

@@ -24,7 +24,7 @@ earlier.
   with `versionNegotiation: { mode: "auto" }` or
   `{ mode: { pin: "2026-07-28" } }`.
 - The base protocol layer moved to the split SDK v2 packages
-  (`@modelcontextprotocol/server`, `client` and `core`, pinned at 2.4.0). The
+  (`@modelcontextprotocol/server` and `client`, pinned at 2.4.0). The
   Skills handlers, store boundary and HTTP gates are still this package's own.
 - HTTP requests must carry the `MCP-Protocol-Version` and `Mcp-Method` headers,
   plus `Mcp-Name` on `resources/read`. A missing or mismatched header gets `400`
