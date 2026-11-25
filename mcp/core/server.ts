@@ -10,22 +10,16 @@
  * Handlers speak only to a SkillStore, so the same server serves a live
  * filesystem over stdio and a prebuilt snapshot from a Worker.
  */
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import {
-  ErrorCode,
-  ListResourcesRequestSchema,
-  McpError,
-  ReadResourceRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+import { ProtocolError, ProtocolErrorCode, Server, type CacheHint } from "@modelcontextprotocol/server";
 
 import type { SkillStore, StoredSkill } from "./store.ts";
 import { version } from "../version.ts";
 import {
   DIRECTORY_MIME,
-  DirectoryReadRequestSchema,
+  DirectoryReadParamsSchema,
   EXTENSION_ID,
-  SkillsGetRequestSchema,
-  SkillsListRequestSchema,
+  SkillsGetParamsSchema,
+  SkillsListParamsSchema,
   parseSkillUri,
   skillUri,
 } from "./types.ts";
@@ -36,7 +30,15 @@ export interface SkillsServerOptions {
   /** Serve only this tier; omit to serve every stored skill. */
   tier?: "portable";
   pageSize?: number;
+  /**
+   * `ttlMs`/`cacheScope` on 2026-07-28 results (SEP-2549). Defaults to the
+   * spec's conservative `0`/`private`; an immutable snapshot can say more.
+   * `skills/get` is the refresh path and always answers `0`/`private`.
+   */
+  cache?: Required<CacheHint>;
 }
+
+const NO_CACHE: Required<CacheHint> = { ttlMs: 0, cacheScope: "private" };
 
 const TEXT_EXTENSIONS = new Set([
   "md", "txt", "py", "ts", "tsx", "js", "mjs", "sh", "bash", "zsh",
@@ -61,6 +63,11 @@ function clip(input: string): string {
   return input.length > 200 ? `${input.slice(0, 200)}…[${input.length} chars]` : input;
 }
 
+/** SEP-2164: a missing resource is -32602 with the requested URI in `data`. */
+function notFound(uri: string): ProtocolError {
+  return new ProtocolError(ProtocolErrorCode.InvalidParams, `unknown resource: ${clip(uri)}`, { uri: clip(uri) });
+}
+
 function encodeCursor(index: number): string {
   return Buffer.from(String(index)).toString("base64url");
 }
@@ -71,13 +78,14 @@ function decodeCursor(cursor: string | undefined): number {
   // Round-trip, don't just range-check: junk like "!!!" decodes to "" and
   // Number("") is 0, which would silently restart pagination at page 0.
   if (!Number.isInteger(index) || index < 0 || encodeCursor(index) !== cursor) {
-    throw new McpError(ErrorCode.InvalidParams, `invalid cursor: ${clip(cursor)}`);
+    throw new ProtocolError(ProtocolErrorCode.InvalidParams, `invalid cursor: ${clip(cursor)}`);
   }
   return index;
 }
 
 export function createSkillsServer(store: SkillStore, options: SkillsServerOptions = {}): Server {
   const pageSize = options.pageSize ?? 50;
+  const cache = options.cache ?? NO_CACHE;
 
   const served = (): StoredSkill[] =>
     options.tier ? store.skills().filter((s) => s.tier === options.tier) : store.skills();
@@ -87,11 +95,11 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
     const segments = parseSkillUri(uri);
     const skill = segments && served().find((s) => s.entry.frontmatter.name === segments[0]);
     if (!segments || !skill) {
-      throw new McpError(ErrorCode.InvalidParams, `unknown resource: ${clip(uri)}`);
+      throw notFound(uri);
     }
     const rel = segments.slice(1).join("/");
     if (rel.split("/").includes("..")) {
-      throw new McpError(ErrorCode.InvalidParams, `invalid path in: ${clip(uri)}`);
+      throw new ProtocolError(ProtocolErrorCode.InvalidParams, `invalid path in: ${clip(uri)}`);
     }
     return { skill, rel };
   };
@@ -103,36 +111,38 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
         resources: {},
         extensions: { [EXTENSION_ID]: { directoryRead: true } },
       },
+      cacheHints: { "resources/list": cache, "resources/read": cache, "server/discover": cache },
     },
   );
 
-  server.setRequestHandler(SkillsListRequestSchema, (request) => {
+  server.setRequestHandler("skills/list", { params: SkillsListParamsSchema }, (params) => {
     const skills = served();
-    const start = decodeCursor(request.params?.cursor);
+    const start = decodeCursor(params?.cursor);
     const page = skills.slice(start, start + pageSize).map((s) => s.entry);
     const next = start + pageSize < skills.length ? encodeCursor(start + pageSize) : undefined;
-    return { resultType: "complete", skills: page, ...(next ? { nextCursor: next } : {}) };
+    return { skills: page, ...(next ? { nextCursor: next } : {}), ...cache };
   });
 
-  server.setRequestHandler(SkillsGetRequestSchema, (request) => {
-    const { skill, rel } = resolve(request.params.uri);
+  server.setRequestHandler("skills/get", { params: SkillsGetParamsSchema }, (params) => {
+    const { skill, rel } = resolve(params.uri);
     if (rel !== "SKILL.md") {
-      throw new McpError(ErrorCode.InvalidParams, `not a skill's SKILL.md: ${clip(request.params.uri)}`);
+      throw new ProtocolError(ProtocolErrorCode.InvalidParams, `not a skill's SKILL.md: ${clip(params.uri)}`);
     }
     // A get is a point-in-time snapshot and the refresh path after a digest
     // mismatch; a live store rescans, a snapshot store answers as built.
     const fresh = store.refresh(String(skill.entry.frontmatter.name));
     if ("error" in fresh) {
-      throw new McpError(ErrorCode.InvalidParams, `skill no longer serveable: ${fresh.error}`);
+      throw new ProtocolError(ProtocolErrorCode.InvalidParams, `skill no longer serveable: ${fresh.error}`);
     }
-    return { resultType: "complete", skill: fresh };
+    return { skill: fresh, ...NO_CACHE };
   });
 
-  server.setRequestHandler(ListResourcesRequestSchema, (request) => {
+  server.setRequestHandler("resources/list", (request) => {
     const all = served().flatMap((s) =>
       (s.entry.resources === "dynamic" ? [] : s.entry.resources).map((r) => ({
         uri: r.uri,
-        name: r.uri.split("/").pop()!,
+        // A skill's SKILL.md is named for the skill (SEP-2640), every other file for itself.
+        name: r.uri === s.entry.uri ? String(s.entry.frontmatter.name) : r.uri.split("/").pop()!,
         mimeType: mimeFor(r.uri),
         ...(r.uri === s.entry.uri ? { description: String(s.entry.frontmatter.description) } : {}),
       })),
@@ -143,21 +153,19 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
     return { resources: page, ...(next ? { nextCursor: next } : {}) };
   });
 
-  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  server.setRequestHandler("resources/read", async (request) => {
     const { skill, rel } = resolve(request.params.uri);
     const name = String(skill.entry.frontmatter.name);
     const manifest = skill.entry.resources === "dynamic" ? null : skill.entry.resources;
     if (manifest && !manifest.some((r) => r.uri === request.params.uri)) {
-      const isDirectory = manifest.some((r) => r.uri.startsWith(`${request.params.uri}/`));
-      throw new McpError(
-        ErrorCode.InvalidParams,
-        isDirectory
-          ? `directory, not a file: ${clip(request.params.uri)} (use resources/directory/read)`
-          : `unknown resource: ${clip(request.params.uri)}`,
+      if (!manifest.some((r) => r.uri.startsWith(`${request.params.uri}/`))) throw notFound(request.params.uri);
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        `directory, not a file: ${clip(request.params.uri)} (use resources/directory/read)`,
       );
     }
     const bytes = await store.read(name, rel);
-    if (!bytes) throw new McpError(ErrorCode.InvalidParams, `unknown resource: ${clip(request.params.uri)}`);
+    if (!bytes) throw notFound(request.params.uri);
     const buffer = Buffer.from(bytes);
     return {
       contents: [
@@ -168,8 +176,8 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
     };
   });
 
-  server.setRequestHandler(DirectoryReadRequestSchema, (request) => {
-    const { skill, rel } = resolve(request.params.uri);
+  server.setRequestHandler("resources/directory/read", { params: DirectoryReadParamsSchema }, (params) => {
+    const { skill, rel } = resolve(params.uri);
     const skillName = String(skill.entry.frontmatter.name);
     // The manifest, not a live readdir, is the served view: directory reads
     // must never advertise a child the entry does not list.
@@ -181,7 +189,7 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
       const filePath = resource.uri.slice(skillUri(skillName).length + 1);
       if (rel && !filePath.startsWith(prefix)) {
         if (filePath === rel) {
-          throw new McpError(ErrorCode.InvalidParams, `file, not a directory: ${clip(request.params.uri)}`);
+          throw new ProtocolError(ProtocolErrorCode.InvalidParams, `file, not a directory: ${clip(params.uri)}`);
         }
         continue;
       }
@@ -197,13 +205,13 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
       );
     }
     if (!isDir) {
-      throw new McpError(ErrorCode.InvalidParams, `unknown directory: ${clip(request.params.uri)}`);
+      throw notFound(params.uri);
     }
     const sorted = [...children.values()].sort((a, b) => a.name.localeCompare(b.name));
-    const start = decodeCursor(request.params.cursor);
+    const start = decodeCursor(params.cursor);
     const page = sorted.slice(start, start + pageSize * 4);
     const next = start + page.length < sorted.length ? encodeCursor(start + page.length) : undefined;
-    return { resultType: "complete", resources: page, ...(next ? { nextCursor: next } : {}) };
+    return { resources: page, ...(next ? { nextCursor: next } : {}), ...cache };
   });
 
   return server;

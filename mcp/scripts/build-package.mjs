@@ -14,5 +14,6 @@ const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 writeFileSync(join(root, 'dist/version.js'), `export const version = ${JSON.stringify(version)};\n`);
 rmSync(join(root, 'dist/package.json'), { force: true });
 copyFileSync(join(root, '../LICENSE'), join(root, 'LICENSE'));
+copyFileSync(join(root, 'CHANGELOG.md'), join(root, 'dist/CHANGELOG.md'));
 chmodSync(join(root, 'dist/cli.js'), 0o755);
 console.log(`Built skill-server ${version}`);

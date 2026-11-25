@@ -22,7 +22,19 @@ export const SkillResourceSchema = z.object({
   size: z.number().int().nonnegative(),
 });
 
+/**
+ * This server's statement of where a skill can run, from frontmatter
+ * `metadata.portability`: `portable` needs nothing beyond its own files and
+ * can run in a cloud sandbox; `machine-bound` assumes the author's machine
+ * (local paths, installed tools, credentials) and is served only locally.
+ * Our own reverse-DNS prefix: `io.modelcontextprotocol.skills/` is reserved
+ * for keys the extension defines.
+ */
+export const PORTABILITY_META_KEY = "com.cloudcompute.skills/portability";
+export type Portability = "portable" | "machine-bound";
+
 export const SkillEntrySchema = z.object({
+  _meta: z.record(z.string(), z.unknown()).optional(),
   uri: z.string(),
   frontmatter: z.record(z.string(), z.unknown()).and(
     z.object({ name: z.string(), description: z.string() }),
@@ -33,34 +45,33 @@ export const SkillEntrySchema = z.object({
 export type SkillResource = z.infer<typeof SkillResourceSchema>;
 export type SkillEntry = z.infer<typeof SkillEntrySchema>;
 
-export const SkillsListRequestSchema = z.object({
-  method: z.literal("skills/list"),
-  params: z.object({ cursor: z.string().optional() }).optional(),
-});
+/** Fields every 2026-07-28 result carries; the SDK client drops `resultType` when it decodes. */
+const ResultFields = {
+  _meta: z.record(z.string(), z.unknown()).optional(),
+  resultType: z.literal("complete").optional(),
+  ttlMs: z.number().int().nonnegative(),
+  cacheScope: z.enum(["public", "private"]),
+};
+
+export const SkillsListParamsSchema = z.object({ cursor: z.string().optional() }).optional();
 
 export const SkillsListResultSchema = z.object({
-  resultType: z.literal("complete").optional(),
+  ...ResultFields,
   skills: z.array(SkillEntrySchema),
   nextCursor: z.string().optional(),
 });
 
-export const SkillsGetRequestSchema = z.object({
-  method: z.literal("skills/get"),
-  params: z.object({ uri: z.string() }),
-});
+export const SkillsGetParamsSchema = z.object({ uri: z.string() });
 
 export const SkillsGetResultSchema = z.object({
-  resultType: z.literal("complete").optional(),
+  ...ResultFields,
   skill: SkillEntrySchema,
 });
 
-export const DirectoryReadRequestSchema = z.object({
-  method: z.literal("resources/directory/read"),
-  params: z.object({ uri: z.string(), cursor: z.string().optional() }),
-});
+export const DirectoryReadParamsSchema = z.object({ uri: z.string(), cursor: z.string().optional() });
 
 export const DirectoryReadResultSchema = z.object({
-  resultType: z.literal("complete").optional(),
+  ...ResultFields,
   resources: z.array(
     z.object({
       uri: z.string(),

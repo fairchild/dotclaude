@@ -89,6 +89,11 @@ export async function serveHttp(request: Request, assets: Assets, skills: () => 
       { asset: "/llms.txt", contentType: "text/markdown; charset=utf-8" },
       { asset: "/llms.txt", contentType: "text/plain; charset=utf-8" },
     ];
+  } else if (path === "/changelog.md") {
+    candidates = [
+      { asset: "/changelog.md", contentType: "text/markdown; charset=utf-8" },
+      { asset: "/changelog.md", contentType: "text/plain; charset=utf-8" },
+    ];
   } else if (/^\/fonts\/[a-z0-9-]+\.woff2$/.test(path)) {
     candidates = [{ asset: path, contentType: "font/woff2" }];
   } else if (path === "/version.json" || path === "/index.json" || path === "/manifest.json" || path === "/library.css" || path === "/library.js" || path === "/sitemap.xml") {

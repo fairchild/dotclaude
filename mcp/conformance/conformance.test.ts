@@ -1,10 +1,10 @@
 /**
- * SEP-2640 conformance suite, run over a real client/server pair on the
- * in-memory transport. Each test states the spec requirement it checks.
+ * SEP-2640 conformance suite, run over a real client/server pair: the SDK
+ * client speaks 2026-07-28 to the SDK HTTP handler in-process, no socket. Each test states the spec requirement it checks.
  */
 import { describe, expect, test } from "bun:test";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import { createMcpHandler } from "@modelcontextprotocol/server";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -15,6 +15,7 @@ import {
   DIRECTORY_MIME,
   DirectoryReadResultSchema,
   EXTENSION_ID,
+  PORTABILITY_META_KEY,
   SkillsGetResultSchema,
   SkillsListResultSchema,
   type SkillEntry,
@@ -25,11 +26,12 @@ const FIXTURES = join(import.meta.dir, "fixtures");
 async function connect(options: SkillsServerOptions = {}) {
   const diagnostics: string[] = [];
   const store = new FsStore(FIXTURES, (m) => diagnostics.push(m));
-  const server = createSkillsServer(store, options);
-  const client = new Client({ name: "conformance", version: "0.0.0" }, { capabilities: {} });
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
-  return { client, server, diagnostics };
+  const handler = createMcpHandler(() => createSkillsServer(store, options), { legacy: "reject", responseMode: "json" });
+  const client = new Client({ name: "conformance", version: "0.0.0" }, { capabilities: {}, versionNegotiation: { mode: { pin: "2026-07-28" } } });
+  await client.connect(new StreamableHTTPClientTransport(new URL("http://conformance.local/mcp"), {
+    fetch: (url, init) => handler.fetch(new Request(String(url), init)),
+  }));
+  return { client, diagnostics };
 }
 
 const listSkills = (client: Client, cursor?: string) =>
@@ -42,10 +44,30 @@ const readDirectory = (client: Client, uri: string) =>
   client.request({ method: "resources/directory/read", params: { uri } }, DirectoryReadResultSchema);
 
 describe("capability declaration", () => {
-  test("initialize declares the extension with directoryRead", async () => {
+  test("server/discover declares the extension with directoryRead", async () => {
     const { client } = await connect();
     const capabilities = client.getServerCapabilities();
     expect(capabilities?.extensions?.[EXTENSION_ID]).toEqual({ directoryRead: true });
+  });
+});
+
+describe("portability in _meta", () => {
+  test("each entry states where it can run, under our own namespace, from frontmatter", async () => {
+    const { client } = await connect();
+    const { skills } = await listSkills(client);
+    const stated = Object.fromEntries(skills.map((s) => [s.frontmatter.name, s._meta?.[PORTABILITY_META_KEY]]));
+    expect(stated).toEqual({ "bound-skill": "machine-bound", "git-workflow": "portable", "pdf-processing": "portable" });
+    for (const skill of skills) {
+      for (const key of Object.keys(skill._meta ?? {})) expect(key.startsWith("io.modelcontextprotocol")).toBe(false);
+    }
+    const { skill } = await getSkill(client, "skill://bound-skill/SKILL.md");
+    expect(skill._meta).toEqual({ [PORTABILITY_META_KEY]: "machine-bound" });
+  });
+
+  test("the portable tier serves only entries marked portable", async () => {
+    const { client } = await connect({ tier: "portable" });
+    const { skills } = await listSkills(client);
+    expect(skills.map((s) => s._meta?.[PORTABILITY_META_KEY])).toEqual(["portable", "portable"]);
   });
 });
 

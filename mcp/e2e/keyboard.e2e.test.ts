@@ -176,7 +176,6 @@ test("the walk: / to a skill's file and back to /, with only the arrows, Tab, En
   await expect(matches(page).nth(at)).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/skills\/git-worktree\/$/);
-  await expect(page.locator("#install-hint")).toContainText("Esc goes up to the library");
 
   // Across the skill page with Tab to its files, along them with the arrows.
   await expect(copyButton(page)).toBeFocused();
@@ -190,7 +189,6 @@ test("the walk: / to a skill's file and back to /, with only the arrows, Tab, En
   await expect(page).toHaveURL(new RegExp(`/view/git-worktree/${file.replace(".", "\\.")}$`));
   await expect(page.locator("h1")).toHaveText(file);
   await expect(page.locator("article.file pre")).toBeVisible();
-  await expect(page.locator("p.hint")).toContainText("Esc goes up to git-worktree");
 
   // Up a level at a time, landing each time on the item just left.
   await page.keyboard.press("Escape");
@@ -267,7 +265,6 @@ test.describe("without JavaScript", () => {
     await page.goto("/skills/git-worktree/");
     await fileLinks(page).nth(1).click();
     await expect(page).toHaveURL(/\/view\/git-worktree\//);
-    await expect(page.locator("p.hint")).toBeHidden();
     await page.getByRole("link", { name: "git-worktree", exact: true }).first().click();
     await expect(page).toHaveURL(/\/skills\/git-worktree\/$/);
   });

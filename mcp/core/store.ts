@@ -4,11 +4,11 @@
  * serves a prebuilt snapshot where refresh is identity. Handlers never touch
  * the filesystem directly.
  */
-import type { SkillEntry } from "./types.ts";
+import type { Portability, SkillEntry } from "./types.ts";
 
 export interface StoredSkill {
   entry: SkillEntry;
-  tier: "portable" | "machine-bound";
+  tier: Portability;
 }
 
 export interface SkillStore {

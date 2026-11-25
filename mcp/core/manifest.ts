@@ -21,6 +21,8 @@ import { checkedPath, readSkillFile } from "./files.ts";
 import {
   MAX_RESOURCES_PER_SKILL,
   MAX_TOTAL_BYTES_PER_SKILL,
+  PORTABILITY_META_KEY,
+  type Portability,
   type SkillEntry,
   skillUri,
 } from "./types.ts";
@@ -32,7 +34,7 @@ const EXCLUDED_FILES = new Set([".DS_Store"]);
 export interface ScannedSkill {
   entry: SkillEntry;
   dir: string;
-  tier: "portable" | "machine-bound";
+  tier: Portability;
 }
 
 export interface ScanDiagnostic {
@@ -125,10 +127,16 @@ export function scanSkill(dir: string, name = basename(dir)): ScannedSkill | Sca
     });
 
     const metadata = (frontmatter.metadata ?? {}) as Record<string, unknown>;
+    const tier = metadata.portability === "machine-bound" ? "machine-bound" : "portable";
     return {
       dir,
-      tier: metadata.portability === "machine-bound" ? "machine-bound" : "portable",
-      entry: { uri: skillUri(name, "SKILL.md"), frontmatter: frontmatter as SkillEntry["frontmatter"], resources },
+      tier,
+      entry: {
+        uri: skillUri(name, "SKILL.md"),
+        frontmatter: frontmatter as SkillEntry["frontmatter"],
+        resources,
+        _meta: { [PORTABILITY_META_KEY]: tier },
+      },
     };
   } catch (error) {
     return { skill: name, reason: error instanceof Error ? error.message : "cannot scan skill" };

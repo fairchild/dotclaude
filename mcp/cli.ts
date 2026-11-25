@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { createSkillsServer } from './index.ts';
 import { FsStore } from './fs.ts';
 import { buildSnapshot } from './http.ts';
@@ -28,9 +28,8 @@ try {
         const diagnostics: string[] = [];
         const store = new FsStore(required('root'), (message) => { console.error(`[skills] ${message}`); diagnostics.push(message); });
         if (values.strict && diagnostics.length > 0) throw new Error(`${diagnostics.length} scan diagnostic(s) with --strict; see stderr above`);
-        const server = createSkillsServer(store, { name: 'skill-server', version });
-        await server.connect(new StdioServerTransport());
-        for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { void server.close().then(() => process.exit(0)); });
+        const handle = serveStdio(() => createSkillsServer(store, { name: 'skill-server', version }), { legacy: 'reject' });
+        for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { void handle.close().then(() => process.exit(0)); });
         break;
       }
       case 'build': buildSnapshot({ root: required('root'), out: required('out'), baseUrl: required('base-url'), sourceSha: process.env.GITHUB_SHA, strict: values.strict }); break;

@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { StoredSkill } from "../core/store.ts";
+import { MODERN, modernRequest } from "./wire.ts";
 
 const origin = process.env.SKILLS_HTTP_ORIGIN;
 const publicDir = process.env.SKILLS_SNAPSHOT_DIR ?? join(import.meta.dir, "../worker/dist/public");
@@ -11,6 +12,19 @@ const get = (path: string, accept = "*/*", method = "GET", headers: Record<strin
   fetch(`${origin}${path}`, { method, headers: { Accept: accept, ...headers }, redirect: "manual" });
 
 describe.skipIf(!origin)("local Worker HTTP integration", () => {
+  test("the Worker runtime serves 2026-07-28 and refuses 2025-era requests", async () => {
+    const modern = await fetch(modernRequest(`${origin}/mcp`, 1, "skills/list"));
+    expect(modern.status).toBe(200);
+    expect((await modern.json() as any).result).toMatchObject({ resultType: "complete", ttlMs: 300_000, cacheScope: "public" });
+    const old = await fetch(`${origin}/mcp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "skills/list", params: {} }),
+    });
+    const refused = await old.json() as any;
+    expect([old.status, refused.id, refused.error.code, refused.error.data.supported]).toEqual([400, 2, -32022, [MODERN]]);
+  });
+
   test("an agent can discover, read, follow files, and verify an installation from only the homepage", async () => {
     const home = await get("/", "text/markdown");
     expect(home.status).toBe(200);
@@ -99,7 +113,7 @@ describe.skipIf(!origin)("local Worker HTTP integration", () => {
     expect(landing.headers.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
     await landing.arrayBuffer();
     expect((await get("/mcp")).status).toBe(405);
-    const rpc = await fetch(`${origin}/mcp`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "skills/list", params: {} }) });
+    const rpc = await fetch(modernRequest(`${origin}/mcp`, 1, "skills/list"));
     expect(rpc.status).toBe(200);
     // RFC 6797: the deployment sends HSTS over HTTPS only, so a local http origin sees none.
     const hsts = origin!.startsWith("https:") ? "max-age=31536000" : null;
@@ -107,20 +121,13 @@ describe.skipIf(!origin)("local Worker HTTP integration", () => {
     expect((await rpc.json() as any).result.skills.length).toBeGreaterThan(0);
   });
 
-  test("initialize announces the deployment identity from the real wrangler.toml binding", async () => {
-    const response = await fetch(`${origin}/mcp`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
-      body: JSON.stringify({
-        jsonrpc: "2.0", id: 1, method: "initialize",
-        params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "http-live-conformance", version: "0.0.0" } },
-      }),
-    });
+  test("server/discover announces the deployment identity from the real wrangler.toml binding", async () => {
+    const response = await fetch(modernRequest(`${origin}/mcp`, 1, "server/discover"));
     expect(response.status).toBe(200);
-    const { result } = await response.json() as any;
-    expect(result.serverInfo.name).toBe("dotclaude-skills-hosted");
-    expect(typeof result.serverInfo.version).toBe("string");
-    expect(result.serverInfo.version.length).toBeGreaterThan(0);
+    const serverInfo = (await response.json() as any).result._meta["io.modelcontextprotocol/serverInfo"];
+    expect(serverInfo.name).toBe("dotclaude-skills-hosted");
+    expect(typeof serverInfo.version).toBe("string");
+    expect(serverInfo.version.length).toBeGreaterThan(0);
   });
 
   test("every raw and txt file matches the manifest; every archive matches its built bytes", async () => {

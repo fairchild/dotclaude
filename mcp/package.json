@@ -11,7 +11,8 @@
     "wrangler": "^4.129.0"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/client": "2.4.0",
+    "@modelcontextprotocol/server": "2.4.0",
     "markdown-it": "^15.0.1",
     "tar": "^7.5.22",
     "yaml": "^2.9.0",
@@ -29,7 +30,7 @@
     "node": ">=22.14.0"
   },
   "version": "0.1.0-rc.1",
-  "description": "Independent implementation of the experimental Skills over MCP extension",
+  "description": "Independent implementation of the Skills over MCP extension",
   "license": "Apache-2.0",
   "bin": {
     "skill-server": "dist/cli.js"

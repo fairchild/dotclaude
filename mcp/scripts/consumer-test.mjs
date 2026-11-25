@@ -4,9 +4,8 @@ import { spawnSync, spawn } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { createHash } from 'node:crypto';
 
 const originalFetch = globalThis.fetch;
@@ -51,7 +50,7 @@ assert.deepEqual(archive, readFileSync('snapshot-two/public/downloads/hello/skil
 assert(!readFileSync(join(snapshot, 'public/skill/hello.md'), 'utf8').includes('skills.cloudcompute.com'));
 assert.throws(() => buildSnapshot({ root, out: root, baseUrl: 'https://example.org' }));
 globalThis.fetch = originalFetch;
-const client = new Client({ name: 'consumer', version: '1' });
+const client = new Client({ name: 'consumer', version: '1' }, { versionNegotiation: { mode: { pin: '2026-07-28' } } });
 try {
   await client.connect(new StdioClientTransport({ command: process.execPath, args: [cli, 'stdio', '--root', root] }));
   assert.equal(client.getServerVersion().version, version);
@@ -72,7 +71,7 @@ try {
   const manifest = await (await fetch(`${origin}/manifest.json`)).json();
   const downloaded = Buffer.from(await (await fetch(`${origin}${manifest.skills[0].download.archive}`)).arrayBuffer());
   assert.equal(createHash('sha256').update(downloaded).digest('hex'), manifest.skills[0].download.digest);
-  const httpClient = new Client({ name: 'http-consumer', version: '1' });
+  const httpClient = new Client({ name: 'http-consumer', version: '1' }, { versionNegotiation: { mode: { pin: '2026-07-28' } } });
   try {
     await httpClient.connect(new StreamableHTTPClientTransport(new URL(`${origin}/mcp`)));
     // A third party's serve announces the package, not the maintainer's deployment name.

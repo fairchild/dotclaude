@@ -13,6 +13,7 @@ import { join } from "node:path";
 
 import { startServer } from "../node-server.ts";
 import { version } from "../version.ts";
+import { modernRequest } from "./wire.ts";
 
 const scratch = mkdtempSync(join(tmpdir(), "skill-node-serve-"));
 const source = join(scratch, "skills");
@@ -43,12 +44,8 @@ afterAll(() => {
 });
 
 let nextId = 0;
-async function rpc(method: string, params: unknown = {}): Promise<any> {
-  const response = await fetch(`${origin}/mcp`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: ++nextId, method, params }),
-  });
+async function rpc(method: string, params: Record<string, unknown> = {}): Promise<any> {
+  const response = await fetch(modernRequest(`${origin}/mcp`, ++nextId, method, params));
   expect(response.status).toBe(200);
   return response.json();
 }
@@ -65,12 +62,8 @@ async function digests(): Promise<{ advertised: string; served: string }> {
 
 describe("node serve binding", () => {
   test("announces the package's own identity, not a deployment's", async () => {
-    const init = await rpc("initialize", {
-      protocolVersion: "2025-06-18",
-      capabilities: {},
-      clientInfo: { name: "node-serve-conformance", version: "0.0.0" },
-    });
-    expect(init.result.serverInfo).toEqual({ name: "skill-server", version });
+    const { result } = await rpc("server/discover");
+    expect(result._meta["io.modelcontextprotocol/serverInfo"]).toEqual({ name: "skill-server", version });
   });
 
   test("a rebuild under a running server moves digests and bytes together", async () => {

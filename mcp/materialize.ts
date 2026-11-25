@@ -19,8 +19,8 @@
  * With no skill names, materializes every skill the server lists. --root
  * explicitly selects the corpus the spawned stdio server serves.
  */
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { Client } from "@modelcontextprotocol/client";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { join } from "node:path";
 import { materializeSkills, MAX_MATERIALIZED_SKILLS } from "./core/materialize.ts";
 import { parseArgs } from "node:util";
@@ -41,7 +41,7 @@ if (!values.out || !values.root) {
 
 const serverArgs = [join(import.meta.dir, "stdio.ts"), "--root", values.root];
 
-const client = new Client({ name: "materialize", version: "0.1.0" }, { capabilities: {} });
+const client = new Client({ name: "materialize", version: "0.1.0" }, { capabilities: {}, versionNegotiation: { mode: { pin: "2026-07-28" } } });
 try {
   await client.connect(new StdioClientTransport({ command: "bun", args: serverArgs }));
 

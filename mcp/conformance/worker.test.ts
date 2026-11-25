@@ -13,6 +13,7 @@ import { join } from "node:path";
 import worker from "../worker/worker.ts";
 import { EXTENSION_ID } from "../core/types.ts";
 import { buildSnapshot } from "../worker/snapshot.ts";
+import { modernHeaders, modernRequest } from "./wire.ts";
 
 const FIXTURES = join(import.meta.dir, "fixtures");
 // A fresh mkdtemp parent, with DIST itself left uncreated, avoids a fixed
@@ -42,19 +43,18 @@ const env = {
   },
 };
 
-const post = (body: unknown) =>
-  worker.fetch(
-    new Request("https://skills.example/mcp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }),
-    env,
-  );
+const MCP = "https://skills.example/mcp";
+
+/** Bytes that never reach dispatch (a batch, an oversized body) still carry 2026-07-28 headers. */
+const postRaw = (method: string, body: unknown) =>
+  worker.fetch(new Request(MCP, { method: "POST", headers: modernHeaders(method), body: JSON.stringify(body) }), env);
 
 let nextId = 0;
-async function rpc(method: string, params: unknown = {}): Promise<any> {
-  const response = await post({ jsonrpc: "2.0", id: ++nextId, method, params });
+const send = (method: string, params: Record<string, unknown> = {}, headers: Record<string, string> = {}, bindings: object = env) =>
+  worker.fetch(modernRequest(MCP, ++nextId, method, params, headers), bindings as typeof env);
+
+async function rpc(method: string, params: Record<string, unknown> = {}): Promise<any> {
+  const response = await send(method, params);
   expect(response.status).toBe(200);
   return response.json();
 }
@@ -81,14 +81,17 @@ describe("worker binding", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("application/json; charset=utf-8");
     expect(response.headers.get("Vary")).toContain("Accept");
-    const body = await response.json() as { description: string; mcp: string; manifest: string; instructions: string; specification: string };
+    const body = await response.json() as { description: string; mcp: string; manifest: string; instructions: string; changelog: string; specification: string };
     expect(body).toEqual({
       description: "dotclaude skills over MCP and HTTP",
-      mcp: "/mcp", manifest: "/manifest.json", instructions: "/llms.txt",
-      specification: "https://github.com/modelcontextprotocol/ext-skills",
+      mcp: "/mcp", manifest: "/manifest.json", instructions: "/llms.txt", changelog: "/changelog.md",
+      specification: "https://github.com/modelcontextprotocol/ext-skills/blob/main/specification/beta/skills.mdx",
     });
     expect((await get(body.manifest)).status).toBe(200);
     expect((await get(body.instructions, "text/markdown")).status).toBe(200);
+    const changelog = await get(body.changelog, "text/markdown");
+    expect(changelog.status).toBe(200);
+    expect(await changelog.text()).toBe(readFileSync(join(import.meta.dir, "..", "CHANGELOG.md"), "utf8"));
     expect(await (await get("/index.json")).json()).toEqual(body);
     expect(await (await get("/index.html")).json()).toEqual(body);
     const head = await get("/", "application/json", "HEAD");
@@ -100,32 +103,16 @@ describe("worker binding", () => {
     expect((await get("/missing", "application/json")).status).toBe(404);
   });
 
-  test("initialize declares the extension; initialized notification gets 202", async () => {
-    const init = await rpc("initialize", {
-      protocolVersion: "2025-06-18",
-      capabilities: {},
-      clientInfo: { name: "worker-conformance", version: "0.0.0" },
-    });
-    expect(init.result.capabilities.extensions[EXTENSION_ID]).toEqual({ directoryRead: true });
-    expect(init.result.serverInfo.name).toBe("dotclaude-skills-hosted");
-    const note = await post({ jsonrpc: "2.0", method: "notifications/initialized" });
-    expect(note.status).toBe(202);
+  test("server/discover declares the extension and names the deployment", async () => {
+    const { result } = await rpc("server/discover");
+    expect(result.capabilities.extensions[EXTENSION_ID]).toEqual({ directoryRead: true });
+    expect(result._meta["io.modelcontextprotocol/serverInfo"].name).toBe("dotclaude-skills-hosted");
   });
 
   test("the deployment name is a binding; without it the package names itself", async () => {
-    const response = await worker.fetch(
-      new Request("https://skills.example/mcp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jsonrpc: "2.0", id: ++nextId, method: "initialize",
-          params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "unbound", version: "0.0.0" } },
-        }),
-      }),
-      { ASSETS: env.ASSETS },
-    );
+    const response = await send("server/discover", {}, {}, { ASSETS: env.ASSETS });
     expect(response.status).toBe(200);
-    expect(((await response.json()) as any).result.serverInfo.name).toBe("skill-server");
+    expect(((await response.json()) as any).result._meta["io.modelcontextprotocol/serverInfo"].name).toBe("skill-server");
   });
 
   test("catalog links to generated reading pages while raw resources stay intact", () => {
@@ -240,7 +227,7 @@ describe("worker binding", () => {
     expect(Buffer.from(await file.arrayBuffer())).toEqual(readFileSync(join(FIXTURES, "pdf-processing/scripts/extract.py")));
     expect(hsts(file)).toBe("max-age=31536000");
     expect(hsts(await worker.fetch(new Request("https://skills.example/missing"), env))).toBe("max-age=31536000");
-    const mcp = await post({ jsonrpc: "2.0", id: ++nextId, method: "skills/list", params: {} });
+    const mcp = await send("skills/list");
     expect(mcp.status).toBe(200);
     expect(hsts(mcp)).toBe("max-age=31536000");
     expect(hsts(await worker.fetch(new Request("https://skills.example/mcp"), env))).toBe("max-age=31536000");
@@ -250,14 +237,14 @@ describe("worker binding", () => {
   test("GET is 405 and batches are rejected", async () => {
     const get = await worker.fetch(new Request("https://skills.example/mcp"), env);
     expect(get.status).toBe(405);
-    const batch = await post([{ jsonrpc: "2.0", id: 1, method: "skills/list", params: {} }]);
+    const batch = await postRaw("skills/list", [{ jsonrpc: "2.0", id: 1, method: "skills/list", params: {} }]);
     expect(batch.status).toBe(400);
   });
 });
 
 describe("hardening (exercise-workflow findings)", () => {
   test("oversized request body answers 413, not a megabyte reflection", async () => {
-    const big = await post({ jsonrpc: "2.0", id: 99, method: "skills/get", params: { uri: "x".repeat(1024 * 1024) } });
+    const big = await postRaw("skills/get", { jsonrpc: "2.0", id: 99, method: "skills/get", params: { uri: "x".repeat(1024 * 1024) } });
     expect(big.status).toBe(413);
     const body: any = await big.json();
     expect(body.error.code).toBe(-32600);
@@ -280,28 +267,13 @@ describe("usage metrics", () => {
     await worker.fetch(new Request("https://skills.example/mcp"), env);
     expect(datapoints.at(-1)!.blobs!.slice(0, 3)).toEqual(["http:GET", "", "http:405"]);
 
-    const labeled = await worker.fetch(
-      new Request("https://skills.example/mcp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-skills-client": "example-client" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "skills/list", params: {} }),
-      }),
-      env,
-    );
+    const labeled = await send("skills/list", {}, { "x-skills-client": "example-client" });
     expect(labeled.status).toBe(200);
     expect(datapoints.at(-1)!.blobs![3]).toBe("example-client");
   });
 
   test("a missing METRICS binding is harmless", async () => {
-    const bare = { ASSETS: env.ASSETS };
-    const response = await worker.fetch(
-      new Request("https://skills.example/mcp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "skills/list", params: {} }),
-      }),
-      bare,
-    );
+    const response = await send("skills/list", {}, {}, { ASSETS: env.ASSETS });
     expect(response.status).toBe(200);
   });
 });
@@ -373,11 +345,7 @@ describe("posthog emission", () => {
       const ctx = { waitUntil: (p: Promise<unknown>) => waited.push(p) };
       const phEnv = { ...env, POSTHOG_API_KEY: "phc_test", POSTHOG_HOST: "https://posthog.test" };
       const request = (headers: Record<string, string> = {}) =>
-        new Request("https://skills.example/mcp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...headers },
-          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "skills/get", params: { uri: "skill://git-workflow/SKILL.md" } }),
-        });
+        modernRequest(MCP, 1, "skills/get", { uri: "skill://git-workflow/SKILL.md" }, headers);
 
       await worker.fetch(request({ "x-skills-client": "example-client" }), phEnv, ctx);
       await Promise.all(waited);

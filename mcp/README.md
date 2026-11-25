@@ -1,6 +1,6 @@
 # skill-server
 
-skill-server is an independent implementation of the experimental
+skill-server is an independent implementation of the
 [Skills over MCP extension](https://github.com/modelcontextprotocol/ext-skills),
 which lets an MCP (Model Context Protocol) server offer agent skills to hosts.
 A skill — a directory with a `SKILL.md`, per the
@@ -17,9 +17,10 @@ checkout also includes the Cloudflare adapter for skills.cloudcompute.com.
 
 The hosted binding is live at `https://skills.cloudcompute.com/mcp`
 (portable tier, public). It is a Cloudflare Worker serving a build-time snapshot
-of the portable tier over stateless Streamable HTTP: each POST runs one JSON-RPC
-message through a fresh server on a one-shot transport. Claude Code or any MCP
-host connects to either the hosted binding or the local stdio binding:
+of the portable tier over stateless Streamable HTTP. Both bindings speak MCP
+protocol revision 2026-07-28 only (see [Protocol revision](#protocol-revision)).
+Claude Code or any MCP host on that revision connects to either the hosted
+binding or the local stdio binding:
 
 ```json
 {
@@ -207,6 +208,19 @@ machine with their stated prerequisites; skills declaring
 `metadata.portability: machine-bound` are served only by this local binding.
 See `docs/skill-portability.md`.
 
+Every skill entry states its tier in `_meta`, so a host can tell what runs
+anywhere, a cloud sandbox included, from what assumes the author's machine:
+
+```json
+{ "uri": "skill://claude-as/SKILL.md", "_meta": { "com.cloudcompute.skills/portability": "machine-bound" }, … }
+```
+
+The value is `portable` or `machine-bound`, this server's statement derived
+from frontmatter `metadata.portability`. The key carries this project's own
+prefix; `io.modelcontextprotocol.skills/` is reserved for keys the extension
+defines. The hosted binding lists only `portable` entries; stdio lists both
+unless started with `--portable-only`.
+
 ## Developing in this repository
 
 Source development uses Bun 1.4 or newer; archive creation uses the installed
@@ -241,19 +255,22 @@ see [GitHub Actions and releases](../docs/github-actions.md#recovery).
 Reference server for the MCP Skills Extension
 ([SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640),
 extension id `io.modelcontextprotocol/skills`), serving this repo's skills as
-the corpus. Built on the stock TypeScript SDK: the extension's three methods
-are ordinary custom request handlers, and everything else rides the base
-Resources primitive.
+the corpus. Built on the TypeScript SDK v2 (`@modelcontextprotocol/server`
+2.4.0): the extension's three methods are custom request handlers on the
+SDK's `Server`, and everything else rides the base Resources primitive.
 
 **Upstream pin** (recheck and bump at each release candidate): checked
-against ext-skills commit
-[`f1f8605`](https://github.com/modelcontextprotocol/ext-skills/commit/f1f8605b72274e8ab667b72194103fe8096e9552)
-(2026-09-04, the commit that added `specification/stable/skills.mdx`; the
-repository carries no tags or releases) and
+against the extension specification
+[`specification/beta/skills.mdx`](https://github.com/modelcontextprotocol/ext-skills/blob/c0705f9071caa539eeb2c9f5f2f77ac16b048ca6/specification/beta/skills.mdx)
+at ext-skills commit
+[`c0705f9`](https://github.com/modelcontextprotocol/ext-skills/commit/c0705f9071caa539eeb2c9f5f2f77ac16b048ca6)
+(the repository carries no tags or releases), with its JSON Schema vendored in
+[`conformance/schema/`](conformance/schema/), and
 [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640)
-head
-[`d6b31a0`](https://github.com/modelcontextprotocol/modelcontextprotocol/commit/d6b31a03504c15677d49b922b6b6ace0ef65728d)
-(2026-09-03, PR still open).
+as merged Final at
+[`1eb5bbe`](https://github.com/modelcontextprotocol/modelcontextprotocol/commit/1eb5bbe8).
+Skills served here are Agent Skills directories; any frontmatter field the
+author wrote passes through `frontmatter` unchanged.
 
 `skills/get` also answers for a skill that never appears in a listing, and it
 is the refresh path after a digest mismatch. Reading a file is plain
@@ -265,30 +282,94 @@ See the [architecture walkthrough](../docs/skill-server-architecture.md) for
 how the store boundary, transports, and build pipeline fit together, and
 [SECURITY.md](../SECURITY.md) to report a vulnerability.
 
+### Protocol revision
+
+The server implements MCP revision 2026-07-28 and nothing earlier. There is no
+`initialize` and no session: `server/discover` reports the supported revision
+and capabilities, and every request carries its own `params._meta` envelope
+(`io.modelcontextprotocol/protocolVersion`, `clientInfo`,
+`clientCapabilities`).
+
+Over HTTP, the server's own gates run first: an `Origin` outside the
+allow-list is `403`, a non-POST is `405`, a body over 64 KiB is `413`, a
+non-JSON `Content-Type` is `415`, and an `Accept` without `application/json`
+is `406`. The `415`, `406` and parse-error replies echo the request's JSON-RPC
+`id` when it is a number or a string of at most 200 characters; the others
+answer before the body is read. The SDK's `createMcpHandler` answers the rest. It requires the
+`MCP-Protocol-Version` and `Mcp-Method` headers to match the body (plus
+`Mcp-Name` on `resources/read`): a missing or mismatched header is `400`
+with `-32020`, a malformed envelope `400` with `-32602`, and an unknown
+method `404` with `-32601`. Every result carries `resultType: "complete"`,
+the server's identity in `_meta["io.modelcontextprotocol/serverInfo"]`, and
+the cache fields below.
+
+A 2025-era request (`initialize`, or any request without the envelope claim)
+gets `400` with `-32022` and `error.data.supported: ["2026-07-28"]`, so a
+client learns which revision to speak. Over stdio, `serveStdio` refuses a
+2025-era opening message the same way. Clients built on the TypeScript SDK v2
+reach the server with `versionNegotiation: { mode: "auto" }` or
+`{ mode: { pin: "2026-07-28" } }`; the SDK's default `legacy` mode cannot.
+[CHANGELOG.md](CHANGELOG.md) records when the 2025 era was removed.
+
+Cache fields (`ttlMs`, `cacheScope`, SEP-2549) on every cacheable result:
+
+| Binding | `ttlMs` | `cacheScope` | Why |
+| --- | --- | --- | --- |
+| Hosted snapshot (Worker, `cli.ts serve`) | `300000` | `public` | A snapshot is immutable per deployment and the same for every client |
+| stdio (live directory) | `0` | `private` | Files can change between calls |
+
+`skills/get` always answers `0`/`private` on both bindings: it is the refresh
+path after a digest mismatch, so a cached answer would defeat it. `public`
+assumes the deployment serves every client the same skills; an operator who
+puts per-user authentication in front of it should not use the hosted snapshot
+binding as is.
+
 ### Supported methods and limitations
 
 | Method | Capability flag | Transports | Pagination | Per-skill limits | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `skills/list` | `io.modelcontextprotocol/skills` (required) | stdio, stateless HTTP | Cursor (base64url index), 50/page; an entry is never split across a page | 512 resources, 16 MiB total | `resultType: "complete"`; no `ttlMs`/`cacheScope` |
-| `skills/get` | `io.modelcontextprotocol/skills` (required) | stdio, stateless HTTP | None | Same | stdio rescans the one skill on every call; the HTTP snapshot's refresh is identity (a deploy is the refresh point); `-32602` for an unknown URI |
-| `resources/directory/read` | `directoryRead: true` (optional) | stdio, stateless HTTP | Cursor, 200 children/page | Manifest-derived only, no live `readdir` | `-32602` for an unknown or non-directory URI |
-| `resources/list` | base `resources` capability | stdio, stateless HTTP | Cursor, 200 entries/page | Same per-skill limits | Flattened across every served skill |
-| `resources/read` | base `resources` capability | stdio, stateless HTTP | None | 16 MiB per skill (scan time) | Text/blob split by extension; `-32602` for an unknown resource or a directory read attempted here |
+| `skills/list` | `io.modelcontextprotocol/skills` (required) | stdio, stateless HTTP | Cursor (base64url index), 50/page; an entry is never split across a page | 512 resources, 16 MiB total | `resultType: "complete"`; cache fields; portability in each entry's `_meta` |
+| `skills/get` | `io.modelcontextprotocol/skills` (required) | stdio, stateless HTTP | None | Same | stdio rescans the one skill on every call; the HTTP snapshot's refresh is identity (a deploy is the refresh point); `-32602` for an unknown URI; cache fields |
+| `resources/directory/read` | `directoryRead: true` (optional) | stdio, stateless HTTP | Cursor, 200 children/page | Manifest-derived only, no live `readdir` | `-32602` for an unknown or non-directory URI; cache fields |
+| `resources/list` | base `resources` capability | stdio, stateless HTTP | Cursor, 200 entries/page | Same per-skill limits | Flattened across every served skill; a `SKILL.md` is named for its skill |
+| `resources/read` | base `resources` capability | stdio, stateless HTTP | None | 16 MiB per skill (scan time) | Text/blob split by extension; `-32602` for an unknown resource (requested URI in `error.data.uri`) or a directory read attempted here |
+| `server/discover` | none | stdio, stateless HTTP | None | None | Answered by the SDK from the declared capabilities |
 
 Every method over the stateless HTTP binding shares one 64 KiB cap on the
 streamed POST body; oversized requests receive 413 before dispatch.
 
-Not implemented: resource subscriptions and `listChanged` (the server
-declares a bare `resources: {}` capability), `resources/templates/list`, the
-`ttlMs`/`cacheScope` list-caching hints, `resources: "dynamic"` skills (the
-wire type is defined but no store here produces one), nested skills as
-separate `skills/list` entries (a nested `SKILL.md` is served as an ordinary
-supporting file of its enclosing skill), `_meta` provenance annotations on
+Not implemented: `subscriptions/listen` and resource change notifications
+(the server declares a bare `resources: {}` capability; a deploy or restart
+is the change point), `resources/templates/list`, `resources: "dynamic"`
+skills (the wire type is defined but no store here produces one), nested
+skills as separate `skills/list` entries (a nested `SKILL.md` is served as an
+ordinary supporting file of its enclosing skill), `_meta` on individual
 skill resources, and any URI scheme other than `skill://`. The stateless HTTP
-binding also has no SSE GET stream, no sessions, and no authentication: a
-non-`POST` request to `/mcp` gets a plain `405` with `Allow: POST`, and every
-`POST` runs one JSON-RPC message through a fresh server on a one-shot
-transport.
+binding also has no SSE stream, no sessions, and no authentication: a
+non-`POST` request to `/mcp` gets a plain `405` with `Allow: POST`.
+
+**Upstream conformance.** The
+[MCP conformance suite](https://github.com/modelcontextprotocol/conformance)
+(checked at `96a6f947`) runs against `cli.ts serve` with
+`--spec-version 2026-07-28`; the Skills scenarios are opt-in and need
+`--force`. `sep-2640-skills-enumeration`, `-manifest` and `-directory` pass
+with no warnings, as do `sep-2164-resource-not-found`, `resources-list` and
+`dns-rebinding-protection`. The checks that fail in `server-stateless`,
+`caching`, `resources-read-text` and `http-header-validation` call the
+suite's fixture tools and resources (`test_*` tools, `test://` resources,
+`tools/list`, `prompts/list`, `resources/templates/list`), which a
+resources-only skills server does not serve.
+
+**MCPJam.** Against the same local snapshot, the
+[MCPJam CLI](https://www.npmjs.com/package/@mcpjam/cli) 6.4.4 connects over
+2026-07-28 and `skills get` fetches all 46 skills. Two of its checks still
+send 2025-era requests and get `-32022`. The first is the `initialize` probe in
+`server doctor`, so the report reads `partial` even though its connection step
+succeeds. The second is the `skills/list` call in the OpenAI readiness profile
+(`readiness check openai --submission-mode mcp-imported-skills`), so that
+profile reports the listing as unanswered. Before the 2025 era was removed,
+the profile accepted the listing. Its only other findings were the importer's
+caps: at most 5 skills, and at most 10 supporting files per skill.
 
 ### Source layout
 
@@ -296,11 +377,16 @@ transport.
   (name must equal the directory name), SHA-256 digests, SEP limits;
   malformed or oversize skills become diagnostics, not malformed entries.
 - `core/server.ts` — the SDK server: the three methods plus
-  `resources/list`/`resources/read`, pagination, `-32602` semantics.
+  `resources/list`/`resources/read`, pagination, `-32602` semantics, and the
+  2026-07-28 cache fields.
+- `worker/handler.ts` — the HTTP binding: the server's own gates, then the
+  SDK's `createMcpHandler`, which serves 2026-07-28 and refuses anything older.
 - `stdio.ts` — local binding over the live skills directory; see [Run](#run).
 - `conformance/` — the suite doubles as an executable reading of the SEP:
   entry completeness, digest/frontmatter identity, pagination atomicity,
-  directory semantics, error codes, end-to-end stdio.
+  directory semantics, error codes, end-to-end stdio, the 2026-07-28 wire
+  and the refusal of 2025-era clients (`protocol.test.ts`), and the beta
+  JSON Schema (`schema.test.ts`).
 
 ## Usage metrics
 

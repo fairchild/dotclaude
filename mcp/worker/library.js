@@ -69,9 +69,6 @@
       : false;
     if (handled) event.preventDefault();
   });
-  document.addEventListener("DOMContentLoaded", () => {
-    for (const hint of document.querySelectorAll("p.hint[data-keys]")) hint.hidden = false;
-    arrive();
-  });
+  document.addEventListener("DOMContentLoaded", () => arrive());
   addEventListener("pageshow", (event) => { if (event.persisted) arrive(); });
 })();
