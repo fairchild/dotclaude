@@ -351,6 +351,16 @@ suite's fixture tools and resources (`test_*` tools, `test://` resources,
 `tools/list`, `prompts/list`, `resources/templates/list`), which a
 resources-only skills server does not serve.
 
+**MCPJam.** Against the same local snapshot, the
+[MCPJam CLI](https://www.npmjs.com/package/@mcpjam/cli) 6.4.4 negotiates
+2026-07-28, `server doctor` reports `ready`, and `skills get` verifies all 46
+skills against their manifests. Its OpenAI readiness profile
+(`readiness check openai --submission-mode mcp-imported-skills`) grades the
+whole catalog as one submission: it accepts the extension declaration and the
+paginated listing, and reports the importer's caps (at most 5 skills, at most
+10 supporting files per skill) as unmet for this 46-skill corpus. Those caps
+describe what one ChatGPT plugin may import, not the protocol.
+
 ### Source layout
 
 - `core/manifest.ts` — scan a skills directory into entries: frontmatter
