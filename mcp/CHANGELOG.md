@@ -39,7 +39,8 @@ earlier.
   Skills extension, and the server's identity.
 - Every cacheable result carries `resultType: "complete"`, `ttlMs` and
   `cacheScope` (SEP-2549): `300000`/`public` from a hosted snapshot and
-  `0`/`private` from stdio.
+  `0`/`private` from stdio. `skills/get`, the refresh path, is always
+  `0`/`private`.
 - Each skill entry's `_meta["com.cloudcompute.skills/portability"]` says where
   the skill can run: `portable`, or `machine-bound` for a skill that needs a
   local machine.

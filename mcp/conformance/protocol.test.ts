@@ -68,7 +68,6 @@ describe("hosted HTTP, 2026-07-28", () => {
   test("every cacheable result carries the snapshot's cache fields", async () => {
     const calls: Array<[string, Record<string, unknown>]> = [
       ["skills/list", {}],
-      ["skills/get", { uri: "skill://git-workflow/SKILL.md" }],
       ["resources/directory/read", { uri: "skill://pdf-processing" }],
       ["resources/list", {}],
       ["resources/read", { uri: "skill://git-workflow/SKILL.md" }],
@@ -78,6 +77,12 @@ describe("hosted HTTP, 2026-07-28", () => {
       expect({ method, status, id: body.id }).toEqual({ method, status: 200, id });
       expect(body.result).toMatchObject({ resultType: "complete", ttlMs: 300_000, cacheScope: "public" });
     }
+  });
+
+  test("skills/get, the refresh path, is never cacheable", async () => {
+    const { status, body } = await send("skills/get", { uri: "skill://git-workflow/SKILL.md" });
+    expect(status).toBe(200);
+    expect(body.result).toMatchObject({ resultType: "complete", ttlMs: 0, cacheScope: "private" });
   });
 
   test("the catalog is the portable tier, each entry marked portable", async () => {
@@ -104,6 +109,14 @@ describe("hosted HTTP, 2026-07-28", () => {
 
     const missing = await send("resources/read", { uri: "skill://nope/SKILL.md" });
     expect([missing.status, missing.body.error.code, missing.body.id]).toEqual([200, -32602, missing.id]);
+    expect(missing.body.error.data).toEqual({ uri: "skill://nope/SKILL.md" });
+  });
+
+  test("an unknown skill and an unknown directory are the same not-found error", async () => {
+    for (const uri of ["skill://nope", "skill://pdf-processing/nope"]) {
+      const { body } = await send("resources/directory/read", { uri });
+      expect([body.error.code, body.error.data]).toEqual([-32602, { uri }]);
+    }
   });
 
   test("a 2026-07-28 header over a body without its envelope is invalid params", async () => {
@@ -115,6 +128,15 @@ describe("hosted HTTP, 2026-07-28", () => {
     const { status, body } = await send("skills/list", {}, { "Content-Type": "text/plain" });
     expect(status).toBe(415);
     expect(body.id).toBe(nextId);
+  });
+
+  test("a gate rejection does not reflect an oversized string id", async () => {
+    const response = await worker.fetch(new Request("https://skills.example/mcp", {
+      method: "POST",
+      headers: { ...modernHeaders("skills/list"), "Content-Type": "text/plain" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: "x".repeat(201), method: "skills/list", params: { _meta: envelope() } }),
+    }), env);
+    expect([response.status, ((await response.json()) as any).id]).toEqual([415, null]);
   });
 
   test("metrics record the method, skill and outcome of a request", async () => {

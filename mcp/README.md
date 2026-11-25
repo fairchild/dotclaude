@@ -293,8 +293,9 @@ and capabilities, and every request carries its own `params._meta` envelope
 Over HTTP, the server's own gates run first: an `Origin` outside the
 allow-list is `403`, a non-POST is `405`, a body over 64 KiB is `413`, a
 non-JSON `Content-Type` is `415`, and an `Accept` without `application/json`
-is `406`. These rejections echo the request's JSON-RPC `id` when the body
-parses. The SDK's `createMcpHandler` answers the rest. It requires the
+is `406`. The `415`, `406` and parse-error replies echo the request's JSON-RPC
+`id` when it is a number or a string of at most 200 characters; the others
+answer before the body is read. The SDK's `createMcpHandler` answers the rest. It requires the
 `MCP-Protocol-Version` and `Mcp-Method` headers to match the body (plus
 `Mcp-Name` on `resources/read`): a missing or mismatched header is `400`
 with `-32020`, a malformed envelope `400` with `-32602`, and an unknown
@@ -316,6 +317,12 @@ Cache fields (`ttlMs`, `cacheScope`, SEP-2549) on every cacheable result:
 | --- | --- | --- | --- |
 | Hosted snapshot (Worker, `cli.ts serve`) | `300000` | `public` | A snapshot is immutable per deployment and the same for every client |
 | stdio (live directory) | `0` | `private` | Files can change between calls |
+
+`skills/get` always answers `0`/`private` on both bindings: it is the refresh
+path after a digest mismatch, so a cached answer would defeat it. `public`
+assumes the deployment serves every client the same skills; an operator who
+puts per-user authentication in front of it should not use the hosted snapshot
+binding as is.
 
 ### Supported methods and limitations
 

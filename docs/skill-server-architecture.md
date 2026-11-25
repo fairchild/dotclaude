@@ -149,7 +149,8 @@ Every `skills/*` and `resources/directory/read` result carries
 `ttlMs`/`cacheScope`, and the SDK's `cacheHints` option covers
 `resources/list`, `resources/read` and `server/discover`. The
 HTTP binding passes `300000`/`public` for its immutable snapshot; stdio keeps
-the spec default `0`/`private`.
+the spec default `0`/`private`. `skills/get` is the refresh path after a digest
+mismatch, so it answers `0`/`private` on both.
 
 Portability travels with each entry: `scanSkill` stamps
 `_meta["com.cloudcompute.skills/portability"]` from frontmatter

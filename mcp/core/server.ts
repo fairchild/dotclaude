@@ -33,6 +33,7 @@ export interface SkillsServerOptions {
   /**
    * `ttlMs`/`cacheScope` on 2026-07-28 results (SEP-2549). Defaults to the
    * spec's conservative `0`/`private`; an immutable snapshot can say more.
+   * `skills/get` is the refresh path and always answers `0`/`private`.
    */
   cache?: Required<CacheHint>;
 }
@@ -133,7 +134,7 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
     if ("error" in fresh) {
       throw new ProtocolError(ProtocolErrorCode.InvalidParams, `skill no longer serveable: ${fresh.error}`);
     }
-    return { skill: fresh, ...cache };
+    return { skill: fresh, ...NO_CACHE };
   });
 
   server.setRequestHandler("resources/list", (request) => {
@@ -204,7 +205,7 @@ export function createSkillsServer(store: SkillStore, options: SkillsServerOptio
       );
     }
     if (!isDir) {
-      throw new ProtocolError(ProtocolErrorCode.InvalidParams, `unknown directory: ${clip(params.uri)}`);
+      throw notFound(params.uri);
     }
     const sorted = [...children.values()].sort((a, b) => a.name.localeCompare(b.name));
     const start = decodeCursor(params.cursor);

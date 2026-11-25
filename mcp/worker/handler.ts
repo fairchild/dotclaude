@@ -74,7 +74,8 @@ function json(body: unknown, status = 200): { response: Response; bytes: number 
 
 function idOf(parsed: unknown): Id {
   const id = (parsed as { id?: unknown } | null)?.id;
-  return typeof id === "string" || typeof id === "number" ? id : null;
+  // Echoed in gate rejections, so a string id is bounded like any other reflected input.
+  return typeof id === "number" || (typeof id === "string" && id.length <= 200) ? id : null;
 }
 
 function outcomeOf(reply: unknown): string {
