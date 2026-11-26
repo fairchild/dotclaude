@@ -26,14 +26,16 @@ Usage:
 
 Environment:
   TYPESAFE_API_KEY    key for Jev; unset means the cheap Claude model decides
+  TYPESAFE_BASE_URL   where Jev is reached and its key is sent, default https://api.typesafe.ai
   JEV_MODEL           pin to the exact Jev version the rubric was tuned against (default below)
   ANTHROPIC_API_KEY   key for the Claude models
   BENCHMARK_MODEL     the cheap Claude model, default claude-haiku-5-5
   STRONG_MODEL        the model an uncertain verdict escalates to, default claude-opus-5-5
-  GITHUB_OUTPUT       when set, receives consequential=true|false and disagreements=<n>
+  GITHUB_OUTPUT       when set, receives consequential, judged and disagreements (see outputs())
 
 Prints one JSON verdict to stdout, with every model's answer per question. Exit 0 whatever the
-verdict; non-zero only on bad input.
+verdict. A non-zero exit, from bad input or a crash, leaves no verdict, and the workflow fails the
+check for it.
 """
 from __future__ import annotations
 
@@ -182,10 +184,6 @@ def jev_questions(rubric: str) -> dict:
 
 # ---------------------------------------------------------------- reading answers
 
-def clamp(answers: Answers) -> Answers:
-    return {k: {**v, "p": min(1.0, max(0.0, float(v["p"])))} for k, v in answers.items()}
-
-
 def unsure(answers: Answers) -> list[str]:
     return [q.id for q in QUESTIONS if abs(answers[q.id]["p"] - q.raise_at) < ESCALATE_MARGIN]
 
@@ -227,10 +225,19 @@ def asked(call: Callable[[], Reply]) -> Reply | str:
         return failure(error)
 
 
+def probabilities(raw: dict) -> Answers:
+    """Every question's answer, read from a model's reply. A p that is not a probability (NaN, a
+    negative, a percentage) fails the call: clamped into range, it could pass for a firm no."""
+    answers: Answers = {q.id: {"p": float(raw[q.id]["p"]), "why": str(raw[q.id].get("why", ""))} for q in QUESTIONS}
+    if not all(0.0 <= answer["p"] <= 1.0 for answer in answers.values()):
+        raise Failed("an answer was not a probability")
+    return answers
+
+
 def parse_jev(response: dict) -> Reply:
-    answers = {q.id: {"p": float(response["answers"][q.id]["noul"]), "why": ""} for q in QUESTIONS}
+    answers = probabilities({q.id: {"p": response["answers"][q.id]["noul"]} for q in QUESTIONS})
     usage = response.get("usage") or {}
-    return Reply(str(response.get("model", "jev")), clamp(answers), int(usage.get("input_tokens", 0)))
+    return Reply(str(response.get("model", "jev")), answers, int(usage.get("input_tokens", 0)))
 
 
 def ask_jev(key: str, model: str, state: dict, rubric: str) -> Reply:
@@ -264,7 +271,7 @@ def ask_claude(key: str, model: str, text: str) -> Reply:
         raise Failed("it declined to answer")
     if response.stop_reason == "max_tokens":
         raise Failed("its answer was cut off")
-    answers = clamp(json.loads(next(b.text for b in response.content if b.type == "text")))
+    answers = probabilities(json.loads(next(b.text for b in response.content if b.type == "text")))
     return Reply(model, answers, response.usage.input_tokens, response.usage.output_tokens)
 
 
@@ -391,6 +398,16 @@ def verdict(run: Run, final: Reply, uncertain: list[str]) -> dict:
     }
 
 
+def outputs(result: dict) -> dict[str, str]:
+    """The step outputs. `judged` is false when no model's answers stand behind the verdict: the
+    workflow fails that run without the label, which is sticky, so a later run can still pass."""
+    return {
+        "consequential": str(result["consequential"]).lower(),
+        "judged": str(bool(result["questions"])).lower(),
+        "disagreements": str(len(result["disagreements"])),
+    }
+
+
 # ---------------------------------------------------------------- rendering
 
 def pct(p: float | None) -> str:
@@ -468,7 +485,6 @@ def self_test() -> None:
     assert unsure(a(costs_money=0.45)) == ["costs_money"] and unsure(a(costs_money=0.55)) == ["costs_money"]
     assert unsure(a(costs_money=0.65)) == [] and unsure(a(weakens_security=0.25)) == ["weakens_security"]
     assert raised(a(weakens_security=0.3)) == ["weakens_security"] and raised(a(product_decision=0.59)) == []
-    assert clamp({"x": {"p": 1.7, "why": ""}})["x"]["p"] == 1.0
     # Uncertain answers count only when they could flip the verdict.
     assert could_flip(a(costs_money=0.45)) == ["costs_money"]  # nothing raised; this one could cross
     assert could_flip(a(costs_money=0.55)) == ["costs_money"]  # the only raise could drop
@@ -483,6 +499,17 @@ def self_test() -> None:
     jev_reply = parse_jev({"model": "jev-1.14.0", "answers": {q.id: {"type": "noul", "noul": 0.1} for q in QUESTIONS},
                            "usage": {"input_tokens": 1000}})
     assert jev_reply.answers["costs_money"] == {"p": 0.1, "why": ""} and jev_reply.input_tokens == 1000
+
+    # A p that is not a probability fails the call. Clamped, a NaN or a negative would be a firm no.
+    def jev_gives(noul: object) -> Reply | str:
+        return asked(lambda: parse_jev({"answers": {q.id: {"noul": noul} for q in QUESTIONS}}))
+
+    assert isinstance(jev_gives(0.0), Reply) and isinstance(jev_gives(1), Reply) and jev_gives(None) == "TypeError"
+    assert [jev_gives(p) for p in (float("nan"), -0.2, 1.7, 85)] == ["an answer was not a probability"] * 4
+    full = json.dumps({q.id: {"p": 0.4, "why": "x"} for q in QUESTIONS})
+    assert probabilities(json.loads(full))["costs_money"] == {"p": 0.4, "why": "x"}
+    assert asked(lambda: probabilities(json.loads(full.replace("0.4", "NaN", 1)))) == "an answer was not a probability"
+    assert asked(lambda: probabilities({"costs_money": {"p": 0.4, "why": "x"}})) == "KeyError"  # a question missing
     assert redact("key sk-abcdefghijklmnopqrstu end") == "key [redacted:secret] end"
 
     H, O, J = DEFAULT_BENCHMARK_MODEL, DEFAULT_STRONG_MODEL, "jev-1.14.0"
@@ -521,6 +548,7 @@ def self_test() -> None:
     assert calls == ["jev", H] and v["decided_by"] == J and not v["consequential"] and v["notes"] == []
     assert v["disagreements"] == [] and v["questions"]["costs_money"]["benchmark"] == 0.02
     assert v["usage"] == {"jev": {"input_tokens": 1000, "output_tokens": 0}, "benchmark": {"input_tokens": 1000, "output_tokens": 100}}
+    assert outputs(v) == {"consequential": "false", "judged": "true", "disagreements": "0"}
     body = render(v, "0123456789abcdef")
     assert body.startswith(MARKER) and body.rstrip().endswith(AGENT_NOTE) and "Why the owner" not in body
     assert f"**Consequential: no** at `0123456789ab`, decided by `{J}`" in body and "consequential: wrong" in body
@@ -529,6 +557,7 @@ def self_test() -> None:
     # reason, an argument for "no", is not offered as the why.
     v = run(both, a(costs_money=0.9), haiku=a("only a docs change", costs_money=0.1))
     assert v["consequential"] and v["raised"] == ["costs_money"] and v["disagreements"] == ["costs_money"]
+    assert outputs(v) == {"consequential": "true", "judged": "true", "disagreements": "1"}
     body = render(v, "")
     assert "**costs_money** (p 0.90, line 0.50): no reason given" in body and "only a docs change" not in body
     assert "Jev and Haiku disagree" in body and "`costs_money`: Jev 0.90 raises, Haiku 0.10 does not" in body
@@ -561,6 +590,7 @@ def self_test() -> None:
         assert v["raised"] == (["costs_money"] if opus_p >= 0.5 else []) and v["notes"][0].endswith(f"and so did `{O}`: the owner decides.")
         assert f"(p {opus_p:.2f}, line 0.50): too close to its line to call. a job that may be billed _(Opus)_" in render(v, "")
         assert "decided by" not in render(v, "") and v["reason"] == "costs_money: too close to its line to call"
+        assert outputs(v)["judged"] == outputs(v)["consequential"] == "true"  # models answered, so it earns the label
     # Opus cannot be asked, or does not answer: the same, with the decider's answers shown.
     v = run(both, a(costs_money=0.55), opus=RuntimeError("overloaded"))
     assert v["consequential"] and v["decided_by"] is None and v["uncertain"] == ["costs_money"] and "strong" not in v["models"]
@@ -578,8 +608,8 @@ def self_test() -> None:
     v = run({"ANTHROPIC_API_KEY": "claude-key"}, haiku=a(costs_money=0.55), opus=a("x", costs_money=0.9))
     assert calls == [H, O] and v["decided_by"] == O and v["consequential"]
 
-    # Whatever leaves the diff unjudged goes to the owner. No other model steps in for a decider that
-    # did not answer, and a fork reaches no model at all.
+    # Whatever leaves the diff unjudged goes to the owner, marked unjudged so it is not labelled. No
+    # other model steps in for a decider that did not answer, and a fork reaches no model at all.
     claude_only = {"ANTHROPIC_API_KEY": "claude-key"}
     for kwargs, asks, says in (
         ({"env": both, "jev_says": RuntimeError("overloaded")}, ["jev"], f"`{DEFAULT_JEV_MODEL}` did not answer (RuntimeError)"),
@@ -591,8 +621,9 @@ def self_test() -> None:
         ({"env": both, "from_fork": True}, [], "comes from a fork"),
     ):
         v = run(**kwargs)
-        assert calls == asks and (asks or sent == []), (says, calls)
+        assert calls == asks, (says, calls)
         assert v["consequential"] is True and v["decided_by"] is None and v["questions"] == {} and says in v["reason"], says
+        assert outputs(v) == {"consequential": "true", "judged": "false", "disagreements": "0"}, says
         assert "nothing judged" in v["reason"] and f"- {v['reason']}." in render(v, "") and "| question |" not in render(v, "")
 
     # An exception's text is written nowhere, whichever call raised it; only its class and status are.
@@ -640,7 +671,7 @@ def self_test() -> None:
     # A key urllib refuses to send is named by class only; its message quotes the header.
     assert asked(lambda: ask_jev("abc\nLEAKED-KEY", J, {"diff": "+x"}, rubric)) == "ValueError"
 
-    # The command line the workflow runs: a fork is consequential, with a comment and a step output.
+    # The command line the workflow runs: a fork is consequential and unjudged, with a comment.
     with tempfile.TemporaryDirectory() as tmp:
         rubric_file, diff_file, comment_file, output = (Path(tmp, n) for n in ("rubric.md", "pr.diff", "comment.md", "output"))
         rubric_file.write_text(rubric)
@@ -649,7 +680,7 @@ def self_test() -> None:
             main(["--rubric", str(rubric_file), "--diff-file", str(diff_file), "--from-fork", "true",
                   "--head", "0123456789abcdef", "--comment-file", str(comment_file)])
         assert json.loads(printed.getvalue())["consequential"] is True
-        assert output.read_text() == "consequential=true\ndisagreements=0\n"
+        assert output.read_text() == "consequential=true\njudged=false\ndisagreements=0\n"
         assert "**Consequential: yes** at `0123456789ab`" in comment_file.read_text()
     print("self-test: ok")
 
@@ -689,8 +720,7 @@ def main(argv: list[str] | None = None) -> None:
         print(f"::warning title=Jev and benchmark disagree::{line}", file=sys.stderr)
     if out := os.environ.get("GITHUB_OUTPUT"):
         with open(out, "a") as f:
-            f.write(f"consequential={'true' if result['consequential'] else 'false'}\n")
-            f.write(f"disagreements={len(result['disagreements'])}\n")
+            f.writelines(f"{name}={value}\n" for name, value in outputs(result).items())
 
 
 if __name__ == "__main__":

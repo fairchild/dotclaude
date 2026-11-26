@@ -15,10 +15,12 @@ current head's diff and raised nothing. Every other state means the owner merges
 cancelled one, a missing one, or a green one on an older head.
 
 **The rule for an agent**, on a repository that has the check: merge only when it is green on the
-current head, and never remove the `consequential` label.
+current head and the pull request carries no `consequential` label, and never remove that label.
 
-A raised pull request gets the `consequential` label and a comment that says why. The check never
-merges, approves, or removes the label.
+A pull request gets the `consequential` label when a model raised a question or could not call
+one, with a comment that says why. A run that judged nothing (a fork, an outage, a missing key)
+fails with a comment and no label, so the next run can still pass. The check never merges,
+approves, or removes the label.
 
 **Overlap.** Claude Approvals with a custom classifier (`.claude/classifiers/`) routes approvals
 from a pull request's diff on Team and Enterprise plans, and judges its policy from the default
@@ -96,11 +98,14 @@ examples more consistently than against "low/medium/high".
 
 **Clearing a raise.** The label outlives the push that earned it: once a head is raised, later
 heads fail the check even when their own verdict is no. The owner clears it by merging, or by
-removing the label and re-running the check, which judges the current head again.
+removing the label and re-running the check, which judges the current head again. The owner can
+also add the label by hand. Label changes do not start a run, so the check shows a hand-added
+label only from its next run; that is why the agent rule reads the label as well as the check.
 
-**What a run costs.** At most three model calls. The check runs on every push and on every edit to
-the title, body or base branch. An edit to the title changes nothing a model reads, but a run
-skipped for it would report success and replace a failing check, so it judges again.
+**What a run costs.** At most three model calls, not counting the retries of one that failed on an
+overloaded or unreachable service. The check runs on every push and on every edit to the title,
+body or base branch. An edit to the title changes nothing a model reads, but a run skipped for it
+would report success and replace a failing check, so it judges again.
 
 ## Tuning from the owner's replies
 

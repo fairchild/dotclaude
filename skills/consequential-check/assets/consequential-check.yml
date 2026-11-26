@@ -4,9 +4,10 @@
 #
 # The check is green when a model judged this head's diff and raised nothing. It fails when the
 # owner should be the one to merge: a question raised, a verdict too close to call, nothing judged,
-# or an earlier head that was raised and still carries the `consequential` label. A raised pull
-# request gets that label, and one verdict comment is kept current. The workflow never merges,
-# approves, or removes the label: a later push cannot clear a raise, only the owner can.
+# or an earlier head that was raised and still carries the `consequential` label. A pull request a
+# model raised, or could not call, gets that label, and one verdict comment is kept current. A run
+# that judged nothing fails without the label, so the next run can still pass. The workflow never
+# merges, approves, or removes the label: a later push cannot clear a raise, only the owner can.
 #
 # The trigger is `pull_request_target`, so GitHub runs this file from the default branch, whatever
 # branch the pull request targets, and a pull request cannot rewrite its own judge. The checkout
@@ -67,7 +68,7 @@ jobs:
           gh pr diff "$PR" --repo "$GITHUB_REPOSITORY" > "$RUNNER_TEMP/pr.diff" || : > "$RUNNER_TEMP/pr.diff"
 
       # `shell: bash` adds pipefail, so a crash in the script fails this step instead of hiding
-      # behind `tee`. The steps after it run on failure and treat a missing verdict as a raise.
+      # behind `tee`. The steps after it run on failure, and a missing verdict fails the check.
       # A fork, or a head repository that no longer exists, gets empty keys and no model call.
       - name: Route
         id: route
@@ -96,8 +97,10 @@ jobs:
           path: ${{ runner.temp }}/verdict.json
           if-no-files-found: ignore
 
+      # The label is sticky, so only a verdict that a model's answers stand behind earns it. A fork,
+      # an outage or a crash fails this run and leaves the next one free to pass.
       - name: Label
-        if: ${{ !cancelled() && steps.route.outputs.consequential != 'false' }}
+        if: ${{ !cancelled() && steps.route.outputs.judged == 'true' && steps.route.outputs.consequential == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
@@ -128,8 +131,9 @@ jobs:
           fi
 
       # The check is the signal. It passes only when this head was judged and nothing is raised,
-      # on this head or an earlier one: the label outlives the push that earned it. A label that
-      # cannot be read fails the step.
+      # on this head or an earlier one: the label outlives the push that earned it. GitHub matches
+      # label names without regard to case, so the match here does too. A label that cannot be read
+      # fails the step.
       - name: Fail when the owner merges
         if: ${{ !cancelled() }}
         env:
@@ -142,7 +146,7 @@ jobs:
             exit 1
           fi
           labels=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name')
-          if grep -qx consequential <<< "$labels"; then
-            echo "::error title=The owner merges this one::An earlier head was raised and the consequential label is still on. The owner removes the label and re-runs this check, or merges."
+          if grep -qix consequential <<< "$labels"; then
+            echo "::error title=The owner merges this one::The pull request carries the consequential label, from an earlier head or added by hand. The owner removes it and re-runs this check, or merges."
             exit 1
           fi
