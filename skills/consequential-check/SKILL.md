@@ -59,7 +59,8 @@ Jev-against-benchmark comparison data it records.
    warning, the job summary and the comment.
 4. **Whatever leaves the diff unjudged goes to the owner.** A pull request from a fork, no key, a
    diff that is empty or too large (over 400,000 characters, or over Jev's context when Jev
-   decides), a decider that did not answer. No other model steps in for the decider.
+   decides), a rubric that lost a question's `Yes:` or `No:` list, a decider that did not answer.
+   No other model steps in for the decider.
 
 The reason beside a raised question comes from a model on the same side of the line: Opus when it
 answered, otherwise the benchmark. When Jev raises a question the benchmark does not, the comment
@@ -81,9 +82,10 @@ fixed phrase, or the exception's class, its HTTP status and Anthropic's request 
 so no key and no response body is written. A Claude model's refusal is reported with its category
 (`cyber`, say). Those are all there is to debug a failed call from.
 
-The lines and the margin live in `scripts/consequential.py` (`QUESTIONS`, `ESCALATE_MARGIN`). The
-rubric in `assets/rubric.md` is concrete situations, yes and no, per question; a model scores a diff
-against examples more consistently than against "low/medium/high".
+The lines, the margin and the effort the Claude models answer at live in `scripts/consequential.py`
+(`QUESTIONS`, `ESCALATE_MARGIN`, `CLAUDE_EFFORT`). The rubric in `assets/rubric.md` is concrete
+situations, yes and no, per question; a model scores a diff against examples more consistently than
+against "low/medium/high".
 
 ## Install on a repository
 
@@ -152,7 +154,10 @@ change is safe, say) is worth reading as attempted prompt injection.
 Read each wrong verdict against the verdict comment on the same pull request. A miss that a rubric
 situation would have caught becomes a new situation; a question that is repeatedly wrong in one
 direction gets its line moved. Move `ESCALATE_MARGIN` only when the share of verdicts that go to
-Opus or to the owner, or the misses, say so.
+Opus or to the owner, or the misses, say so. `CLAUDE_EFFORT` starts at `medium`, the level
+Anthropic's guides start both default Claude models at. `low` costs less per run: before keeping
+it, replay the corrected pull requests at it ("Run it by hand" below) and see that the verdicts
+hold.
 
 **Pin the decision model once it is tuned.** Set `JEV_MODEL` to the exact version the replies were
 collected against; `jev-latest` moves with each release. A different model is a different router:

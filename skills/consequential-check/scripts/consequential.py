@@ -17,7 +17,7 @@ When Jev decides and ANTHROPIC_API_KEY is set, the cheap Claude model also answe
 benchmark. It gives the reasons Jev does not and numbers to compare with Jev's, and never decides.
 
 Whatever leaves the diff unjudged goes to the owner: a fork, no key, a diff that is empty or too
-large, a decider that did not answer.
+large, a rubric that lost a question's situations, a decider that did not answer.
 
 Usage:
   consequential.py --rubric rubric.md --diff-file pr.diff [--from-fork true|false]
@@ -69,6 +69,10 @@ CLAUDE_TIMEOUT_SECONDS = 90.0
 # Both default Claude models think before they answer, and thinking counts toward this. The answer
 # itself is a few hundred tokens.
 CLAUDE_MAX_TOKENS = 16_000
+# The level Anthropic's guides start both default models at, and the one each runs at when none is
+# sent. `low` costs less per run and is a step down to take once the owner's replies show the
+# verdicts hold there: a pull request is judged a few times, and a wrong "no" lets an agent merge.
+CLAUDE_EFFORT = "medium"
 DEFAULT_JEV_MODEL = "jev-1.14.0"
 DEFAULT_BENCHMARK_MODEL = "claude-haiku-5-5"
 DEFAULT_STRONG_MODEL = "claude-opus-5-5"
@@ -84,6 +88,9 @@ class Question:
     raise_at: float
 
 
+# A question raises when its probability reaches its line. The lines are starting values with no
+# tuning data behind them. A lower line trades needless raises for fewer misses, and security and
+# private data sit lowest. The owner's corrections move them.
 QUESTIONS = (
     Question("hard_to_undo", "Is this change hard to undo once merged and deployed?", 0.5),
     Question("weakens_security", "Does this change weaken security?", 0.3),
@@ -189,7 +196,7 @@ def jev_questions(rubric: str) -> dict:
         q.id: {
             "type": "noul",
             "instructions": {"question": q.ask, "subject": "the pull request in the state", "rule": DATA_RULE},
-            "criteria": {"true": sections[q.id][0] or "Yes.", "false": sections[q.id][1] or "No."},
+            "criteria": {"true": sections[q.id][0], "false": sections[q.id][1]},
         }
         for q in QUESTIONS
     }
@@ -299,7 +306,7 @@ def ask_claude(key: str, model: str, system: str, diff: str) -> Reply:
         model=model,
         max_tokens=CLAUDE_MAX_TOKENS,
         system=system,
-        output_config={"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
+        output_config={"effort": CLAUDE_EFFORT, "format": {"type": "json_schema", "schema": SCHEMA}},
         messages=[{"role": "user", "content": diff}],
     ), model)
 
@@ -336,6 +343,11 @@ def decide(pull: Pull, env: dict[str, str], models: Models | None = None, from_f
 
     if from_fork:
         return owner("the pull request comes from a fork: nothing judged")
+    # Jev reads only each question's two lists, so a list that an edit lost would leave it judging
+    # from the question alone. The rubric is held to that shape whichever model decides.
+    sections = rubric_sections(pull.rubric)
+    if bare := [q.id for q in QUESTIONS if not all(sections[q.id])]:
+        return owner(f"the rubric lacks a `Yes:` or a `No:` list for {', '.join(bare)}: nothing judged")
     if not pull.diff.strip():
         return owner("no diff could be read: nothing judged")
     if len(pull.diff) > MAX_DIFF_CHARS:
@@ -675,6 +687,9 @@ def self_test() -> None:
         ({"env": both, "subject": Pull(rubric, "+" * JEV_MAX_STATE_CHARS)}, [], "too large for"),
         ({"env": both, "subject": Pull(rubric, "+" * (MAX_DIFF_CHARS + 1))}, [], "too large to judge whole"),
         ({"env": both, "subject": Pull(rubric, " \n")}, [], "no diff could be read"),
+        ({"env": both, "subject": Pull(rubric.replace("Yes:\n- yes costs_money", "- yes costs_money")
+                                             .replace("## product_decision", "## product"), "+x")},
+         [], "the rubric lacks a `Yes:` or a `No:` list for costs_money, product_decision"),
         ({"env": {}}, [], "no model key is set"),
         ({"env": both, "from_fork": True}, [], "comes from a fork"),
     ):
@@ -779,11 +794,8 @@ def main(argv: list[str] | None = None) -> None:
     if not (args.rubric and args.diff_file):
         parser.error("--rubric and --diff-file are required")
 
-    rubric = args.rubric.read_text()
-    if missing := [q.id for q in QUESTIONS if f"## {q.id}" not in rubric]:
-        parser.error(f"rubric has no section for: {', '.join(missing)}")
     diff = args.diff_file.read_text(errors="replace")
-    result = decide(Pull(rubric, diff), dict(os.environ), from_fork=args.from_fork == "true")
+    result = decide(Pull(args.rubric.read_text(), diff), dict(os.environ), from_fork=args.from_fork == "true")
 
     print(json.dumps(result, indent=2))
     comment = render(result, args.head, labelled=args.labelled == "true")

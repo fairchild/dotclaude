@@ -5,7 +5,8 @@ lists are what a probability near 1 looks like, the "no" lists what a probabilit
 A change that matches nothing listed is judged by its nearest neighbour here. The models read only
 the diff, so every situation is one a diff can show: an issue, a spec or the pull request's
 description is not something they can check a change against. Edit this file as the owner's
-corrections come in; the five headings must stay, because the router asks one question per heading.
+corrections come in. The five headings stay, each with its `Yes:` and `No:` line: the router asks
+one question per heading, and judges nothing from a rubric that lost one.
 
 ## hard_to_undo
 
