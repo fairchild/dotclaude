@@ -29,10 +29,17 @@ if (service === 'skills') {
   await get(`/skill/${skill.entry.frontmatter.name}.html`);
   const bytes = await (await get(skill.download.archive)).arrayBuffer();
   assert.equal(createHash('sha256').update(new Uint8Array(bytes)).digest('hex'), skill.download.digest);
-  const rpc = await (await get('/mcp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'skills/list', params: {} }) })).json();
-  assert(rpc.result?.skills.length > 0);
-  const init = await (await get('/mcp', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'verify-deployment', version: '0.0.0' } } }) })).json();
-  assert.equal(init.result?.serverInfo?.name, 'dotclaude-skills-hosted');
+  const mcp = async (id, method) => (await get('/mcp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'MCP-Protocol-Version': '2026-07-28', 'Mcp-Method': method },
+    body: JSON.stringify({ jsonrpc: '2.0', id, method, params: { _meta: {
+      'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+      'io.modelcontextprotocol/clientInfo': { name: 'verify-deployment', version: '0.0.0' },
+      'io.modelcontextprotocol/clientCapabilities': {},
+    } } }),
+  })).json();
+  assert((await mcp(1, 'skills/list')).result?.skills.length > 0, '/mcp: skills/list');
+  assert.equal((await mcp(2, 'server/discover')).result?._meta?.['io.modelcontextprotocol/serverInfo']?.name, 'dotclaude-skills-hosted', '/mcp: server/discover');
 } else {
   const catalog = await (await get('/data.json')).json();
   assert(catalog.skills.length > 0);
