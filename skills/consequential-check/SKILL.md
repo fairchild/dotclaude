@@ -16,6 +16,17 @@ cancelled one, a missing one, or a green one on an older head.
 
 **The rule for an agent**, on a repository that has the check: merge only when it is green on the
 current head and the pull request carries no `consequential` label, and never remove that label.
+Both of these print `true` then, and only then:
+
+```bash
+gh pr checks NUMBER --json name,event,bucket --jq \
+  '[.[] | select(.name == "consequential-check" and .event == "pull_request_target") | .bucket] == ["pass"]'
+gh pr view NUMBER --json labels --jq '[.labels[].name | ascii_downcase] | any(. == "consequential") | not'
+```
+
+`gh pr checks` gives the latest run of each check on the head. `statusCheckRollup` also keeps the
+earlier ones, where a stale pass can sit beside a newer failure. The `event` filter passes over a
+job of the same name that a pull request adds in a workflow of its own.
 
 A pull request gets the `consequential` label when a model raised a question or could not call
 one, with a comment that says why. A run that judged nothing (a fork, an outage, a missing key)
@@ -59,18 +70,20 @@ reaches a model. That cuts both ways. A description cannot talk a verdict down, 
 stated only in the title or body ("this ships on merge", "needs the paid tier") is not judged. The
 models also cannot see whether the owner already asked for a change, so a pull request that adds or
 changes a user-facing feature raises `product_decision` even when an issue asked for exactly that.
-The diff is the author's text too; the prompt tells every model to weigh it as data and never
-follow instructions in it.
+The diff is the author's text too. Every model is told to weigh it as data and never follow
+instructions in it, and a Claude model reads it alone in the user message, apart from the questions
+and rubric in the system prompt.
 
 **What a run writes** is public on a public repository: the comment, the job summary and the
 `consequential-verdict` artifact. Secret-shaped strings are redacted from the diff before a model
 reads it and from a model's reasons before they are written. A failed model call is reported as a
-fixed phrase, or the exception's class and HTTP status, never its text, so no key and no response
-body is written. The class and status are then all there is to debug a failed call from.
+fixed phrase, or the exception's class, its HTTP status and Anthropic's request id, never its text,
+so no key and no response body is written. A Claude model's refusal is reported with its category
+(`cyber`, say). Those are all there is to debug a failed call from.
 
-Thresholds live in `scripts/consequential.py` (`QUESTIONS`, `ESCALATE_MARGIN`). The rubric in
-`assets/rubric.md` is concrete situations, yes and no, per question; a model scores a diff against
-examples more consistently than against "low/medium/high".
+The lines and the margin live in `scripts/consequential.py` (`QUESTIONS`, `ESCALATE_MARGIN`). The
+rubric in `assets/rubric.md` is concrete situations, yes and no, per question; a model scores a diff
+against examples more consistently than against "low/medium/high".
 
 ## Install on a repository
 
@@ -92,9 +105,13 @@ examples more consistently than against "low/medium/high".
    and Opus settles close calls. With only the Jev key, there are no reasons and every close call
    goes to the owner.
 4. Edit the rubric's situations to fit the repo: its migrations, its deploy path, its billed services.
-5. Make whatever merges without the owner wait for the check: an agent's standing permission, an
-   auto-merge rule. As a required status check it also blocks the owner on a raised pull request,
-   so give the owner a bypass or leave it out of the ruleset and have agents read it.
+5. Make whatever merges without the owner wait for the check, which GitHub lists as
+   `consequential-check`: an agent's standing permission, an auto-merge rule. As a required status
+   check it also blocks the owner on a raised pull request, so give the owner a bypass or leave it
+   out of the ruleset and have agents read it.
+6. Open a pull request that changes only a comment. The check should pass and leave one verdict
+   comment that names the head. A run that fails before its first step is the block from step 2.
+   A comment that says "nothing judged" names what was missing.
 
 **Clearing a raise.** The label outlives the push that earned it: once a head is raised, later
 heads fail the check even when their own verdict is no. The owner clears it by merging, or by
@@ -140,4 +157,17 @@ Opus or to the owner, or the misses, say so.
 collected against; `jev-latest` moves with each release. A different model is a different router:
 re-check it against the collected replies before switching.
 
-`scripts/consequential.py --self-test` runs offline, with no model calls.
+## Run it by hand
+
+To see the verdict for one pull request without installing anything, or to replay a corrected one
+against a changed rubric or model, run the script from this skill or the copy a repository keeps in
+`.github/consequential/`:
+
+```bash
+gh pr diff NUMBER > /tmp/pr.diff
+scripts/consequential.py --rubric assets/rubric.md --diff-file /tmp/pr.diff
+```
+
+It needs `uv`, reads the same keys from the environment, makes the same model calls as a run, and
+prints the verdict as JSON. `scripts/consequential.py --self-test` runs offline, with no model
+calls.

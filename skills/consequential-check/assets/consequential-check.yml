@@ -43,6 +43,8 @@ concurrency:
 jobs:
   # No job-level `if`: a skipped job reports success, and this check must never pass unjudged.
   route:
+    # The name GitHub lists the check under, and the one the skill's rule for agents looks for.
+    name: consequential-check
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
