@@ -5,13 +5,13 @@
 # ///
 """The owner's review queue for pull requests the consequential check routed to them.
 
-One page lists every open pull request labelled `consequential`, with the reasons the check gave.
-For each, the owner answers one question, "glad this was flagged?", and when yes, which of the
-reasons was why. The answer is acted on at once: a reply the tuning step can collect is posted on
+One page shows the open pull requests labelled `consequential` one at a time, each with the reasons
+the check gave. For each, the owner answers one question, "glad this was flagged?", and when yes,
+which of the reasons was why. The answer is acted on at once: a reply the tuning step can collect is posted on
 the pull request, the label is changed to say what was decided, and the pull request is merged
 when the owner asks for that in the same keystroke. A pull request whose current head raised
-nothing, and fails the check only for a label an earlier head left, is cleared with one key: the
-label comes off and the check runs again.
+nothing, and fails the check only for a label an earlier head left, is cleared with one button:
+the label comes off and the check runs again.
 
     server.py --repo OWNER/REPO [--repo ...]   serve the queue on 127.0.0.1 and print its link
     server.py --demo                           the same page over made-up pull requests, no network
@@ -126,6 +126,7 @@ class Decision:
     reasons: tuple[str, ...] = ()  # which of the reasons shown was why
     other: str = ""  # a reason the check did not give, or why it was wrong
     merge: bool = False
+    seconds: float | None = None  # from the card showing to the answer, as the page measured it
 
 
 def clean(text: object, limit: int = NOTE_LIMIT) -> str:
@@ -684,7 +685,7 @@ class Queue:
         if answered and not decision.merge:
             return self.refused("already answered at this head")
         record = {"kind": "merge" if answered else "decision", "glad": decision.glad, "reasons": list(decision.reasons),
-                  "other": decision.other, "merge": decision.merge,
+                  "other": decision.other, "merge": decision.merge, "seconds": decision.seconds,
                   "dialect": item.verdict.dialect if item.verdict else "", "verdict_head": item.verdict.head if item.verdict else "",
                   "shown": [asdict(reason) for reason in item.verdict.reasons] if item.verdict else []}
         plan = self.policy.steps(decision, item, self.config, self.reply(decision, item))
@@ -730,130 +731,337 @@ def summary(records: list[dict]) -> str:
 # ---------------------------------------------------------------- the page
 
 PAGE = r"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>Consequential queue</title>
 <style>
-:root{--bg:#f6f5f1;--card:#fff;--ink:#1c1b19;--dim:#6b675f;--rule:#dedad0;--accent:#1f5fbf;--yes:#1d7a46;--no:#b3401f;--focus:#1f5fbf}
-@media (prefers-color-scheme:dark){:root{--bg:#161614;--card:#201f1c;--ink:#ecebe6;--dim:#a09c92;--rule:#35332e;--accent:#7fb0ff;--yes:#6fcf97;--no:#f08a65;--focus:#7fb0ff}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
-main{max-width:860px;margin:0 auto;padding:20px 16px 80px}
-header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 16px;margin-bottom:6px}h1{font-size:19px;margin:0}
-#status{color:var(--dim)}.badge{font-size:12px;border:1px solid var(--no);color:var(--no);border-radius:99px;padding:1px 9px}
-.keys{color:var(--dim);font-size:13px;margin:0 0 16px}kbd{font:12px ui-monospace,monospace;border:1px solid var(--rule);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--card)}
-.card{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:14px 16px;margin:0 0 12px;scroll-margin:90px}
-.card.on{border-color:var(--focus);box-shadow:0 0 0 2px color-mix(in srgb,var(--focus) 35%,transparent)}
-.card.done{opacity:.62}.meta{color:var(--dim);font-size:13px;display:flex;flex-wrap:wrap;gap:2px 12px}
-.title{font-weight:600;font-size:16px;margin:2px 0 4px;overflow-wrap:anywhere}.title a{color:inherit;text-decoration:none}.title a:hover{text-decoration:underline}
-.why{margin:10px 0 0;padding:0;list-style:none}.why li{padding:5px 0;border-top:1px solid var(--rule);overflow-wrap:anywhere}
-.why code,.meta code{font:13px ui-monospace,monospace}.why .score{color:var(--dim);font-size:13px;white-space:nowrap}
-.ask{margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}.ask b{margin-right:4px}
-button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--rule);border-radius:7px;padding:5px 12px;cursor:pointer}
-button:hover{border-color:var(--dim)}button.yes.picked{background:var(--yes);border-color:var(--yes);color:#fff}button.no.picked{background:var(--no);border-color:var(--no);color:#fff}
-button.go{border-color:var(--accent);color:var(--accent)}button:disabled{opacity:.45;cursor:default}
-.more{margin-top:10px;display:none;flex-direction:column;gap:6px}.card.yes .more.yes,.card.no .more.no,.card.answered .more.act,.card.stale .more.act{display:flex}
-label.pick{display:flex;gap:8px;align-items:flex-start;cursor:pointer}label.pick input{margin-top:4px}
-input[type=text]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--rule);border-radius:7px;padding:5px 9px;width:100%}
-.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}.result{margin-top:10px;font-size:14px}.result .bad{color:var(--no)}.result .good{color:var(--yes)}
-h2{font-size:14px;color:var(--dim);font-weight:600;margin:22px 0 8px}.empty{color:var(--dim);padding:28px 0;text-align:center}
-</style></head><body><main>
-<header><h1>Consequential queue</h1><span id="status">Loading…</span><span id="mode"></span>
-<button id="reload" style="margin-left:auto">Reload</button></header>
-<p class="keys"><kbd>j</kbd>/<kbd>k</kbd> move · <kbd>y</kbd> glad it was flagged · <kbd>n</kbd> not · <kbd>1</kbd>–<kbd>9</kbd> which reason · <kbd>a</kbd> all of them · <kbd>o</kbd> other · <kbd>Enter</kbd> save · <kbd>Shift</kbd>+<kbd>Enter</kbd> save and merge · <kbd>c</kbd> clear a leftover label</p>
-<div id="list"></div></main>
+/* Lede's look (https://lede.cloudcompute.com) in plain CSS: its tokens by name, flat cards on a
+   grouped ground, capsule controls, one filled button, and native elements throughout. */
+:root {
+  color-scheme: light dark;
+  --primary: #0a63d1; --primary-foreground: #ffffff; --background-grouped: #f2f2f5; --foreground: #131316;
+  --card: #ffffff; --muted-foreground: #5b5b63; --fill-control: rgba(120, 120, 132, 0.14); --fill-selected: #ffffff;
+  --border: rgba(60, 60, 67, 0.20); --input: #7a7a82; --destructive: #b6232b;
+  --shadow-raised: 0 1px 3px rgba(0, 0, 0, 0.10), 0 1px 1px rgba(0, 0, 0, 0.04);
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px;
+  --radius: 22px; --radius-md: 14px; --size-hit-min: 44px;
+  --font-sans: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --primary: #4c9aff; --primary-foreground: #06111f; --background-grouped: #000000; --foreground: #f4f4f6;
+  --card: #1c1c1f; --muted-foreground: #acacb3; --fill-control: rgba(120, 120, 132, 0.28); --fill-selected: #5a5a60;
+  --border: rgba(84, 84, 92, 0.65); --input: #8c8c94; --destructive: #ff8a8a; --shadow-raised: 0 1px 3px rgba(0, 0, 0, 0.60);
+} }
+@media (prefers-contrast: more) { :root {
+  --primary: #0040a8; --background-grouped: #ffffff; --foreground: #000000; --muted-foreground: #2f2f35;
+  --fill-control: #e4e4ea; --border: #5f5f66; --input: #5f5f66; --destructive: #8c0f16;
+} }
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) { :root {
+  --primary: #9cc9ff; --primary-foreground: #000000; --background-grouped: #000000; --foreground: #ffffff; --card: #121214;
+  --muted-foreground: #dcdce2; --fill-control: #2a2a30; --border: #a0a0a8; --input: #a0a0a8; --destructive: #ffb5b5;
+} }
+* { box-sizing: border-box; }
+body { margin: 0 auto; max-width: 42rem; padding: var(--space-8) var(--space-4); background: var(--background-grouped);
+  color: var(--foreground); font: 1.0625rem/1.375rem var(--font-sans); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
+h1, h2, h3, p, ul, dl, dd, fieldset, legend { margin: 0; padding: 0; }
+h1 { font-size: 2.125rem; line-height: 2.5625rem; letter-spacing: -0.025rem; }
+h2 { font-size: 1.25rem; line-height: 1.5625rem; }
+h3, legend, .field > label { font-size: 0.9375rem; line-height: 1.25rem; font-weight: 600; }
+a { color: inherit; text-underline-offset: 3px; }
+ul { list-style: none; }
+[hidden] { display: none !important; }
+.muted { color: var(--muted-foreground); }
+.note { font-size: 0.8125rem; line-height: 1.125rem; color: var(--muted-foreground); }
+:focus-visible, label:has(:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+body > header { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); }
+main { display: grid; gap: var(--space-4); margin-top: var(--space-6); }
+#status:empty { display: none; }
+#status { font-size: 0.9375rem; line-height: 1.25rem; }
+#status.failed { color: var(--destructive); }
+
+.card { display: grid; gap: var(--space-6); padding: var(--space-6); border-radius: var(--radius); background: var(--card); }
+.card > header, .card section, form, fieldset, .field { display: grid; gap: var(--space-2); min-width: 0; }
+form { gap: var(--space-6); }
+.reasons li { padding: var(--space-2) 0; }
+.reasons li + li { border-top: 1px solid var(--border); }
+fieldset { border: 0; }
+
+button { min-height: var(--size-hit-min); padding: 0 20px; border: 0; border-radius: 999px; background: var(--fill-control);
+  color: var(--foreground); font: inherit; font-weight: 600; cursor: pointer; }
+button.filled { background: var(--primary); color: var(--primary-foreground); }
+button.plain { padding: 0 var(--space-2); background: none; color: var(--primary); }
+button:disabled { opacity: 0.5; cursor: default; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.actions .plain { margin-left: auto; }
+
+/* SegmentedControl: a fieldset of radio inputs on one track. */
+.track { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; justify-self: start; padding: 2px;
+  border-radius: 999px; background: var(--fill-control); }
+.track label { position: relative; display: grid; place-items: center; min-width: 6rem; min-height: 40px; border-radius: 999px;
+  font-weight: 600; cursor: pointer; }
+.track input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.track label:has(:checked) { background: var(--fill-selected); box-shadow: var(--shadow-raised); }
+
+.check { display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-hit-min); cursor: pointer; }
+.check input { flex: none; width: 1.25rem; height: 1.25rem; margin: 0; accent-color: var(--primary); }
+.field input { min-height: var(--size-hit-min); width: 100%; padding: 0 var(--space-3); border: 1px solid var(--input);
+  border-radius: var(--radius-md); background: var(--card); color: var(--foreground); font: inherit; }
+
+/* Disclosure: a native details whose summary reads while it is closed. */
+details { border-radius: var(--radius); }
+summary { display: flex; align-items: center; gap: var(--space-2); min-height: var(--size-hit-min); font-size: 0.9375rem;
+  font-weight: 600; color: var(--muted-foreground); cursor: pointer; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: ""; flex: none; width: 7px; height: 7px; margin: 0 2px; border: solid currentColor; border-width: 0 2px 2px 0;
+  transform: rotate(-45deg); transition: transform 0.2s; }
+details[open] > summary::before { transform: rotate(45deg); }
+@media (prefers-reduced-motion: reduce) { summary::before { transition: none; } }
+main > details { padding: 0 var(--space-4); background: var(--card); }
+main > details > :last-child:not(summary) { padding-bottom: var(--space-3); }
+.rows li { display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-hit-min); padding: var(--space-1) 0;
+  border-top: 1px solid var(--border); }
+.rows a { flex: 1; min-width: 0; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-1) var(--space-4); font-size: 0.9375rem; }
+dt { color: var(--muted-foreground); }
+kbd { font: 0.8125rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Consequential queue</h1>
+    <p id="summary" class="muted">Loading…</p>
+  </div>
+  <button type="button" id="reload">Reload</button>
+</header>
+
+<main>
+  <p id="status" role="status"></p>
+  <div id="current"></div>
+
+  <details id="stale" hidden>
+    <summary></summary>
+    <p class="note">The current head raised nothing. Clearing takes the label off and runs the check again.</p>
+    <ul class="rows"></ul>
+  </details>
+
+  <details id="answered" hidden>
+    <summary></summary>
+    <p class="note">The check stays red on a head it raised, so these are yours to merge.</p>
+    <ul class="rows"></ul>
+  </details>
+
+  <details>
+    <summary>Keyboard shortcuts</summary>
+    <dl>
+      <dt><kbd>y</kbd> <kbd>n</kbd></dt><dd>Glad it was flagged, or not</dd>
+      <dt><kbd>1</kbd>–<kbd>9</kbd> <kbd>a</kbd></dt><dd>Tick a reason, or all of them</dd>
+      <dt><kbd>o</kbd></dt><dd>Type another reason, or what it got wrong</dd>
+      <dt><kbd>Enter</kbd></dt><dd>Save and show the next one</dd>
+      <dt><kbd>Shift</kbd> <kbd>Enter</kbd></dt><dd>Save and merge</dd>
+      <dt><kbd>s</kbd></dt><dd>Skip for now</dd>
+    </dl>
+  </details>
+</main>
+
+<template id="item">
+  <article class="card" aria-labelledby="item-title">
+    <header>
+      <h2 id="item-title"><a target="_blank" rel="noopener"></a></h2>
+      <p class="note" data-meta></p>
+    </header>
+    <section aria-labelledby="item-why">
+      <h3 id="item-why">Flagged for</h3>
+      <ul class="reasons"></ul>
+      <details hidden>
+        <summary>Scores</summary>
+        <dl></dl>
+      </details>
+    </section>
+    <form>
+      <fieldset>
+        <legend>Glad this was flagged?</legend>
+        <div class="track">
+          <label><input type="radio" name="glad" value="yes" required>Yes</label>
+          <label><input type="radio" name="glad" value="no">No</label>
+        </div>
+      </fieldset>
+      <fieldset data-when="yes" hidden disabled>
+        <legend>Which was why?</legend>
+        <div data-checks></div>
+        <div class="field">
+          <label for="item-other">Another reason <span class="muted">(optional)</span></label>
+          <input id="item-other" name="other" type="text" maxlength="500" autocomplete="off">
+        </div>
+      </fieldset>
+      <fieldset data-when="no" hidden disabled>
+        <div class="field">
+          <label for="item-note">What it got wrong <span class="muted">(optional)</span></label>
+          <input id="item-note" name="note" type="text" maxlength="500" autocomplete="off">
+        </div>
+      </fieldset>
+      <div class="actions">
+        <button type="submit" name="then" value="save" class="filled">Save</button>
+        <button type="submit" name="then" value="merge">Save and merge</button>
+        <button type="button" class="plain" data-skip>Skip</button>
+      </div>
+    </form>
+  </article>
+</template>
+
+<template id="empty">
+  <section class="card" aria-labelledby="empty-title">
+    <header>
+      <h2 id="empty-title">Nothing to answer</h2>
+      <p class="muted">Every flagged pull request has your answer at its current head.</p>
+    </header>
+  </section>
+</template>
+
+<template id="row">
+  <li><a target="_blank" rel="noopener"></a><span class="note"></span><button type="button"></button></li>
+</template>
+
 <script>
 const TOKEN = __TOKEN__, MODE = __MODE__;
-const list = document.getElementById("list"), status = document.getElementById("status");
-let cards = [], at = 0, decided = 0;
-const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+const $ = (selector, root = document) => root.querySelector(selector);
+const copy = id => $("#" + id).content.firstElementChild.cloneNode(true);
+const words = id => id.replace(/[._]/g, " ");
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const keyOf = item => `${item.repo}#${item.number}`;
+let groups = {waiting: [], stale: [], answered: []}, since = 0;
+
 async function api(path, body) {
-  const r = await fetch(path, {method: body ? "POST" : "GET", headers: {"X-Queue-Token": TOKEN, "Content-Type": "application/json"}, body: body ? JSON.stringify(body) : undefined});
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || `the server answered ${r.status}`);
+  const response = await fetch(path, {method: body ? "POST" : "GET", body: body ? JSON.stringify(body) : undefined,
+    headers: {"X-Queue-Token": TOKEN, "Content-Type": "application/json"}});
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `the server answered ${response.status}`);
   return data;
 }
-function card(item) {
-  const c = el("section", "card " + item.state); c.item = item; c.glad = null;
-  const meta = el("div", "meta"); meta.append(el("span", "", `${item.repo}#${item.number}`), el("span", "", item.size), el("span", "", `by ${item.author}`));
-  const head = el("span"); head.append("head ", el("code", "", item.head.slice(0, 9))); meta.append(head);
-  if (item.draft) meta.append(el("span", "", "draft"));
-  item.earlier.forEach(t => meta.append(el("span", "", "you " + t)));
-  const title = el("div", "title"), link = el("a", "", item.title); link.href = item.url; link.target = "_blank"; link.rel = "noopener"; title.append(link);
-  c.append(meta, title);
-  const v = item.verdict, reasons = v ? v.reasons : [];
-  if (v && v.head && !item.head.startsWith(v.head) && !v.head.startsWith(item.head)) c.append(el("div", "meta", `The verdict below judged ${v.head.slice(0, 9)}, an earlier head.`));
-  const why = el("ul", "why");
-  if (!v) why.append(el("li", "", "No verdict comment found on this pull request."));
-  reasons.forEach((r, i) => { const li = el("li"); li.append(`${i + 1}. `, el("code", "", r.id), " " + r.text + " ");
-    if (r.p != null) li.append(el("span", "score", `p ${r.p.toFixed(2)}, line ${r.line.toFixed(2)}`)); why.append(li); });
-  c.append(why);
-  if (item.state !== "waiting") {
-    const stale = item.state === "stale", act = el("div", "more act");
-    act.append(el("div", "", stale ? "This head raised nothing. The label is from an earlier head or was added by hand, and it alone fails the check."
-      : `You ${item.answer} this one at this head. It is still open, and the check stays red on it, so it is yours to merge.`));
-    const acts = el("div", "acts"), go = el("button", "go", stale ? "Clear the label and re-run the check" : "Merge");
-    go.onclick = () => stale ? clear(c) : save(c, true); acts.append(go); act.append(acts); c.append(act);
-    c.glad = item.answer !== "overruled"; c.checks = []; c.other = {value: ""}; c.note = {value: ""};
-    c.append(c.result = el("div", "result")); c.onclick = () => focus(cards.indexOf(c)); return c;
+async function act(path, body) {
+  try { return await api(path, body); } catch (error) { return {ok: false, steps: [{step: "send", ok: false, detail: error.message}]}; }
+}
+function say(text, failed) { const status = $("#status"); status.textContent = text; status.classList.toggle("failed", !!failed); }
+function report(item, out) {
+  const did = {reply: "replied", label: "labelled", merge: "merged", rerun: "check running again"};
+  const steps = out.steps.map(step => step.ok ? did[step.step] || step.step : `${step.step} failed: ${step.detail}`).join(", ");
+  say(`${keyOf(item)} ${out.ok ? "saved" : "not finished"}: ${steps}.`, !out.ok);
+}
+
+function showItem() {
+  const item = groups.waiting[0], holder = $("#current");
+  if (!item) { holder.replaceChildren(copy("empty")); return; }
+  const card = copy("item"), form = $("form", card), reasons = item.verdict ? item.verdict.reasons : [];
+  const link = $("h2 a", card); link.textContent = item.title; link.href = item.url;
+  const stale = item.verdict && item.verdict.head && !item.head.startsWith(item.verdict.head) && !item.verdict.head.startsWith(item.head);
+  $("[data-meta]", card).textContent = [keyOf(item), item.size, item.draft && "draft", ...item.earlier.map(text => "you " + text),
+    stale && "the reasons are from an earlier head"].filter(Boolean).join(" · ");
+  const list = $(".reasons", card), scores = $("section details", card), checks = $("[data-checks]", card);
+  if (!reasons.length) list.append(Object.assign(document.createElement("li"), {className: "muted", textContent: "No verdict comment was found."}));
+  for (const reason of reasons) {
+    const row = document.createElement("li"), name = document.createElement("strong");
+    name.textContent = words(reason.id); row.append(name, " " + reason.text); list.append(row);
+    if (reason.p != null) {
+      scores.hidden = false;
+      $("dl", scores).append(Object.assign(document.createElement("dt"), {textContent: words(reason.id)}),
+        Object.assign(document.createElement("dd"), {textContent: `${reason.p.toFixed(2)}, raises at ${reason.line.toFixed(2)}`}));
+    }
+    checks.append(check("reason", reason.id, words(reason.id)));
   }
-  const ask = el("div", "ask"); ask.append(el("b", "", "Glad this was flagged?"));
-  c.yes = el("button", "yes", "Yes"); c.no = el("button", "no", "No"); c.yes.onclick = () => pick(c, true); c.no.onclick = () => pick(c, false); ask.append(c.yes, c.no); c.append(ask);
-  const yes = el("div", "more yes"); yes.append(el("div", "", "Why?")); c.checks = [];
-  reasons.forEach((r, i) => { const l = el("label", "pick"), b = el("input"); b.type = "checkbox"; b.value = r.id; c.checks.push(b); l.append(b, el("span", "", `${i + 1}. ${r.id}`)); yes.append(l); });
-  if (reasons.length > 1) { const l = el("label", "pick"); c.all = el("input"); c.all.type = "checkbox"; c.all.onchange = () => c.checks.forEach(b => b.checked = c.all.checked);
-    l.append(c.all, el("span", "", reasons.length === 2 ? "Both" : "All of them")); yes.append(l); c.checks.forEach(b => b.onchange = () => c.all.checked = c.checks.every(x => x.checked)); }
-  c.other = el("input"); c.other.type = "text"; c.other.maxLength = 500; c.other.placeholder = "Other: a reason the check did not give (optional)"; yes.append(c.other);
-  const no = el("div", "more no"); c.note = el("input"); c.note.type = "text"; c.note.maxLength = 500; c.note.placeholder = "What it got wrong (optional)"; no.append(c.note);
-  const acts = el("div", "acts"); c.save = el("button", "go", "Save"); c.merge = el("button", "", "Save and merge"); c.save.disabled = c.merge.disabled = true;
-  c.save.onclick = () => save(c, false); c.merge.onclick = () => save(c, true); acts.append(c.save, c.merge);
-  c.append(yes, no, acts, c.result = el("div", "result")); c.onclick = () => focus(cards.indexOf(c)); return c;
+  if (reasons.length > 1) checks.append(check("all", "", reasons.length === 2 ? "Both" : "All of them"));
+  form.addEventListener("change", () => sync(form));
+  form.addEventListener("submit", event => { event.preventDefault(); save(item, form, event.submitter && event.submitter.value === "merge"); });
+  $("[data-skip]", form).addEventListener("click", skip);
+  holder.replaceChildren(card);
+  since = performance.now();
+  form.elements.glad[0].focus({preventScroll: true});
 }
-function pick(c, glad) { if (c.done || c.item.state !== "waiting") return; c.glad = glad; c.classList.toggle("yes", glad); c.classList.toggle("no", !glad);
-  c.yes.classList.toggle("picked", glad); c.no.classList.toggle("picked", !glad); c.save.disabled = c.merge.disabled = false; }
-function focus(i) { if (!cards.length) return; at = Math.max(0, Math.min(cards.length - 1, i)); cards.forEach((c, n) => c.classList.toggle("on", n === at)); cards[at].scrollIntoView({block: "nearest"}); }
-function next() { const i = cards.findIndex((c, n) => n > at && !c.done); focus(i < 0 ? at : i); }
-async function send(c, path, body) {
-  if (c.done || c.busy) return; c.busy = true; c.result.textContent = "Saving…";
-  let out; try { out = await api(path, body); } catch (e) { out = {ok: false, steps: [{step: "send", ok: false, detail: e.message}]}; }
-  c.result.textContent = ""; out.steps.forEach(s => c.result.append(el("div", s.ok ? "good" : "bad", `${s.ok ? "✓" : "✗"} ${s.step}: ${s.detail}`)));
-  c.busy = false;
-  if (out.ok) { c.done = true; c.classList.add("done"); decided++; count(); document.activeElement.blur(); next(); }
+function check(name, value, text) {
+  const label = document.createElement("label"), box = document.createElement("input");
+  label.className = "check"; box.type = "checkbox"; box.name = name; box.value = value; label.append(box, text); return label;
 }
-function save(c, merge) {
-  if (c.glad === null || c.item.state === "stale" || (c.item.state === "answered" && !merge)) return;
-  return send(c, "/api/decide", {key: c.item.repo + "#" + c.item.number, head: c.item.head, glad: c.glad, merge,
-    reasons: c.glad ? c.checks.filter(b => b.checked).map(b => b.value) : [], other: (c.glad ? c.other.value : c.note.value).trim()});
+function sync(form, changed = document.activeElement) {
+  const glad = form.elements.glad.value, boxes = [...form.querySelectorAll("[name=reason]")], all = form.elements.all;
+  for (const part of form.querySelectorAll("[data-when]")) part.hidden = part.disabled = part.dataset.when !== glad;
+  if (all && changed === all) boxes.forEach(box => box.checked = all.checked);
+  else if (all) all.checked = boxes.length > 0 && boxes.every(box => box.checked);
 }
-function clear(c) { if (c.item.state === "stale") return send(c, "/api/clear", {key: c.item.repo + "#" + c.item.number, head: c.item.head}); }
-function count() { const left = cards.filter(c => !c.done && c.item.state !== "answered").length; status.textContent = `${left} waiting on you` + (decided ? ` · ${decided} done this session` : ""); }
+function choose(form, glad) { form.elements.glad.value = glad; sync(form, null); }
+
+async function save(item, form, merge) {
+  if (form.ariaBusy === "true") return;
+  form.ariaBusy = "true"; form.querySelectorAll("button").forEach(button => button.disabled = true);
+  const glad = form.elements.glad.value === "yes";
+  const out = await act("/api/decide", {key: keyOf(item), head: item.head, glad, merge,
+    reasons: glad ? [...form.querySelectorAll("[name=reason]:checked")].map(box => box.value) : [],
+    other: (glad ? form.elements.other : form.elements.note).value.trim(), seconds: Math.round((performance.now() - since) / 100) / 10});
+  report(item, out);
+  const replied = out.steps.some(step => step.step === "reply" && step.ok);
+  if (out.ok || replied) {
+    groups.waiting.shift();
+    if (!(out.ok && merge)) groups.answered.push({...item, state: "answered", answer: glad ? "confirmed" : "overruled"});
+    render();
+  } else { form.ariaBusy = "false"; form.querySelectorAll("button").forEach(button => button.disabled = false); }
+}
+function skip() { if (groups.waiting.length > 1) { groups.waiting.push(groups.waiting.shift()); say(""); showItem(); } }
+
+function showRows(id, items, summary, label, run) {
+  const group = $("#" + id); group.hidden = !items.length; $("summary", group).textContent = summary;
+  $("ul", group).replaceChildren(...items.map(item => {
+    const row = copy("row"), link = $("a", row), button = $("button", row);
+    link.textContent = item.title; link.href = item.url; $("span", row).textContent = item.answer || keyOf(item);
+    button.textContent = label; button.setAttribute("aria-label", `${label}: ${item.title}`);
+    button.addEventListener("click", async () => {
+      button.disabled = true; const out = await run(item); report(item, out);
+      if (out.ok) { groups[id] = groups[id].filter(other => other !== item); render(false); } else button.disabled = false;
+    });
+    return row;
+  }));
+}
+function render(item = true) {
+  const {waiting, stale, answered} = groups;
+  $("#summary").textContent = [plural(waiting.length, "to answer", "to answer"), stale.length && plural(stale.length, "leftover label", "leftover labels"),
+    answered.length && `${answered.length} answered, still open`, MODE].filter(Boolean).join(" · ");
+  if (item) showItem();
+  showRows("stale", stale, plural(stale.length, "with only the label left", "with only the label left"), "Clear label",
+    item => act("/api/clear", {key: keyOf(item), head: item.head}));
+  showRows("answered", answered, `${answered.length} answered, still open`, "Merge",
+    item => act("/api/decide", {key: keyOf(item), head: item.head, glad: item.answer !== "overruled", merge: true, reasons: [], other: ""}));
+}
 async function load() {
-  status.textContent = "Loading…"; let data; try { data = await api("/api/queue"); } catch (e) { status.textContent = "Could not load: " + e.message; return; }
-  list.textContent = ""; cards = [];
-  if (!data.items.length) list.append(el("div", "empty", "Nothing is waiting on you."));
-  for (const [state, heading] of [["waiting", ""], ["stale", "Only the label is left"], ["answered", "Answered, still open"]]) {
-    const group = data.items.filter(i => i.state === state);
-    if (group.length && heading) list.append(el("h2", "", heading));
-    group.forEach(i => { const c = card(i); cards.push(c); list.append(c); });
-  }
-  at = 0; focus(0); count();
+  $("#summary").textContent = "Loading…"; say("");
+  let data; try { data = await api("/api/queue"); } catch (error) { $("#summary").textContent = "Could not load the queue."; say(error.message, true); return; }
+  groups = {waiting: [], stale: [], answered: []};
+  for (const item of data.items) groups[item.state].push(item);
+  render();
 }
-document.getElementById("reload").onclick = load;
-if (MODE) { const b = el("span", "badge", MODE); document.getElementById("mode").append(b); }
-document.addEventListener("keydown", e => {
-  const c = cards[at], typing = e.target.tagName === "INPUT" && e.target.type === "text";
-  if (e.key === "Escape") { e.target.blur(); return; }
-  if (e.key === "Enter" && c) { e.preventDefault(); c.item.state === "stale" ? clear(c) : save(c, e.shiftKey); return; }
-  if (typing || e.metaKey || e.ctrlKey || e.altKey || !c) return;
-  if (e.key === "j" || e.key === "ArrowDown") { e.preventDefault(); focus(at + 1); }
-  else if (e.key === "k" || e.key === "ArrowUp") { e.preventDefault(); focus(at - 1); }
-  else if (e.key === "c") clear(c);
-  else if (e.key === "y") pick(c, true); else if (e.key === "n") pick(c, false);
-  else if (c.item.state !== "waiting" || c.done) return;
-  else if (/^[1-9]$/.test(e.key) && c.checks[+e.key - 1]) { pick(c, true); const b = c.checks[+e.key - 1]; b.checked = !b.checked; if (c.all) c.all.checked = c.checks.every(x => x.checked); }
-  else if (e.key === "a" && c.checks.length) { pick(c, true); const on = !c.checks.every(x => x.checked); c.checks.forEach(b => b.checked = on); if (c.all) c.all.checked = on; }
-  else if (e.key === "o") { e.preventDefault(); if (c.glad === null) pick(c, true); (c.glad ? c.other : c.note).focus(); }
+
+// Every shortcut has a visible control that does the same thing.
+document.addEventListener("keydown", event => {
+  const form = $("#current form"), target = event.target;
+  if (!form || event.metaKey || event.ctrlKey || event.altKey) return;
+  const typing = target.matches("input[type=text]");
+  if (event.key === "Escape" && typing) return target.blur();
+  if (event.key === "Enter" && event.shiftKey) { event.preventDefault(); return form.requestSubmit($("[value=merge]", form)); }
+  if (typing || target.closest("a, button, summary")) return;
+  const boxes = [...form.querySelectorAll("[name=reason]")], key = event.key;
+  if (key === "Enter" && !form.contains(target)) form.requestSubmit($("[value=save]", form));
+  else if (key === "y") choose(form, "yes");
+  else if (key === "n") choose(form, "no");
+  else if (key === "s") skip();
+  else if (key === "o") { event.preventDefault(); if (!form.elements.glad.value) choose(form, "yes"); (form.elements.glad.value === "yes" ? form.elements.other : form.elements.note).focus(); }
+  else if (key === "a" && boxes.length) { choose(form, "yes"); const on = !boxes.every(box => box.checked); boxes.forEach(box => box.checked = on); sync(form, null); }
+  else if (/^[1-9]$/.test(key) && boxes[key - 1]) { choose(form, "yes"); boxes[key - 1].checked = !boxes[key - 1].checked; sync(form, null); }
 });
+$("#reload").addEventListener("click", load);
 load();
-</script></body></html>
+</script>
+</body>
+</html>
 """
 
 
@@ -908,7 +1116,8 @@ def handler(queue: Queue, token: str, mode: str, hosts: set[str]) -> type[BaseHT
                     return self.reply(200, queue.clear(str(data["key"]), str(data["head"])))
                 decision = Decision(str(data["key"]), str(data["head"]), data["glad"] is True,
                                     tuple(str(reason) for reason in data.get("reasons", []))[:20],
-                                    clean(data.get("other")), data.get("merge") is True)
+                                    clean(data.get("other")), data.get("merge") is True,
+                                    min(86_400.0, max(0.0, float(data["seconds"]))) if isinstance(data.get("seconds"), (int, float)) else None)
             except (TypeError, KeyError, ValueError):
                 return self.reply(400, {"error": "not a decision"})
             self.reply(200, queue.decide(decision))
@@ -1176,6 +1385,12 @@ def policy(config, default): return ReplyOnly()
         try:
             status, html = get("/")
             assert status == 200 and token.encode() in html and b"Consequential queue" in html
+            # The page's bones: one h1, a main, a live status, and a form whose question is a
+            # fieldset's legend and whose every text input has a label of its own.
+            text = html.decode()
+            assert text.count("<h1>") == 1 and "<main>" in text and 'role="status"' in text and text.count("<form>") == 1
+            assert "<legend>Glad this was flagged?</legend>" in text and 'type="radio" name="glad" value="yes" required' in text
+            assert all(f'<label for="{found}"' in text for found in re.findall(r'<input id="([^"]+)"', text)) and "placeholder=" not in text
             assert get("/api/queue")[0] == 403 and get("/api/queue", **{"X-Queue-Token": "nope"})[0] == 403
             assert get("/", Host="evil.example")[0] == 403
             assert get("/api/queue", Host="evil.example", **{"X-Queue-Token": token})[0] == 403
@@ -1185,11 +1400,13 @@ def policy(config, default): return ReplyOnly()
             assert listed[4]["state"] == "stale" and get("/api/clear", {"key": "example/app#105", "head": listed[4]["head"]})[0] == 403
             status, raw = get("/api/clear", {"key": "example/app#105", "head": listed[4]["head"]}, **{"X-Queue-Token": token})
             assert status == 200 and json.loads(raw)["ok"] and fresh.forge.reran  # type: ignore[attr-defined]
-            answer = {"key": "example/app#102", "head": listed[1]["head"], "glad": True, "reasons": ["weakens_security"], "merge": True}
+            answer = {"key": "example/app#102", "head": listed[1]["head"], "glad": True, "reasons": ["weakens_security"], "merge": True,
+                      "seconds": 4.2}
             assert get("/api/decide", answer)[0] == 403
             status, raw = get("/api/decide", answer, **{"X-Queue-Token": token})
             assert status == 200 and json.loads(raw)["ok"] and fresh.forge.merged == [("example/app", 102, listed[1]["head"])]  # type: ignore[attr-defined]
             assert get("/api/decide", {"key": 1}, **{"X-Queue-Token": token})[0] == 400
+            assert [r["seconds"] for r in fresh.store.records() if r["kind"] == "decision"] == [4.2]  # kept with the answer
         finally:
             server.shutdown()
 

@@ -119,7 +119,7 @@ against "low/medium/high".
 heads fail the check even when their own verdict is no, and the comment on such a head says the
 label is why. The owner clears it by merging, or by
 removing the label and re-running the check, which judges the current head again; the review queue
-below does both with one key. The owner can also add the label by hand. Label changes do not start a run, so the check shows a hand-added
+below does both with one button. The owner can also add the label by hand. Label changes do not start a run, so the check shows a hand-added
 label only from its next run; that is why the agent rule reads the label as well as the check.
 
 **What a run costs.** At most three model calls, not counting the retries of one that failed on an
@@ -130,17 +130,19 @@ would report success and replace a failing check, so it judges again.
 ## The owner's review queue
 
 A raise the owner clears by merging teaches the router nothing: the merge says the change was
-acceptable, not whether the flag was wanted. `scripts/server.py` puts every labelled pull request
-on one local page and asks one question of each, so an answer costs a keystroke or two:
+acceptable, not whether the flag was wanted. `scripts/server.py` shows the labelled pull requests
+one at a time on a local page and asks one question of each, so an answer costs a keystroke or two:
 
 ```bash
 uv run --script scripts/server.py --repo OWNER/REPO --open
 ```
 
-Each card shows the pull request and the questions that raised or were too close to call, with
-their reasons. **Glad this was flagged?** `y` or `n`. On yes, which reason was why: `1`–`9` tick a
-reason, `a` ticks all of them, `o` adds one the check did not give. `Enter` saves and moves to the
-next card; `Shift`+`Enter` saves and merges.
+The page shows one pull request, the questions that raised or were too close to call, and their
+reasons. **Glad this was flagged?** `y` or `n`. On yes, which reason was why: `1`–`9` tick a
+reason, `a` ticks all of them, `o` adds one the check did not give. `Enter` saves and shows the
+next; `Shift`+`Enter` saves and merges; `s` skips for now. The page is a plain form, so each
+shortcut has a button or a field that does the same, and nothing is picked until the owner picks
+it.
 
 On save the server, as the owner:
 
@@ -154,16 +156,16 @@ On save the server, as the owner:
   an owner's token can merge past a failing check without GitHub objecting, so the server reads
   the checks first (`--merge-despite CHECK` names another that fails by design).
 
-An answered pull request stays listed, with a merge button, until it merges or its head moves. A
-later head the check flags again is asked about again, with the earlier answer shown.
+An answered pull request stays in a list below, with a merge button, until it merges or its head
+moves. A later head the check flags again is asked about again, with the earlier answer shown.
 
 A pull request whose current head raised nothing, and fails only for the label an earlier head
-left, is listed apart. `c` clears it: the label comes off and the check runs again.
+left, is listed apart. Its Clear label button takes the label off and runs the check again.
 
 A run that judged nothing (a fork, an outage, a missing key) leaves no label, so it is not in the
 queue; its failed check and its comment are where it shows.
 
-Every answer and what was done about it is appended to
+Every answer, how long it took and what was done about it is appended to
 `$XDG_STATE_HOME/consequential-check/decisions.jsonl` (`--state PATH`) before anything is done on
 GitHub. `--on-record CMD` also pipes each record, as JSON, to a command, for a store somewhere
 else. `--summary` prints how the answers fall per reason: how often each was shown, was why, was
