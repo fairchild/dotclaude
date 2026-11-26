@@ -391,7 +391,8 @@ class Keys:
         self.refusals: list[str] = []
         self._key: str | None = None
         self._found: list[tuple[str, str]] | None = None
-        self._spent = False  # every key found was tried and none was accepted
+        self._spent = False  # by hand: every key found was turned away as a key
+        self.absent = False  # by hand: the only thing to try was the proxy, and it holds no key
 
     def first(self) -> list[tuple[str, str]]:
         name = self.provider.variables[0]
@@ -430,21 +431,33 @@ class Keys:
         return not self._spent and bool(self._key or self.first() or self.elsewhere())
 
     def use(self, call: Callable[[str], Reply]) -> Reply:
-        """`call` with the key. A refused or failed call moves on to the next key found, where a
-        run by hand has one; the last failure is the one raised."""
+        """`call` with the key. The workflow's run has one key and nothing here changes how a
+        failure of it reads. By hand, a call the provider refused or could not take moves on to
+        the next key found, and the last failure is the one raised. A failure this script names
+        itself (a refusal to answer, an answer cut off) is the model's, so no other key is tried."""
         if self._key is not None:
             return call(self._key)
+        if self.places is None:
+            return call(self.first()[0][0])
         last: Exception | None = None
-        for key, source in (pair for found in (self.first, self.elsewhere) for pair in found()):
+        turned_away: list[bool] = []
+        tried: list[str] = []
+        for key, source in (pair for found in (self.first, self.elsewhere) for pair in found()):  # elsewhere is read late
+            tried.append(source)
             try:
                 reply = call(key)
+            except Failed:
+                raise
             except Exception as error:  # noqa: BLE001 - named by failure(); the next key may be the right one
                 self.refusals.append(f"{source} ({failure(error)})")
+                turned_away.append(getattr(error, "status_code", getattr(error, "code", None)) in (401, 403))
                 last = error
                 continue
             self._key, self.source = key, source
             return reply
-        self._spent = True
+        # Asking again helps only when something other than the key failed.
+        self._spent = bool(turned_away) and all(turned_away)
+        self.absent = self._spent and tried == ["the network proxy"]
         raise last or Failed(f"no {self.provider.name} key was found")
 
     def note(self) -> str:
@@ -512,11 +525,17 @@ def judge(pull: Pull, env: dict[str, str], models: Models, from_fork: bool, jev_
 
     pull = Pull(pull.rubric, redact(pull.diff))
     run, system, diff = Run(), brief(pull.rubric), fenced(pull.diff)
+    first: Reply | str = ""
     if jev_key:
         if (state := jev_state(pull)) is None:
             return owner(f"the diff is too large for `{jev_model}` to read: nothing judged")
         first = asked(lambda: jev_keys.use(lambda key: models.jev(key, jev_model, state, pull.rubric)))
-    else:
+        if isinstance(first, str) and jev_keys.absent and claude_key:
+            # By hand, a proxy was only a guess at a Jev key. With none there, this is the install
+            # without one, where the cheap Claude model decides.
+            run.notes.append(f"The network proxy holds no Jev key, so `{cheap}` decides.")
+            jev_key = False
+    if not jev_key:
         first = asked(lambda: claude_keys.use(lambda key: models.claude(key, cheap, system, diff)))
     if isinstance(first, str):
         return owner(f"`{jev_model if jev_key else cheap}` did not answer ({first}): nothing judged")
@@ -747,7 +766,8 @@ def local_change(base: str | None, cwd: Path | None = None) -> tuple[str, str, P
 
 def find_rubric(explicit: Path | None, root: Path | None = None, base: str = "") -> tuple[str, str]:
     """(rubric, where it came from). The workflow reads the rubric from the default branch, so a
-    run by hand prefers the copy at `base`, then the working tree's, then the skill's own."""
+    run by hand reads the copy at `base`, and otherwise the skill's own: never the working tree's,
+    which the change being judged may have written."""
     if explicit:
         return explicit.read_text(), str(explicit)
     if root and base:
@@ -755,8 +775,8 @@ def find_rubric(explicit: Path | None, root: Path | None = None, base: str = "")
         if shown.returncode == 0 and shown.stdout.strip():
             return shown.stdout, f"{INSTALLED_RUBRIC} at {base[:9] if re.fullmatch(r'[0-9a-f]{40}', base) else base}"
     here = Path(__file__).resolve().parent
-    for path, label in (((root / INSTALLED_RUBRIC) if root else None, f"{INSTALLED_RUBRIC} in the working tree"),
-                        (here / "rubric.md", "rubric.md beside the script"),
+    inside = root is not None and here.is_relative_to(root.resolve())
+    for path, label in ((None if inside else here / "rubric.md", "rubric.md beside the script"),
                         (here.parent / "assets" / "rubric.md", "the skill's default rubric")):
         if path and path.is_file():
             return path.read_text(), label
@@ -1002,6 +1022,16 @@ def self_test() -> None:
     # A key urllib refuses to send is named by class only; its message quotes the header.
     assert asked(lambda: ask_jev("abc\nLEAKED-KEY", J, {"diff": "+x"}, rubric)) == "ValueError"
 
+    # In the workflow's form a benchmark that failed, for whatever reason, never costs the
+    # escalation: Opus is still asked, with the same key.
+    class Unauthorized(Exception):
+        status_code = 401
+
+    for broken in (Failed("it declined to answer"), Unauthorized("no"), RuntimeError("overloaded")):
+        v = run(both, a(costs_money=0.55), haiku=broken, opus=a("raises a replica count", costs_money=0.9))
+        assert calls == ["jev", H, O] and v["decided_by"] == O and v["consequential"], (broken, calls)
+        assert len(v["notes"]) == 2 and v["notes"][0].startswith("No benchmark answers") and "credentials" not in v
+
     # ---- where a key is looked for. The workflow's run reads its two variables and nothing else,
     # proxy or not: an install's keys are the ones its owner set.
     accepted: set[str] = set()
@@ -1046,6 +1076,16 @@ def self_test() -> None:
     assert tried("claude") == [PROXY_PLACEHOLDER] and v["decided_by"] is None and v["uncertain"] == ["costs_money"]
     assert v["notes"][0] == f"No benchmark answers: `{H}` did not answer (Refused, HTTP 401)." and "no Anthropic key" in v["notes"][1]
     assert v["credentials"] == {"jev": "`TYPESAFE_API_KEY`"}
+    # A proxy is only a guess at a Jev key. Where it holds none and an Anthropic key is set, this is
+    # the install without Jev, and the cheap Claude model decides.
+    accepted.clear()
+    accepted.add("claude-good")
+    v = by_hand({**proxy, "ANTHROPIC_API_KEY": "claude-good"}, Places(), haiku=a("adds a paid API", costs_money=0.9))
+    assert tried("jev") == [PROXY_PLACEHOLDER] and v["decided_by"] == H and v["raised"] == ["costs_money"]
+    assert v["notes"] == [f"The network proxy holds no Jev key, so `{H}` decides."] and v["credentials"] == {"anthropic": "`ANTHROPIC_API_KEY`"}
+    # A Jev key that was set and refused is not that case: nothing is judged, as in a run.
+    v = by_hand({**proxy, "TYPESAFE_API_KEY": "jev-wrong", "ANTHROPIC_API_KEY": "claude-good"}, Places())
+    assert tried("claude") == [] and v["reason"] == f"`{DEFAULT_JEV_MODEL}` did not answer (Refused, HTTP 401): nothing judged"
     with tempfile.TemporaryDirectory() as tmp:
         work, config = Path(tmp, "work"), Path(tmp, "config")
         (config / "anthropic").mkdir(parents=True)
@@ -1073,6 +1113,12 @@ def self_test() -> None:
         assert tried("jev") == ["jev-stale", "jev-from-dotenv"] and tried("claude") == [] and v["decided_by"] is None
         assert v["notes"] == ["Jev keys tried: `TYPESAFE_API_KEY` (Refused, HTTP 401); `TYPESAFE_API_KEY` in `~/work/.env` (Refused, HTTP 401)."]
         assert "jev-stale" not in written(v) and "jev-from-dotenv" not in written(v)
+        # A failure that is the model's own (it declined, its answer was cut off) is not a key's:
+        # no other key is tried for it.
+        accepted.update({"jev-stale", "jev-from-dotenv"})
+        v = by_hand({**home, "TYPESAFE_API_KEY": "jev-stale"}, places, jev_says=Failed("an answer was not a probability"))
+        assert tried("jev") == ["jev-stale"] and v["reason"].endswith("did not answer (an answer was not a probability): nothing judged")
+        accepted.clear()
         # The other places are not read while the first key works.
         ring = Keys(JEV, {"TYPESAFE_API_KEY": "k"}, places)
         assert ring.use(lambda key: Reply("m", a())).model == "m" and ring._found is None and ring.source == "`TYPESAFE_API_KEY`"
@@ -1104,6 +1150,8 @@ def self_test() -> None:
         found, where = find_rubric(None, root, fork)
         assert found.endswith("base copy\n") and where == f"{INSTALLED_RUBRIC} at {fork[:9]}"  # not the change's own edit
         assert default_base(repo) == "main"
+        # With no rubric at the base, the change's own copy is still not the one read.
+        assert find_rubric(None, root, "")[1] == "the skill's default rubric"
 
     # The comment carries the verdict as data, a model's reason cannot close that comment, and the
     # preview says what the check would do.
@@ -1164,8 +1212,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.self_test:
         self_test()
         return 0
-    by_hand = bool(args.local or args.pr)
-    if by_hand and (args.diff_file or (args.local and args.pr)):
+    by_hand = args.local or args.pr is not None
+    if by_hand and (args.diff_file or (args.local and args.pr is not None)):
         parser.error("give one of --local, --pr N, or --diff-file")
     if not by_hand and not (args.rubric and args.diff_file):
         parser.error("--rubric and --diff-file are required")
@@ -1173,7 +1221,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.local:
         diff, judged, root, fork = local_change(args.base)
         rubric, rubric_from = find_rubric(args.rubric, root, fork)
-    elif args.pr:
+    elif args.pr is not None:
         diff = sh("gh", "pr", "diff", str(args.pr), *(["--repo", args.repo] if args.repo else []))
         top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
         root = Path(top) if top and not args.repo else None

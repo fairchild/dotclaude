@@ -34,7 +34,8 @@ The four parts a repository may want to change are small classes with one job ea
     store(config, default) -> Store          where answers are kept
     policy(config, default) -> Policy        what an answer does: which comment, labels, merge
 
-The page is served on 127.0.0.1 only, and every action needs the random token printed into it.
+The page is served on 127.0.0.1 only, to the link printed at start: that link carries a random
+token, and the page and every action need it.
 """
 from __future__ import annotations
 
@@ -107,7 +108,9 @@ class Item:
     head: str
     size: str
     draft: bool
-    state: str  # waiting: no answer at this head | answered: answered, still open | stale: only the label is left
+    # waiting: no answer at this head | answered: answered, still open | stale: only the label is
+    # left | pending: flagged, and the check has not judged this head yet
+    state: str
     verdict: Verdict | None
     earlier: tuple[str, ...] = ()  # answers given at earlier heads, newest last
     labels: tuple[str, ...] = ()  # lower case, as GitHub matches them
@@ -181,7 +184,7 @@ class CheckDialect:
                 if q.get("raised") or q.get("uncertain"):
                     said = clean(q.get("why"))
                     text = ". ".join(filter(None, [self.close if q.get("uncertain") else "", said])) or "no reason given"
-                    reasons.append(Reason(qid, text, q.get("final"), q.get("raise_at")))
+                    reasons.append(Reason(qid, text, float(q["final"]), float(q["raise_at"])))
             if data.get("consequential") and not reasons:
                 reasons = [Reason("not_judged", clean(data.get("reason")) or "the owner merges: nothing was judged")]
             return Verdict(self.name, headline, tuple(reasons), str(data.get("head", "")), consequential=bool(data.get("consequential")))
@@ -402,16 +405,25 @@ class GitHub:
         found = ["it is a draft"] if pull.get("draft") else []
         if pull.get("mergeable") is False:
             found.append("it conflicts with its base")
-        latest: dict[str, dict] = {}
-        for run in self.call("GET", f"/repos/{repo}/commits/{head}/check-runs?per_page=100").get("check_runs", []):  # type: ignore[union-attr]
-            if run["name"] not in latest or run.get("id", 0) > latest[run["name"]].get("id", 0):
-                latest[run["name"]] = run
-        statuses = self.call("GET", f"/repos/{repo}/commits/{head}/status").get("statuses", [])  # type: ignore[union-attr]
-        states = {name: ("running" if run.get("status") != "completed" else "failed" if run.get("conclusion") in self.FAILED else "ok")
-                  for name, run in latest.items()}
-        states |= {s["context"]: {"success": "ok", "pending": "running"}.get(s.get("state"), "failed") for s in statuses}
+        # The latest run of each job, where a job is a name within one check suite: a re-run
+        # replaces its own earlier run, and a passing job never stands in for a failing one of the
+        # same name in another workflow.
+        latest: dict[tuple[object, str], dict] = {}
+        for page in range(1, 11):
+            batch = self.call("GET", f"/repos/{repo}/commits/{head}/check-runs?per_page=100&page={page}")
+            runs = batch.get("check_runs", []) if isinstance(batch, dict) else []
+            for run in runs:
+                job = ((run.get("check_suite") or {}).get("id"), run["name"])
+                if job not in latest or run.get("id", 0) > latest[job].get("id", 0):
+                    latest[job] = run
+            if len(runs) < 100:
+                break
+        statuses = self.call("GET", f"/repos/{repo}/commits/{head}/status?per_page=100").get("statuses", [])  # type: ignore[union-attr]
+        states = [(name, "running" if run.get("status") != "completed" else "failed" if run.get("conclusion") in self.FAILED else "ok")
+                  for (_, name), run in latest.items()]
+        states += [(s["context"], {"success": "ok", "pending": "running"}.get(s.get("state"), "failed")) for s in statuses]
         for state, said in (("failed", "checks failing"), ("running", "checks still running")):
-            if names := sorted(name for name, value in states.items() if value == state and name not in self.despite):
+            if names := sorted({name for name, value in states if value == state and name not in self.despite}):
                 found.append(f"{said}: {', '.join(names)}")
         return found
 
@@ -598,7 +610,11 @@ class Queue:
             if comment["author"] not in self.config.bots:
                 continue
             for dialect in self.dialects:
-                if found := dialect.read(comment["body"]):
+                try:
+                    found = dialect.read(comment["body"])
+                except (TypeError, ValueError, KeyError, AttributeError):
+                    continue  # the marker with a body in the wrong shape: not a verdict this can read
+                if found:
                     return replace(found, comment_id=int(comment["id"]))
         return None
 
@@ -617,6 +633,8 @@ class Queue:
             state = "answered"  # stays listed until it merges: the check is still red on this head
         elif self.config.label.lower() not in labels:
             return None  # a decision label alone, left by an earlier head, with nothing flagged now
+        elif verdict and verdict.head and not judged_here:
+            state = "pending"  # the reasons on record are an earlier head's: nothing to answer yet
         else:
             state = "stale" if verdict and not verdict.consequential and judged_here else "waiting"
         earlier = tuple(f"{'confirmed' if a.get('glad') else 'overruled'} at {str(a.get('head'))[:9]}"
@@ -630,7 +648,7 @@ class Queue:
         labels = (self.config.label, self.config.confirmed_label, self.config.overruled_label)
         found = [item for repo in self.config.repos for pull in self.forge.waiting(repo, labels)
                  if (item := self.item(repo, pull))]
-        found.sort(key=lambda item: (("waiting", "stale", "answered").index(item.state), item.repo, item.number))
+        found.sort(key=lambda item: (("waiting", "stale", "answered", "pending").index(item.state), item.repo, item.number))
         with self._lock:
             self.items = {item.key: item for item in found}
         return found
@@ -677,6 +695,8 @@ class Queue:
             return self.refused("not in the queue any more: reload")
         if item.state == "stale":
             return self.refused("this head raised nothing: clear the label instead")
+        if item.state == "pending":
+            return self.refused("the check has not judged this head yet: reload once it has")
         shown = {reason.id for reason in item.verdict.reasons} if item.verdict else set()
         if unknown := set(decision.reasons) - shown:
             return self.refused(f"not a reason shown: {sorted(unknown)}")
@@ -689,7 +709,14 @@ class Queue:
                   "dialect": item.verdict.dialect if item.verdict else "", "verdict_head": item.verdict.head if item.verdict else "",
                   "shown": [asdict(reason) for reason in item.verdict.reasons] if item.verdict else []}
         plan = self.policy.steps(decision, item, self.config, self.reply(decision, item))
-        return self.act(item, decision.head, record, [step for step in plan if step.name == "merge" or not answered])
+        out = self.act(item, decision.head, record, [step for step in plan if step.name == "merge" or not answered])
+        done = {step["step"] for step in out["steps"] if step["ok"]}
+        with self._lock:
+            if "merge" in done:
+                self.items.pop(item.key, None)
+            elif "reply" in done:
+                self.items[item.key] = replace(item, state="answered", answer="confirmed" if decision.glad else "overruled")
+        return out
 
     def clear(self, key: str, head: str) -> dict:
         """Take the label off a pull request whose current head raised nothing, and run the check
@@ -699,9 +726,25 @@ class Queue:
         if item is None or item.state != "stale":
             return self.refused("not a pull request with only the label left: reload")
         repo, number, config = item.repo, item.number, self.config
-        return self.act(item, head, {"kind": "clear"}, [
-            Step("label", lambda forge: forge.relabel(repo, number, (config.label,), ())),
+        gone = tuple(name for name in (config.label, config.confirmed_label, config.overruled_label) if name.lower() in item.labels)
+        out = self.act(item, head, {"kind": "clear"}, [
+            Step("label", lambda forge: forge.relabel(repo, number, gone, ())),
             Step("rerun", lambda forge: forge.rerun(repo, head, config.check))])
+        if out["ok"]:
+            with self._lock:
+                self.items.pop(key, None)
+        return out
+
+
+    def rerun(self, key: str, head: str) -> dict:
+        """Run the check again on a head it has not judged: the way out when its run died, since
+        nothing here can tell a slow check from a dead one."""
+        with self._lock:
+            item = self.items.get(key)
+        if item is None or item.state != "pending":
+            return self.refused("not a pull request waiting on the check: reload")
+        repo, check = item.repo, self.config.check
+        return self.act(item, head, {"kind": "rerun"}, [Step("rerun", lambda forge: forge.rerun(repo, head, check))])
 
 
 def summary(records: list[dict]) -> str:
@@ -778,8 +821,9 @@ ul { list-style: none; }
 :focus-visible, label:has(:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 body > header { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); }
-main { display: grid; gap: var(--space-4); margin-top: var(--space-6); }
-#status:empty { display: none; }
+main { margin-top: var(--space-6); }
+main > * + * { margin-top: var(--space-4); }
+#status:empty + * { margin-top: 0; }  /* a live region is announced only if it was in the page before it had text */
 #status { font-size: 0.9375rem; line-height: 1.25rem; }
 #status.failed { color: var(--destructive); }
 
@@ -855,6 +899,12 @@ kbd { font: 0.8125rem ui-monospace, SFMono-Regular, Menlo, monospace; }
     <ul class="rows"></ul>
   </details>
 
+  <details id="pending" hidden>
+    <summary></summary>
+    <p class="note">The check has not judged the current head. If its run is not in progress, run it again.</p>
+    <ul class="rows"></ul>
+  </details>
+
   <details>
     <summary>Keyboard shortcuts</summary>
     <dl>
@@ -865,6 +915,7 @@ kbd { font: 0.8125rem ui-monospace, SFMono-Regular, Menlo, monospace; }
       <dt><kbd>Shift</kbd> <kbd>Enter</kbd></dt><dd>Save and merge</dd>
       <dt><kbd>s</kbd></dt><dd>Skip for now</dd>
     </dl>
+    <label class="check"><input type="checkbox" id="letters" checked>Use the single-key shortcuts</label>
   </details>
 </main>
 
@@ -933,7 +984,8 @@ const copy = id => $("#" + id).content.firstElementChild.cloneNode(true);
 const words = id => id.replace(/[._]/g, " ");
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const keyOf = item => `${item.repo}#${item.number}`;
-let groups = {waiting: [], stale: [], answered: []}, since = 0;
+let groups = {waiting: [], stale: [], answered: [], pending: []}, since = 0;
+const busy = () => { const form = $("#current form"); return !!form && form.ariaBusy === "true"; };
 
 async function api(path, body) {
   const response = await fetch(path, {method: body ? "POST" : "GET", body: body ? JSON.stringify(body) : undefined,
@@ -973,7 +1025,7 @@ function showItem() {
     checks.append(check("reason", reason.id, words(reason.id)));
   }
   if (reasons.length > 1) checks.append(check("all", "", reasons.length === 2 ? "Both" : "All of them"));
-  form.addEventListener("change", () => sync(form));
+  form.addEventListener("change", event => sync(form, event.target));
   form.addEventListener("submit", event => { event.preventDefault(); save(item, form, event.submitter && event.submitter.value === "merge"); });
   $("[data-skip]", form).addEventListener("click", skip);
   holder.replaceChildren(card);
@@ -984,7 +1036,7 @@ function check(name, value, text) {
   const label = document.createElement("label"), box = document.createElement("input");
   label.className = "check"; box.type = "checkbox"; box.name = name; box.value = value; label.append(box, text); return label;
 }
-function sync(form, changed = document.activeElement) {
+function sync(form, changed) {
   const glad = form.elements.glad.value, boxes = [...form.querySelectorAll("[name=reason]")], all = form.elements.all;
   for (const part of form.querySelectorAll("[data-when]")) part.hidden = part.disabled = part.dataset.when !== glad;
   if (all && changed === all) boxes.forEach(box => box.checked = all.checked);
@@ -1002,14 +1054,14 @@ async function save(item, form, merge) {
   report(item, out);
   const replied = out.steps.some(step => step.step === "reply" && step.ok);
   if (out.ok || replied) {
-    groups.waiting.shift();
+    groups.waiting = groups.waiting.filter(other => other !== item);
     if (!(out.ok && merge)) groups.answered.push({...item, state: "answered", answer: glad ? "confirmed" : "overruled"});
     render();
   } else { form.ariaBusy = "false"; form.querySelectorAll("button").forEach(button => button.disabled = false); }
 }
-function skip() { if (groups.waiting.length > 1) { groups.waiting.push(groups.waiting.shift()); say(""); showItem(); } }
+function skip() { if (!busy() && groups.waiting.length > 1) { groups.waiting.push(groups.waiting.shift()); say(""); showItem(); } }
 
-function showRows(id, items, summary, label, run) {
+function showRows(id, items, summary, label, run, stays) {
   const group = $("#" + id); group.hidden = !items.length; $("summary", group).textContent = summary;
   $("ul", group).replaceChildren(...items.map(item => {
     const row = copy("row"), link = $("a", row), button = $("button", row);
@@ -1017,40 +1069,47 @@ function showRows(id, items, summary, label, run) {
     button.textContent = label; button.setAttribute("aria-label", `${label}: ${item.title}`);
     button.addEventListener("click", async () => {
       button.disabled = true; const out = await run(item); report(item, out);
-      if (out.ok) { groups[id] = groups[id].filter(other => other !== item); render(false); } else button.disabled = false;
+      if (out.ok && !stays) { groups[id] = groups[id].filter(other => other !== item); render(false); } else button.disabled = out.ok;
     });
     return row;
   }));
 }
 function render(item = true) {
-  const {waiting, stale, answered} = groups;
-  $("#summary").textContent = [plural(waiting.length, "to answer", "to answer"), stale.length && plural(stale.length, "leftover label", "leftover labels"),
-    answered.length && `${answered.length} answered, still open`, MODE].filter(Boolean).join(" · ");
+  const {waiting, stale, answered, pending} = groups;
+  $("#summary").textContent = [`${waiting.length} to answer`, stale.length && plural(stale.length, "leftover label", "leftover labels"),
+    answered.length && `${answered.length} answered, still open`, pending.length && `${pending.length} waiting on the check`, MODE].filter(Boolean).join(" · ");
   if (item) showItem();
   showRows("stale", stale, plural(stale.length, "with only the label left", "with only the label left"), "Clear label",
     item => act("/api/clear", {key: keyOf(item), head: item.head}));
   showRows("answered", answered, `${answered.length} answered, still open`, "Merge",
     item => act("/api/decide", {key: keyOf(item), head: item.head, glad: item.answer !== "overruled", merge: true, reasons: [], other: ""}));
+  showRows("pending", pending, `${pending.length} waiting on the check`, "Run the check again",
+    item => act("/api/rerun", {key: keyOf(item), head: item.head}), true);
 }
 async function load() {
   $("#summary").textContent = "Loading…"; say("");
   let data; try { data = await api("/api/queue"); } catch (error) { $("#summary").textContent = "Could not load the queue."; say(error.message, true); return; }
-  groups = {waiting: [], stale: [], answered: []};
+  groups = {waiting: [], stale: [], answered: [], pending: []};
   for (const item of data.items) groups[item.state].push(item);
   render();
 }
 
-// Every shortcut has a visible control that does the same thing.
+// Every shortcut has a visible control that does the same thing, and the single-key ones can be
+// turned off: a stray key, or speech input, should not be able to answer.
+const letters = $("#letters");
+try { letters.checked = localStorage.getItem("letters") !== "off"; } catch (error) { /* storage is optional */ }
+letters.addEventListener("change", () => { try { localStorage.setItem("letters", letters.checked ? "on" : "off"); } catch (error) { /* optional */ } });
 document.addEventListener("keydown", event => {
   const form = $("#current form"), target = event.target;
-  if (!form || event.metaKey || event.ctrlKey || event.altKey) return;
-  const typing = target.matches("input[type=text]");
+  if (!form || busy() || event.metaKey || event.ctrlKey || event.altKey) return;
+  const typing = target.matches("input[type=text]"), ours = target === document.body || form.contains(target);
   if (event.key === "Escape" && typing) return target.blur();
-  if (event.key === "Enter" && event.shiftKey) { event.preventDefault(); return form.requestSubmit($("[value=merge]", form)); }
+  if (event.key === "Enter" && event.shiftKey && ours) { event.preventDefault(); return form.requestSubmit($("[value=merge]", form)); }
   if (typing || target.closest("a, button, summary")) return;
   const boxes = [...form.querySelectorAll("[name=reason]")], key = event.key;
-  if (key === "Enter" && !form.contains(target)) form.requestSubmit($("[value=save]", form));
-  else if (key === "y") choose(form, "yes");
+  if (key === "Enter" && !form.contains(target) && target === document.body) return form.requestSubmit($("[value=save]", form));
+  if (!letters.checked || target === letters) return;
+  if (key === "y") choose(form, "yes");
   else if (key === "n") choose(form, "no");
   else if (key === "s") skip();
   else if (key === "o") { event.preventDefault(); if (!form.elements.glad.value) choose(form, "yes"); (form.elements.glad.value === "yes" ? form.elements.other : form.elements.note).focus(); }
@@ -1080,7 +1139,10 @@ def handler(queue: Queue, token: str, mode: str, hosts: set[str]) -> type[BaseHT
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'")
+            self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; "
+                             "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Referrer-Policy", "no-referrer")
             self.end_headers()
             self.wfile.write(body)
 
@@ -1097,7 +1159,13 @@ def handler(queue: Queue, token: str, mode: str, hosts: set[str]) -> type[BaseHT
         def do_GET(self) -> None:
             if not self.local():
                 return self.reply(403, {"error": "wrong host"})
-            if self.path == "/":
+            url = urllib.parse.urlsplit(self.path)
+            if url.path == "/":
+                # The page carries the token every action needs, so it is served only to the link
+                # the server printed: another process on this machine cannot fetch it and act.
+                given = urllib.parse.parse_qs(url.query).get("t", [""])[0]
+                if not secrets.compare_digest(given, token):
+                    return self.send(403, b"Open the link this server printed when it started.\n", "text/plain; charset=utf-8")
                 return self.send(200, page(token, mode), "text/html; charset=utf-8")
             if self.path == "/api/queue" and self.allowed():
                 try:
@@ -1107,13 +1175,14 @@ def handler(queue: Queue, token: str, mode: str, hosts: set[str]) -> type[BaseHT
             self.reply(403 if self.path.startswith("/api/") else 404, {"error": "not allowed" if self.path.startswith("/api/") else "not found"})
 
         def do_POST(self) -> None:
-            if self.path not in ("/api/decide", "/api/clear") or not self.allowed():
+            if self.path not in ("/api/decide", "/api/clear", "/api/rerun") or not self.allowed():
                 return self.reply(403, {"error": "not allowed"})
             try:
                 length = int(self.headers.get("Content-Length", "0"))
                 data = json.loads(self.rfile.read(length)) if 0 < length <= 20_000 else None
-                if self.path == "/api/clear":
-                    return self.reply(200, queue.clear(str(data["key"]), str(data["head"])))
+                if self.path != "/api/decide":
+                    run = queue.clear if self.path == "/api/clear" else queue.rerun
+                    return self.reply(200, run(str(data["key"]), str(data["head"])))
                 decision = Decision(str(data["key"]), str(data["head"]), data["glad"] is True,
                                     tuple(str(reason) for reason in data.get("reasons", []))[:20],
                                     clean(data.get("other")), data.get("merge") is True,
@@ -1208,8 +1277,8 @@ def main() -> int:
         store = HookedStore(store, args.on_record)
     queue = build(config, Demo() if args.demo else GitHub(despite=(args.check, *args.merge_despite)), store, load_adapter(args.adapter) if args.adapter else None)
     mode = "demo: nothing is real" if args.demo else "dry run: nothing changes on GitHub" if args.dry_run else ""
-    server, _ = serve(queue, args.port, mode)
-    link = f"http://127.0.0.1:{server.server_address[1]}/"
+    server, token = serve(queue, args.port, mode)
+    link = f"http://127.0.0.1:{server.server_address[1]}/?t={token}"
     print(f"Consequential queue for {', '.join(repos)}: {link}" + (f"  ({mode})" if mode else ""), flush=True)
     if args.open:
         import webbrowser
@@ -1281,6 +1350,8 @@ def self_test() -> int:
         again["head"] = "9" * 40
         assert 103 not in {item.number for item in queue.refresh()}
         again["labels"] = ["Consequential", "consequential:overruled"]
+        assert {item.number: item for item in queue.refresh()}[103].state == "pending"  # flagged, not yet judged at this head
+        again["comments"][0]["body"] = demo_comment("9" * 40, {"costs_money": (0.7, 0.5, "the retry loop calls the billed API")})
         back = {item.number: item for item in queue.refresh()}[103]
         assert back.state == "waiting" and back.earlier == ("overruled at c3d4e5f6c",)
         # Confirmed this time: the stale overruled label comes off, whatever the label's case.
@@ -1316,7 +1387,8 @@ def self_test() -> int:
             {"id": 1, "author": "someone-else", "body": "consequential: wrong\n\n" + hidden(DECISION_MARKER, {"head": "0" * 40, "glad": False})},
             {"id": 2, "author": "someone-else", "body": demo_comment("0" * 40, {"costs_money": (0.9, 0.5, "forged")})}]
         kept = {item.number: item for item in queue.refresh()}[102]
-        assert kept.state == "waiting" and [reason.id for reason in kept.verdict.reasons] == ["weakens_security"]  # type: ignore[union-attr]
+        # The forged verdict names the new head; the bot's own is still the earlier head's, so it waits on the check.
+        assert kept.state == "pending" and [reason.id for reason in kept.verdict.reasons] == ["weakens_security"]  # type: ignore[union-attr]
 
         # Every answer and its outcome is on disk, and the summary counts each reason once per head.
         records = store.records()
@@ -1326,6 +1398,44 @@ def self_test() -> int:
         assert "4 answered: 3 glad it was flagged, 1 not." in text, text
         assert re.search(r"^costs_money\s+3\s+2\s+0\s+1$", text, re.M) and re.search(r"^exposes_private_data\s+1\s+0\s+1\s+0$", text, re.M), text
         assert "- also drops the audit index" in text
+
+        # The page merges an answered pull request without reloading. That is the merge alone: no
+        # second reply, and no second answer in the record.
+        def one(number: int, head: str, comment: str, labels: list[str]) -> dict:
+            return {"number": number, "title": "t", "url": "u", "author": "a", "head": head, "additions": 1, "deletions": 0,
+                    "changed_files": 1, "draft": False, "labels": labels,
+                    "comments": [{"id": number * 10, "author": "github-actions[bot]", "body": comment}]}
+
+        old, new = "1" * 40, "2" * 40
+        again_forge = Demo({"example/app": [
+            one(1, new, demo_comment(new, {"costs_money": (0.9, 0.5, "a paid API")}), ["consequential"]),
+            one(2, new, demo_comment(old, {"costs_money": (0.9, 0.5, "a paid API")}), ["consequential"]),
+            one(3, new, demo_comment(new, {}, consequential=False), ["consequential", "consequential:confirmed"]),
+            one(4, new, MARKER + "\n**Consequential: yes**\n\n" + hidden(DATA_MARKER, {"consequential": True, "questions": [1]}), ["consequential"]),
+            one(5, new, MARKER + "\n**Consequential: yes**\n\n- **costs_money** (p 0.5.1, line 0.50): x", ["consequential"])]})
+        again_store = JsonlStore(Path(tmp) / "again.jsonl")
+        again = build(config, again_forge, again_store)
+        states = {item.number: item for item in again.refresh()}
+        assert again.decide(Decision("example/app#1", new, True, ("costs_money",)))["ok"]
+        out = again.decide(Decision("example/app#1", new, True, merge=True))
+        assert [step["step"] for step in out["steps"]] == ["merge"] and again_forge.merged == [("example/app", 1, new)]
+        assert len([c for c in again_forge.find("example/app", 1)["comments"] if DECISION_MARKER in c["body"]]) == 1
+        assert [r["kind"] for r in again_store.records()] == ["decision", "outcome", "merge", "outcome"]
+        assert again.decide(Decision("example/app#1", new, True, merge=True))["steps"][0]["detail"].startswith("not in the queue")
+        # Reasons that judged an earlier head are not answered as if they were this head's.
+        assert states[2].state == "pending"
+        assert again.decide(Decision("example/app#2", new, True, merge=True))["steps"][0]["detail"].startswith("the check has not judged this head")
+        assert not again_forge.find("example/app", 2).get("merged")
+        # What it can do is run the check again, in case its run died; it stays pending until the check answers.
+        out = again.rerun("example/app#2", new)
+        assert out["ok"] and [step["step"] for step in out["steps"]] == ["rerun"] and again_forge.reran[-1] == ("example/app", new, "consequential-check")
+        assert again.rerun("example/app#4", new)["steps"][0]["detail"].startswith("not a pull request waiting on the check")
+        assert {item.number: item for item in again.refresh()}[2].state == "pending"
+        # Clearing a leftover label takes the decision labels of earlier heads with it.
+        assert states[3].state == "stale" and again.clear("example/app#3", new)["ok"] and again_forge.find("example/app", 3)["labels"] == []
+        # A bot comment with the marker and a body in the wrong shape is not a verdict, and does
+        # not take the queue down with it.
+        assert (states[4].state, states[4].verdict, states[5].verdict) == ("waiting", None, None)
 
         # A dry run reads the same queue and changes nothing.
         dry_forge = Demo()
@@ -1383,8 +1493,13 @@ def policy(config, default): return ReplyOnly()
                 return error.code, error.read()
 
         try:
-            status, html = get("/")
+            # The page carries the token, so it is served only to the link the server printed,
+            # and it cannot be framed by another site.
+            assert get("/")[0] == 403 and token.encode() not in get("/")[1] and get("/?t=wrong")[0] == 403
+            status, html = get(f"/?t={token}")
             assert status == 200 and token.encode() in html and b"Consequential queue" in html
+            with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(f"{base}/?t={token}", timeout=10) as response:
+                assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"] and response.headers["X-Frame-Options"] == "DENY"
             # The page's bones: one h1, a main, a live status, and a form whose question is a
             # fieldset's legend and whose every text input has a label of its own.
             text = html.decode()
@@ -1392,7 +1507,7 @@ def policy(config, default): return ReplyOnly()
             assert "<legend>Glad this was flagged?</legend>" in text and 'type="radio" name="glad" value="yes" required' in text
             assert all(f'<label for="{found}"' in text for found in re.findall(r'<input id="([^"]+)"', text)) and "placeholder=" not in text
             assert get("/api/queue")[0] == 403 and get("/api/queue", **{"X-Queue-Token": "nope"})[0] == 403
-            assert get("/", Host="evil.example")[0] == 403
+            assert get(f"/?t={token}", Host="evil.example")[0] == 403
             assert get("/api/queue", Host="evil.example", **{"X-Queue-Token": token})[0] == 403
             status, raw = get("/api/queue", **{"X-Queue-Token": token})
             listed = json.loads(raw)["items"]
@@ -1417,10 +1532,14 @@ def policy(config, default): return ReplyOnly()
                      "user": {"login": "an-agent"}, "head": {"sha": "5" * 40}, "additions": 3, "deletions": 1,
                      "changed_files": 1, "draft": False, "labels": [{"name": "consequential"}]}
         verdict_body = demo_comment("5" * 40, {"costs_money": (0.8, 0.5, "replicas 2 to 6")})
-        checks = [{"name": "ci", "id": 1, "status": "completed", "conclusion": "failure"},
-                  {"name": "ci", "id": 2, "status": "completed", "conclusion": "success"},
-                  {"name": "gate", "id": 3, "status": "completed", "conclusion": "failure"},
-                  {"name": "e2e", "id": 4, "status": "in_progress", "conclusion": None}]
+        # `ci` failed and its re-run passed, in one suite. `lint` passes in that suite and fails as
+        # a job of the same name in another workflow, which the passing one must not hide.
+        checks = [{"name": "ci", "id": 1, "status": "completed", "conclusion": "failure", "check_suite": {"id": 10}},
+                  {"name": "ci", "id": 2, "status": "completed", "conclusion": "success", "check_suite": {"id": 10}},
+                  {"name": "gate", "id": 3, "status": "completed", "conclusion": "failure", "check_suite": {"id": 10}},
+                  {"name": "e2e", "id": 4, "status": "in_progress", "conclusion": None, "check_suite": {"id": 10}},
+                  {"name": "lint", "id": 5, "status": "completed", "conclusion": "failure", "check_suite": {"id": 11}},
+                  {"name": "lint", "id": 6, "status": "completed", "conclusion": "success", "check_suite": {"id": 10}}]
 
         class Api(BaseHTTPRequestHandler):
             def log_message(self, *args: object) -> None:
@@ -1452,7 +1571,7 @@ def policy(config, default): return ReplyOnly()
                     ("PUT", "/repos/o/r/pulls/5/merge"): (405, {"message": "Required status check \"ci\" is expected."}),
                     ("GET", f"/repos/o/r/commits/{'5' * 40}/check-runs"): (200, {"check_runs": checks}),
                     ("GET", f"/repos/o/r/commits/{'5' * 40}/status"): (200, {"statuses": [{"context": "preview", "state": "success"}]}),
-                    ("POST", "/repos/o/r/actions/jobs/4/rerun"): (201, {}),
+                    ("POST", "/repos/o/r/actions/jobs/6/rerun"): (201, {}),
                 }
                 self.answer(*routes.get((self.command, path), (404, {"message": "Not Found"})))
 
@@ -1471,9 +1590,9 @@ def policy(config, default): return ReplyOnly()
             assert [(step["step"], step["ok"]) for step in out["steps"]] == [("reply", True), ("label", True), ("merge", False)], out
             assert out["steps"][0]["detail"] == "commented: https://github.example/o/r/pull/5#c"
             # The owner's token could merge past these, so the forge refuses before asking GitHub.
-            assert out["steps"][2]["detail"] == "not merged: checks failing: gate; checks still running: e2e"
+            assert out["steps"][2]["detail"] == "not merged: checks failing: gate, lint; checks still running: e2e"
             assert not any(method == "PUT" for method, _, _ in sent)
-            github.despite = ("gate", "e2e")
+            github.despite = ("gate", "e2e", "lint")
             try:
                 github.merge("o/r", 5, "5" * 40, "squash")
                 raise AssertionError("merged past GitHub's refusal")
@@ -1486,7 +1605,7 @@ def policy(config, default): return ReplyOnly()
             assert writes[3] == ("PUT", "/repos/o/r/pulls/5/merge", {"sha": "5" * 40, "merge_method": "squash"})
             assert github.relabel("o/r", 5, ("consequential:confirmed",), ()) == "-consequential:confirmed"  # a 404 on removal is fine
             assert github.rerun("o/r", "5" * 40, "e2e") == "`e2e` is running again on 555555555"
-            assert sent[-2][1].endswith("check-runs?per_page=100&check_name=e2e") and sent[-1][:2] == ("POST", "/repos/o/r/actions/jobs/4/rerun")
+            assert sent[-2][1].endswith("check-runs?per_page=100&check_name=e2e") and sent[-1][:2] == ("POST", "/repos/o/r/actions/jobs/6/rerun")
             try:
                 GitHub(github.api, tokens=["stale"]).login()
                 raise AssertionError("a refused token signed in")
