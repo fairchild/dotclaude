@@ -1,29 +1,36 @@
 # Template for the consequential-check skill. Copy it to .github/workflows/consequential-check.yml,
-# and copy scripts/consequential.py and assets/rubric.md to .github/consequential/ on the default
+# and copy scripts/consequential.py and assets/rubric.md to .github/consequential/, on the default
 # branch.
 #
-# It labels a pull request `consequential` when the owner should be the one to merge it, and posts
-# the verdict as one comment it keeps current. It never merges, approves, or removes the label: a
-# later push cannot clear a raise, only the owner can.
+# The check is green when a model judged this head's diff and raised nothing. It fails when the
+# owner should be the one to merge: a question raised, a verdict too close to call, nothing judged,
+# or an earlier head that was raised and still carries the `consequential` label. A raised pull
+# request gets that label, and one verdict comment is kept current. The workflow never merges,
+# approves, or removes the label: a later push cannot clear a raise, only the owner can.
 #
-# The trigger is `pull_request_target`, so GitHub reads this workflow from the base branch and a
-# pull request cannot rewrite its own judge; the script and rubric are checked out from the base
-# commit too. No pull request code runs: only its diff, read through the API, reaches a model. The
-# title and body never do. Pull requests from forks are skipped; a fork's PR is the owner's to merge
-# regardless.
+# The trigger is `pull_request_target`, so GitHub runs this file from the default branch, whatever
+# branch the pull request targets, and a pull request cannot rewrite its own judge. The checkout
+# has no `ref`, so the script and rubric come from the default branch too. No pull request code
+# runs: only its diff, read through the API, reaches a model. The title and body never do.
 #
-# Jev decides; a cheap Claude model answers the same questions beside it as a benchmark, and every
-# model's answers land in the `consequential-verdict` artifact and the job summary. A Jev/benchmark
-# disagreement shows as a warning, a line in the summary and a line in the comment.
+# A public repository blocks `pull_request_target` by default from 2026-12-02. Allow the event for
+# this file under Settings → Actions → Policies. A blocked run never starts, so the check is not
+# green and the pull request stays the owner's to merge.
 #
-# Secrets: TYPESAFE_API_KEY (Jev; without it the benchmark model decides, as before Jev), and
-# ANTHROPIC_API_KEY (the benchmark and the stronger model). Variable: JEV_MODEL, set to the exact
-# Jev version the rubric was tuned against.
+# A pull request from a fork gets no secrets and no model call, and fails: it is the owner's to
+# merge.
+#
+# Secrets: TYPESAFE_API_KEY (Jev decides; without it a cheap Claude model does) and
+# ANTHROPIC_API_KEY (the Claude models: the benchmark beside Jev, and Opus when a verdict is too
+# close to call). Variable: JEV_MODEL, the exact Jev version the rubric was tuned against.
 name: Consequential check
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review]
+    # `edited` covers a changed base branch, which changes the diff without a push. It also fires
+    # on a title or body edit, and that run judges again: a job skipped for it would report
+    # success and replace a failing check.
+    types: [opened, synchronize, reopened, ready_for_review, edited]
 
 permissions:
   contents: read
@@ -33,8 +40,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # No job-level `if`: a skipped job reports success, and this check must never pass unjudged.
   route:
-    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -44,7 +51,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
           sparse-checkout: .github/consequential
 
@@ -57,22 +63,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          # The API refuses very large diffs; an empty file routes the PR to the owner.
+          # The API refuses very large diffs; an empty file leaves the PR to the owner.
           gh pr diff "$PR" --repo "$GITHUB_REPOSITORY" > "$RUNNER_TEMP/pr.diff" || : > "$RUNNER_TEMP/pr.diff"
 
       # `shell: bash` adds pipefail, so a crash in the script fails this step instead of hiding
       # behind `tee`. The steps after it run on failure and treat a missing verdict as a raise.
+      # A fork, or a head repository that no longer exists, gets empty keys and no model call.
       - name: Route
         id: route
         shell: bash
         env:
           HEAD: ${{ github.event.pull_request.head.sha }}
-          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          FROM_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+          TYPESAFE_API_KEY: ${{ github.event.pull_request.head.repo.full_name == github.repository && secrets.TYPESAFE_API_KEY || '' }}
+          ANTHROPIC_API_KEY: ${{ github.event.pull_request.head.repo.full_name == github.repository && secrets.ANTHROPIC_API_KEY || '' }}
           JEV_MODEL: ${{ vars.JEV_MODEL }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           uv run --script .github/consequential/consequential.py \
             --rubric .github/consequential/rubric.md \
+            --from-fork "$FROM_FORK" \
             --head "$HEAD" \
             --diff-file "$RUNNER_TEMP/pr.diff" \
             --comment-file "$RUNNER_TEMP/comment.md" \
@@ -106,7 +115,8 @@ jobs:
         run: |
           marker='<!-- consequential-check -->'
           if [ ! -s "$RUNNER_TEMP/comment.md" ]; then
-            printf '%s\n**Consequential: yes** at `%s`\n\nThe router failed before reaching a verdict; routed to the owner. The run log has the error.\n\n<!-- agent-note -->\n' \
+            # shellcheck disable=SC2016  # the backticks are Markdown, not a command
+            printf '%s\n**Consequential: yes** at `%s`\n\nThe router failed before reaching a verdict, so the owner merges this one. The run log has the error.\n\n<!-- agent-note -->\n' \
               "$marker" "${HEAD:0:12}" > "$RUNNER_TEMP/comment.md"
           fi
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
@@ -115,4 +125,24 @@ jobs:
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@"$RUNNER_TEMP/comment.md" > /dev/null
           else
             gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/comment.md"
+          fi
+
+      # The check is the signal. It passes only when this head was judged and nothing is raised,
+      # on this head or an earlier one: the label outlives the push that earned it. A label that
+      # cannot be read fails the step.
+      - name: Fail when the owner merges
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          CONSEQUENTIAL: ${{ steps.route.outputs.consequential }}
+        run: |
+          if [ "$CONSEQUENTIAL" != "false" ]; then
+            echo "::error title=The owner merges this one::The verdict comment on the pull request says why."
+            exit 1
+          fi
+          labels=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name')
+          if grep -qx consequential <<< "$labels"; then
+            echo "::error title=The owner merges this one::An earlier head was raised and the consequential label is still on. The owner removes the label and re-runs this check, or merges."
+            exit 1
           fi
