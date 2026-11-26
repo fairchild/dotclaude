@@ -5,11 +5,14 @@ Changes to `skill-server`: the npm package and the hosted service at
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-The hosted service deploys from `main`, so it runs the Unreleased section
-before the package gets a version number. Package versions are tagged
-`skill-server-v<version>`.
+A change to the package ships with a new version and its section here. When it
+merges, CI deploys the tarball to the hosted service and publishes that same
+tarball as the `skill-server-v<version>` GitHub release, so the latest
+release is what the hosted service runs.
 
 ## [Unreleased]
+
+## [0.1.0-rc.2] - 2026-11-26
 
 The server now implements MCP protocol revision 2026-07-28 and nothing
 earlier.
@@ -32,6 +35,9 @@ earlier.
 - In `resources/list`, a skill's `SKILL.md` is named after the skill.
 - The package description and site copy no longer call the extension
   experimental. `index.json` points at the beta specification.
+- Releases follow deploys. CI publishes the tarball it deployed as the
+  version's GitHub release, and fails a change to the package that keeps a
+  released version. The release notes carry the version's changelog section.
 
 ### Added
 
@@ -98,5 +104,6 @@ The service deployed these changes from `main` without a package version:
 - Installs land where Claude Code loads skills, and there is a shell install
   command.
 
-[Unreleased]: https://github.com/fairchild/dotclaude/compare/skill-server-v0.1.0-rc.1...HEAD
+[Unreleased]: https://github.com/fairchild/dotclaude/compare/skill-server-v0.1.0-rc.2...HEAD
+[0.1.0-rc.2]: https://github.com/fairchild/dotclaude/releases/tag/skill-server-v0.1.0-rc.2
 [0.1.0-rc.1]: https://github.com/fairchild/dotclaude/releases/tag/skill-server-v0.1.0-rc.1
