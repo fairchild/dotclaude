@@ -1,8 +1,8 @@
 # GitHub Actions and releases
 
-`ci.yml` owns deterministic checks and the two site deployments.
-`verify-skill-server.yml` builds and verifies package candidates for both CI and
-tagged releases. PRs test Linux and macOS on Node 22/24; main, release tags and
+`ci.yml` owns deterministic checks, the two site deployments and the
+skill-server release that follows a deploy. `verify-skill-server.yml` builds and
+verifies the package candidate. PRs test Linux and macOS on Node 22/24; main and
 manual CI also test Windows. One Linux consumer checks the minimum Node 22.14.0
 version on every package run. It replaces the duplicated package jobs, with
 read-only permissions and no inherited secrets.
@@ -24,7 +24,7 @@ remain separate because their triggers and credentials differ from deterministic
 | skill-server tarball | Node compilation; clean consumer installs, with Windows after merge and before release | Actions artifact, 14-day retention |
 | skills Worker | Install that tarball; build snapshot; bundle adapter; real Wrangler HTTP checks; Chromium run of the library's keyboard flow | skills-production, skills.cloudcompute.com |
 | WebUI | Generate data; allowlist static files; browser-test packaged files | webui-production, claude.cloudcompute.com |
-| selected package candidate | Tag/version/main ancestry checks; same package and Worker checks; consumer matrix | GitHub prerelease |
+| skill-server release | The deployed run's tarball, when its version is unreleased; attested after deploy | GitHub release, prerelease for `-rc.N` |
 
 Each site deploys the tested artifact from its workflow run. Deployments use
 separate concurrency groups, run only from main, and reject older inputs when
@@ -96,23 +96,35 @@ exists, disable it after confirming `claude-code-review.yml` is the active repla
 No npm credential or registry publishing job is configured. The manifest stays
 private to prevent accidental npm publication; npm pack and tarball installs work.
 
-## Selecting a prerelease
+## Releases follow deploys
 
-1. Merge a reviewed version change with a unique `X.Y.Z-rc.N` package version.
-2. Wait for the package consumer matrix and hosted build checks on that commit.
-3. Create and push `skill-server-vX.Y.Z-rc.N` at that commit. This is the explicit
-   publication action. A tag cannot point outside main's ancestry or disagree
-   with the package version.
-4. `release-skill-server.yml` builds and packs once, tests the same tarball on all
-   supported platforms and in the Worker, attests it, then creates a GitHub
-   prerelease containing the tarball, SHA256SUMS and source.json.
-5. Follow its installation instructions in an empty directory. Do not overwrite
-   an existing release asset; increment the candidate version for corrections.
+The newest `skill-server-v*` release is the code the hosted service runs. The
+Worker is the package tarball plus `mcp/worker/worker.ts` and
+`mcp/worker/wrangler.toml`, so `source.json`'s `identity` hashes every packed
+file's content and those two files. It hashes contents rather than gzip bytes, so
+a toolchain change does not move it. Skill content in the snapshot is not part of
+it, and runtime dependencies resolve from the package's ranges at install time,
+for the Worker as for any consumer.
+
+1. `release-check` compares the run's identity with the GitHub release for its
+   package version. A match needs nothing. A different identity under a released
+   version fails the PR: bump `mcp/package.json` and add the version's
+   `CHANGELOG.md` section. An unreleased version must already have that section.
+   `README.md`, `CHANGELOG.md`, `examples/` and `package.json` are packed, so
+   editing them needs a version too.
+2. `deploy-skills` repeats the check under the `skills-production` lock, so a
+   merge that raced an earlier release of the same version stops before deploy.
+   After it deploys, `release-skills` calls `release-skill-server.yml` for an
+   unreleased version. It attests the same
+   tarball that passed the consumer matrix and was deployed, then creates the
+   `skill-server-v<version>` release (a prerelease for a `-rc.N` version) with
+   the tarball, SHA256SUMS, source.json, and notes carrying the changelog section.
+3. Released assets are never overwritten; a correction is a new version.
 
 PR artifacts are not promoted by a privileged workflow_run handler. The release
-workflow checks out the selected main-ancestry tag and creates its own candidate.
-The publishing job downloads only artifacts from that same run. The tarball that
-passes its consumer matrix is the tarball uploaded to the release.
+job runs in the `main` push run and downloads only artifacts from that run. A
+tag pushed by hand publishes nothing, and a release whose tag already points at
+another commit fails instead of adopting it.
 
 ## Recovery
 
@@ -121,8 +133,11 @@ before retrying. A successful upload followed by a failed check can mean the new
 version is already serving. The workflow does not claim automatic rollback.
 Restore the previous Cloudflare version with Wrangler's rollback command, record
 its version and source commit, then rerun the public checks for that source.
-Use a new main commit or manual CI run to redeploy a corrected build. Keep package
-prerelease selection independent of site rollback.
+Use a new main commit or manual CI run to redeploy a corrected build. A Wrangler
+rollback leaves the newest release ahead of production until the corrected build
+deploys and releases as a new version. If a release was created without its
+`source.json` asset, `release-check` fails on every run until the asset is
+uploaded or the release deleted.
 
 ## Local verification
 
@@ -136,7 +151,7 @@ bun run typecheck
 bun test conformance
 bun run build:package
 PACKAGE_OUTPUT_DIR=out bun run test:package
-node scripts/prepare-worker.mjs out/skill-server-0.1.0-rc.1.tgz
+node scripts/prepare-worker.mjs out/skill-server-0.1.0-rc.2.tgz
 node scripts/check-worker.mjs
 cd e2e && bun install --frozen-lockfile && bun run test
 ```

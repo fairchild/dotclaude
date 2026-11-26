@@ -82,7 +82,7 @@ When asked to say hello, answer with a single friendly sentence.
 Then, in the project directory:
 
 ```sh
-npm install ./skill-server-0.1.0-rc.1.tgz
+npm install ./skill-server-0.1.0-rc.2.tgz
 npx --no-install skill-server --help
 npx --no-install skill-server stdio --root ./my-skills
 npx --no-install skill-server build --root ./my-skills --out ./snapshot --base-url http://127.0.0.1:3000
@@ -142,7 +142,7 @@ The GitHub release includes a SHA-256 checksum, source record and build
 attestation. Verify a downloaded artifact with:
 
 ```sh
-gh attestation verify skill-server-0.1.0-rc.1.tgz --repo fairchild/dotclaude
+gh attestation verify skill-server-0.1.0-rc.2.tgz --repo fairchild/dotclaude
 ```
 
 ## CLI contract
@@ -233,7 +233,7 @@ bun run typecheck
 bun test conformance
 bun run build:package
 PACKAGE_OUTPUT_DIR=out bun run test:package
-node scripts/prepare-worker.mjs out/skill-server-0.1.0-rc.1.tgz
+node scripts/prepare-worker.mjs out/skill-server-0.1.0-rc.2.tgz
 node scripts/check-worker.mjs
 ```
 

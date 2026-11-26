@@ -80,7 +80,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # PR feedback stays fast; main, tags and manual CI retain Windows.
+        # PR feedback stays fast; main and manual CI retain Windows.
         os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest","macos-latest"]' || '["ubuntu-latest","macos-latest","windows-latest"]') }}
         node: ['22', '24']
         include:

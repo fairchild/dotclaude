@@ -1,31 +1,12 @@
-name: Release skill-server candidate
+name: Release skill-server
+# Called by ci.yml after deploy-skills, when its release check finds the package version unreleased.
+# It publishes the tarball this run verified and deployed, so the release is what serves.
 on:
-  push:
-    tags: ['skill-server-v*']
+  workflow_call:
 permissions:
   contents: read
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
 jobs:
-  validate-tag:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Verify candidate version and ancestry
-        working-directory: mcp
-        run: |
-          node -e 'const p=require("./package.json"); if(!/^\d+\.\d+\.\d+-rc\.\d+$/.test(p.version) || process.env.GITHUB_REF_NAME!=="skill-server-v"+p.version) process.exit(1)'
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
-  candidate:
-    needs: validate-tag
-    uses: ./.github/workflows/verify-skill-server.yml
   publish:
-    needs: candidate
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -40,10 +21,18 @@ jobs:
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: candidate/*.tgz
-      - name: Publish GitHub prerelease
+      - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$GITHUB_REF_NAME" candidate/*.tgz candidate/SHA256SUMS candidate/source.json \
-            --verify-tag --prerelease --title "$GITHUB_REF_NAME" --notes-file candidate/RELEASE.md
+          version=$(jq -r .version candidate/source.json)
+          tagged=$(gh api "repos/$GH_REPO/git/ref/tags/skill-server-v$version" --jq .object.sha 2>/dev/null) || tagged=""
+          if [[ -n "$tagged" && "$tagged" != "$GITHUB_SHA" ]]; then
+            echo "::error::skill-server-v$version already tags $tagged, not $GITHUB_SHA"
+            exit 1
+          fi
+          prerelease=""
+          [[ "$version" == *-* ]] && prerelease=--prerelease
+          gh release create "skill-server-v$version" candidate/*.tgz candidate/SHA256SUMS candidate/source.json \
+            --target "$GITHUB_SHA" $prerelease --title "skill-server-v$version" --notes-file candidate/RELEASE.md
