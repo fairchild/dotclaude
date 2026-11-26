@@ -157,7 +157,8 @@ On save the server, as the owner:
   the checks first (`--merge-despite CHECK` names another that fails by design).
 
 An answered pull request stays in a list below, with a merge button, until it merges or its head
-moves. A later head the check flags again is asked about again, with the earlier answer shown.
+moves. A later head the check flags again is asked about again, with the earlier answer shown, once the
+check has judged that head: until then the page counts it as waiting on the check.
 
 A pull request whose current head raised nothing, and fails only for the label an earlier head
 left, is listed apart. Its Clear label button takes the label off and runs the check again.
@@ -175,7 +176,11 @@ not why, and was an unwanted flag.
 queue and only says what each action would do. The owner runs the server under their own GitHub
 sign-in (`GH_TOKEN`, `GITHUB_TOKEN` or `gh auth token`): each answer is their label and each merge
 is their merge. An agent runs it only with `--demo` or `--dry-run`. The page is served on
-127.0.0.1, and every action needs a random token printed into the page.
+127.0.0.1, only to the link printed at start, which carries a random token: the page and every
+action need it, so another process on the machine cannot fetch the page and act. It refuses to be
+framed. A verdict is read only from the check's bot account and an answer only from the owner's,
+but a workflow in the same repository posts as that bot too, so the reasons on a card are what the
+check's comment says now, not proof of what the check wrote.
 
 A repo with its own gate, comment format or merge rules passes `--adapter FILE`, a Python file
 that swaps any of four small parts without editing the server: `dialects` (how a verdict comment
@@ -256,7 +261,7 @@ and nothing else: an install's keys are the ones its owner set. `--local` and `-
 because a key may be nowhere the process can see. A cloud session's network proxy can write the
 `Authorization` header itself and leave the variable a placeholder or unset, and a workstation may
 keep the key in a file. For each provider they try, in order, moving on when a call is refused or
-fails:
+fails for a reason that could be the key's:
 
 1. the variable above;
 2. the network proxy, with a placeholder key, when `HTTPS_PROXY` is set and the variable is not;
@@ -267,8 +272,11 @@ fails:
 
 Places 3 to 5 are read only after a refusal, or when there was nothing to try first. The verdict
 names where the accepted key came from and what was refused before it, by variable name or path
-and never by value. The model that decides does not change with the key: where a Jev key is found
-and none is accepted, nothing is judged, as in a run.
+and never by value. A model that declined or gave an unusable answer is not asked again with
+another key. The model that decides does not change with the key: where a Jev key is found and
+none is accepted, nothing is judged, as in a run. The proxy alone is only a guess at a Jev key, so
+where it holds none and an Anthropic key is set, the cheap Claude model decides, as in an install
+without Jev.
 
 `scripts/consequential.py --self-test` and `scripts/server.py --self-test` run offline: no model
 calls, and GitHub stood in for by a local server.
