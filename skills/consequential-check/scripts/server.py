@@ -736,6 +736,17 @@ class Queue:
         return out
 
 
+    def rerun(self, key: str, head: str) -> dict:
+        """Run the check again on a head it has not judged: the way out when its run died, since
+        nothing here can tell a slow check from a dead one."""
+        with self._lock:
+            item = self.items.get(key)
+        if item is None or item.state != "pending":
+            return self.refused("not a pull request waiting on the check: reload")
+        repo, check = item.repo, self.config.check
+        return self.act(item, head, {"kind": "rerun"}, [Step("rerun", lambda forge: forge.rerun(repo, head, check))])
+
+
 def summary(records: list[dict]) -> str:
     """How the answers fall: per reason, how often it was shown and how often it was why."""
     latest: dict[tuple[str, int, str], dict] = {}
@@ -885,6 +896,12 @@ kbd { font: 0.8125rem ui-monospace, SFMono-Regular, Menlo, monospace; }
   <details id="answered" hidden>
     <summary></summary>
     <p class="note">The check stays red on a head it raised, so these are yours to merge.</p>
+    <ul class="rows"></ul>
+  </details>
+
+  <details id="pending" hidden>
+    <summary></summary>
+    <p class="note">The check has not judged the current head. If its run is not in progress, run it again.</p>
     <ul class="rows"></ul>
   </details>
 
@@ -1044,7 +1061,7 @@ async function save(item, form, merge) {
 }
 function skip() { if (!busy() && groups.waiting.length > 1) { groups.waiting.push(groups.waiting.shift()); say(""); showItem(); } }
 
-function showRows(id, items, summary, label, run) {
+function showRows(id, items, summary, label, run, stays) {
   const group = $("#" + id); group.hidden = !items.length; $("summary", group).textContent = summary;
   $("ul", group).replaceChildren(...items.map(item => {
     const row = copy("row"), link = $("a", row), button = $("button", row);
@@ -1052,7 +1069,7 @@ function showRows(id, items, summary, label, run) {
     button.textContent = label; button.setAttribute("aria-label", `${label}: ${item.title}`);
     button.addEventListener("click", async () => {
       button.disabled = true; const out = await run(item); report(item, out);
-      if (out.ok) { groups[id] = groups[id].filter(other => other !== item); render(false); } else button.disabled = false;
+      if (out.ok && !stays) { groups[id] = groups[id].filter(other => other !== item); render(false); } else button.disabled = out.ok;
     });
     return row;
   }));
@@ -1066,6 +1083,8 @@ function render(item = true) {
     item => act("/api/clear", {key: keyOf(item), head: item.head}));
   showRows("answered", answered, `${answered.length} answered, still open`, "Merge",
     item => act("/api/decide", {key: keyOf(item), head: item.head, glad: item.answer !== "overruled", merge: true, reasons: [], other: ""}));
+  showRows("pending", pending, `${pending.length} waiting on the check`, "Run the check again",
+    item => act("/api/rerun", {key: keyOf(item), head: item.head}), true);
 }
 async function load() {
   $("#summary").textContent = "Loading…"; say("");
@@ -1156,13 +1175,14 @@ def handler(queue: Queue, token: str, mode: str, hosts: set[str]) -> type[BaseHT
             self.reply(403 if self.path.startswith("/api/") else 404, {"error": "not allowed" if self.path.startswith("/api/") else "not found"})
 
         def do_POST(self) -> None:
-            if self.path not in ("/api/decide", "/api/clear") or not self.allowed():
+            if self.path not in ("/api/decide", "/api/clear", "/api/rerun") or not self.allowed():
                 return self.reply(403, {"error": "not allowed"})
             try:
                 length = int(self.headers.get("Content-Length", "0"))
                 data = json.loads(self.rfile.read(length)) if 0 < length <= 20_000 else None
-                if self.path == "/api/clear":
-                    return self.reply(200, queue.clear(str(data["key"]), str(data["head"])))
+                if self.path != "/api/decide":
+                    run = queue.clear if self.path == "/api/clear" else queue.rerun
+                    return self.reply(200, run(str(data["key"]), str(data["head"])))
                 decision = Decision(str(data["key"]), str(data["head"]), data["glad"] is True,
                                     tuple(str(reason) for reason in data.get("reasons", []))[:20],
                                     clean(data.get("other")), data.get("merge") is True,
@@ -1406,6 +1426,11 @@ def self_test() -> int:
         assert states[2].state == "pending"
         assert again.decide(Decision("example/app#2", new, True, merge=True))["steps"][0]["detail"].startswith("the check has not judged this head")
         assert not again_forge.find("example/app", 2).get("merged")
+        # What it can do is run the check again, in case its run died; it stays pending until the check answers.
+        out = again.rerun("example/app#2", new)
+        assert out["ok"] and [step["step"] for step in out["steps"]] == ["rerun"] and again_forge.reran[-1] == ("example/app", new, "consequential-check")
+        assert again.rerun("example/app#4", new)["steps"][0]["detail"].startswith("not a pull request waiting on the check")
+        assert {item.number: item for item in again.refresh()}[2].state == "pending"
         # Clearing a leftover label takes the decision labels of earlier heads with it.
         assert states[3].state == "stale" and again.clear("example/app#3", new)["ok"] and again_forge.find("example/app", 3)["labels"] == []
         # A bot comment with the marker and a body in the wrong shape is not a verdict, and does

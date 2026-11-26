@@ -158,7 +158,8 @@ On save the server, as the owner:
 
 An answered pull request stays in a list below, with a merge button, until it merges or its head
 moves. A later head the check flags again is asked about again, with the earlier answer shown, once the
-check has judged that head: until then the page counts it as waiting on the check.
+check has judged that head: until then the page lists it as waiting on the check, with a button
+that runs the check again in case its run died.
 
 A pull request whose current head raised nothing, and fails only for the label an earlier head
 left, is listed apart. Its Clear label button takes the label off and runs the check again.
