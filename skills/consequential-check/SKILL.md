@@ -1,6 +1,6 @@
 ---
 name: consequential-check
-description: Install a GitHub Actions check that fails, and labels the pull request `consequential`, when its owner should be the one to merge it (hard to undo, weakens security, costs money, product decision, private data). Use when setting up merge routing, deciding whether an agent may merge a pull request itself, or tuning the router from the owner's corrections.
+description: Install a GitHub Actions check that fails, and labels the pull request `consequential`, when its owner should be the one to merge it (hard to undo, weakens security, costs money, product decision, private data). Use when setting up merge routing, deciding whether an agent may merge a pull request itself, checking before a push how a change will be judged, working through the owner's queue of flagged pull requests, or tuning the router from the owner's corrections.
 license: Apache-2.0
 metadata:
   status: experimental
@@ -118,8 +118,8 @@ against "low/medium/high".
 **Clearing a raise.** The label outlives the push that earned it: once a head is raised, later
 heads fail the check even when their own verdict is no, and the comment on such a head says the
 label is why. The owner clears it by merging, or by
-removing the label and re-running the check, which judges the current head again. The owner can
-also add the label by hand. Label changes do not start a run, so the check shows a hand-added
+removing the label and re-running the check, which judges the current head again; the review queue
+below does both with one button. The owner can also add the label by hand. Label changes do not start a run, so the check shows a hand-added
 label only from its next run; that is why the agent rule reads the label as well as the check.
 
 **What a run costs.** At most three model calls, not counting the retries of one that failed on an
@@ -127,19 +127,81 @@ overloaded or unreachable service. The check runs on every push and on every edi
 body or base branch. An edit to the title changes nothing a model reads, but a run skipped for it
 would report success and replace a failing check, so it judges again.
 
+## The owner's review queue
+
+A raise the owner clears by merging teaches the router nothing: the merge says the change was
+acceptable, not whether the flag was wanted. `scripts/server.py` shows the labelled pull requests
+one at a time on a local page and asks one question of each, so an answer costs a keystroke or two:
+
+```bash
+uv run --script scripts/server.py --repo OWNER/REPO --open
+```
+
+The page shows one pull request, the questions that raised or were too close to call, and their
+reasons. **Glad this was flagged?** `y` or `n`. On yes, which reason was why: `1`–`9` tick a
+reason, `a` ticks all of them, `o` adds one the check did not give. `Enter` saves and shows the
+next; `Shift`+`Enter` saves and merges; `s` skips for now. The page is a plain form, so each
+shortcut has a button or a field that does the same, and nothing is picked until the owner picks
+it.
+
+On save the server, as the owner:
+
+- posts the reply the tuning step below collects, with the answer as a data line;
+- changes the label. Glad: `consequential:confirmed` goes on beside `consequential`. Not glad:
+  `consequential` comes off and `consequential:overruled` goes on, so the label no longer fails a
+  later head that raises nothing. The check is not run again for that head, because it would raise
+  it again; the head stays red, and the owner's to merge;
+- merges, when asked, pinned to the head the page showed. A head that moved since the page loaded
+  is refused, and so is a merge while any check other than this one is failing or still running:
+  an owner's token can merge past a failing check without GitHub objecting, so the server reads
+  the checks first (`--merge-despite CHECK` names another that fails by design).
+
+An answered pull request stays in a list below, with a merge button, until it merges or its head
+moves. A later head the check flags again is asked about again, with the earlier answer shown.
+
+A pull request whose current head raised nothing, and fails only for the label an earlier head
+left, is listed apart. Its Clear label button takes the label off and runs the check again.
+
+A run that judged nothing (a fork, an outage, a missing key) leaves no label, so it is not in the
+queue; its failed check and its comment are where it shows.
+
+Every answer, how long it took and what was done about it is appended to
+`$XDG_STATE_HOME/consequential-check/decisions.jsonl` (`--state PATH`) before anything is done on
+GitHub. `--on-record CMD` also pipes each record, as JSON, to a command, for a store somewhere
+else. `--summary` prints how the answers fall per reason: how often each was shown, was why, was
+not why, and was an unwanted flag.
+
+`--demo` serves made-up pull requests with no network, to try the page. `--dry-run` reads the real
+queue and only says what each action would do. The owner runs the server under their own GitHub
+sign-in (`GH_TOKEN`, `GITHUB_TOKEN` or `gh auth token`): each answer is their label and each merge
+is their merge. An agent runs it only with `--demo` or `--dry-run`. The page is served on
+127.0.0.1, and every action needs a random token printed into the page.
+
+A repo with its own gate, comment format or merge rules passes `--adapter FILE`, a Python file
+that swaps any of four small parts without editing the server: `dialects` (how a verdict comment
+reads and what the reply to it looks like), `forge` (where pull requests are read and acted on),
+`store` (where answers are kept) and `policy` (what an answer does). The server's docstring has the
+signatures.
+
 ## Tuning from the owner's replies
 
 The workflow keeps one verdict comment on the pull request, edited in place, with every model's
 probability per question and the head it judged. When the verdict is consequential, the comment
-opens with each question that raised or was too close to call. The `consequential-verdict` artifact
-on each run holds the same answers as JSON (`questions.<id>.jev`, `.benchmark`, `.strong`, `.final`,
-`.uncertain`); `decided_by` is null when no model decided. The owner confirms or corrects the
-verdict with a single line:
+opens with each question that raised or was too close to call. The comment ends with the same
+answers as one JSON line in an HTML comment (`consequential-check-data`), which the review queue
+reads, and the `consequential-verdict` artifact on each run holds them too (`questions.<id>.jev`,
+`.benchmark`, `.strong`, `.final`, `.uncertain`); `decided_by` is null when no model decided. The
+owner confirms or corrects the verdict with a single line, typed by hand or posted by the review
+queue:
 
 ```text
 consequential: right
+consequential: right because hard_to_undo; other: also drops the audit index
 consequential: wrong costs_money adds a nightly job against a billed API
 ```
+
+A reply from the queue carries the answer as data too (`consequential-decision`): the head, the
+reasons shown and the ones ticked.
 
 Those replies are the tuning data. Collect them across merged pull requests:
 
@@ -165,15 +227,48 @@ re-check it against the collected replies before switching.
 
 ## Run it by hand
 
-To see the verdict for one pull request without installing anything, or to replay a corrected one
-against a changed rubric or model, run the script from this skill or the copy a repository keeps in
-`.github/consequential/`:
+To see the verdict before a push, for one pull request without installing anything, or to replay a
+corrected one against a changed rubric or model, run the script from this skill or the copy a
+repository keeps in `.github/consequential/`:
 
 ```bash
-gh pr diff NUMBER > /tmp/pr.diff
-scripts/consequential.py --rubric assets/rubric.md --diff-file /tmp/pr.diff
+scripts/consequential.py --local
 ```
 
-It needs `uv`, reads the same keys from the environment, makes the same model calls as a run, and
-prints the verdict as JSON. `scripts/consequential.py --self-test` runs offline, with no model
-calls.
+```bash
+scripts/consequential.py --pr NUMBER
+```
+
+`--local` judges the working tree, committed or not, against its merge base with the default
+branch (`--base REF` for another): the diff a pull request would show. It reads the rubric as the
+workflow does, from the copy installed on the base, so a change cannot argue with its own rubric;
+a repo without one gets the skill's default. `--pr` reads an open pull request's diff with `gh`.
+Both print each question's probability against its line and whether the check would pass, and
+write nothing to GitHub. `--json` prints the verdict a run would upload, and `--exit-code` exits 3
+when the check would fail, for a pre-push hook. Untracked files are not in the diff until added.
+The workflow's own form still works by hand: `--rubric FILE --diff-file FILE`.
+
+It needs `uv` and makes the same model calls as a run. A preview is close, not exact: the check
+judges the pushed head, and a model's answer moves a few hundredths between runs.
+
+**Where a key is looked for.** The workflow's form reads `TYPESAFE_API_KEY` and `ANTHROPIC_API_KEY`
+and nothing else: an install's keys are the ones its owner set. `--local` and `--pr` look further,
+because a key may be nowhere the process can see. A cloud session's network proxy can write the
+`Authorization` header itself and leave the variable a placeholder or unset, and a workstation may
+keep the key in a file. For each provider they try, in order, moving on when a call is refused or
+fails:
+
+1. the variable above;
+2. the network proxy, with a placeholder key, when `HTTPS_PROXY` is set and the variable is not;
+3. the provider's other variable names (`JEV_API_KEY`, `TYPESAFE_KEY`; `CLAUDE_API_KEY`);
+4. dotenv files (`.env`, `.env.local`, `.dev.vars`) in the working directory, the repo root,
+   `~/.config/consequential-check/` and the home directory;
+5. a one-line key file: `~/.config/typesafe/api_key`, `~/.config/anthropic/api_key`.
+
+Places 3 to 5 are read only after a refusal, or when there was nothing to try first. The verdict
+names where the accepted key came from and what was refused before it, by variable name or path
+and never by value. The model that decides does not change with the key: where a Jev key is found
+and none is accepted, nothing is judged, as in a run.
+
+`scripts/consequential.py --self-test` and `scripts/server.py --self-test` run offline: no model
+calls, and GitHub stood in for by a local server.

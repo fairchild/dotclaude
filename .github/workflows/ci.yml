@@ -65,6 +65,7 @@ jobs:
           bash skills/claude-as/tests/test.sh
           python skills/image-gen/scripts/check_protocol.py
           python skills/consequential-check/scripts/consequential.py --self-test
+          python skills/consequential-check/scripts/server.py --self-test
   package:
     needs: changes
     if: needs.changes.outputs.package == 'true'
