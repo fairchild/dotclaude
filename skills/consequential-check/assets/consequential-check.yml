@@ -62,12 +62,18 @@ jobs:
           enable-cache: false
 
       - name: Read the pull request
+        id: pull
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
         run: |
           # The API refuses very large diffs; an empty file leaves the PR to the owner.
           gh pr diff "$PR" --repo "$GITHUB_REPOSITORY" > "$RUNNER_TEMP/pr.diff" || : > "$RUNNER_TEMP/pr.diff"
+          # Whether an earlier head left the label, for the comment only. The last step reads the
+          # label again, and that read is the one that fails the check.
+          labels=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name' || true)
+          if grep -qix consequential <<< "$labels"; then labelled=true; else labelled=false; fi
+          echo "labelled=$labelled" >> "$GITHUB_OUTPUT"
 
       # `shell: bash` adds pipefail, so a crash in the script fails this step instead of hiding
       # behind `tee`. The steps after it run on failure, and a missing verdict fails the check.
@@ -78,6 +84,7 @@ jobs:
         env:
           HEAD: ${{ github.event.pull_request.head.sha }}
           FROM_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+          LABELLED: ${{ steps.pull.outputs.labelled }}
           TYPESAFE_API_KEY: ${{ github.event.pull_request.head.repo.full_name == github.repository && secrets.TYPESAFE_API_KEY || '' }}
           ANTHROPIC_API_KEY: ${{ github.event.pull_request.head.repo.full_name == github.repository && secrets.ANTHROPIC_API_KEY || '' }}
           JEV_MODEL: ${{ vars.JEV_MODEL }}
@@ -85,6 +92,7 @@ jobs:
           uv run --script .github/consequential/consequential.py \
             --rubric .github/consequential/rubric.md \
             --from-fork "$FROM_FORK" \
+            --labelled "${LABELLED:-false}" \
             --head "$HEAD" \
             --diff-file "$RUNNER_TEMP/pr.diff" \
             --comment-file "$RUNNER_TEMP/comment.md" \

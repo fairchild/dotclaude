@@ -21,7 +21,7 @@ large, a decider that did not answer.
 
 Usage:
   consequential.py --rubric rubric.md --diff-file pr.diff [--from-fork true|false]
-      [--head SHA] [--comment-file comment.md] [--summary-file summary.md]
+      [--labelled true|false] [--head SHA] [--comment-file comment.md] [--summary-file summary.md]
   consequential.py --self-test
 
 Environment:
@@ -460,8 +460,10 @@ def disagreement_lines(result: dict) -> list[str]:
     return lines
 
 
-def render(result: dict, head: str) -> str:
-    """The PR comment: the verdict, why, any Jev/benchmark disagreement, and every model's answers."""
+def render(result: dict, head: str, labelled: bool = False) -> str:
+    """The PR comment: the verdict, why, any Jev/benchmark disagreement, and every model's answers.
+    `labelled` says the pull request already carries the label, which fails the check on a head
+    that raised nothing, so the comment says that too."""
     at = f" at `{head[:12]}`" if head else ""
     by = f", decided by `{result['decided_by']}`" if result["decided_by"] else ""
     out = [MARKER, f"**Consequential: {'yes' if result['consequential'] else 'no'}**{at}{by}", ""]
@@ -476,6 +478,9 @@ def render(result: dict, head: str) -> str:
             close = "too close to its line to call" + (". " if said else "") if q["uncertain"] else ""
             out.append(f"- **{qid}** (p {q['final']:.2f}, line {q['raise_at']:.2f}): {close}{said}")
         out.append("")
+    elif labelled:
+        out += ["**The check still fails.** The pull request carries the `consequential` label, from an earlier "
+                "head or added by hand. The owner removes it and re-runs the check, or merges.", ""]
     if lines := disagreement_lines(result):
         bench = short(result["models"].get("benchmark"))
         out.append(f"> [!WARNING]\n> **Jev and {bench} disagree** on {len(lines)} question{'s' if len(lines) > 1 else ''}:")
@@ -600,6 +605,10 @@ def self_test() -> None:
     body = render(v, "0123456789abcdef")
     assert body.startswith(MARKER) and body.rstrip().endswith(AGENT_NOTE) and "Why the owner" not in body
     assert f"**Consequential: no** at `0123456789ab`, decided by `{J}`" in body and "consequential: wrong" in body
+    # A clean head on a pull request that still carries the label: the comment says why the check fails.
+    stuck = render(v, "0123456789abcdef", labelled=True)
+    assert "still fails" not in body and "**Consequential: no**" in stuck
+    assert "**The check still fails.** The pull request carries the `consequential` label" in stuck
 
     # Jev raises and Haiku does not: consequential on Jev's word, the disagreement named, and Haiku's
     # reason, an argument for "no", is not offered as the why.
@@ -609,6 +618,7 @@ def self_test() -> None:
     body = render(v, "")
     assert "**costs_money** (p 0.90, line 0.50): no reason given" in body and "only a docs change" not in body
     assert "Jev and Haiku disagree" in body and "`costs_money`: Jev 0.90 raises, Haiku 0.10 does not" in body
+    assert render(v, "", labelled=True) == body  # a raise already says why the owner merges
     # Both raise: no disagreement, and Haiku's reason is the why.
     v = run(both, a(weakens_security=0.8), haiku=a("widens a token scope", weakens_security=0.9))
     assert v["disagreements"] == [] and "disagree" not in render(v, "")
@@ -741,6 +751,11 @@ def self_test() -> None:
         assert json.loads(printed.getvalue())["consequential"] is True
         assert output.read_text() == "consequential=true\njudged=false\ndisagreements=0\n"
         assert "**Consequential: yes** at `0123456789ab`" in comment_file.read_text()
+        # The label reaches the comment from the command line.
+        clean = run(both)
+        with mock.patch.dict(globals(), {"decide": lambda *args, **kwargs: clean}), contextlib.redirect_stdout(io.StringIO()):
+            main(["--rubric", str(rubric_file), "--diff-file", str(diff_file), "--labelled", "true", "--comment-file", str(comment_file)])
+        assert "**Consequential: no**" in comment_file.read_text() and "The check still fails" in comment_file.read_text()
     print("self-test: ok")
 
 
@@ -752,6 +767,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--diff-file", type=Path)
     parser.add_argument("--from-fork", choices=("true", "false"), default="false",
                         help="true leaves the pull request to the owner without asking a model")
+    parser.add_argument("--labelled", choices=("true", "false"), default="false",
+                        help="true when the pull request already carries the consequential label")
     parser.add_argument("--head", default="")
     parser.add_argument("--comment-file", type=Path, help="write the PR comment here")
     parser.add_argument("--summary-file", type=Path, help="append the comment to this file (the job summary)")
@@ -769,7 +786,7 @@ def main(argv: list[str] | None = None) -> None:
     result = decide(Pull(rubric, diff), dict(os.environ), from_fork=args.from_fork == "true")
 
     print(json.dumps(result, indent=2))
-    comment = render(result, args.head)
+    comment = render(result, args.head, labelled=args.labelled == "true")
     if args.comment_file:
         args.comment_file.write_text(comment)
     if args.summary_file:

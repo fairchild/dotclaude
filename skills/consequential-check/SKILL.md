@@ -114,7 +114,8 @@ against examples more consistently than against "low/medium/high".
    A comment that says "nothing judged" names what was missing.
 
 **Clearing a raise.** The label outlives the push that earned it: once a head is raised, later
-heads fail the check even when their own verdict is no. The owner clears it by merging, or by
+heads fail the check even when their own verdict is no, and the comment on such a head says the
+label is why. The owner clears it by merging, or by
 removing the label and re-running the check, which judges the current head again. The owner can
 also add the label by hand. Label changes do not start a run, so the check shows a hand-added
 label only from its next run; that is why the agent rule reads the label as well as the check.
