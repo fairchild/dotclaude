@@ -22,7 +22,14 @@ large, a rubric that lost a question's situations, a decider that did not answer
 Usage:
   consequential.py --rubric rubric.md --diff-file pr.diff [--from-fork true|false]
       [--labelled true|false] [--head SHA] [--comment-file comment.md] [--summary-file summary.md]
+  consequential.py --local [--base REF]          the working tree against its merge base, before a push
+  consequential.py --pr N [--repo OWNER/REPO]    an open pull request's diff, read with gh
   consequential.py --self-test
+
+The first form is the one the workflow runs. --local and --pr are for a person or an agent: they
+print a short text verdict (--json for the JSON), write nothing to GitHub, and --exit-code exits 3
+when the check would fail. Only they look for a key beyond the two variables below: see
+"where a key is looked for".
 
 Environment:
   TYPESAFE_API_KEY    key for Jev; unset means the cheap Claude model decides
@@ -43,13 +50,14 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Iterator
 
 if TYPE_CHECKING:
     from anthropic.types import Message
@@ -78,6 +86,7 @@ DEFAULT_BENCHMARK_MODEL = "claude-haiku-5-5"
 DEFAULT_STRONG_MODEL = "claude-opus-5-5"
 JEV_URL = os.environ.get("TYPESAFE_BASE_URL", "https://api.typesafe.ai") + "/v1/systemone"
 MARKER = "<!-- consequential-check -->"
+DATA_MARKER = "consequential-check-data"
 AGENT_NOTE = "<!-- agent-note -->"
 
 
@@ -311,6 +320,141 @@ def ask_claude(key: str, model: str, system: str, diff: str) -> Reply:
     ), model)
 
 
+# ---------------------------------------------------------------- where a key is looked for
+#
+# The workflow hands over two variables and nothing else is read: an install's keys are the ones
+# its owner set. A run by hand is different. A cloud session's network proxy may write the
+# Authorization header itself, leaving the variable a placeholder or unset, and a workstation may
+# keep the key in a file. So a run by hand tries what the environment gives, then the proxy, and
+# after a refusal the other places below. The model that decides never changes with the key.
+
+PROXY_PLACEHOLDER = "proxy-managed"
+PROXY_VARIABLES = ("HTTPS_PROXY", "https_proxy")
+DOTENV_NAMES = (".env", ".env.local", ".dev.vars")
+SKILL_CONFIG = "consequential-check"
+
+
+@dataclass(frozen=True)
+class Provider:
+    name: str
+    variables: tuple[str, ...]  # the first is the one the workflow sets
+    key_files: tuple[str, ...]  # under a config home
+
+
+JEV = Provider("Jev", ("TYPESAFE_API_KEY", "JEV_API_KEY", "TYPESAFE_KEY"), ("typesafe/api_key", "typesafe/api-key"))
+CLAUDE = Provider("Anthropic", ("ANTHROPIC_API_KEY", "CLAUDE_API_KEY"), ("anthropic/api_key", "anthropic/api-key"))
+
+
+@dataclass(frozen=True)
+class Places:
+    """Where a run by hand looks besides the first variable: dotenv files in `dirs`, and one-line
+    key files under each of `config`."""
+    dirs: tuple[Path, ...] = ()
+    config: tuple[Path, ...] = ()
+
+    @classmethod
+    def standard(cls, env: dict[str, str], cwd: Path | None = None) -> Places:
+        cwd = (cwd or Path.cwd()).resolve()
+        home = Path(env.get("HOME") or Path.home())
+        config = Path(env.get("XDG_CONFIG_HOME") or home / ".config")
+        root = next((d for d in (cwd, *cwd.parents) if (d / ".git").exists()), None)
+        return cls(tuple(dict.fromkeys([cwd, *([root] if root else []), config / SKILL_CONFIG, home])), (config,))
+
+
+def dotenv(path: Path) -> dict[str, str]:
+    """`NAME=value` lines of a small dotenv file; quotes and a leading `export` dropped."""
+    try:
+        lines = path.read_text(errors="replace").splitlines() if path.is_file() and path.stat().st_size < 256_000 else []
+    except OSError:
+        return {}
+    found = {}
+    for line in lines:
+        if match := re.match(r"\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$", line):
+            value = match.group(2)
+            found[match.group(1)] = value[1:-1] if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'" else value
+    return found
+
+
+def tilde(path: Path, env: dict[str, str]) -> str:
+    home = env.get("HOME") or str(Path.home())
+    return "~" + str(path)[len(home):] if str(path).startswith(home + os.sep) else str(path)
+
+
+class Keys:
+    """One provider's key for a run. With no `places`, the workflow's case, that is the first
+    variable and nothing else. With `places`, each key found is tried until one is accepted, and
+    what was refused on the way is kept as a note: by variable name or path, never by value."""
+
+    def __init__(self, provider: Provider, env: dict[str, str], places: Places | None = None) -> None:
+        self.provider, self.env, self.places = provider, env, places
+        self.source = ""  # where the accepted key came from
+        self.refusals: list[str] = []
+        self._key: str | None = None
+        self._found: list[tuple[str, str]] | None = None
+        self._spent = False  # every key found was tried and none was accepted
+
+    def first(self) -> list[tuple[str, str]]:
+        name = self.provider.variables[0]
+        if key := self.env.get(name, "").strip():
+            return [(key, f"`{name}`")]
+        proxied = self.places is not None and any(self.env.get(v) for v in PROXY_VARIABLES)
+        return [(PROXY_PLACEHOLDER, "the network proxy")] if proxied else []
+
+    def elsewhere(self) -> list[tuple[str, str]]:
+        if self._found is None:
+            self._found = []
+            if self.places is not None:
+                seen = {key for key, _ in self.first()}
+                for raw, source in self._scan(self.places):
+                    if (key := raw.strip()) and "\n" not in key and key not in seen:
+                        seen.add(key)
+                        self._found.append((key, source))
+        return self._found
+
+    def _scan(self, places: Places) -> Iterator[tuple[str, str]]:
+        for name in self.provider.variables[1:]:
+            yield self.env.get(name, ""), f"`{name}`"
+        for folder in places.dirs:
+            for file in DOTENV_NAMES:
+                values = dotenv(folder / file)
+                for name in self.provider.variables:
+                    yield values.get(name, ""), f"`{name}` in `{tilde(folder / file, self.env)}`"
+        for config in places.config:
+            for file in self.provider.key_files:
+                try:
+                    yield (config / file).read_text(errors="replace") if (config / file).is_file() else "", f"`{tilde(config / file, self.env)}`"
+                except OSError:
+                    continue
+
+    def any(self) -> bool:
+        return not self._spent and bool(self._key or self.first() or self.elsewhere())
+
+    def use(self, call: Callable[[str], Reply]) -> Reply:
+        """`call` with the key. A refused or failed call moves on to the next key found, where a
+        run by hand has one; the last failure is the one raised."""
+        if self._key is not None:
+            return call(self._key)
+        last: Exception | None = None
+        for key, source in (pair for found in (self.first, self.elsewhere) for pair in found()):
+            try:
+                reply = call(key)
+            except Exception as error:  # noqa: BLE001 - named by failure(); the next key may be the right one
+                self.refusals.append(f"{source} ({failure(error)})")
+                last = error
+                continue
+            self._key, self.source = key, source
+            return reply
+        self._spent = True
+        raise last or Failed(f"no {self.provider.name} key was found")
+
+    def note(self) -> str:
+        if not self.refusals:
+            return ""
+        if not self.source:
+            return f"{self.provider.name} keys tried: {'; '.join(self.refusals)}." if len(self.refusals) > 1 else ""
+        return f"{self.provider.name} accepted the key from {self.source}, after {'; '.join(self.refusals)}."
+
+
 @dataclass
 class Models:
     """The calls decide() makes; the self-test swaps in stubs."""
@@ -334,9 +478,19 @@ def owner(reason: str) -> dict:
             "questions": {}, "disagreements": [], "notes": []}
 
 
-def decide(pull: Pull, env: dict[str, str], models: Models | None = None, from_fork: bool = False) -> dict:
-    models = models or Models()
-    jev_key, claude_key = (env.get(name, "").strip() for name in ("TYPESAFE_API_KEY", "ANTHROPIC_API_KEY"))
+def decide(pull: Pull, env: dict[str, str], models: Models | None = None, from_fork: bool = False,
+           places: Places | None = None) -> dict:
+    """The verdict. `places` is None for the workflow, which reads its two variables and nothing
+    else; a run by hand passes the places a key may also be found."""
+    jev_keys, claude_keys = Keys(JEV, env, places), Keys(CLAUDE, env, places)
+    result = judge(pull, env, models or Models(), from_fork, jev_keys, claude_keys)
+    result["notes"] += [note for note in (jev_keys.note(), claude_keys.note()) if note]
+    if places is not None:
+        result["credentials"] = {name: keys.source for name, keys in (("jev", jev_keys), ("anthropic", claude_keys)) if keys.source}
+    return result
+
+
+def judge(pull: Pull, env: dict[str, str], models: Models, from_fork: bool, jev_keys: Keys, claude_keys: Keys) -> dict:
     jev_model = env.get("JEV_MODEL") or DEFAULT_JEV_MODEL
     cheap = env.get("BENCHMARK_MODEL") or DEFAULT_BENCHMARK_MODEL
     strong = env.get("STRONG_MODEL") or DEFAULT_STRONG_MODEL
@@ -352,6 +506,7 @@ def decide(pull: Pull, env: dict[str, str], models: Models | None = None, from_f
         return owner("no diff could be read: nothing judged")
     if len(pull.diff) > MAX_DIFF_CHARS:
         return owner(f"the diff is over {MAX_DIFF_CHARS} characters, too large to judge whole: nothing judged")
+    jev_key, claude_key = jev_keys.any(), claude_keys.any()
     if not (jev_key or claude_key):
         return owner("no model key is set: nothing judged")
 
@@ -360,9 +515,9 @@ def decide(pull: Pull, env: dict[str, str], models: Models | None = None, from_f
     if jev_key:
         if (state := jev_state(pull)) is None:
             return owner(f"the diff is too large for `{jev_model}` to read: nothing judged")
-        first = asked(lambda: models.jev(jev_key, jev_model, state, pull.rubric))
+        first = asked(lambda: jev_keys.use(lambda key: models.jev(key, jev_model, state, pull.rubric)))
     else:
-        first = asked(lambda: models.claude(claude_key, cheap, system, diff))
+        first = asked(lambda: claude_keys.use(lambda key: models.claude(key, cheap, system, diff)))
     if isinstance(first, str):
         return owner(f"`{jev_model if jev_key else cheap}` did not answer ({first}): nothing judged")
 
@@ -371,7 +526,7 @@ def decide(pull: Pull, env: dict[str, str], models: Models | None = None, from_f
     else:
         run.jev = first
         if claude_key:
-            beside = asked(lambda: models.claude(claude_key, cheap, system, diff))
+            beside = asked(lambda: claude_keys.use(lambda key: models.claude(key, cheap, system, diff)))
             if isinstance(beside, str):
                 run.notes.append(f"No benchmark answers: `{cheap}` did not answer ({beside}).")
             else:
@@ -380,10 +535,10 @@ def decide(pull: Pull, env: dict[str, str], models: Models | None = None, from_f
     if not (doubt := could_flip(first.answers)):
         return verdict(run, first, [])
     near = f"`{first.model}` gave an answer within {ESCALATE_MARGIN} of its line that could flip the verdict"
-    if not claude_key:
+    if not claude_keys.any():
         run.notes.append(f"{near}, and there is no Anthropic key to ask `{strong}` with: the owner decides.")
         return verdict(run, first, doubt)
-    second = asked(lambda: models.claude(claude_key, strong, system, diff))
+    second = asked(lambda: claude_keys.use(lambda key: models.claude(key, strong, system, diff)))
     if isinstance(second, str):
         run.notes.append(f"{near}, and `{strong}` did not answer ({second}): the owner decides.")
         return verdict(run, first, doubt)
@@ -512,8 +667,100 @@ def render(result: dict, head: str, labelled: bool = False) -> str:
     out += [f"_{note}_" for note in result["notes"]]
     if result["notes"]:
         out.append("")
-    out += ["Reply `consequential: right`, or `consequential: wrong <question-id> <why>`.", "", AGENT_NOTE]
+    out += ["Reply `consequential: right`, or `consequential: wrong <question-id> <why>`.", "", data_line(result, head),
+            AGENT_NOTE]
     return "\n".join(out) + "\n"
+
+
+def data_line(result: dict, head: str) -> str:
+    """The verdict as one JSON line in an HTML comment, for the review queue and for tuning: the
+    table's numbers, read without scraping it. `<` and `>` are escaped so that a model's reason
+    cannot close the comment."""
+    data = {"head": head, "consequential": result["consequential"], "judged": bool(result["questions"]),
+            "decided_by": result["decided_by"], "raised": result["raised"], "uncertain": result["uncertain"],
+            "reason": result["reason"],
+            "questions": {qid: {k: q[k] for k in ("final", "raise_at", "raised", "uncertain", "why", "jev", "benchmark", "strong")}
+                          for qid, q in result["questions"].items()}}
+    text = json.dumps(data, sort_keys=True, separators=(",", ":")).replace("<", "\\u003c").replace(">", "\\u003e")
+    return f"<!-- {DATA_MARKER}: {text} -->"
+
+
+def preview(result: dict, judged: str) -> str:
+    """The verdict as a person or an agent reads it in a terminal, before anything is pushed."""
+    by = f"   (decided by {result['decided_by']})" if result["decided_by"] else ""
+    out = [("The check would fail: the owner merges this one" if result["consequential"]
+            else "The check would pass: nothing raised") + by]
+    if result["consequential"] and not result["questions"]:
+        out.append(f"  {result['reason']}")
+    for qid, q in result["questions"].items():
+        mark = "unsure" if q["uncertain"] else "raised" if q["raised"] else "      "
+        shown = [f"{name} {q[key]:.2f}" for key, name in (("jev", "Jev"), ("benchmark", "benchmark"), ("strong", "strong"))
+                 if q.get(key) is not None]
+        why = f"  {q['why']}" if (q["raised"] or q["uncertain"]) and q["why"] else ""
+        out.append(f"  {mark}  {qid:<21} p {q['final']:.2f}  line {q['raise_at']:.2f}  [{', '.join(shown)}]{why}")
+    out += [f"  disagree: {line}" for line in disagreement_lines(result)]
+    out += [f"  note: {note}" for note in result["notes"]]
+    if where := result.get("credentials"):
+        out.append("  keys: " + ", ".join(f"{name} from {source}" for name, source in where.items()).replace("`", ""))
+    out += [f"  judged: {judged}",
+            "  A preview: the check judges the pushed head, and a model's answer moves a few hundredths between runs."]
+    return "\n".join(out) + "\n"
+
+
+# ---------------------------------------------------------------- reading a change by hand
+
+INSTALLED_RUBRIC = ".github/consequential/rubric.md"
+
+
+def sh(*argv: str, cwd: Path | None = None) -> str:
+    done = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, errors="replace")
+    if done.returncode:
+        raise SystemExit(f"{' '.join(argv[:3])} failed: {(done.stderr.strip().splitlines() or [str(done.returncode)])[-1]}")
+    return done.stdout
+
+
+def default_base(root: Path) -> str:
+    """The branch a pull request from here would go into: origin's default, else a main that exists."""
+    head = subprocess.run(["git", "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
+                          cwd=root, capture_output=True, text=True)
+    for ref in (*([head.stdout.strip()] if head.returncode == 0 and head.stdout.strip() else []),
+                "origin/main", "origin/master", "main", "master"):
+        if subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"], cwd=root,
+                          capture_output=True).returncode == 0:
+            return ref
+    raise SystemExit("no base branch found: pass --base REF")
+
+
+def local_change(base: str | None, cwd: Path | None = None) -> tuple[str, str, Path, str]:
+    """(diff, what was judged, repo root, merge base) for the working tree, committed or not,
+    against its merge base: the diff a pull request would show once pushed."""
+    root = Path(sh("git", "rev-parse", "--show-toplevel", cwd=cwd).strip())
+    base = base or default_base(root)
+    fork = sh("git", "merge-base", base, "HEAD", cwd=root).strip()
+    diff = sh("git", "diff", "--no-ext-diff", "--no-color", fork, cwd=root)
+    stat = sh("git", "diff", "--shortstat", fork, cwd=root).strip() or "no changes"
+    untracked = [line for line in sh("git", "ls-files", "--others", "--exclude-standard", cwd=root).splitlines() if line]
+    left_out = (f"; {len(untracked)} untracked file{'s' if len(untracked) > 1 else ''} not included (git add to include)"
+                if untracked else "")
+    return diff, f"{stat} against {base} (merge base {fork[:9]}){left_out}", root, fork
+
+
+def find_rubric(explicit: Path | None, root: Path | None = None, base: str = "") -> tuple[str, str]:
+    """(rubric, where it came from). The workflow reads the rubric from the default branch, so a
+    run by hand prefers the copy at `base`, then the working tree's, then the skill's own."""
+    if explicit:
+        return explicit.read_text(), str(explicit)
+    if root and base:
+        shown = subprocess.run(["git", "show", f"{base}:{INSTALLED_RUBRIC}"], cwd=root, capture_output=True, text=True)
+        if shown.returncode == 0 and shown.stdout.strip():
+            return shown.stdout, f"{INSTALLED_RUBRIC} at {base[:9] if re.fullmatch(r'[0-9a-f]{40}', base) else base}"
+    here = Path(__file__).resolve().parent
+    for path, label in (((root / INSTALLED_RUBRIC) if root else None, f"{INSTALLED_RUBRIC} in the working tree"),
+                        (here / "rubric.md", "rubric.md beside the script"),
+                        (here.parent / "assets" / "rubric.md", "the skill's default rubric")):
+        if path and path.is_file():
+            return path.read_text(), label
+    raise SystemExit("no rubric found: pass --rubric")
 
 
 # ---------------------------------------------------------------- self-test
@@ -755,6 +1002,125 @@ def self_test() -> None:
     # A key urllib refuses to send is named by class only; its message quotes the header.
     assert asked(lambda: ask_jev("abc\nLEAKED-KEY", J, {"diff": "+x"}, rubric)) == "ValueError"
 
+    # ---- where a key is looked for. The workflow's run reads its two variables and nothing else,
+    # proxy or not: an install's keys are the ones its owner set.
+    accepted: set[str] = set()
+
+    class Refused(Exception):
+        status_code = 401
+
+    def keyed_jev(key: str, model: str, state: dict, rub: str) -> Reply:
+        sent.append(f"jev:{key}")
+        if key not in accepted:
+            raise Refused(f"bad key {key}")
+        return jev(key, model, state, rub)
+
+    def keyed_claude(key: str, model: str, system: str, diff: str) -> Reply:
+        sent.append(f"claude:{key}")
+        if key not in accepted:
+            raise Refused(f"bad key {key}")
+        return claude(key, model, system, diff)
+
+    def by_hand(env: dict[str, str], places: Places | None, **says: object) -> dict:
+        calls.clear()
+        sent.clear()
+        replies.update({"jev": says.get("jev_says") or a(), H: says.get("haiku") or a(), O: says.get("opus") or a()})
+        return decide(pull, env, Models(keyed_jev, keyed_claude), places=places)
+
+    def tried(kind: str) -> list[str]:
+        return [s.split(":", 1)[1] for s in sent if s.startswith(kind + ":")]
+
+    proxy = {"HTTPS_PROXY": "http://127.0.0.1:1"}
+    accepted.update({PROXY_PLACEHOLDER})
+    v = by_hand(proxy, None)
+    assert v["reason"] == "no model key is set: nothing judged" and sent == [] and "credentials" not in v
+    # By hand, a configured proxy is tried with a placeholder for each provider.
+    v = by_hand(proxy, Places())
+    assert tried("jev") == [PROXY_PLACEHOLDER] and v["decided_by"] == J and not v["consequential"]
+    assert v["credentials"] == {"jev": "the network proxy", "anthropic": "the network proxy"} and v["notes"] == []
+    # The proxy signs for Jev and not for Anthropic: Jev decides, the benchmark is a note, and a
+    # verdict too close to call does not ask the refused key a second time.
+    accepted.clear()
+    accepted.add("jev-good")
+    v = by_hand({**proxy, "TYPESAFE_API_KEY": "jev-good"}, Places(), jev_says=a(costs_money=0.55))
+    assert tried("claude") == [PROXY_PLACEHOLDER] and v["decided_by"] is None and v["uncertain"] == ["costs_money"]
+    assert v["notes"][0] == f"No benchmark answers: `{H}` did not answer (Refused, HTTP 401)." and "no Anthropic key" in v["notes"][1]
+    assert v["credentials"] == {"jev": "`TYPESAFE_API_KEY`"}
+    with tempfile.TemporaryDirectory() as tmp:
+        work, config = Path(tmp, "work"), Path(tmp, "config")
+        (config / "anthropic").mkdir(parents=True)
+        work.mkdir()
+        (work / ".env").write_text('# local\nexport TYPESAFE_API_KEY="jev-from-dotenv"\nOTHER=1\n')
+        (config / "anthropic" / "api_key").write_text("claude-from-file\n")
+        assert dotenv(work / ".env") == {"TYPESAFE_API_KEY": "jev-from-dotenv", "OTHER": "1"}
+        places, home = Places((work,), (config,)), {"HOME": tmp}
+        # A refused key gives way to one from a dotenv file; a provider with no variable finds its
+        # key file. The verdict says where each came from and what was refused, never a value.
+        accepted.clear()
+        accepted.update({"jev-from-dotenv", "claude-from-file"})
+        v = by_hand({**home, "TYPESAFE_API_KEY": "jev-stale"}, places)
+        assert tried("jev") == ["jev-stale", "jev-from-dotenv"] and tried("claude") == ["claude-from-file"]
+        assert v["decided_by"] == J and v["questions"]["costs_money"]["benchmark"] == 0.02
+        assert v["credentials"] == {"jev": "`TYPESAFE_API_KEY` in `~/work/.env`", "anthropic": "`~/config/anthropic/api_key`"}
+        assert v["notes"] == ["Jev accepted the key from `TYPESAFE_API_KEY` in `~/work/.env`, after `TYPESAFE_API_KEY` (Refused, HTTP 401)."]
+        assert not any(key in written(v) + preview(v, "x") for key in ("jev-stale", "jev-from-dotenv", "claude-from-file"))
+        # The same files are never read for the workflow's run.
+        v = by_hand({**home, "TYPESAFE_API_KEY": "jev-stale"}, None)
+        assert tried("jev") == ["jev-stale"] and v["reason"] == f"`{DEFAULT_JEV_MODEL}` did not answer (Refused, HTTP 401): nothing judged"
+        # Every key refused: nothing judged, each place named, and Claude does not step in for Jev.
+        accepted.clear()
+        v = by_hand({**home, "TYPESAFE_API_KEY": "jev-stale"}, places)
+        assert tried("jev") == ["jev-stale", "jev-from-dotenv"] and tried("claude") == [] and v["decided_by"] is None
+        assert v["notes"] == ["Jev keys tried: `TYPESAFE_API_KEY` (Refused, HTTP 401); `TYPESAFE_API_KEY` in `~/work/.env` (Refused, HTTP 401)."]
+        assert "jev-stale" not in written(v) and "jev-from-dotenv" not in written(v)
+        # The other places are not read while the first key works.
+        ring = Keys(JEV, {"TYPESAFE_API_KEY": "k"}, places)
+        assert ring.use(lambda key: Reply("m", a())).model == "m" and ring._found is None and ring.source == "`TYPESAFE_API_KEY`"
+
+        # ---- the change, read from a working tree as a pull request would show it.
+        repo = Path(tmp, "repo")
+        repo.mkdir()
+        quiet = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull, "PATH": os.environ.get("PATH", "")}
+
+        def g(*argv: str) -> None:
+            subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false",
+                            *argv], cwd=repo, check=True, capture_output=True, env=quiet)
+
+        g("init", "-q", "-b", "main")
+        (repo / ".github/consequential").mkdir(parents=True)
+        (repo / INSTALLED_RUBRIC).write_text(rubric + "\nbase copy\n")
+        (repo / "app.py").write_text("print(1)\n")
+        g("add", "-A")
+        g("commit", "-q", "-m", "base")
+        g("checkout", "-q", "-b", "change")
+        (repo / "app.py").write_text("print(1)\nprint(2)\n")
+        g("commit", "-q", "-am", "committed")
+        (repo / "app.py").write_text("print(1)\nprint(2)\nprint(3)\n")
+        (repo / INSTALLED_RUBRIC).write_text("edited by the change\n")
+        (repo / "new.txt").write_text("untracked\n")
+        change, judged, root, fork = local_change("main", repo)
+        assert "+print(2)" in change and "+print(3)" in change and "new.txt" not in change
+        assert "against main (merge base " in judged and "1 untracked file not included" in judged, judged
+        found, where = find_rubric(None, root, fork)
+        assert found.endswith("base copy\n") and where == f"{INSTALLED_RUBRIC} at {fork[:9]}"  # not the change's own edit
+        assert default_base(repo) == "main"
+
+    # The comment carries the verdict as data, a model's reason cannot close that comment, and the
+    # preview says what the check would do.
+    v = run(both, a(weakens_security=0.8), haiku=a("widens --> <!-- a scope", weakens_security=0.9))
+    body = render(v, "0123456789ab")
+    line = next(text for text in body.splitlines() if text.startswith(f"<!-- {DATA_MARKER}: "))
+    assert line.count("-->") == 1 and body.rstrip().endswith(AGENT_NOTE)
+    data = json.loads(line.removeprefix(f"<!-- {DATA_MARKER}: ").removesuffix(" -->"))
+    assert data["head"] == "0123456789ab" and data["raised"] == ["weakens_security"] and data["judged"] and data["decided_by"] == J
+    assert data["questions"]["weakens_security"]["why"] == "widens --> <!-- a scope"
+    text = preview(v, "2 files changed against main")
+    assert text.startswith("The check would fail") and "raised  weakens_security" in text and "judged: 2 files" in text
+    unsure_v = run({"TYPESAFE_API_KEY": "jev-key"}, a(costs_money=0.45))
+    assert "unsure  costs_money" in preview(unsure_v, "x") and preview(run(both), "x").startswith("The check would pass")
+    fork_v = run(both, from_fork=True)
+    assert json.loads(render(fork_v, "h").split(f"{DATA_MARKER}: ")[1].split(" -->")[0])["judged"] is False
+
     # The command line the workflow runs: a fork is consequential and unjudged, with a comment.
     with tempfile.TemporaryDirectory() as tmp:
         rubric_file, diff_file, comment_file, output = (Path(tmp, n) for n in ("rubric.md", "pr.diff", "comment.md", "output"))
@@ -776,10 +1142,16 @@ def self_test() -> None:
 
 # ---------------------------------------------------------------- main
 
-def main(argv: list[str] | None = None) -> None:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--rubric", type=Path)
     parser.add_argument("--diff-file", type=Path)
+    parser.add_argument("--local", action="store_true", help="judge the working tree against its merge base")
+    parser.add_argument("--base", help="with --local: the branch the change goes into (default: origin's default)")
+    parser.add_argument("--pr", type=int, help="judge this pull request's diff, read with gh")
+    parser.add_argument("--repo", help="with --pr: OWNER/REPO (default: the current repository)")
+    parser.add_argument("--json", action="store_true", help="with --local or --pr: print the JSON verdict")
+    parser.add_argument("--exit-code", action="store_true", help="exit 3 when the check would fail")
     parser.add_argument("--from-fork", choices=("true", "false"), default="false",
                         help="true leaves the pull request to the owner without asking a model")
     parser.add_argument("--labelled", choices=("true", "false"), default="false",
@@ -790,25 +1162,48 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args(argv)
     if args.self_test:
-        return self_test()
-    if not (args.rubric and args.diff_file):
+        self_test()
+        return 0
+    by_hand = bool(args.local or args.pr)
+    if by_hand and (args.diff_file or (args.local and args.pr)):
+        parser.error("give one of --local, --pr N, or --diff-file")
+    if not by_hand and not (args.rubric and args.diff_file):
         parser.error("--rubric and --diff-file are required")
 
-    diff = args.diff_file.read_text(errors="replace")
-    result = decide(Pull(args.rubric.read_text(), diff), dict(os.environ), from_fork=args.from_fork == "true")
+    if args.local:
+        diff, judged, root, fork = local_change(args.base)
+        rubric, rubric_from = find_rubric(args.rubric, root, fork)
+    elif args.pr:
+        diff = sh("gh", "pr", "diff", str(args.pr), *(["--repo", args.repo] if args.repo else []))
+        top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
+        root = Path(top) if top and not args.repo else None
+        rubric, rubric_from = find_rubric(args.rubric, root, default_base(root) if root else "")
+        judged = f"pull request {args.pr}" + (f" of {args.repo}" if args.repo else "")
+    else:
+        rubric, rubric_from = args.rubric.read_text(), str(args.rubric)
+        diff, judged = args.diff_file.read_text(errors="replace"), str(args.diff_file)
+    env = dict(os.environ)
+    result = decide(Pull(rubric, diff), env, from_fork=args.from_fork == "true",
+                    places=Places.standard(env) if by_hand else None)
 
-    print(json.dumps(result, indent=2))
+    if by_hand and not args.json:
+        print(preview(result, f"{judged}; rubric: {rubric_from}"), end="")
+    else:
+        print(json.dumps(result, indent=2))
     comment = render(result, args.head, labelled=args.labelled == "true")
     if args.comment_file:
         args.comment_file.write_text(comment)
     if args.summary_file:
         with args.summary_file.open("a") as f:
-            f.write(comment.replace(MARKER, "").replace(AGENT_NOTE, ""))
+            f.write(re.sub(rf"<!-- {DATA_MARKER}: .*? -->\n", "", comment.replace(MARKER, "").replace(AGENT_NOTE, "")))
+    if by_hand:
+        return 3 if args.exit_code and result["consequential"] else 0
     for line in disagreement_lines(result):
         print(f"::warning title=Jev and benchmark disagree::{line}", file=sys.stderr)
     if out := os.environ.get("GITHUB_OUTPUT"):
         with open(out, "a") as f:
             f.writelines(f"{name}={value}\n" for name, value in outputs(result).items())
+    return 0
 
 
 if __name__ == "__main__":
