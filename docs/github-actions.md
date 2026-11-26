@@ -24,7 +24,7 @@ remain separate because their triggers and credentials differ from deterministic
 | skill-server tarball | Node compilation; clean consumer installs, with Windows after merge and before release | Actions artifact, 14-day retention |
 | skills Worker | Install that tarball; build snapshot; bundle adapter; real Wrangler HTTP checks; Chromium run of the library's keyboard flow | skills-production, skills.cloudcompute.com |
 | WebUI | Generate data; allowlist static files; browser-test packaged files | webui-production, claude.cloudcompute.com |
-| selected package candidate | Tag/version/main ancestry checks; same package and Worker checks; consumer matrix | GitHub prerelease |
+| skill-server release | The deployed run's tarball, when its version is unreleased; attested after deploy | GitHub release, prerelease for `-rc.N` |
 
 Each site deploys the tested artifact from its workflow run. Deployments use
 separate concurrency groups, run only from main, and reject older inputs when
@@ -98,16 +98,24 @@ private to prevent accidental npm publication; npm pack and tarball installs wor
 
 ## Releases follow deploys
 
-The published release is the code the hosted service runs. The packed tarball is
-byte-reproducible and the Worker is built from it, so its SHA-256 identifies the
-deployed code; skill content in the snapshot is not part of it.
+The newest `skill-server-v*` release is the code the hosted service runs. The
+Worker is the package tarball plus `mcp/worker/worker.ts` and
+`mcp/worker/wrangler.toml`, so `source.json`'s `identity` hashes every packed
+file's content and those two files. It hashes contents rather than gzip bytes, so
+a toolchain change does not move it. Skill content in the snapshot is not part of
+it, and runtime dependencies resolve from the package's ranges at install time,
+for the Worker as for any consumer.
 
-1. `release-check` compares the run's tarball with the GitHub release for its
-   package version. A match needs nothing. A different digest under a released
+1. `release-check` compares the run's identity with the GitHub release for its
+   package version. A match needs nothing. A different identity under a released
    version fails the PR: bump `mcp/package.json` and add the version's
    `CHANGELOG.md` section. An unreleased version must already have that section.
-2. On `main`, after `deploy-skills` succeeds, `release-skills` calls
-   `release-skill-server.yml` for an unreleased version. It attests the same
+   `README.md`, `CHANGELOG.md`, `examples/` and `package.json` are packed, so
+   editing them needs a version too.
+2. `deploy-skills` repeats the check under the `skills-production` lock, so a
+   merge that raced an earlier release of the same version stops before deploy.
+   After it deploys, `release-skills` calls `release-skill-server.yml` for an
+   unreleased version. It attests the same
    tarball that passed the consumer matrix and was deployed, then creates the
    `skill-server-v<version>` release (a prerelease for a `-rc.N` version) with
    the tarball, SHA256SUMS, source.json, and notes carrying the changelog section.
@@ -115,7 +123,8 @@ deployed code; skill content in the snapshot is not part of it.
 
 PR artifacts are not promoted by a privileged workflow_run handler. The release
 job runs in the `main` push run and downloads only artifacts from that run. A
-tag pushed by hand publishes nothing.
+tag pushed by hand publishes nothing, and a release whose tag already points at
+another commit fails instead of adopting it.
 
 ## Recovery
 
@@ -124,8 +133,11 @@ before retrying. A successful upload followed by a failed check can mean the new
 version is already serving. The workflow does not claim automatic rollback.
 Restore the previous Cloudflare version with Wrangler's rollback command, record
 its version and source commit, then rerun the public checks for that source.
-Use a new main commit or manual CI run to redeploy a corrected build. Keep package
-prerelease selection independent of site rollback.
+Use a new main commit or manual CI run to redeploy a corrected build. A Wrangler
+rollback leaves the newest release ahead of production until the corrected build
+deploys and releases as a new version. If a release was created without its
+`source.json` asset, `release-check` fails on every run until the asset is
+uploaded or the release deleted.
 
 ## Local verification
 

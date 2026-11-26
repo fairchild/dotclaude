@@ -1,5 +1,5 @@
 name: Release skill-server
-# Called by ci.yml after deploy-skills, when release-check finds the package version unreleased.
+# Called by ci.yml after deploy-skills, when its release check finds the package version unreleased.
 # It publishes the tarball this run verified and deployed, so the release is what serves.
 on:
   workflow_call:
@@ -27,6 +27,11 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           version=$(jq -r .version candidate/source.json)
+          tagged=$(gh api "repos/$GH_REPO/git/ref/tags/skill-server-v$version" --jq .object.sha 2>/dev/null) || tagged=""
+          if [[ -n "$tagged" && "$tagged" != "$GITHUB_SHA" ]]; then
+            echo "::error::skill-server-v$version already tags $tagged, not $GITHUB_SHA"
+            exit 1
+          fi
           prerelease=""
           [[ "$version" == *-* ]] && prerelease=--prerelease
           gh release create "skill-server-v$version" candidate/*.tgz candidate/SHA256SUMS candidate/source.json \

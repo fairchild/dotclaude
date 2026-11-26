@@ -7,8 +7,8 @@ Changes to `skill-server`: the npm package and the hosted service at
 
 A change to the package ships with a new version and its section here. When it
 merges, CI deploys the tarball to the hosted service and publishes that same
-tarball as the `skill-server-v<version>` GitHub release, so the latest
-release is what the hosted service runs.
+tarball as the `skill-server-v<version>` GitHub release, so the newest
+`skill-server-v*` release is what the hosted service runs.
 
 ## [Unreleased]
 
@@ -36,8 +36,10 @@ earlier.
 - The package description and site copy no longer call the extension
   experimental. `index.json` points at the beta specification.
 - Releases follow deploys. CI publishes the tarball it deployed as the
-  version's GitHub release, and fails a change to the package that keeps a
-  released version. The release notes carry the version's changelog section.
+  version's GitHub release, and fails a change to the package or the Worker
+  adapter that keeps a released version. `source.json` gains `identity`, a hash
+  of every packed file plus the Worker adapter and config. The release notes
+  carry the version's changelog section.
 
 ### Added
 
@@ -68,6 +70,18 @@ earlier.
   "For agents" link duplicated its Markdown catalog link; skill and file pages
   keep their way back.
 
+### Deployed after 0.1.0-rc.1, first packaged here
+
+The service deployed these from `main` before releases followed deploys:
+
+- Skill-authored files are served sandboxed, and pages refuse framing.
+- The site leads with what a visitor gets and links each build to its source.
+  It self-hosts its fonts and has keyboard navigation through the library.
+- `robots.txt` with content signals, a sitemap, and PostHog events that record
+  no person.
+- Installs land where Claude Code loads skills, and there is a shell install
+  command.
+
 ## [0.1.0-rc.1] - 2026-09-05
 
 This entry was written after the fact from the history up to the tag. It is the
@@ -91,18 +105,6 @@ first release candidate. It served MCP protocol revisions up to 2025-11-25.
   anything.
 - A Node CLI and importable modules, built and released through GitHub with
   attested artifacts.
-
-### Hosted service after 0.1.0-rc.1
-
-The service deployed these changes from `main` without a package version:
-
-- Skill-authored files are served sandboxed, and pages refuse framing.
-- The site leads with what a visitor gets and links each build to its source.
-  It self-hosts its fonts and has keyboard navigation through the library.
-- `robots.txt` with content signals, a sitemap, and PostHog events that record
-  no person.
-- Installs land where Claude Code loads skills, and there is a shell install
-  command.
 
 [Unreleased]: https://github.com/fairchild/dotclaude/compare/skill-server-v0.1.0-rc.2...HEAD
 [0.1.0-rc.2]: https://github.com/fairchild/dotclaude/releases/tag/skill-server-v0.1.0-rc.2
