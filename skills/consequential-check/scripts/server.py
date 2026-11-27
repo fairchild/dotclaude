@@ -1153,8 +1153,10 @@ function showRows(id, items, summary, label, run, stays) {
       button.disabled = true; const out = await run(item); report(item, out);
       if (out.ok && !stays) { groups[id] = groups[id].filter(other => other !== item); render(false); } else button.disabled = out.ok;
       if (!held) return;
-      const left = group.querySelectorAll(".rows button:enabled");
-      if (left[at] || left[at - 1]) (left[at] || left[at - 1]).focus(); else if (group.hidden) home(); else $("summary", group).focus();
+      // The row now in this one's place, then the rows after it, then the ones before, nearest first.
+      const rows = [...group.querySelectorAll(".rows li")];
+      const near = [...rows.slice(at), ...rows.slice(0, at).reverse()].map(other => $("button:enabled", other)).find(Boolean);
+      if (near) near.focus(); else if (group.hidden) home(); else $("summary", group).focus();
     });
     return row;
   }));
@@ -1195,14 +1197,15 @@ document.addEventListener("keydown", event => {
   const inside = !header && !!section && !!target.closest("main > details");  // a row's button, or the toggle below
   // Escape backs up one level: from inside a section to its header, from anywhere else to the question.
   if (key === "Escape") { event.preventDefault(); return inside ? $("summary", section).focus() : home(); }
-  if (target.matches("input[type=text]")) return;
   // Enter belongs to whatever has focus: a button, a link, a disclosure, the form's own fields.
+  // Shift+Enter is the page's, from the form or from nowhere, a text field included.
   if (key === "Enter") {
     if (!form) return;
     if (event.shiftKey && (target === document.body || form.contains(target))) { event.preventDefault(); form.requestSubmit($("[value=merge]", form)); }
     else if (target === document.body) form.requestSubmit($("[value=save]", form));
     return;
   }
+  if (target.matches("input[type=text]")) return;
   // Sections: j and k step through them from anywhere. The arrows do the same once focus is on
   // one; on the question they belong to the radio group.
   const letter = letters.checked && target !== letters && key.length === 1 ? key : "", onStop = header || inside;
