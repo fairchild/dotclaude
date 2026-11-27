@@ -807,80 +807,118 @@ PAGE = r"""<!doctype html>
   --muted-foreground: #dcdce2; --fill-control: #2a2a30; --border: #a0a0a8; --input: #a0a0a8; --destructive: #ffb5b5;
 } }
 * { box-sizing: border-box; }
-body { margin: 0 auto; max-width: 42rem; padding: var(--space-8) var(--space-4); background: var(--background-grouped);
-  color: var(--foreground); font: 1.0625rem/1.375rem var(--font-sans); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
 h1, h2, h3, p, ul, dl, dd, fieldset, legend { margin: 0; padding: 0; }
-h1 { font-size: 2.125rem; line-height: 2.5625rem; letter-spacing: -0.025rem; }
-h2 { font-size: 1.25rem; line-height: 1.5625rem; }
-h3, legend, .field > label { font-size: 0.9375rem; line-height: 1.25rem; font-weight: 600; }
-a { color: inherit; text-underline-offset: 3px; }
 ul { list-style: none; }
 [hidden] { display: none !important; }
-.muted { color: var(--muted-foreground); }
-.note { font-size: 0.8125rem; line-height: 1.125rem; color: var(--muted-foreground); }
-:focus-visible, label:has(:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
 
-body > header { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); }
+/* The page: one column, with a gutter that grows with the window. */
+body { margin: 0 auto; max-width: 44rem; padding: 40px clamp(var(--space-4), 5vw, var(--space-8)) 64px;
+  background: var(--background-grouped); color: var(--foreground); font: 1.0625rem/1.375rem var(--font-sans);
+  -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
+h1 { font-size: 2.125rem; line-height: 2.5625rem; letter-spacing: -0.025rem; text-wrap: balance; }
+h2 { font-size: 1.25rem; line-height: 1.5625rem; text-wrap: balance; }
+a { color: inherit; text-decoration: none; text-underline-offset: 3px; }
+a:hover { text-decoration: underline; }
+.muted { color: var(--muted-foreground); }
+.note, h3 { font-size: 0.8125rem; line-height: 1.125rem; color: var(--muted-foreground); }
+h3 { font-weight: 600; }
+legend, .field > label { display: block; font-size: 0.9375rem; line-height: 1.25rem; font-weight: 600; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* PageHeader: the title with its one action beside it, and the summary under both at full width. */
+body > header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-1) var(--space-4); }
+#summary { grid-column: 1 / -1; }
+#summary span { white-space: nowrap; }  /* a line breaks between counts, never inside one */
 main { margin-top: var(--space-6); }
 main > * + * { margin-top: var(--space-4); }
 #status:empty + * { margin-top: 0; }  /* a live region is announced only if it was in the page before it had text */
 #status { font-size: 0.9375rem; line-height: 1.25rem; }
 #status.failed { color: var(--destructive); }
 
-.card { display: grid; gap: var(--space-6); padding: var(--space-6); border-radius: var(--radius); background: var(--card); }
-.card > header, .card section, form, fieldset, .field { display: grid; gap: var(--space-2); min-width: 0; }
-form { gap: var(--space-6); }
-.reasons li { padding: var(--space-2) 0; }
+/* Card: the pull request being answered. One step of space between its parts, half a step inside them. */
+.card { display: grid; gap: var(--space-6); padding: var(--space-6); border-radius: var(--radius); background: var(--card); min-width: 0; }
+.card > * { min-width: 0; }
+.card > header > * + * { margin-top: var(--space-1); }
+.card h3 { margin-bottom: var(--space-2); }
+.reasons li { padding: var(--space-3) 0; }
+.reasons li:first-child { padding-top: 0; }
 .reasons li + li { border-top: 1px solid var(--border); }
-fieldset { border: 0; }
+.reasons strong { display: block; font-size: 0.9375rem; line-height: 1.25rem; }
+form { display: grid; gap: var(--space-6); }
+fieldset { min-width: 0; border: 0; }
+legend { margin-bottom: var(--space-2); }
+.field { margin-top: var(--space-3); }
+fieldset > .field:first-child { margin-top: 0; }
+.field > label { margin-bottom: var(--space-2); }
+.field input { display: block; min-height: var(--size-hit-min); width: 100%; padding: 0 var(--space-3); border: 1px solid var(--input);
+  border-radius: var(--radius-md); background: var(--card); color: var(--foreground); font: inherit; }
 
 button { min-height: var(--size-hit-min); padding: 0 20px; border: 0; border-radius: 999px; background: var(--fill-control);
-  color: var(--foreground); font: inherit; font-weight: 600; cursor: pointer; }
+  color: var(--foreground); font: inherit; font-weight: 600; white-space: nowrap; cursor: pointer; }
 button.filled { background: var(--primary); color: var(--primary-foreground); }
-button.plain { padding: 0 var(--space-2); background: none; color: var(--primary); }
+button.plain { padding: 0 var(--space-3); background: none; color: var(--primary); }
 button:disabled { opacity: 0.5; cursor: default; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .actions .plain { margin-left: auto; }
 
-/* SegmentedControl: a fieldset of radio inputs on one track. */
-.track { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; justify-self: start; padding: 2px;
-  border-radius: 999px; background: var(--fill-control); }
-.track label { position: relative; display: grid; place-items: center; min-width: 6rem; min-height: 40px; border-radius: 999px;
-  font-weight: 600; cursor: pointer; }
+/* SegmentedControl: a fieldset of radio inputs on one track. The label wears the focus ring. */
+.track { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 2px; border-radius: 999px;
+  background: var(--fill-control); vertical-align: top; }
+.track label { position: relative; display: grid; place-items: center; min-width: 5.5rem; min-height: 40px; padding: 0 var(--space-4);
+  border-radius: 999px; font-weight: 600; cursor: pointer; }
 .track input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
 .track label:has(:checked) { background: var(--fill-selected); box-shadow: var(--shadow-raised); }
+.track label:has(:focus-visible), .check:has(:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+.check input:focus-visible { outline: none; }
 
-.check { display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-hit-min); cursor: pointer; }
+.check { display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-hit-min); border-radius: var(--radius-md); cursor: pointer; }
 .check input { flex: none; width: 1.25rem; height: 1.25rem; margin: 0; accent-color: var(--primary); }
-.field input { min-height: var(--size-hit-min); width: 100%; padding: 0 var(--space-3); border: 1px solid var(--input);
-  border-radius: var(--radius-md); background: var(--card); color: var(--foreground); font: inherit; }
 
 /* Disclosure: a native details whose summary reads while it is closed. */
-details { border-radius: var(--radius); }
-summary { display: flex; align-items: center; gap: var(--space-2); min-height: var(--size-hit-min); font-size: 0.9375rem;
-  font-weight: 600; color: var(--muted-foreground); cursor: pointer; list-style: none; }
+summary { display: flex; align-items: center; gap: var(--space-2); min-height: var(--size-hit-min); border-radius: var(--radius-md);
+  font-size: 0.9375rem; line-height: 1.25rem; font-weight: 600; color: var(--muted-foreground); cursor: pointer; list-style: none; }
 summary::-webkit-details-marker { display: none; }
-summary::before { content: ""; flex: none; width: 7px; height: 7px; margin: 0 2px; border: solid currentColor; border-width: 0 2px 2px 0;
+summary::before { content: ""; flex: none; width: 7px; height: 7px; margin: 0 3px 0 2px; border: solid currentColor; border-width: 0 2px 2px 0;
   transform: rotate(-45deg); transition: transform 0.2s; }
 details[open] > summary::before { transform: rotate(45deg); }
 @media (prefers-reduced-motion: reduce) { summary::before { transition: none; } }
-main > details { padding: 0 var(--space-4); background: var(--card); }
-main > details > :last-child:not(summary) { padding-bottom: var(--space-3); }
-.rows li { display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-hit-min); padding: var(--space-1) 0;
+/* Inside the card the summary keeps its hit height and gives back the space that height adds. */
+.card details { margin: calc(-1 * var(--space-1)) 0 calc(-1 * var(--space-3)); }
+.card details[open] { margin-bottom: 0; }
+/* On the page a disclosure is a card of its own. */
+main > details { border-radius: var(--radius); background: var(--card); }
+main > details > summary { min-height: 56px; padding: 0 var(--space-6); border-radius: var(--radius); outline-offset: -2px; }
+main > details > :not(summary) { margin: 0 var(--space-6); }
+main > details > :last-child:not(summary) { padding-bottom: var(--space-4); }
+main > details > .note { padding-bottom: var(--space-3); }
+main > details > dl { margin-top: var(--space-2); }
+/* A row's title keeps a readable width: where the row is too narrow, the note and the button move under it. */
+.rows li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-height: 56px; padding: var(--space-3) 0;
   border-top: 1px solid var(--border); }
-.rows a { flex: 1; min-width: 0; }
-dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-1) var(--space-4); font-size: 0.9375rem; }
+.rows a { flex: 1 1 14rem; min-width: 0; }
+.rows .note { flex: none; }
+.rows button { min-height: 36px; margin-left: auto; padding: 0 var(--space-4); font-size: 0.9375rem; }
+dl { display: grid; grid-template-columns: max-content 1fr; align-items: baseline; gap: var(--space-2) var(--space-4); font-size: 0.9375rem; line-height: 1.25rem; }
 dt { color: var(--muted-foreground); }
-kbd { font: 0.8125rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+kbd { display: inline-block; min-width: 1.5rem; padding: 1px 6px; border: 1px solid var(--border); border-radius: 6px; text-align: center;
+  font: 0.75rem/1.125rem ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--foreground); }
+main > details > .check { margin-top: var(--space-2); font-size: 0.9375rem; }
+
+@media (width < 30em) {
+  body { padding-top: var(--space-6); }
+  h1 { font-size: 1.75rem; line-height: 2.125rem; }
+  .card { padding: 20px var(--space-4); }
+  main > details > summary { padding: 0 var(--space-4); }
+  main > details > :not(summary) { margin: 0 var(--space-4); }
+  .actions button:not(.plain) { flex: 1; }
+}
 </style>
 </head>
 <body>
 <header>
-  <div>
-    <h1>Consequential queue</h1>
-    <p id="summary" class="muted">Loading…</p>
-  </div>
+  <h1>Consequential queue</h1>
   <button type="button" id="reload">Reload</button>
+  <p id="summary" class="muted">Loading…</p>
 </header>
 
 <main>
@@ -997,6 +1035,12 @@ async function api(path, body) {
 async function act(path, body) {
   try { return await api(path, body); } catch (error) { return {ok: false, steps: [{step: "send", ok: false, detail: error.message}]}; }
 }
+function lede(parts) {
+  const shown = parts.filter(Boolean);
+  $("#summary").replaceChildren(...shown.flatMap((text, at) => {
+    const part = document.createElement("span"); part.textContent = text + (at < shown.length - 1 ? " ·" : ""); return at ? [" ", part] : [part];
+  }));
+}
 function say(text, failed) { const status = $("#status"); status.textContent = text; status.classList.toggle("failed", !!failed); }
 function report(item, out) {
   const did = {reply: "replied", label: "labelled", merge: "merged", rerun: "check running again"};
@@ -1030,7 +1074,6 @@ function showItem() {
   $("[data-skip]", form).addEventListener("click", skip);
   holder.replaceChildren(card);
   since = performance.now();
-  form.elements.glad[0].focus({preventScroll: true});
 }
 function check(name, value, text) {
   const label = document.createElement("label"), box = document.createElement("input");
@@ -1076,8 +1119,8 @@ function showRows(id, items, summary, label, run, stays) {
 }
 function render(item = true) {
   const {waiting, stale, answered, pending} = groups;
-  $("#summary").textContent = [`${waiting.length} to answer`, stale.length && plural(stale.length, "leftover label", "leftover labels"),
-    answered.length && `${answered.length} answered, still open`, pending.length && `${pending.length} waiting on the check`, MODE].filter(Boolean).join(" · ");
+  lede([`${waiting.length} to answer`, stale.length && plural(stale.length, "leftover label", "leftover labels"),
+    answered.length && `${answered.length} answered, still open`, pending.length && `${pending.length} waiting on the check`, MODE]);
   if (item) showItem();
   showRows("stale", stale, plural(stale.length, "with only the label left", "with only the label left"), "Clear label",
     item => act("/api/clear", {key: keyOf(item), head: item.head}));
@@ -1105,9 +1148,10 @@ document.addEventListener("keydown", event => {
   const typing = target.matches("input[type=text]"), ours = target === document.body || form.contains(target);
   if (event.key === "Escape" && typing) return target.blur();
   if (event.key === "Enter" && event.shiftKey && ours) { event.preventDefault(); return form.requestSubmit($("[value=merge]", form)); }
-  if (typing || target.closest("a, button, summary")) return;
+  if (typing) return;
   const boxes = [...form.querySelectorAll("[name=reason]")], key = event.key;
-  if (key === "Enter" && !form.contains(target) && target === document.body) return form.requestSubmit($("[value=save]", form));
+  // Enter belongs to whatever has focus: a button, a link, a disclosure, the form's own fields.
+  if (key === "Enter") return target === document.body ? form.requestSubmit($("[value=save]", form)) : undefined;
   if (!letters.checked || target === letters) return;
   if (key === "y") choose(form, "yes");
   else if (key === "n") choose(form, "no");
@@ -1154,7 +1198,7 @@ def handler(queue: Queue, token: str, mode: str, hosts: set[str]) -> type[BaseHT
             return self.headers.get("Host", "") in hosts
 
         def allowed(self) -> bool:
-            return self.local() and secrets.compare_digest(self.headers.get("X-Queue-Token", ""), token)
+            return self.local() and secrets.compare_digest(self.headers.get("X-Queue-Token", "").encode(), token.encode())
 
         def do_GET(self) -> None:
             if not self.local():
@@ -1164,7 +1208,7 @@ def handler(queue: Queue, token: str, mode: str, hosts: set[str]) -> type[BaseHT
                 # The page carries the token every action needs, so it is served only to the link
                 # the server printed: another process on this machine cannot fetch it and act.
                 given = urllib.parse.parse_qs(url.query).get("t", [""])[0]
-                if not secrets.compare_digest(given, token):
+                if not secrets.compare_digest(given.encode(), token.encode()):
                     return self.send(403, b"Open the link this server printed when it started.\n", "text/plain; charset=utf-8")
                 return self.send(200, page(token, mode), "text/html; charset=utf-8")
             if self.path == "/api/queue" and self.allowed():
@@ -1496,6 +1540,7 @@ def policy(config, default): return ReplyOnly()
             # The page carries the token, so it is served only to the link the server printed,
             # and it cannot be framed by another site.
             assert get("/")[0] == 403 and token.encode() not in get("/")[1] and get("/?t=wrong")[0] == 403
+            assert get("/?t=%C3%A9")[0] == 403 and get("/api/queue", **{"X-Queue-Token": "\u00e9"})[0] == 403  # not ASCII: wrong, not a crash
             status, html = get(f"/?t={token}")
             assert status == 200 and token.encode() in html and b"Consequential queue" in html
             with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(f"{base}/?t={token}", timeout=10) as response:
