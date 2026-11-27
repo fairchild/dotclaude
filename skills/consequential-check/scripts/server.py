@@ -823,7 +823,11 @@ a:hover { text-decoration: underline; }
 .note, h3 { font-size: 0.8125rem; line-height: 1.125rem; color: var(--muted-foreground); }
 h3 { font-weight: 600; }
 legend, .field > label { display: block; font-size: 0.9375rem; line-height: 1.25rem; font-weight: 600; }
-:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+/* The focus ring. The page moves focus itself (on load, after an answer, between sections), and
+   browsers differ on whether focus a script moved counts as keyboard focus. So the page keeps its
+   own account: `data-keys` is on the root from the start and after any key, and off after a click. */
+:focus-visible, :root[data-keys] :focus { outline: 2px solid var(--primary); outline-offset: 2px; }
+:root :is(.track, .check) input:focus { outline: none; }  /* its track or its label wears the ring */
 
 /* PageHeader: the title with its one action beside it, and the summary under both at full width. */
 body > header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-1) var(--space-4); }
@@ -868,8 +872,11 @@ button:disabled { opacity: 0.5; cursor: default; }
   border-radius: 999px; font-weight: 600; cursor: pointer; }
 .track input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
 .track label:has(:checked) { background: var(--fill-selected); box-shadow: var(--shadow-raised); }
-.track label:has(:focus-visible), .check:has(:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
-.check input:focus-visible { outline: none; }
+/* Focus lands on the question. Until it has an answer the ring is the whole track's, so that no
+   option looks chosen; after that it is the chosen option's. */
+.track:not(:has(:checked)):has(:focus-visible), :root[data-keys] .track:not(:has(:checked)):focus-within,
+.track label:has(:checked:focus-visible), :root[data-keys] .track label:has(:checked:focus),
+.check:has(:focus-visible), :root[data-keys] .check:has(:focus) { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 .check { display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-hit-min); border-radius: var(--radius-md); cursor: pointer; }
 .check input { flex: none; width: 1.25rem; height: 1.25rem; margin: 0; accent-color: var(--primary); }
@@ -952,6 +959,9 @@ main > details > .check { margin-top: var(--space-2); font-size: 0.9375rem; }
       <dt><kbd>Enter</kbd></dt><dd>Save and show the next one</dd>
       <dt><kbd>Shift</kbd> <kbd>Enter</kbd></dt><dd>Save and merge</dd>
       <dt><kbd>s</kbd></dt><dd>Skip for now</dd>
+      <dt><kbd>j</kbd> <kbd>k</kbd></dt><dd>Next or previous section, and the rows of an open one</dd>
+      <dt><kbd>→</kbd> <kbd>←</kbd></dt><dd>Open a section and step into it, step out and close it</dd>
+      <dt><kbd>Esc</kbd></dt><dd>Back up: from a row to its section, from anywhere else to the question</dd>
     </dl>
     <label class="check"><input type="checkbox" id="letters" checked>Use the single-key shortcuts</label>
   </details>
@@ -1050,7 +1060,7 @@ function report(item, out) {
 
 function showItem() {
   const item = groups.waiting[0], holder = $("#current");
-  if (!item) { holder.replaceChildren(copy("empty")); return; }
+  if (!item) { holder.replaceChildren(copy("empty")); home(); return; }
   const card = copy("item"), form = $("form", card), reasons = item.verdict ? item.verdict.reasons : [];
   const link = $("h2 a", card); link.textContent = item.title; link.href = item.url;
   const stale = item.verdict && item.verdict.head && !item.head.startsWith(item.verdict.head) && !item.verdict.head.startsWith(item.head);
@@ -1074,6 +1084,29 @@ function showItem() {
   $("[data-skip]", form).addEventListener("click", skip);
   holder.replaceChildren(card);
   since = performance.now();
+  home();
+}
+// Where the keyboard starts and where Escape returns to: the question, or with nothing to answer,
+// the first section.
+function home() {
+  const track = $("#current .track");
+  if (!track) return ($("main > details:not([hidden]) > summary") || $("#reload")).focus();
+  ($(":checked", track) || $("input", track)).focus();
+}
+// The places j and k step through, top to bottom: the scores, the question, each section's header
+// and, while a section is open, what is inside it.
+function stops() {
+  const track = $("#current .track");
+  return [...document.querySelectorAll("#current section details:not([hidden]) > summary"), ...(track ? [track] : []),
+    ...document.querySelectorAll("main > details:not([hidden]) > summary, main > details[open]:not([hidden]) :is(.rows button:enabled, #letters)")];
+}
+function step(by, from) {
+  const all = stops(), track = $("#current .track");
+  let at = all.findIndex(stop => stop === from || stop.contains(from));
+  if (at < 0) at = track ? all.indexOf(track) : by > 0 ? -1 : all.length;  // anywhere else in the form counts as the question
+  const to = all[at + by];
+  if (to === track) home(); else if (to) to.focus();
+  return to;
 }
 function check(name, value, text) {
   const label = document.createElement("label"), box = document.createElement("input");
@@ -1085,7 +1118,12 @@ function sync(form, changed) {
   if (all && changed === all) boxes.forEach(box => box.checked = all.checked);
   else if (all) all.checked = boxes.length > 0 && boxes.every(box => box.checked);
 }
-function choose(form, glad) { form.elements.glad.value = glad; sync(form, null); }
+function choose(form, glad) {
+  form.elements.glad.value = glad; sync(form, null);
+  // The ring follows the answer while focus is on the question, or nowhere.
+  const active = document.activeElement;
+  if (active === document.body || $(".track", form).contains(active)) home();
+}
 
 async function save(item, form, merge) {
   if (form.ariaBusy === "true") return;
@@ -1100,7 +1138,7 @@ async function save(item, form, merge) {
     groups.waiting = groups.waiting.filter(other => other !== item);
     if (!(out.ok && merge)) groups.answered.push({...item, state: "answered", answer: glad ? "confirmed" : "overruled"});
     render();
-  } else { form.ariaBusy = "false"; form.querySelectorAll("button").forEach(button => button.disabled = false); }
+  } else { form.ariaBusy = "false"; form.querySelectorAll("button").forEach(button => button.disabled = false); home(); }
 }
 function skip() { if (!busy() && groups.waiting.length > 1) { groups.waiting.push(groups.waiting.shift()); say(""); showItem(); } }
 
@@ -1111,8 +1149,12 @@ function showRows(id, items, summary, label, run, stays) {
     link.textContent = item.title; link.href = item.url; $("span", row).textContent = item.answer || keyOf(item);
     button.textContent = label; button.setAttribute("aria-label", `${label}: ${item.title}`);
     button.addEventListener("click", async () => {
+      const at = [...row.parentElement.children].indexOf(row), held = document.activeElement === button;
       button.disabled = true; const out = await run(item); report(item, out);
       if (out.ok && !stays) { groups[id] = groups[id].filter(other => other !== item); render(false); } else button.disabled = out.ok;
+      if (!held) return;
+      const left = group.querySelectorAll(".rows button:enabled");
+      if (left[at] || left[at - 1]) (left[at] || left[at - 1]).focus(); else if (group.hidden) home(); else $("summary", group).focus();
     });
     return row;
   }));
@@ -1142,23 +1184,44 @@ async function load() {
 const letters = $("#letters");
 try { letters.checked = localStorage.getItem("letters") !== "off"; } catch (error) { /* storage is optional */ }
 letters.addEventListener("change", () => { try { localStorage.setItem("letters", letters.checked ? "on" : "off"); } catch (error) { /* optional */ } });
+const root = document.documentElement;
+root.dataset.keys = "";
+document.addEventListener("pointerdown", () => delete root.dataset.keys, true);
 document.addEventListener("keydown", event => {
-  const form = $("#current form"), target = event.target;
-  if (!form || busy() || event.metaKey || event.ctrlKey || event.altKey) return;
-  const typing = target.matches("input[type=text]"), ours = target === document.body || form.contains(target);
-  if (event.key === "Escape" && typing) return target.blur();
-  if (event.key === "Enter" && event.shiftKey && ours) { event.preventDefault(); return form.requestSubmit($("[value=merge]", form)); }
-  if (typing) return;
-  const boxes = [...form.querySelectorAll("[name=reason]")], key = event.key;
+  root.dataset.keys = "";
+  if (busy() || event.metaKey || event.ctrlKey || event.altKey) return;
+  const form = $("#current form"), target = event.target, key = event.key;
+  const header = target.matches("summary") ? target : null, section = target.closest("details");
+  const inside = !header && !!section && !!target.closest("main > details");  // a row's button, or the toggle below
+  // Escape backs up one level: from inside a section to its header, from anywhere else to the question.
+  if (key === "Escape") { event.preventDefault(); return inside ? $("summary", section).focus() : home(); }
+  if (target.matches("input[type=text]")) return;
   // Enter belongs to whatever has focus: a button, a link, a disclosure, the form's own fields.
-  if (key === "Enter") return target === document.body ? form.requestSubmit($("[value=save]", form)) : undefined;
-  if (!letters.checked || target === letters) return;
-  if (key === "y") choose(form, "yes");
-  else if (key === "n") choose(form, "no");
-  else if (key === "s") skip();
-  else if (key === "o") { event.preventDefault(); if (!form.elements.glad.value) choose(form, "yes"); (form.elements.glad.value === "yes" ? form.elements.other : form.elements.note).focus(); }
-  else if (key === "a" && boxes.length) { choose(form, "yes"); const on = !boxes.every(box => box.checked); boxes.forEach(box => box.checked = on); sync(form, null); }
-  else if (/^[1-9]$/.test(key) && boxes[key - 1]) { choose(form, "yes"); boxes[key - 1].checked = !boxes[key - 1].checked; sync(form, null); }
+  if (key === "Enter") {
+    if (!form) return;
+    if (event.shiftKey && (target === document.body || form.contains(target))) { event.preventDefault(); form.requestSubmit($("[value=merge]", form)); }
+    else if (target === document.body) form.requestSubmit($("[value=save]", form));
+    return;
+  }
+  // Sections: j and k step through them from anywhere. The arrows do the same once focus is on
+  // one; on the question they belong to the radio group.
+  const letter = letters.checked && target !== letters && key.length === 1 ? key : "", onStop = header || inside;
+  if (letter === "j" || key === "ArrowDown" && onStop) { event.preventDefault(); return step(1, target); }
+  if (letter === "k" || key === "ArrowUp" && onStop) { event.preventDefault(); return step(-1, target); }
+  if ((key === "ArrowRight" || letter === "l") && header) {
+    event.preventDefault();
+    if (!section.open) section.open = true; else if (section.contains(stops()[stops().indexOf(header) + 1])) step(1, target);
+    return;
+  }
+  if ((key === "ArrowLeft" || letter === "h") && onStop) { event.preventDefault(); return header ? void (section.open = false) : $("summary", section).focus(); }
+  if (!form || !letter) return;
+  const boxes = [...form.querySelectorAll("[name=reason]")];
+  if (letter === "y") choose(form, "yes");
+  else if (letter === "n") choose(form, "no");
+  else if (letter === "s") skip();
+  else if (letter === "o") { event.preventDefault(); if (!form.elements.glad.value) choose(form, "yes"); (form.elements.glad.value === "yes" ? form.elements.other : form.elements.note).focus(); }
+  else if (letter === "a" && boxes.length) { choose(form, "yes"); const on = !boxes.every(box => box.checked); boxes.forEach(box => box.checked = on); sync(form, null); }
+  else if (/^[1-9]$/.test(letter) && boxes[letter - 1]) { choose(form, "yes"); boxes[letter - 1].checked = !boxes[letter - 1].checked; sync(form, null); }
 });
 $("#reload").addEventListener("click", load);
 load();

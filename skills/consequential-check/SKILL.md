@@ -144,6 +144,11 @@ next; `Shift`+`Enter` saves and merges; `s` skips for now. The page is a plain f
 shortcut has a button or a field that does the same, and nothing is picked until the owner picks
 it.
 
+Focus lands on the question, on load and after every answer, so the keys above work at once. `j`
+and `k` step to the sections around it and back: the scores above, the lists below, and the rows of
+a list that is open. `→` opens a section and steps into it, `←` steps out and closes it, and `Esc`
+backs up, from a row to its section and from anywhere else to the question.
+
 On save the server, as the owner:
 
 - posts the reply the tuning step below collects, with the answer as a data line;
