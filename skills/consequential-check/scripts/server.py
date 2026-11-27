@@ -807,80 +807,125 @@ PAGE = r"""<!doctype html>
   --muted-foreground: #dcdce2; --fill-control: #2a2a30; --border: #a0a0a8; --input: #a0a0a8; --destructive: #ffb5b5;
 } }
 * { box-sizing: border-box; }
-body { margin: 0 auto; max-width: 42rem; padding: var(--space-8) var(--space-4); background: var(--background-grouped);
-  color: var(--foreground); font: 1.0625rem/1.375rem var(--font-sans); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
 h1, h2, h3, p, ul, dl, dd, fieldset, legend { margin: 0; padding: 0; }
-h1 { font-size: 2.125rem; line-height: 2.5625rem; letter-spacing: -0.025rem; }
-h2 { font-size: 1.25rem; line-height: 1.5625rem; }
-h3, legend, .field > label { font-size: 0.9375rem; line-height: 1.25rem; font-weight: 600; }
-a { color: inherit; text-underline-offset: 3px; }
 ul { list-style: none; }
 [hidden] { display: none !important; }
-.muted { color: var(--muted-foreground); }
-.note { font-size: 0.8125rem; line-height: 1.125rem; color: var(--muted-foreground); }
-:focus-visible, label:has(:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
 
-body > header { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); }
+/* The page: one column, with a gutter that grows with the window. */
+body { margin: 0 auto; max-width: 44rem; padding: 40px clamp(var(--space-4), 5vw, var(--space-8)) 64px;
+  background: var(--background-grouped); color: var(--foreground); font: 1.0625rem/1.375rem var(--font-sans);
+  -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
+h1 { font-size: 2.125rem; line-height: 2.5625rem; letter-spacing: -0.025rem; text-wrap: balance; }
+h2 { font-size: 1.25rem; line-height: 1.5625rem; text-wrap: balance; }
+a { color: inherit; text-decoration: none; text-underline-offset: 3px; }
+a:hover { text-decoration: underline; }
+.muted { color: var(--muted-foreground); }
+.note, h3 { font-size: 0.8125rem; line-height: 1.125rem; color: var(--muted-foreground); }
+h3 { font-weight: 600; }
+legend, .field > label { display: block; font-size: 0.9375rem; line-height: 1.25rem; font-weight: 600; }
+/* The focus ring. The page moves focus itself (on load, after an answer, between sections), and
+   browsers differ on whether focus a script moved counts as keyboard focus. So the page keeps its
+   own account: `data-keys` is on the root from the start and after any key, and off after a click. */
+:focus-visible, :root[data-keys] :focus { outline: 2px solid var(--primary); outline-offset: 2px; }
+:root :is(.track, .check) input:focus { outline: none; }  /* its track or its label wears the ring */
+
+/* PageHeader: the title with its one action beside it, and the summary under both at full width. */
+body > header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-1) var(--space-4); }
+#summary { grid-column: 1 / -1; }
+#summary span { white-space: nowrap; }  /* a line breaks between counts, never inside one */
 main { margin-top: var(--space-6); }
 main > * + * { margin-top: var(--space-4); }
 #status:empty + * { margin-top: 0; }  /* a live region is announced only if it was in the page before it had text */
 #status { font-size: 0.9375rem; line-height: 1.25rem; }
 #status.failed { color: var(--destructive); }
 
-.card { display: grid; gap: var(--space-6); padding: var(--space-6); border-radius: var(--radius); background: var(--card); }
-.card > header, .card section, form, fieldset, .field { display: grid; gap: var(--space-2); min-width: 0; }
-form { gap: var(--space-6); }
-.reasons li { padding: var(--space-2) 0; }
+/* Card: the pull request being answered. One step of space between its parts, half a step inside them. */
+.card { display: grid; gap: var(--space-6); padding: var(--space-6); border-radius: var(--radius); background: var(--card); min-width: 0; }
+.card > * { min-width: 0; }
+.card > header > * + * { margin-top: var(--space-1); }
+.card h3 { margin-bottom: var(--space-2); }
+.reasons li { padding: var(--space-3) 0; }
+.reasons li:first-child { padding-top: 0; }
 .reasons li + li { border-top: 1px solid var(--border); }
-fieldset { border: 0; }
+.reasons strong { display: block; font-size: 0.9375rem; line-height: 1.25rem; }
+form { display: grid; gap: var(--space-6); }
+fieldset { min-width: 0; border: 0; }
+legend { margin-bottom: var(--space-2); }
+.field { margin-top: var(--space-3); }
+fieldset > .field:first-child { margin-top: 0; }
+.field > label { margin-bottom: var(--space-2); }
+.field input { display: block; min-height: var(--size-hit-min); width: 100%; padding: 0 var(--space-3); border: 1px solid var(--input);
+  border-radius: var(--radius-md); background: var(--card); color: var(--foreground); font: inherit; }
 
 button { min-height: var(--size-hit-min); padding: 0 20px; border: 0; border-radius: 999px; background: var(--fill-control);
-  color: var(--foreground); font: inherit; font-weight: 600; cursor: pointer; }
+  color: var(--foreground); font: inherit; font-weight: 600; white-space: nowrap; cursor: pointer; }
 button.filled { background: var(--primary); color: var(--primary-foreground); }
-button.plain { padding: 0 var(--space-2); background: none; color: var(--primary); }
+button.plain { padding: 0 var(--space-3); background: none; color: var(--primary); }
 button:disabled { opacity: 0.5; cursor: default; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .actions .plain { margin-left: auto; }
 
-/* SegmentedControl: a fieldset of radio inputs on one track. */
-.track { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; justify-self: start; padding: 2px;
-  border-radius: 999px; background: var(--fill-control); }
-.track label { position: relative; display: grid; place-items: center; min-width: 6rem; min-height: 40px; border-radius: 999px;
-  font-weight: 600; cursor: pointer; }
+/* SegmentedControl: a fieldset of radio inputs on one track. The label wears the focus ring. */
+.track { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 2px; border-radius: 999px;
+  background: var(--fill-control); vertical-align: top; }
+.track label { position: relative; display: grid; place-items: center; min-width: 5.5rem; min-height: 40px; padding: 0 var(--space-4);
+  border-radius: 999px; font-weight: 600; cursor: pointer; }
 .track input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
 .track label:has(:checked) { background: var(--fill-selected); box-shadow: var(--shadow-raised); }
+/* Focus lands on the question. Until it has an answer the ring is the whole track's, so that no
+   option looks chosen; after that it is the chosen option's. */
+.track:not(:has(:checked)):has(:focus-visible), :root[data-keys] .track:not(:has(:checked)):focus-within,
+.track label:has(:checked:focus-visible), :root[data-keys] .track label:has(:checked:focus),
+.check:has(:focus-visible), :root[data-keys] .check:has(:focus) { outline: 2px solid var(--primary); outline-offset: 2px; }
 
-.check { display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-hit-min); cursor: pointer; }
+.check { display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-hit-min); border-radius: var(--radius-md); cursor: pointer; }
 .check input { flex: none; width: 1.25rem; height: 1.25rem; margin: 0; accent-color: var(--primary); }
-.field input { min-height: var(--size-hit-min); width: 100%; padding: 0 var(--space-3); border: 1px solid var(--input);
-  border-radius: var(--radius-md); background: var(--card); color: var(--foreground); font: inherit; }
 
 /* Disclosure: a native details whose summary reads while it is closed. */
-details { border-radius: var(--radius); }
-summary { display: flex; align-items: center; gap: var(--space-2); min-height: var(--size-hit-min); font-size: 0.9375rem;
-  font-weight: 600; color: var(--muted-foreground); cursor: pointer; list-style: none; }
+summary { display: flex; align-items: center; gap: var(--space-2); min-height: var(--size-hit-min); border-radius: var(--radius-md);
+  font-size: 0.9375rem; line-height: 1.25rem; font-weight: 600; color: var(--muted-foreground); cursor: pointer; list-style: none; }
 summary::-webkit-details-marker { display: none; }
-summary::before { content: ""; flex: none; width: 7px; height: 7px; margin: 0 2px; border: solid currentColor; border-width: 0 2px 2px 0;
+summary::before { content: ""; flex: none; width: 7px; height: 7px; margin: 0 3px 0 2px; border: solid currentColor; border-width: 0 2px 2px 0;
   transform: rotate(-45deg); transition: transform 0.2s; }
 details[open] > summary::before { transform: rotate(45deg); }
 @media (prefers-reduced-motion: reduce) { summary::before { transition: none; } }
-main > details { padding: 0 var(--space-4); background: var(--card); }
-main > details > :last-child:not(summary) { padding-bottom: var(--space-3); }
-.rows li { display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-hit-min); padding: var(--space-1) 0;
+/* Inside the card the summary keeps its hit height and gives back the space that height adds. */
+.card details { margin: calc(-1 * var(--space-1)) 0 calc(-1 * var(--space-3)); }
+.card details[open] { margin-bottom: 0; }
+/* On the page a disclosure is a card of its own. */
+main > details { border-radius: var(--radius); background: var(--card); }
+main > details > summary { min-height: 56px; padding: 0 var(--space-6); border-radius: var(--radius); outline-offset: -2px; }
+main > details > :not(summary) { margin: 0 var(--space-6); }
+main > details > :last-child:not(summary) { padding-bottom: var(--space-4); }
+main > details > .note { padding-bottom: var(--space-3); }
+main > details > dl { margin-top: var(--space-2); }
+/* A row's title keeps a readable width: where the row is too narrow, the note and the button move under it. */
+.rows li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-height: 56px; padding: var(--space-3) 0;
   border-top: 1px solid var(--border); }
-.rows a { flex: 1; min-width: 0; }
-dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-1) var(--space-4); font-size: 0.9375rem; }
+.rows a { flex: 1 1 14rem; min-width: 0; }
+.rows .note { flex: none; }
+.rows button { min-height: 36px; margin-left: auto; padding: 0 var(--space-4); font-size: 0.9375rem; }
+dl { display: grid; grid-template-columns: max-content 1fr; align-items: baseline; gap: var(--space-2) var(--space-4); font-size: 0.9375rem; line-height: 1.25rem; }
 dt { color: var(--muted-foreground); }
-kbd { font: 0.8125rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+kbd { display: inline-block; min-width: 1.5rem; padding: 1px 6px; border: 1px solid var(--border); border-radius: 6px; text-align: center;
+  font: 0.75rem/1.125rem ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--foreground); }
+main > details > .check { margin-top: var(--space-2); font-size: 0.9375rem; }
+
+@media (width < 30em) {
+  body { padding-top: var(--space-6); }
+  h1 { font-size: 1.75rem; line-height: 2.125rem; }
+  .card { padding: 20px var(--space-4); }
+  main > details > summary { padding: 0 var(--space-4); }
+  main > details > :not(summary) { margin: 0 var(--space-4); }
+  .actions button:not(.plain) { flex: 1; }
+}
 </style>
 </head>
 <body>
 <header>
-  <div>
-    <h1>Consequential queue</h1>
-    <p id="summary" class="muted">Loading…</p>
-  </div>
+  <h1>Consequential queue</h1>
   <button type="button" id="reload">Reload</button>
+  <p id="summary" class="muted">Loading…</p>
 </header>
 
 <main>
@@ -914,6 +959,9 @@ kbd { font: 0.8125rem ui-monospace, SFMono-Regular, Menlo, monospace; }
       <dt><kbd>Enter</kbd></dt><dd>Save and show the next one</dd>
       <dt><kbd>Shift</kbd> <kbd>Enter</kbd></dt><dd>Save and merge</dd>
       <dt><kbd>s</kbd></dt><dd>Skip for now</dd>
+      <dt><kbd>j</kbd> <kbd>k</kbd></dt><dd>Next or previous section, and the rows of an open one</dd>
+      <dt><kbd>→</kbd> <kbd>←</kbd></dt><dd>Open a section and step into it, step out and close it</dd>
+      <dt><kbd>Esc</kbd></dt><dd>Back up: from a row to its section, from anywhere else to the question</dd>
     </dl>
     <label class="check"><input type="checkbox" id="letters" checked>Use the single-key shortcuts</label>
   </details>
@@ -997,6 +1045,12 @@ async function api(path, body) {
 async function act(path, body) {
   try { return await api(path, body); } catch (error) { return {ok: false, steps: [{step: "send", ok: false, detail: error.message}]}; }
 }
+function lede(parts) {
+  const shown = parts.filter(Boolean);
+  $("#summary").replaceChildren(...shown.flatMap((text, at) => {
+    const part = document.createElement("span"); part.textContent = text + (at < shown.length - 1 ? " ·" : ""); return at ? [" ", part] : [part];
+  }));
+}
 function say(text, failed) { const status = $("#status"); status.textContent = text; status.classList.toggle("failed", !!failed); }
 function report(item, out) {
   const did = {reply: "replied", label: "labelled", merge: "merged", rerun: "check running again"};
@@ -1006,7 +1060,7 @@ function report(item, out) {
 
 function showItem() {
   const item = groups.waiting[0], holder = $("#current");
-  if (!item) { holder.replaceChildren(copy("empty")); return; }
+  if (!item) { holder.replaceChildren(copy("empty")); home(); return; }
   const card = copy("item"), form = $("form", card), reasons = item.verdict ? item.verdict.reasons : [];
   const link = $("h2 a", card); link.textContent = item.title; link.href = item.url;
   const stale = item.verdict && item.verdict.head && !item.head.startsWith(item.verdict.head) && !item.verdict.head.startsWith(item.head);
@@ -1030,7 +1084,29 @@ function showItem() {
   $("[data-skip]", form).addEventListener("click", skip);
   holder.replaceChildren(card);
   since = performance.now();
-  form.elements.glad[0].focus({preventScroll: true});
+  home();
+}
+// Where the keyboard starts and where Escape returns to: the question, or with nothing to answer,
+// the first section.
+function home() {
+  const track = $("#current .track");
+  if (!track) return ($("main > details:not([hidden]) > summary") || $("#reload")).focus();
+  ($(":checked", track) || $("input", track)).focus();
+}
+// The places j and k step through, top to bottom: the scores, the question, each section's header
+// and, while a section is open, what is inside it.
+function stops() {
+  const track = $("#current .track");
+  return [...document.querySelectorAll("#current section details:not([hidden]) > summary"), ...(track ? [track] : []),
+    ...document.querySelectorAll("main > details:not([hidden]) > summary, main > details[open]:not([hidden]) :is(.rows button:enabled, #letters)")];
+}
+function step(by, from) {
+  const all = stops(), track = $("#current .track");
+  let at = all.findIndex(stop => stop === from || stop.contains(from));
+  if (at < 0) at = track ? all.indexOf(track) : by > 0 ? -1 : all.length;  // anywhere else in the form counts as the question
+  const to = all[at + by];
+  if (to === track) home(); else if (to) to.focus();
+  return to;
 }
 function check(name, value, text) {
   const label = document.createElement("label"), box = document.createElement("input");
@@ -1042,7 +1118,12 @@ function sync(form, changed) {
   if (all && changed === all) boxes.forEach(box => box.checked = all.checked);
   else if (all) all.checked = boxes.length > 0 && boxes.every(box => box.checked);
 }
-function choose(form, glad) { form.elements.glad.value = glad; sync(form, null); }
+function choose(form, glad) {
+  form.elements.glad.value = glad; sync(form, null);
+  // The ring follows the answer while focus is on the question, or nowhere.
+  const active = document.activeElement;
+  if (active === document.body || $(".track", form).contains(active)) home();
+}
 
 async function save(item, form, merge) {
   if (form.ariaBusy === "true") return;
@@ -1057,7 +1138,7 @@ async function save(item, form, merge) {
     groups.waiting = groups.waiting.filter(other => other !== item);
     if (!(out.ok && merge)) groups.answered.push({...item, state: "answered", answer: glad ? "confirmed" : "overruled"});
     render();
-  } else { form.ariaBusy = "false"; form.querySelectorAll("button").forEach(button => button.disabled = false); }
+  } else { form.ariaBusy = "false"; form.querySelectorAll("button").forEach(button => button.disabled = false); home(); }
 }
 function skip() { if (!busy() && groups.waiting.length > 1) { groups.waiting.push(groups.waiting.shift()); say(""); showItem(); } }
 
@@ -1068,16 +1149,22 @@ function showRows(id, items, summary, label, run, stays) {
     link.textContent = item.title; link.href = item.url; $("span", row).textContent = item.answer || keyOf(item);
     button.textContent = label; button.setAttribute("aria-label", `${label}: ${item.title}`);
     button.addEventListener("click", async () => {
+      const at = [...row.parentElement.children].indexOf(row), held = document.activeElement === button;
       button.disabled = true; const out = await run(item); report(item, out);
       if (out.ok && !stays) { groups[id] = groups[id].filter(other => other !== item); render(false); } else button.disabled = out.ok;
+      if (!held) return;
+      // The row now in this one's place, then the rows after it, then the ones before, nearest first.
+      const rows = [...group.querySelectorAll(".rows li")];
+      const near = [...rows.slice(at), ...rows.slice(0, at).reverse()].map(other => $("button:enabled", other)).find(Boolean);
+      if (near) near.focus(); else if (group.hidden) home(); else $("summary", group).focus();
     });
     return row;
   }));
 }
 function render(item = true) {
   const {waiting, stale, answered, pending} = groups;
-  $("#summary").textContent = [`${waiting.length} to answer`, stale.length && plural(stale.length, "leftover label", "leftover labels"),
-    answered.length && `${answered.length} answered, still open`, pending.length && `${pending.length} waiting on the check`, MODE].filter(Boolean).join(" · ");
+  lede([`${waiting.length} to answer`, stale.length && plural(stale.length, "leftover label", "leftover labels"),
+    answered.length && `${answered.length} answered, still open`, pending.length && `${pending.length} waiting on the check`, MODE]);
   if (item) showItem();
   showRows("stale", stale, plural(stale.length, "with only the label left", "with only the label left"), "Clear label",
     item => act("/api/clear", {key: keyOf(item), head: item.head}));
@@ -1099,22 +1186,45 @@ async function load() {
 const letters = $("#letters");
 try { letters.checked = localStorage.getItem("letters") !== "off"; } catch (error) { /* storage is optional */ }
 letters.addEventListener("change", () => { try { localStorage.setItem("letters", letters.checked ? "on" : "off"); } catch (error) { /* optional */ } });
+const root = document.documentElement;
+root.dataset.keys = "";
+document.addEventListener("pointerdown", () => delete root.dataset.keys, true);
 document.addEventListener("keydown", event => {
-  const form = $("#current form"), target = event.target;
-  if (!form || busy() || event.metaKey || event.ctrlKey || event.altKey) return;
-  const typing = target.matches("input[type=text]"), ours = target === document.body || form.contains(target);
-  if (event.key === "Escape" && typing) return target.blur();
-  if (event.key === "Enter" && event.shiftKey && ours) { event.preventDefault(); return form.requestSubmit($("[value=merge]", form)); }
-  if (typing || target.closest("a, button, summary")) return;
-  const boxes = [...form.querySelectorAll("[name=reason]")], key = event.key;
-  if (key === "Enter" && !form.contains(target) && target === document.body) return form.requestSubmit($("[value=save]", form));
-  if (!letters.checked || target === letters) return;
-  if (key === "y") choose(form, "yes");
-  else if (key === "n") choose(form, "no");
-  else if (key === "s") skip();
-  else if (key === "o") { event.preventDefault(); if (!form.elements.glad.value) choose(form, "yes"); (form.elements.glad.value === "yes" ? form.elements.other : form.elements.note).focus(); }
-  else if (key === "a" && boxes.length) { choose(form, "yes"); const on = !boxes.every(box => box.checked); boxes.forEach(box => box.checked = on); sync(form, null); }
-  else if (/^[1-9]$/.test(key) && boxes[key - 1]) { choose(form, "yes"); boxes[key - 1].checked = !boxes[key - 1].checked; sync(form, null); }
+  root.dataset.keys = "";
+  if (busy() || event.metaKey || event.ctrlKey || event.altKey) return;
+  const form = $("#current form"), target = event.target, key = event.key;
+  const header = target.matches("summary") ? target : null, section = target.closest("details");
+  const inside = !header && !!section && !!target.closest("main > details");  // a row's button, or the toggle below
+  // Escape backs up one level: from inside a section to its header, from anywhere else to the question.
+  if (key === "Escape") { event.preventDefault(); return inside ? $("summary", section).focus() : home(); }
+  // Enter belongs to whatever has focus: a button, a link, a disclosure, the form's own fields.
+  // Shift+Enter is the page's, from the form or from nowhere, a text field included.
+  if (key === "Enter") {
+    if (!form) return;
+    if (event.shiftKey && (target === document.body || form.contains(target))) { event.preventDefault(); form.requestSubmit($("[value=merge]", form)); }
+    else if (target === document.body) form.requestSubmit($("[value=save]", form));
+    return;
+  }
+  if (target.matches("input[type=text]")) return;
+  // Sections: j and k step through them from anywhere. The arrows do the same once focus is on
+  // one; on the question they belong to the radio group.
+  const letter = letters.checked && target !== letters && key.length === 1 ? key : "", onStop = header || inside;
+  if (letter === "j" || key === "ArrowDown" && onStop) { event.preventDefault(); return step(1, target); }
+  if (letter === "k" || key === "ArrowUp" && onStop) { event.preventDefault(); return step(-1, target); }
+  if ((key === "ArrowRight" || letter === "l") && header) {
+    event.preventDefault();
+    if (!section.open) section.open = true; else if (section.contains(stops()[stops().indexOf(header) + 1])) step(1, target);
+    return;
+  }
+  if ((key === "ArrowLeft" || letter === "h") && onStop) { event.preventDefault(); return header ? void (section.open = false) : $("summary", section).focus(); }
+  if (!form || !letter) return;
+  const boxes = [...form.querySelectorAll("[name=reason]")];
+  if (letter === "y") choose(form, "yes");
+  else if (letter === "n") choose(form, "no");
+  else if (letter === "s") skip();
+  else if (letter === "o") { event.preventDefault(); if (!form.elements.glad.value) choose(form, "yes"); (form.elements.glad.value === "yes" ? form.elements.other : form.elements.note).focus(); }
+  else if (letter === "a" && boxes.length) { choose(form, "yes"); const on = !boxes.every(box => box.checked); boxes.forEach(box => box.checked = on); sync(form, null); }
+  else if (/^[1-9]$/.test(letter) && boxes[letter - 1]) { choose(form, "yes"); boxes[letter - 1].checked = !boxes[letter - 1].checked; sync(form, null); }
 });
 $("#reload").addEventListener("click", load);
 load();
@@ -1154,7 +1264,7 @@ def handler(queue: Queue, token: str, mode: str, hosts: set[str]) -> type[BaseHT
             return self.headers.get("Host", "") in hosts
 
         def allowed(self) -> bool:
-            return self.local() and secrets.compare_digest(self.headers.get("X-Queue-Token", ""), token)
+            return self.local() and secrets.compare_digest(self.headers.get("X-Queue-Token", "").encode(), token.encode())
 
         def do_GET(self) -> None:
             if not self.local():
@@ -1164,7 +1274,7 @@ def handler(queue: Queue, token: str, mode: str, hosts: set[str]) -> type[BaseHT
                 # The page carries the token every action needs, so it is served only to the link
                 # the server printed: another process on this machine cannot fetch it and act.
                 given = urllib.parse.parse_qs(url.query).get("t", [""])[0]
-                if not secrets.compare_digest(given, token):
+                if not secrets.compare_digest(given.encode(), token.encode()):
                     return self.send(403, b"Open the link this server printed when it started.\n", "text/plain; charset=utf-8")
                 return self.send(200, page(token, mode), "text/html; charset=utf-8")
             if self.path == "/api/queue" and self.allowed():
@@ -1496,6 +1606,7 @@ def policy(config, default): return ReplyOnly()
             # The page carries the token, so it is served only to the link the server printed,
             # and it cannot be framed by another site.
             assert get("/")[0] == 403 and token.encode() not in get("/")[1] and get("/?t=wrong")[0] == 403
+            assert get("/?t=%C3%A9")[0] == 403 and get("/api/queue", **{"X-Queue-Token": "\u00e9"})[0] == 403  # not ASCII: wrong, not a crash
             status, html = get(f"/?t={token}")
             assert status == 200 and token.encode() in html and b"Consequential queue" in html
             with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(f"{base}/?t={token}", timeout=10) as response:
