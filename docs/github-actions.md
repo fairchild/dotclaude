@@ -27,8 +27,9 @@ remain separate because their triggers and credentials differ from deterministic
 | skill-server release | The deployed run's tarball, when its version is unreleased; attested after deploy | GitHub release, prerelease for `-rc.N` |
 
 Each site deploys the tested artifact from its workflow run. Deployments use
-separate concurrency groups, run only from main, and reject older inputs when
-newer main commits change that service. Unrelated later commits do not block a
+separate concurrency groups and run only from main. When a newer main commit
+changes a service's inputs, an older run skips that deployment and the newer
+run deploys. Unrelated later commits do not block a
 valid deployment. Only PR runs share a workflow concurrency group; main runs have
 unique groups so a docs-only push cannot replace a pending deployment-producing
 run. Site locks still serialize deployments. A manual CI run on main rebuilds
@@ -36,10 +37,15 @@ both sites for recovery.
 
 The final deployment step checks the public commit marker and application
 responses. GitHub's environment deployment status therefore includes these checks.
-Skills additionally exposes the installed package version and digest in
-`/version.json`. The tarball includes compiled code and templates, not the hosted
-catalog, telemetry adapter, or account configuration. Its runtime dependencies
-still download from npm.
+Skills additionally exposes the installed package version, digest and
+`identity` in `/version.json`, and the deploy checks that `identity` against
+the run's `source.json`. The tarball includes compiled code and templates, not the hosted
+catalog, telemetry adapter, or account configuration. The Worker installs its
+runtime dependencies with `npm ci` against the packaged `npm-shrinkwrap.json`,
+which follows `mcp/bun.lock`, so it runs the versions the tests ran.
+`node scripts/shrinkwrap.mjs` rewrites the file, and the package job fails when
+it is stale. npm applies a dependency's shrinkwrap only to registry installs, so
+an `npm install` of the tarball still resolves the declared ranges.
 
 Windows failures are discovered after merge, but still block deployment and
 package publication. The previous production version remains serving. Path
@@ -151,7 +157,7 @@ bun run typecheck
 bun test conformance
 bun run build:package
 PACKAGE_OUTPUT_DIR=out bun run test:package
-node scripts/prepare-worker.mjs out/skill-server-0.1.0-rc.2.tgz
+node scripts/prepare-worker.mjs out/*.tgz
 node scripts/check-worker.mjs
 cd e2e && bun install --frozen-lockfile && bun run test
 ```

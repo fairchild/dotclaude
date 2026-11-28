@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, cpSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, cpSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
+import { x } from 'tar';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const archive = resolve(process.argv[2]);
@@ -11,7 +12,15 @@ const output = join(root, '.worker-package');
 const scratch = mkdtempSync(join(tmpdir(), 'skill-worker-consumer-'));
 try {
   writeFileSync(join(scratch, 'package.json'), '{"private":true,"type":"module"}');
-  execFileSync('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', archive], { cwd: scratch, stdio: 'inherit' });
+  // npm applies a package's shrinkwrap only to registry installs, so the Worker installs the
+  // tarball's dependency tree itself: npm ci against the packaged npm-shrinkwrap.json.
+  const installed = join(scratch, 'node_modules/skill-server');
+  mkdirSync(installed, { recursive: true });
+  x({ file: archive, cwd: installed, strip: 1, sync: true });
+  const manifest = JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8'));
+  delete manifest.devDependencies;
+  writeFileSync(join(installed, 'package.json'), JSON.stringify(manifest));
+  execFileSync('npm', ['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: installed, stdio: 'inherit' });
   const { buildSnapshot } = await import(pathToFileURL(join(scratch, 'node_modules/skill-server/dist/http.js')));
   // Source telemetry stays in this deployment adapter, outside the reusable package.
   const adapter = readFileSync(join(root, 'worker/worker.ts'), 'utf8').replace('"./handler.ts"', '"skill-server/http"');
@@ -27,7 +36,10 @@ try {
   });
   const packageDigest = createHash('sha256').update(readFileSync(archive)).digest('hex');
   const { version } = JSON.parse(readFileSync(join(scratch, 'node_modules/skill-server/package.json')));
-  writeFileSync(join(scratch, 'dist/public/version.json'), JSON.stringify({ sourceSha: process.env.GITHUB_SHA ?? null, packageVersion: version, packageDigest }));
+  // release-evidence.mjs writes source.json beside the tarball; its identity is what the release names.
+  const evidence = join(dirname(archive), 'source.json');
+  const identity = existsSync(evidence) ? JSON.parse(readFileSync(evidence, 'utf8')).identity : null;
+  writeFileSync(join(scratch, 'dist/public/version.json'), JSON.stringify({ sourceSha: process.env.GITHUB_SHA ?? null, packageVersion: version, packageDigest, identity }));
   execFileSync(join(root, 'node_modules/.bin/wrangler'), ['deploy', '--dry-run', '--outdir', 'bundle'], { cwd: scratch, stdio: 'inherit', env: { ...process.env, WRANGLER_SEND_METRICS: 'false' } });
   rmSync(output, { recursive: true, force: true });
   mkdirSync(output);

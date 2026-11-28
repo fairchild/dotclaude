@@ -27,7 +27,11 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           version=$(jq -r .version candidate/source.json)
-          tagged=$(gh api "repos/$GH_REPO/git/ref/tags/skill-server-v$version" --jq .object.sha 2>/dev/null) || tagged=""
+          # Only a 404 means untagged; any other lookup failure stops before publishing.
+          if ! tagged=$(gh api "repos/$GH_REPO/git/ref/tags/skill-server-v$version" --jq .object.sha 2>lookup.err); then
+            grep -q 'HTTP 404' lookup.err || { cat lookup.err; exit 1; }
+            tagged=""
+          fi
           if [[ -n "$tagged" && "$tagged" != "$GITHUB_SHA" ]]; then
             echo "::error::skill-server-v$version already tags $tagged, not $GITHUB_SHA"
             exit 1

@@ -23,6 +23,7 @@ jobs:
           cache: npm
           cache-dependency-path: mcp/bun.lock
       - run: bun install --frozen-lockfile
+      - run: node scripts/shrinkwrap.mjs --check
       - run: bun run typecheck && bun test conformance && bun run build:package
       - run: bun run test:package
         env:

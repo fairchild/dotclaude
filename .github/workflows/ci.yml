@@ -151,25 +151,31 @@ jobs:
         with:
           name: skills-worker-${{ github.sha }}
           path: deployed
-      - run: node .github/scripts/deployment-current.mjs package
+      # A newer commit touching these inputs deploys from its own run; this one then skips.
+      - id: current
+        run: node .github/scripts/deployment-current.mjs package
         env:
           GH_TOKEN: ${{ github.token }}
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.current.outputs.current == 'true'
         with:
           name: skill-server-${{ github.sha }}
           path: candidate
       # Rechecked under the production lock: an earlier run may have released this version meanwhile.
       - id: release
+        if: steps.current.outputs.current == 'true'
         run: node .github/scripts/release-version.mjs candidate mcp/CHANGELOG.md
         env:
           GH_TOKEN: ${{ github.token }}
       - run: ../mcp/node_modules/.bin/wrangler deploy --config wrangler.toml
+        if: steps.current.outputs.current == 'true'
         working-directory: deployed
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           WRANGLER_SEND_METRICS: 'false'
-      - run: node .github/scripts/verify-deployment.mjs https://skills.cloudcompute.com skills
+      - run: node .github/scripts/verify-deployment.mjs https://skills.cloudcompute.com skills candidate/source.json
+        if: steps.current.outputs.current == 'true'
   release-skills:
     needs: deploy-skills
     if: ${{ !cancelled() && needs.deploy-skills.result == 'success' && needs.deploy-skills.outputs.release == 'true' }}
@@ -202,16 +208,19 @@ jobs:
         with:
           name: webui-${{ github.sha }}
           path: deployed
-      - run: node .github/scripts/deployment-current.mjs webui
+      - id: current
+        run: node .github/scripts/deployment-current.mjs webui
         env:
           GH_TOKEN: ${{ github.token }}
       - run: ../mcp/node_modules/.bin/wrangler deploy --config wrangler.toml
+        if: steps.current.outputs.current == 'true'
         working-directory: deployed
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           WRANGLER_SEND_METRICS: 'false'
       - run: node .github/scripts/verify-deployment.mjs https://claude.cloudcompute.com webui
+        if: steps.current.outputs.current == 'true'
 
   analyze:
     needs: changes

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-const [origin, service] = process.argv.slice(2);
+const [origin, service, evidence] = process.argv.slice(2);
 async function get(path, options = {}) {
   const response = await fetch(`${origin}${path}`, { ...options, signal: AbortSignal.timeout(10_000) });
   assert(response.ok, `${path}: HTTP ${response.status}`);
@@ -13,6 +13,7 @@ for (let attempt = 0; attempt < 12; attempt++) {
   await new Promise(resolve => setTimeout(resolve, 5000));
 }
 assert.equal(version?.sourceSha, process.env.GITHUB_SHA, 'production commit mismatch');
+if (evidence) assert.equal(version.identity, JSON.parse(readFileSync(evidence, 'utf8')).identity, 'production code identity mismatch');
 const home = await get('/');
 if (service === 'skills') {
   assert.equal(home.headers.get('strict-transport-security'), 'max-age=31536000', '/: HSTS');
