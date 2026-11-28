@@ -82,17 +82,18 @@ When asked to say hello, answer with a single friendly sentence.
 Then, in the project directory:
 
 ```sh
-npm install ./skill-server-0.1.0-rc.2.tgz
+npm install ./skill-server-<version>.tgz
 npx --no-install skill-server --help
 npx --no-install skill-server stdio --root ./my-skills
 npx --no-install skill-server build --root ./my-skills --out ./snapshot --base-url http://127.0.0.1:3000
 npx --no-install skill-server serve --snapshot ./snapshot --port 3000
 ```
 
-The filename is the initial candidate version, not a claim that a release already
-exists. Requires Node 22.14+; CI checks Node 22.14.0 and current Node 22/24.
-PRs qualify Linux/macOS; main and releases also qualify Windows. Dependencies download
-from npm, but this package is distributed through GitHub only. No Bun, TypeScript
+`<version>` is the release you downloaded. Requires Node 22.14+; CI checks Node
+22.14.0 and current Node 22/24. PRs qualify Linux/macOS; main and releases also
+qualify Windows. Dependencies download from npm within the declared ranges (the
+hosted service runs the versions in the packaged `npm-shrinkwrap.json`), but this
+package is distributed through GitHub only. No Bun, TypeScript
 compiler, system tar, or consumer installation script is required. `stdio` and
 `build` require `--root`; `serve` requires `--snapshot` and defaults to
 `127.0.0.1:3000`, overridable with `--host`/`--port`. HTTP listens on loopback
@@ -142,7 +143,7 @@ The GitHub release includes a SHA-256 checksum, source record and build
 attestation. Verify a downloaded artifact with:
 
 ```sh
-gh attestation verify skill-server-0.1.0-rc.2.tgz --repo fairchild/dotclaude
+gh attestation verify skill-server-<version>.tgz --repo fairchild/dotclaude
 ```
 
 ## CLI contract
@@ -233,7 +234,7 @@ bun run typecheck
 bun test conformance
 bun run build:package
 PACKAGE_OUTPUT_DIR=out bun run test:package
-node scripts/prepare-worker.mjs out/skill-server-0.1.0-rc.2.tgz
+node scripts/prepare-worker.mjs out/*.tgz
 node scripts/check-worker.mjs
 ```
 

@@ -3,8 +3,7 @@
 ## Supported versions
 
 `skill-server` has no stable release. The supported artifacts are the
-`0.1.0-rc.N` candidates published as `skill-server-v*` GitHub prereleases
-(currently `skill-server-v0.1.0-rc.2`), and only the most recent one. The repository's older `v0.1.0` release is not a
+`0.1.0-rc.N` candidates published as `skill-server-v*` GitHub prereleases, and only the newest one. The repository's older `v0.1.0` release is not a
 skill-server package release. There is no npm package. Fixes ship as a new
 candidate; released assets are never overwritten.
 

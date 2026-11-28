@@ -12,6 +12,26 @@ tarball as the `skill-server-v<version>` GitHub release, so the newest
 
 ## [Unreleased]
 
+## [0.1.0-rc.3] - 2026-11-28
+
+The release now names every dependency version that serves.
+
+### Changed
+
+- The tarball carries `npm-shrinkwrap.json`, generated from `bun.lock`. The
+  hosted Worker installs exactly that tree with `npm ci`, so it runs the
+  versions the tests ran, and `identity` covers it. Changing a dependency
+  therefore needs a new version. npm applies a dependency's shrinkwrap only to
+  registry installs, so `npm install` of the tarball still resolves the
+  declared ranges.
+- Until now the Worker resolved dependency ranges fresh on each deploy. On
+  2026-11-28 that picked `markdown-it` 15.0.3, `tar` 7.5.24, `yaml` 2.9.1 and
+  `zod` 4.6.7, while the tests used 15.0.1, 7.5.22, 2.9.0 and 4.5.4. rc.3
+  serves the tested versions.
+- The hosted `version.json` gains `identity`. The deploy checks that the live
+  value matches the run's `source.json`, so a match with a release's
+  `source.json` means the live server is that release.
+
 ## [0.1.0-rc.2] - 2026-11-26
 
 The server now implements MCP protocol revision 2026-07-28 and nothing
@@ -106,6 +126,7 @@ first release candidate. It served MCP protocol revisions up to 2025-11-25.
 - A Node CLI and importable modules, built and released through GitHub with
   attested artifacts.
 
-[Unreleased]: https://github.com/fairchild/dotclaude/compare/skill-server-v0.1.0-rc.2...HEAD
+[Unreleased]: https://github.com/fairchild/dotclaude/compare/skill-server-v0.1.0-rc.3...HEAD
+[0.1.0-rc.3]: https://github.com/fairchild/dotclaude/releases/tag/skill-server-v0.1.0-rc.3
 [0.1.0-rc.2]: https://github.com/fairchild/dotclaude/releases/tag/skill-server-v0.1.0-rc.2
 [0.1.0-rc.1]: https://github.com/fairchild/dotclaude/releases/tag/skill-server-v0.1.0-rc.1
