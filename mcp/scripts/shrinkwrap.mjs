@@ -21,8 +21,12 @@ const overrides = Object.fromEntries(Object.entries(locked).filter(([key]) => !(
 const scratch = mkdtempSync(join(tmpdir(), 'skill-server-shrinkwrap-'));
 try {
   writeFileSync(join(scratch, 'package.json'), JSON.stringify({ name, version, dependencies: pinned, overrides }));
-  execFileSync('npm', ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--lockfile-version', '3'], { cwd: scratch, stdio: 'inherit' });
+  execFileSync('npm', ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--lockfile-version', '3', '--registry', 'https://registry.npmjs.org/'], { cwd: scratch, stdio: 'inherit' });
   const lock = JSON.parse(readFileSync(join(scratch, 'package-lock.json'), 'utf8'));
+  // The overrides force bun's hoisted versions everywhere. A runtime package bun nests at a second
+  // version would be forced too, so this tree would differ from the tested one.
+  const nested = Object.keys(packages).filter(key => !(key in locked) && `node_modules/${key.split('/').slice(0, key.startsWith('@') ? 2 : 1).join('/')}` in lock.packages);
+  if (nested.length) throw new Error(`bun.lock nests runtime packages at a second version (${nested.join(', ')}); npm-shrinkwrap.json cannot follow it`);
   lock.packages[''] = { name, version, license: lock.packages[''].license, dependencies, engines };
   const resolved = `${JSON.stringify(lock, null, 2)}\n`;
   if (process.argv.includes('--check')) {

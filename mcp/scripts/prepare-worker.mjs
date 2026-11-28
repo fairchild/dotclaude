@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { x } from 'tar';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+if (process.argv.length !== 3) throw new Error('Usage: node scripts/prepare-worker.mjs <tarball>; with several tarballs in out/, remove the old ones');
 const archive = resolve(process.argv[2]);
 const output = join(root, '.worker-package');
 const scratch = mkdtempSync(join(tmpdir(), 'skill-worker-consumer-'));
@@ -36,9 +37,11 @@ try {
   });
   const packageDigest = createHash('sha256').update(readFileSync(archive)).digest('hex');
   const { version } = JSON.parse(readFileSync(join(scratch, 'node_modules/skill-server/package.json')));
-  // release-evidence.mjs writes source.json beside the tarball; its identity is what the release names.
+  // release-evidence.mjs writes source.json beside the tarball; its identity is what the release
+  // names. A source.json left from another tarball does not describe this one.
   const evidence = join(dirname(archive), 'source.json');
-  const identity = existsSync(evidence) ? JSON.parse(readFileSync(evidence, 'utf8')).identity : null;
+  const record = existsSync(evidence) ? JSON.parse(readFileSync(evidence, 'utf8')) : {};
+  const identity = record.digest === packageDigest ? record.identity : null;
   writeFileSync(join(scratch, 'dist/public/version.json'), JSON.stringify({ sourceSha: process.env.GITHUB_SHA ?? null, packageVersion: version, packageDigest, identity }));
   execFileSync(join(root, 'node_modules/.bin/wrangler'), ['deploy', '--dry-run', '--outdir', 'bundle'], { cwd: scratch, stdio: 'inherit', env: { ...process.env, WRANGLER_SEND_METRICS: 'false' } });
   rmSync(output, { recursive: true, force: true });

@@ -130,13 +130,16 @@ jobs:
     if: ${{ !cancelled() && needs.gate.result == 'success' && needs.package.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # The environment supplies credentials only; record-skills marks the deployment once this job
+    # has deployed and verified, so a superseded run never becomes the active deployment.
     environment:
       name: skills-production
-      url: https://skills.cloudcompute.com
+      deployment: false
     concurrency:
       group: skills-production
       cancel-in-progress: false
     outputs:
+      deployed: ${{ steps.current.outputs.current }}
       release: ${{ steps.release.outputs.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -176,6 +179,16 @@ jobs:
           WRANGLER_SEND_METRICS: 'false'
       - run: node .github/scripts/verify-deployment.mjs https://skills.cloudcompute.com skills candidate/source.json
         if: steps.current.outputs.current == 'true'
+  record-skills:
+    needs: deploy-skills
+    if: ${{ !cancelled() && needs.deploy-skills.result == 'success' && needs.deploy-skills.outputs.deployed == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: skills-production
+      url: https://skills.cloudcompute.com
+    steps:
+      - run: echo "deploy-skills deployed and verified $GITHUB_SHA"
   release-skills:
     needs: deploy-skills
     if: ${{ !cancelled() && needs.deploy-skills.result == 'success' && needs.deploy-skills.outputs.release == 'true' }}
@@ -189,12 +202,15 @@ jobs:
     if: ${{ !cancelled() && needs.gate.result == 'success' && needs.webui.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # As for deploy-skills: record-webui marks the deployment after it is deployed and verified.
     environment:
       name: webui-production
-      url: https://claude.cloudcompute.com
+      deployment: false
     concurrency:
       group: webui-production
       cancel-in-progress: false
+    outputs:
+      deployed: ${{ steps.current.outputs.current }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -221,6 +237,16 @@ jobs:
           WRANGLER_SEND_METRICS: 'false'
       - run: node .github/scripts/verify-deployment.mjs https://claude.cloudcompute.com webui
         if: steps.current.outputs.current == 'true'
+  record-webui:
+    needs: deploy-webui
+    if: ${{ !cancelled() && needs.deploy-webui.result == 'success' && needs.deploy-webui.outputs.deployed == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: webui-production
+      url: https://claude.cloudcompute.com
+    steps:
+      - run: echo "deploy-webui deployed and verified $GITHUB_SHA"
 
   analyze:
     needs: changes

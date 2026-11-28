@@ -36,7 +36,10 @@ run. Site locks still serialize deployments. A manual CI run on main rebuilds
 both sites for recovery.
 
 The final deployment step checks the public commit marker and application
-responses. GitHub's environment deployment status therefore includes these checks.
+responses. The deploy job takes its credentials from the environment without
+recording a deployment (`deployment: false`). A following `record-*` job records
+it once the deploy and these checks pass, so the environment's active deployment
+is the newest verified one, never a run that skipped as superseded.
 Skills additionally exposes the installed package version, digest and
 `identity` in `/version.json`, and the deploy checks that `identity` against
 the run's `source.json`. The tarball includes compiled code and templates, not the hosted
