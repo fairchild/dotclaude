@@ -184,6 +184,10 @@ jobs:
     if: ${{ !cancelled() && needs.deploy-skills.result == 'success' && needs.deploy-skills.outputs.deployed == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Records queue in deploy order; a newer pending record replaces an older one, so the newest wins.
+    concurrency:
+      group: skills-production-record
+      cancel-in-progress: false
     environment:
       name: skills-production
       url: https://skills.cloudcompute.com
@@ -242,6 +246,10 @@ jobs:
     if: ${{ !cancelled() && needs.deploy-webui.result == 'success' && needs.deploy-webui.outputs.deployed == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Records queue in deploy order; a newer pending record replaces an older one, so the newest wins.
+    concurrency:
+      group: webui-production-record
+      cancel-in-progress: false
     environment:
       name: webui-production
       url: https://claude.cloudcompute.com
